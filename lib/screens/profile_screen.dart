@@ -109,24 +109,21 @@ class ProfileScreen extends StatelessWidget {
                     child: Column(
                       children: [
                         _buildMenuTile(
-                          icon: Icons.person,
+                          icon: Icons.person_outline,
                           title: 'Edit Profil',
-                          iconColor: AppColors.darkBlue,
                           onTap: () => context.push(AppRoutes.editProfile),
                         ),
                         const Divider(height: 1, indent: 60, color: AppColors.border),
                         _buildMenuTile(
-                          icon: Icons.location_on,
+                          icon: Icons.location_on_outlined,
                           title: 'Alamat Tersimpan',
-                          iconColor: Colors.pinkAccent, // Matching icon distinct colors like in design
                           trailingText: '3 alamat',
                           onTap: () => context.push(AppRoutes.addresses),
                         ),
                         const Divider(height: 1, indent: 60, color: AppColors.border),
                         _buildMenuTile(
-                          icon: Icons.notifications,
+                          icon: Icons.notifications_outlined,
                           title: 'Notifikasi',
-                          iconColor: Colors.orangeAccent,
                           trailingText: 'Aktif',
                           onTap: () => context.push(AppRoutes.notificationSettings),
                         ),
@@ -149,21 +146,18 @@ class ProfileScreen extends StatelessWidget {
                     child: Column(
                       children: [
                         _buildMenuTile(
-                          icon: Icons.security,
+                          icon: Icons.shield_outlined,
                           title: 'Kebijakan Privasi',
-                          iconColor: Colors.blueAccent,
                         ),
                         const Divider(height: 1, indent: 60, color: AppColors.border),
                         _buildMenuTile(
-                          icon: Icons.description,
+                          icon: Icons.description_outlined,
                           title: 'Syarat & Ketentuan',
-                          iconColor: Colors.brown,
                         ),
                         const Divider(height: 1, indent: 60, color: AppColors.border),
                         _buildMenuTile(
-                          icon: Icons.info,
+                          icon: Icons.info_outline,
                           title: 'Versi Aplikasi',
-                          iconColor: Colors.blue,
                           trailingText: 'v1.0.0',
                           showChevron: false,
                         ),
@@ -254,7 +248,6 @@ class ProfileScreen extends StatelessWidget {
   Widget _buildMenuTile({
     required IconData icon,
     required String title,
-    required Color iconColor,
     String? trailingText,
     bool showChevron = true,
     VoidCallback? onTap,
@@ -264,10 +257,10 @@ class ProfileScreen extends StatelessWidget {
       leading: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: iconColor.withValues(alpha: 0.1),
+          color: AppColors.primary.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(icon, color: iconColor, size: 20),
+        child: Icon(icon, color: AppColors.primary, size: 20),
       ),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
       trailing: Row(

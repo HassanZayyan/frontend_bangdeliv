@@ -69,7 +69,7 @@ class HomeScreen extends StatelessWidget {
 
   Widget _buildHeader(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: const BoxDecoration(
         color: AppColors.primary,
         borderRadius: BorderRadius.only(
@@ -77,48 +77,38 @@ class HomeScreen extends StatelessWidget {
           bottomRight: Radius.circular(24),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Selamat siang, 👋', style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 14)),
-                  const Text('Hassan!', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                ],
-              ),
-              IconButton(
-                onPressed: () {
-                  context.push(AppRoutes.notifications); 
-                },
-                icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-              )
-            ],
-          ),
-          const SizedBox(height: 20),
           // Search Bar
-          TextField(
-            decoration: InputDecoration(
-              hintText: 'Cari restoran atau menu...',
-              prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
-              filled: true,
-              fillColor: AppColors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
+          Expanded(
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Cari restoran atau menu...',
+                prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+                filled: true,
+                fillColor: AppColors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             ),
+          ),
+          // Tombol Notifikasi
+          IconButton(
+            onPressed: () {
+              context.push(AppRoutes.notifications);
+            },
+            icon: const Icon(Icons.notifications_outlined, color: Colors.white, size: 28),
           ),
         ],
       ),
+
     );
   }
 

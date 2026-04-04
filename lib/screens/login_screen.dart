@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../config/app_routes.dart';
 import 'package:go_router/go_router.dart';
 import '../config/app_colors.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -57,24 +58,32 @@ class _LoginScreenState extends State<LoginScreen> {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.white.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: const Text(
-            '🛵',
-            style: TextStyle(fontSize: 40),
+        ClipOval(
+          child: Image.asset(
+            'assets/images/logo.jpg',
+            width: 100,
+            height: 100,
+            fit: BoxFit.cover,
           ),
         ),
         const SizedBox(height: 16),
-        Text(
-          'BangDeliv',
-          style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                color: AppColors.white,
-                fontWeight: FontWeight.bold,
+        RichText(
+          text: TextSpan(
+            style: GoogleFonts.bebasNeue(
+              fontSize: 48,
+              letterSpacing: 2,
+            ),
+            children: const [
+              TextSpan(
+                text: 'BANG',
+                style: TextStyle(color: Colors.white),
               ),
+              TextSpan(
+                text: ' DELIV',
+                style: TextStyle(color: Colors.black),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 8),
         Text(
