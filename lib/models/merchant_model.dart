@@ -12,4 +12,31 @@ class MerchantModel {
     required this.rating,
     required this.imageUrl,
   });
+
+  factory MerchantModel.fromApiJson(Map<String, dynamic> json) {
+    return MerchantModel(
+      id: (json['id'] ?? '').toString(),
+      name: json['name']?.toString() ?? '-',
+      distance: _distanceLabel(json['distance_km']),
+      rating: _toDouble(json['avg_rating']),
+      imageUrl: json['banner_image']?.toString() ?? '',
+    );
+  }
+
+  static String _distanceLabel(dynamic distanceKm) {
+    final value = _toDouble(distanceKm);
+    if (value <= 0) {
+      return '-';
+    }
+
+    return '${value.toStringAsFixed(1)} km';
+  }
+
+  static double _toDouble(dynamic value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(value?.toString() ?? '') ?? 0;
+  }
 }

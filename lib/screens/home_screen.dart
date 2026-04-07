@@ -1,65 +1,64 @@
 import 'package:flutter/material.dart';
-import '../config/app_colors.dart';
-import '../config/app_routes.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class HomeScreen extends StatelessWidget {
+import '../config/app_colors.dart';
+import '../config/app_routes.dart';
+import '../models/home_data_model.dart';
+import '../providers/api_providers.dart';
+
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  late final TextEditingController _searchController;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final homeDataAsync = ref.watch(homeDataProvider);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
-            // Header Orange & Search Bar
             _buildHeader(context),
-            
-            // Konten scrollable
             Expanded(
               child: RefreshIndicator(
                 color: AppColors.primary,
                 backgroundColor: AppColors.white,
                 onRefresh: () async {
-                  // TODO: Panggil fungsi load data API di sini nantinya
-                  await Future.delayed(const Duration(seconds: 1, milliseconds: 500));
+                  ref.invalidate(homeDataProvider);
+                  await ref.read(homeDataProvider.future);
                 },
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Banner Chatbot
-                    _buildChatbotBanner(context),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Kategori Makanan
-                    _buildSectionTitle('Kategori'),
-                    const SizedBox(height: 12),
-                    _buildCategories(),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Menu Populer
-                    _buildSectionTitle('Menu Populer'),
-                    const SizedBox(height: 12),
-                    _buildPopularMenus(),
-
-                    const SizedBox(height: 24),
-
-                    // Merchant Terdekat
-                    _buildSectionTitle('Merchant Terdekat'),
-                    const SizedBox(height: 12),
-                    _buildNearbyMerchants(),
-                    const SizedBox(height: 100), // Spacing for bottom navbar
-                  ],
+                  child: homeDataAsync.when(
+                    loading: () => _buildLoadingContent(context),
+                    error: (error, stackTrace) =>
+                        _buildErrorContent(error.toString()),
+                    data: (data) => _buildDataContent(context, data),
+                  ),
                 ),
               ),
-            ),
             ),
           ],
         ),
@@ -79,12 +78,19 @@ class HomeScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Search Bar
           Expanded(
             child: TextField(
+              controller: _searchController,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (value) {
+                ref.read(homeSearchQueryProvider.notifier).setQuery(value);
+              },
               decoration: InputDecoration(
                 hintText: 'Cari restoran atau menu...',
-                prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+                prefixIcon: const Icon(
+                  Icons.search,
+                  color: AppColors.textSecondary,
+                ),
                 filled: true,
                 fillColor: AppColors.white,
                 border: OutlineInputBorder(
@@ -95,20 +101,25 @@ class HomeScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
               ),
             ),
           ),
-          // Tombol Notifikasi
           IconButton(
             onPressed: () {
               context.push(AppRoutes.notifications);
             },
-            icon: const Icon(Icons.notifications_outlined, color: Colors.white, size: 28),
+            icon: const Icon(
+              Icons.notifications_outlined,
+              color: Colors.white,
+              size: 28,
+            ),
           ),
         ],
       ),
-
     );
   }
 
@@ -122,33 +133,126 @@ class HomeScreen extends StatelessWidget {
           color: AppColors.darkBlue,
           borderRadius: BorderRadius.circular(16),
         ),
-      child: Row(
-        children: [
-          // Icon Bintang AI
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.white.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Text('✨', style: TextStyle(fontSize: 24)),
             ),
-            child: const Text('✨', style: TextStyle(fontSize: 24)),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Pesan via AI Chatbot',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Ketik pesanan, AI yang urus semua!',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.8),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.white),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingContent(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildChatbotBanner(context),
+        const SizedBox(height: 24),
+        const Center(
+          child: Padding(
+            padding: EdgeInsets.only(top: 32),
+            child: CircularProgressIndicator(),
           ),
-          const SizedBox(width: 16),
-          // Texts
-          Expanded(
+        ),
+      ],
+    );
+  }
+
+  Widget _buildErrorContent(String message) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildChatbotBanner(context),
+        const SizedBox(height: 24),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Pesan via AI Chatbot', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                const SizedBox(height: 4),
-                Text('Ketik pesanan, AI yang urus semua!', style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12)),
+                const Text(
+                  'Gagal memuat data beranda',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  message,
+                  style: const TextStyle(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () => ref.invalidate(homeDataProvider),
+                  child: const Text('Coba lagi'),
+                ),
               ],
             ),
           ),
-          const Icon(Icons.chevron_right, color: Colors.white),
-        ],
-      ),
-    ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDataContent(BuildContext context, HomeDataModel data) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildChatbotBanner(context),
+        const SizedBox(height: 24),
+        _buildSectionTitle('Kategori'),
+        const SizedBox(height: 12),
+        _buildCategories(data),
+        const SizedBox(height: 24),
+        _buildSectionTitle('Menu Populer'),
+        const SizedBox(height: 12),
+        _buildPopularMenus(data),
+        const SizedBox(height: 24),
+        _buildSectionTitle('Merchant Terdekat'),
+        const SizedBox(height: 12),
+        _buildNearbyMerchants(data),
+        const SizedBox(height: 100),
+      ],
     );
   }
 
@@ -166,15 +270,251 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCategories() {
-    return const SizedBox.shrink();
+  Widget _buildCategories(HomeDataModel data) {
+    if (data.categories.isEmpty) {
+      return _buildEmptySection('Belum ada kategori.');
+    }
+
+    return SizedBox(
+      height: 86,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: data.categories.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
+          final category = data.categories[index];
+
+          return Container(
+            constraints: const BoxConstraints(minWidth: 88),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(category.icon, style: const TextStyle(fontSize: 18)),
+                const SizedBox(height: 6),
+                Text(
+                  category.name,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
-  Widget _buildPopularMenus() {
-    return const SizedBox.shrink();
+  Widget _buildPopularMenus(HomeDataModel data) {
+    if (data.popularMenus.isEmpty) {
+      return _buildEmptySection('Belum ada menu populer.');
+    }
+
+    return SizedBox(
+      height: 220,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: data.popularMenus.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final food = data.popularMenus[index];
+
+          return Container(
+            width: 180,
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(14),
+                  ),
+                  child: SizedBox(
+                    height: 104,
+                    width: double.infinity,
+                    child: food.imageUrl.isEmpty
+                        ? Container(
+                            color: AppColors.primaryLight,
+                            child: const Icon(Icons.restaurant_menu_outlined),
+                          )
+                        : Image.network(
+                            food.imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Container(
+                                  color: AppColors.primaryLight,
+                                  child: const Icon(
+                                    Icons.broken_image_outlined,
+                                  ),
+                                ),
+                          ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        food.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        food.restaurantName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.star_rounded,
+                            color: Colors.amber,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(food.rating.toStringAsFixed(1)),
+                          const Spacer(),
+                          Text(
+                            food.formattedPrice,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
-  Widget _buildNearbyMerchants() {
-    return const SizedBox.shrink();
+  Widget _buildNearbyMerchants(HomeDataModel data) {
+    if (data.nearbyMerchants.isEmpty) {
+      return _buildEmptySection('Belum ada merchant terdekat.');
+    }
+
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: data.nearbyMerchants.length,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      separatorBuilder: (context, index) => const SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        final merchant = data.nearbyMerchants[index];
+
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: 52,
+                  height: 52,
+                  child: merchant.imageUrl.isEmpty
+                      ? Container(
+                          color: AppColors.primaryLight,
+                          child: const Icon(Icons.storefront_outlined),
+                        )
+                      : Image.network(
+                          merchant.imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              Container(
+                                color: AppColors.primaryLight,
+                                child: const Icon(Icons.broken_image_outlined),
+                              ),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      merchant.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${merchant.distance} • ⭐ ${merchant.rating.toStringAsFixed(1)}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptySection(String message) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Text(
+          message,
+          style: const TextStyle(color: AppColors.textSecondary),
+        ),
+      ),
+    );
   }
 }

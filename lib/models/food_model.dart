@@ -15,8 +15,30 @@ class FoodModel {
     required this.imageUrl,
   });
 
+  factory FoodModel.fromApiJson(
+    Map<String, dynamic> json, {
+    required String restaurantName,
+    required double restaurantRating,
+  }) {
+    return FoodModel(
+      id: (json['id'] ?? '').toString(),
+      name: json['name']?.toString() ?? '-',
+      restaurantName: restaurantName,
+      price: _toDouble(json['price']),
+      rating: restaurantRating,
+      imageUrl: json['image']?.toString() ?? '',
+    );
+  }
+
   String get formattedPrice {
-    // Format simpel ke Rupiah. Nanti bisa disempurnakan dengan package intl
-    return "Rp ${price.toInt()}"; 
+    return 'Rp ${price.toInt()}';
+  }
+
+  static double _toDouble(dynamic value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(value?.toString() ?? '') ?? 0;
   }
 }
