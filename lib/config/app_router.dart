@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../screens/login_screen.dart';
 import '../screens/register_screen.dart';
+import '../screens/register_success_screen.dart';
 import '../screens/forgot_password_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/chatbot_screen.dart';
@@ -9,14 +10,18 @@ import '../screens/order_history_screen.dart';
 import '../screens/track_order_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/edit_profile_screen.dart';
+import '../screens/change_password_screen.dart';
 import '../screens/saved_addresses_screen.dart';
+import '../screens/add_address_screen.dart';
+import '../models/user_profile_model.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/notification_settings_screen.dart';
 import '../screens/main_layout.dart';
 import 'app_routes.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
-final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>();
+final GlobalKey<NavigatorState> _shellNavigatorKey =
+    GlobalKey<NavigatorState>();
 
 final appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
@@ -31,6 +36,11 @@ final appRouter = GoRouter(
       path: AppRoutes.register,
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => const RegisterScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.registerSuccess,
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const RegisterSuccessScreen(),
     ),
     GoRoute(
       path: AppRoutes.forgotPassword,
@@ -48,9 +58,32 @@ final appRouter = GoRouter(
       builder: (context, state) => const EditProfileScreen(),
     ),
     GoRoute(
+      path: AppRoutes.changePassword,
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const ChangePasswordScreen(),
+    ),
+    GoRoute(
       path: AppRoutes.addresses,
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => const SavedAddressesScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.addAddress,
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) {
+        SavedAddressModel? initialAddress;
+        final extra = state.extra;
+
+        if (extra is SavedAddressModel) {
+          initialAddress = extra;
+        } else if (extra is Map) {
+          initialAddress = SavedAddressModel.fromJson(
+            Map<String, dynamic>.from(extra),
+          );
+        }
+
+        return AddAddressScreen(initialAddress: initialAddress);
+      },
     ),
     GoRoute(
       path: AppRoutes.notifications,
