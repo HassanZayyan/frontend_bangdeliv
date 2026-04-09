@@ -39,6 +39,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final isCompact = MediaQuery.sizeOf(context).height < 860;
 
     return Scaffold(
       backgroundColor: AppColors.primary,
@@ -53,12 +54,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
             // Bottom Card (White)
             Expanded(
-              flex: isKeyboardOpen ? 1 : 6,
+              flex: isKeyboardOpen ? 1 : (isCompact ? 7 : 6),
               child: Container(
                 width: double.infinity,
                 padding: EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: isKeyboardOpen ? 20 : 32,
+                  horizontal: isCompact ? 20 : 24,
+                  vertical: isKeyboardOpen ? 16 : (isCompact ? 20 : 28),
                 ),
                 decoration: const BoxDecoration(
                   color: AppColors.white,
@@ -67,11 +68,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     topRight: Radius.circular(30),
                   ),
                 ),
-                child: SingleChildScrollView(
-                  keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.onDrag,
-                  child: bottomForm(context),
-                ),
+                child: isKeyboardOpen
+                    ? SingleChildScrollView(
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        child: bottomForm(context, isCompact: isCompact),
+                      )
+                    : bottomForm(context, isCompact: isCompact),
               ),
             ),
           ],
@@ -119,7 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget bottomForm(BuildContext context) {
+  Widget bottomForm(BuildContext context, {required bool isCompact}) {
     return Form(
       key: _formKey,
       child: Column(
@@ -129,7 +132,7 @@ class _LoginScreenState extends State<LoginScreen> {
             'Masuk ke Akun',
             style: Theme.of(context).textTheme.displayMedium,
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: isCompact ? 16 : 24),
 
           TextFormField(
             controller: _emailController,
@@ -153,7 +156,7 @@ class _LoginScreenState extends State<LoginScreen> {
               return null;
             },
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: isCompact ? 12 : 16),
 
           TextFormField(
             controller: _passwordController,
@@ -206,7 +209,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
 
-          const SizedBox(height: 16),
+          SizedBox(height: isCompact ? 10 : 16),
 
           SizedBox(
             width: double.infinity,
@@ -225,7 +228,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
 
-          const SizedBox(height: 24),
+          SizedBox(height: isCompact ? 14 : 24),
 
           Row(
             children: [
@@ -241,7 +244,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ],
           ),
 
-          const SizedBox(height: 24),
+          SizedBox(height: isCompact ? 12 : 24),
 
           SizedBox(
             width: double.infinity,
@@ -270,7 +273,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
 
-          const SizedBox(height: 32),
+          SizedBox(height: isCompact ? 16 : 24),
 
           Center(
             child: Wrap(
