@@ -5,10 +5,13 @@ class AppRoutes {
   static const String orders = '/orders';
   static const String profile = '/profile';
   static const String editProfile = '/edit-profile';
+  static const String changePassword = '/change-password';
   static const String addresses = '/addresses';
+  static const String addAddress = '/addresses/add';
   static const String notifications = '/notifications';
   static const String notificationSettings = '/notification-settings';
   static const String track = '/track';
   static const String register = '/register';
+  static const String registerSuccess = '/register-success';
   static const String forgotPassword = '/forgot-password';
 }

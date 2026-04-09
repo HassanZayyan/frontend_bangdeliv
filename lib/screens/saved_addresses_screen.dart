@@ -1,16 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../config/app_colors.dart';
 
-class SavedAddressesScreen extends StatelessWidget {
+import '../config/app_colors.dart';
+import '../config/app_routes.dart';
+import '../models/user_profile_model.dart';
+import '../services/auth_service.dart';
+
+class SavedAddressesScreen extends StatefulWidget {
   const SavedAddressesScreen({super.key});
+
+  @override
+  State<SavedAddressesScreen> createState() => _SavedAddressesScreenState();
+}
+
+class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
+  late Future<List<SavedAddressModel>> _addressesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _addressesFuture = AuthService.fetchSavedAddresses();
+  }
+
+  void _reloadAddresses() {
+    setState(() {
+      _addressesFuture = AuthService.fetchSavedAddresses();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Alamat Tersimpan', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        title: const Text(
+          'Alamat Saya',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
         backgroundColor: AppColors.white,
         elevation: 0,
         leading: IconButton(
@@ -18,32 +44,124 @@ class SavedAddressesScreen extends StatelessWidget {
           onPressed: () => context.pop(),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add, color: AppColors.primary),
-            onPressed: () {},
+          TextButton(
+            onPressed: _openAddAddress,
+            child: const Text(
+              'Tambah',
+              style: TextStyle(color: AppColors.primary),
+            ),
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          _buildAddressCard('Rumah', 'Jl. Sudirman No. 123, Kec. Sidomukti, Salatiga', true),
-          const SizedBox(height: 16),
-          _buildAddressCard('Kantor', 'Gedung Indosat Lt. 4, Jl. Diponegoro No. 45, Salatiga', false),
-          const SizedBox(height: 16),
-          _buildAddressCard('Kos', 'Jl. Kemiri Raya, Gang Ikhlas No. 8, Salatiga', false),
-        ],
+      body: FutureBuilder<List<SavedAddressModel>>(
+        future: _addressesFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.location_off_outlined,
+                      color: AppColors.error,
+                      size: 40,
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      snapshot.error.toString(),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 14),
+                    ElevatedButton(
+                      onPressed: _reloadAddresses,
+                      child: const Text('Coba Lagi'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          final addresses = snapshot.data ?? [];
+          if (addresses.isEmpty) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Belum ada alamat saya untuk akun ini.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 14),
+                    ElevatedButton.icon(
+                      onPressed: _openAddAddress,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Tambah Alamat'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          return ListView.separated(
+            padding: const EdgeInsets.all(20),
+            itemCount: addresses.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 16),
+            itemBuilder: (context, index) {
+              final address = addresses[index];
+              return _buildAddressCard(address);
+            },
+          );
+        },
       ),
     );
   }
 
-  Widget _buildAddressCard(String title, String address, bool isPrimary) {
+  Future<void> _openAddAddress() async {
+    final created = await context.push<bool>(AppRoutes.addAddress);
+    if (created == true && mounted) {
+      _reloadAddresses();
+    }
+  }
+
+  Future<void> _openEditAddress(SavedAddressModel address) async {
+    final updated = await context.push<bool>(
+      AppRoutes.addAddress,
+      extra: {
+        'id': address.id,
+        'label': address.label,
+        'recipient_name': address.recipientName,
+        'phone': address.phone,
+        'full_address': address.fullAddress,
+        'detail': address.detail,
+        'is_default': address.isDefault,
+      },
+    );
+    if (updated == true && mounted) {
+      _reloadAddresses();
+    }
+  }
+
+  Widget _buildAddressCard(SavedAddressModel address) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isPrimary ? AppColors.primary : AppColors.border),
+        border: Border.all(
+          color: address.isDefault ? AppColors.primary : AppColors.border,
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -51,12 +169,16 @@ class SavedAddressesScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: isPrimary ? AppColors.primary.withValues(alpha: 0.1) : AppColors.background,
+              color: address.isDefault
+                  ? AppColors.primary.withValues(alpha: 0.1)
+                  : AppColors.background,
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.location_on,
-              color: isPrimary ? AppColors.primary : AppColors.textSecondary,
+              color: address.isDefault
+                  ? AppColors.primary
+                  : AppColors.textSecondary,
               size: 24,
             ),
           ),
@@ -67,32 +189,66 @@ class SavedAddressesScreen extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    if (isPrimary) ...[
+                    Text(
+                      address.label.isEmpty ? 'Alamat' : address.label,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    if (address.isDefault) ...[
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.primary.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Text('Utama', style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.bold)),
+                        child: const Text(
+                          'Utama',
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ],
                   ],
                 ),
+                const SizedBox(height: 4),
+                Text(
+                  address.recipientName,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  address.phone,
+                  style: const TextStyle(color: AppColors.textSecondary),
+                ),
                 const SizedBox(height: 6),
                 Text(
-                  address,
-                  style: const TextStyle(color: AppColors.textSecondary, height: 1.4),
+                  address.displayAddress,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    height: 1.4,
+                  ),
                 ),
               ],
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.edit, color: AppColors.textSecondary, size: 20),
-            onPressed: () {},
-          )
+            onPressed: () => _openEditAddress(address),
+            icon: const Icon(Icons.edit_outlined),
+            color: AppColors.primary,
+            tooltip: 'Edit alamat',
+          ),
         ],
       ),
     );
