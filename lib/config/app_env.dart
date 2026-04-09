@@ -3,6 +3,6 @@ class AppEnv {
 
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://192.168.1.83:8000/api',
+    defaultValue: 'http://172.22.160.1:8000/api',
   );
 }
