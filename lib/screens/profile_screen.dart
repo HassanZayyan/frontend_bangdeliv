@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../models/user_profile_model.dart';
+import '../providers/auth_session_provider.dart';
 import '../services/auth_service.dart';
 
-class ProfileScreen extends StatefulWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   late Future<UserProfileModel> _profileFuture;
 
   @override
@@ -224,6 +226,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   trailingText: 'Aktif',
                   onTap: () => context.push(AppRoutes.notificationSettings),
                 ),
+                if (_shouldShowDriverRegistration(profile)) ...[
+                  const Divider(height: 1, indent: 60, color: AppColors.border),
+                  _buildMenuTile(
+                    icon: Icons.two_wheeler_outlined,
+                    title: 'Upgrade jadi Driver',
+                    trailingText: 'Baru',
+                    onTap: () => context.push(AppRoutes.registerDriver),
+                  ),
+                ],
               ],
             ),
           ),
@@ -348,13 +359,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
-    await AuthService.logout();
+    await ref.read(authSessionProvider.notifier).logout();
 
     if (!mounted) {
       return;
     }
 
     context.go(AppRoutes.login);
+  }
+
+  bool _shouldShowDriverRegistration(UserProfileModel profile) {
+    return profile.role.trim().toLowerCase() == 'customer';
   }
 
   Widget _buildStatItem(String value, String label) {

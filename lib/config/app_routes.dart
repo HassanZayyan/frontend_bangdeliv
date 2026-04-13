@@ -1,6 +1,9 @@
 class AppRoutes {
+  static const String splash = '/splash';
   static const String login = '/login';
   static const String home = '/home';
+  static const String driverHome = '/driver/home';
+  static const String driverVerificationStatus = '/driver/verification-status';
   static const String chatbot = '/chatbot';
   static const String orders = '/orders';
   static const String profile = '/profile';
@@ -12,6 +15,7 @@ class AppRoutes {
   static const String notificationSettings = '/notification-settings';
   static const String track = '/track';
   static const String register = '/register';
+  static const String registerDriver = '/register-driver';
   static const String registerSuccess = '/register-success';
   static const String forgotPassword = '/forgot-password';
 }

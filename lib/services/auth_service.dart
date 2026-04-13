@@ -54,6 +54,47 @@ class AuthService {
     }
   }
 
+  static Future<void> upgradeToDriver({
+    required String vehiclePlate,
+    required String licenseNumber,
+  }) async {
+    final uri = Uri.parse('${AppEnv.apiBaseUrl}/user/upgrade-to-driver');
+
+    try {
+      final response = await http
+          .post(
+            uri,
+            headers: await authorizedHeaders(),
+            body: jsonEncode({
+              'vehicle_plate': vehiclePlate,
+              'license_number': licenseNumber,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 201) {
+        return;
+      }
+
+      throw AuthException(
+        _extractErrorMessage(
+          response,
+          fallback: 'Upgrade akun ke driver gagal.',
+        ),
+      );
+    } on TimeoutException {
+      throw const AuthException(
+        'Koneksi ke server timeout. Coba cek backend kamu berjalan.',
+      );
+    } on AuthException {
+      rethrow;
+    } catch (_) {
+      throw const AuthException(
+        'Gagal terhubung ke server. Periksa API_BASE_URL dan koneksi jaringan.',
+      );
+    }
+  }
+
   static Future<void> loginWithEmail({
     required String email,
     required String password,
@@ -95,7 +136,7 @@ class AuthService {
 
     try {
       final response = await http
-          .get(uri, headers: await _authorizedHeaders())
+          .get(uri, headers: await authorizedHeaders())
           .timeout(const Duration(seconds: 20));
 
       if (response.statusCode == 200) {
@@ -134,7 +175,7 @@ class AuthService {
       final response = await http
           .put(
             uri,
-            headers: await _authorizedHeaders(),
+            headers: await authorizedHeaders(),
             body: jsonEncode({'name': name, 'phone': phone, 'email': email}),
           )
           .timeout(const Duration(seconds: 20));
@@ -183,7 +224,7 @@ class AuthService {
       final response = await http
           .post(
             uri,
-            headers: await _authorizedHeaders(),
+            headers: await authorizedHeaders(),
             body: jsonEncode({
               'label': label,
               'recipient_name': recipientName,
@@ -235,7 +276,7 @@ class AuthService {
       final response = await http
           .put(
             uri,
-            headers: await _authorizedHeaders(),
+            headers: await authorizedHeaders(),
             body: jsonEncode({
               'label': label,
               'recipient_name': recipientName,
@@ -277,7 +318,7 @@ class AuthService {
 
     try {
       final response = await http
-          .delete(uri, headers: await _authorizedHeaders())
+          .delete(uri, headers: await authorizedHeaders())
           .timeout(const Duration(seconds: 20));
 
       if (response.statusCode == 200) {
@@ -311,7 +352,7 @@ class AuthService {
       final response = await http
           .put(
             uri,
-            headers: await _authorizedHeaders(),
+            headers: await authorizedHeaders(),
             body: jsonEncode({
               'current_password': currentPassword,
               'new_password': newPassword,
@@ -347,12 +388,23 @@ class AuthService {
 
     try {
       await http
-          .post(uri, headers: await _authorizedHeaders())
+          .post(uri, headers: await authorizedHeaders())
           .timeout(const Duration(seconds: 20));
     } catch (_) {
       // Clear local token even if remote revoke fails.
     }
 
+    await _clearAccessToken();
+  }
+
+  static Future<bool> hasAccessToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(_tokenStorageKey)?.trim() ?? '';
+
+    return token.isNotEmpty;
+  }
+
+  static Future<void> clearLocalSession() async {
     await _clearAccessToken();
   }
 
@@ -368,6 +420,43 @@ class AuthService {
     return LoginCredentials(email: email, password: password);
   }
 
+  static Future<String> requireAccessToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(_tokenStorageKey);
+
+    if (token == null || token.trim().isEmpty) {
+      throw const AuthException(
+        'Sesi login tidak ditemukan. Silakan login ulang.',
+      );
+    }
+
+    return token;
+  }
+
+  static Future<Map<String, String>> authorizedHeaders({
+    bool includeJsonContentType = true,
+  }) async {
+    final token = await requireAccessToken();
+
+    final headers = <String, String>{
+      'Accept': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
+
+    if (includeJsonContentType) {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    return headers;
+  }
+
+  static String extractErrorMessage(
+    http.Response response, {
+    required String fallback,
+  }) {
+    return _extractErrorMessage(response, fallback: fallback);
+  }
+
   static Future<void> _persistAccessToken(http.Response response) async {
     final Map<String, dynamic> payload =
         jsonDecode(response.body) as Map<String, dynamic>;
@@ -381,23 +470,6 @@ class AuthService {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tokenStorageKey, token);
-  }
-
-  static Future<Map<String, String>> _authorizedHeaders() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString(_tokenStorageKey);
-
-    if (token == null || token.trim().isEmpty) {
-      throw const AuthException(
-        'Sesi login tidak ditemukan. Silakan login ulang.',
-      );
-    }
-
-    return {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Authorization': 'Bearer $token',
-    };
   }
 
   static Future<void> _clearAccessToken() async {

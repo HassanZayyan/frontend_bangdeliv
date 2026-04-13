@@ -4,6 +4,7 @@ class UserProfileModel {
   final String phone;
   final String email;
   final String role;
+  final DriverProfileModel? driverProfile;
   final UserStatsModel stats;
   final List<SavedAddressModel> addresses;
 
@@ -13,6 +14,7 @@ class UserProfileModel {
     required this.phone,
     required this.email,
     required this.role,
+    required this.driverProfile,
     required this.stats,
     required this.addresses,
   });
@@ -28,6 +30,11 @@ class UserProfileModel {
       phone: (json['phone'] ?? '').toString(),
       email: (json['email'] ?? '').toString(),
       role: (json['role'] ?? '').toString(),
+      driverProfile: (json['driver_profile'] is Map<String, dynamic>)
+          ? DriverProfileModel.fromJson(
+              json['driver_profile'] as Map<String, dynamic>,
+            )
+          : null,
       stats: UserStatsModel.fromJson(
         (json['stats'] as Map<String, dynamic>?) ?? const {},
       ),
@@ -43,6 +50,23 @@ class UserProfileModel {
       return value;
     }
     return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+}
+
+class DriverProfileModel {
+  final String registrationStatus;
+  final String status;
+
+  const DriverProfileModel({
+    required this.registrationStatus,
+    required this.status,
+  });
+
+  factory DriverProfileModel.fromJson(Map<String, dynamic> json) {
+    return DriverProfileModel(
+      registrationStatus: (json['registration_status'] ?? '').toString(),
+      status: (json['status'] ?? '').toString(),
+    );
   }
 }
 

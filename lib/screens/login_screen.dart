@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/app_routes.dart';
 import 'package:go_router/go_router.dart';
 import '../config/app_colors.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../providers/auth_session_provider.dart';
 import '../services/auth_service.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -327,11 +329,13 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text,
       );
 
+      await ref.read(authSessionProvider.notifier).handleLoginSuccess();
+
       if (!mounted) {
         return;
       }
 
-      context.go(AppRoutes.home);
+      context.go(AppRoutes.splash);
     } on AuthException catch (e) {
       if (!mounted) {
         return;

@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../screens/login_screen.dart';
 import '../screens/register_screen.dart';
+import '../screens/register_driver_screen.dart';
 import '../screens/register_success_screen.dart';
 import '../screens/forgot_password_screen.dart';
+import '../screens/splash_screen.dart';
+import '../screens/driver_home_screen.dart';
+import '../screens/driver_verification_status_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/chatbot_screen.dart';
 import '../screens/order_history_screen.dart';
@@ -14,6 +19,7 @@ import '../screens/change_password_screen.dart';
 import '../screens/saved_addresses_screen.dart';
 import '../screens/add_address_screen.dart';
 import '../models/user_profile_model.dart';
+import '../providers/auth_session_provider.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/notification_settings_screen.dart';
 import '../screens/main_layout.dart';
@@ -23,106 +29,247 @@ final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<NavigatorState> _shellNavigatorKey =
     GlobalKey<NavigatorState>();
 
-final appRouter = GoRouter(
-  navigatorKey: _rootNavigatorKey,
-  initialLocation: AppRoutes.login,
-  routes: [
-    GoRoute(
-      path: AppRoutes.login,
-      parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const LoginScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.register,
-      parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const RegisterScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.registerSuccess,
-      parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const RegisterSuccessScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.forgotPassword,
-      parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const ForgotPasswordScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.chatbot,
-      parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const ChatbotScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.editProfile,
-      parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const EditProfileScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.changePassword,
-      parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const ChangePasswordScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.addresses,
-      parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const SavedAddressesScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.addAddress,
-      parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) {
-        SavedAddressModel? initialAddress;
-        final extra = state.extra;
+final appRouterProvider = Provider<GoRouter>((ref) {
+  final session = ref.watch(authSessionProvider);
 
-        if (extra is SavedAddressModel) {
-          initialAddress = extra;
-        } else if (extra is Map) {
-          initialAddress = SavedAddressModel.fromJson(
-            Map<String, dynamic>.from(extra),
-          );
-        }
+  return GoRouter(
+    navigatorKey: _rootNavigatorKey,
+    initialLocation: AppRoutes.splash,
+    redirect: (context, state) {
+      final location = state.matchedLocation;
 
-        return AddAddressScreen(initialAddress: initialAddress);
-      },
-    ),
-    GoRoute(
-      path: AppRoutes.notifications,
-      parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const NotificationsScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.notificationSettings,
-      parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const NotificationSettingsScreen(),
-    ),
-    // ShellRoute untuk menu yang punya BottomNavigationBar
-    ShellRoute(
-      navigatorKey: _shellNavigatorKey,
-      builder: (context, state, child) {
-        return MainLayout(child: child);
-      },
-      routes: [
-        GoRoute(
-          path: AppRoutes.home,
-          parentNavigatorKey: _shellNavigatorKey,
-          builder: (context, state) => const HomeScreen(),
-        ),
-        GoRoute(
-          path: AppRoutes.orders,
-          parentNavigatorKey: _shellNavigatorKey,
-          builder: (context, state) => const OrderHistoryScreen(),
-        ),
-        GoRoute(
-          path: AppRoutes.track,
-          parentNavigatorKey: _shellNavigatorKey,
-          builder: (context, state) => const TrackOrderScreen(),
-        ),
-        GoRoute(
-          path: AppRoutes.profile,
-          parentNavigatorKey: _shellNavigatorKey,
-          builder: (context, state) => const ProfileScreen(),
-        ),
-      ],
-    ),
-  ],
-);
+      return _resolveRedirect(session: session, location: location);
+    },
+    routes: [
+      GoRoute(
+        path: AppRoutes.splash,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.login,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.register,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.registerDriver,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const RegisterDriverScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.registerSuccess,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const RegisterSuccessScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.forgotPassword,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.chatbot,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const ChatbotScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.editProfile,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const EditProfileScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.changePassword,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const ChangePasswordScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.addresses,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const SavedAddressesScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.addAddress,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          SavedAddressModel? initialAddress;
+          final extra = state.extra;
+
+          if (extra is SavedAddressModel) {
+            initialAddress = extra;
+          } else if (extra is Map) {
+            initialAddress = SavedAddressModel.fromJson(
+              Map<String, dynamic>.from(extra),
+            );
+          }
+
+          return AddAddressScreen(initialAddress: initialAddress);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.notifications,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const NotificationsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.notificationSettings,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const NotificationSettingsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.driverVerificationStatus,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const DriverVerificationStatusScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.driverHome,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const DriverHomeScreen(),
+      ),
+      // ShellRoute untuk menu yang punya BottomNavigationBar
+      ShellRoute(
+        navigatorKey: _shellNavigatorKey,
+        builder: (context, state, child) {
+          return MainLayout(child: child);
+        },
+        routes: [
+          GoRoute(
+            path: AppRoutes.home,
+            parentNavigatorKey: _shellNavigatorKey,
+            builder: (context, state) => const HomeScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.orders,
+            parentNavigatorKey: _shellNavigatorKey,
+            builder: (context, state) => const OrderHistoryScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.track,
+            parentNavigatorKey: _shellNavigatorKey,
+            builder: (context, state) => const TrackOrderScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.profile,
+            parentNavigatorKey: _shellNavigatorKey,
+            builder: (context, state) => const ProfileScreen(),
+          ),
+        ],
+      ),
+    ],
+  );
+});
+
+String? _resolveRedirect({
+  required AuthSessionState session,
+  required String location,
+}) {
+  if (!session.initialized) {
+    return location == AppRoutes.splash ? null : AppRoutes.splash;
+  }
+
+  final isPublicRoute = _publicRoutes.contains(location);
+
+  if (!session.isAuthenticated) {
+    if (location == AppRoutes.splash) {
+      return AppRoutes.login;
+    }
+
+    if (isPublicRoute) {
+      return null;
+    }
+
+    return AppRoutes.login;
+  }
+
+  if (location == AppRoutes.splash || isPublicRoute) {
+    return _defaultRouteFor(session);
+  }
+
+  if (session.role == SessionUserRole.customer) {
+    if (_driverRoutes.contains(location)) {
+      return AppRoutes.home;
+    }
+
+    return null;
+  }
+
+  if (session.role == SessionUserRole.driver) {
+    final isDriverActive =
+        session.driverAccessState == DriverAccessState.active;
+
+    if (isDriverActive) {
+      if (_customerOnlyRoutes.contains(location)) {
+        return AppRoutes.driverHome;
+      }
+
+      if (location == AppRoutes.driverVerificationStatus) {
+        return AppRoutes.driverHome;
+      }
+
+      return null;
+    }
+
+    if (_driverNonActiveAllowedRoutes.contains(location)) {
+      return null;
+    }
+
+    return AppRoutes.driverVerificationStatus;
+  }
+
+  if (session.role == SessionUserRole.admin) {
+    if (location == AppRoutes.profile) {
+      return null;
+    }
+
+    return AppRoutes.profile;
+  }
+
+  return AppRoutes.login;
+}
+
+String _defaultRouteFor(AuthSessionState session) {
+  switch (session.role) {
+    case SessionUserRole.customer:
+      return AppRoutes.home;
+    case SessionUserRole.driver:
+      return session.driverAccessState == DriverAccessState.active
+          ? AppRoutes.driverHome
+          : AppRoutes.driverVerificationStatus;
+    case SessionUserRole.admin:
+      return AppRoutes.profile;
+    case SessionUserRole.guest:
+    case SessionUserRole.unknown:
+      return AppRoutes.login;
+  }
+}
+
+const Set<String> _publicRoutes = {
+  AppRoutes.login,
+  AppRoutes.register,
+  AppRoutes.registerSuccess,
+  AppRoutes.forgotPassword,
+};
+
+const Set<String> _driverRoutes = {
+  AppRoutes.driverHome,
+  AppRoutes.driverVerificationStatus,
+};
+
+const Set<String> _customerOnlyRoutes = {
+  AppRoutes.home,
+  AppRoutes.orders,
+  AppRoutes.track,
+  AppRoutes.addresses,
+  AppRoutes.addAddress,
+  AppRoutes.registerDriver,
+};
+
+const Set<String> _driverNonActiveAllowedRoutes = {
+  AppRoutes.driverVerificationStatus,
+  AppRoutes.profile,
+  AppRoutes.editProfile,
+  AppRoutes.changePassword,
+};
