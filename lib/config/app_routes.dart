@@ -5,6 +5,8 @@ class AppRoutes {
   static const String driverHome = '/driver/home';
   static const String driverVerificationStatus = '/driver/verification-status';
   static const String chatbot = '/chatbot';
+  static const String activity = '/activity';
+  static const String history = '/history';
   static const String orders = '/orders';
   static const String profile = '/profile';
   static const String editProfile = '/edit-profile';

@@ -14,17 +14,12 @@ class ChatbotScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
-  final List<_ChatMessage> _messages = <_ChatMessage>[
-    _ChatMessage.bot(
-      text:
-          'Halo! Saya BangBot 🤖\nMau pesan apa hari ini? Ketik pesananmu secara natural, saya yang mengurus sisanya!',
-      timestamp: _nowLabel(),
-    ),
-  ];
+  final List<_ChatMessage> _messages = <_ChatMessage>[];
 
   late final TextEditingController _inputController;
   late final ScrollController _scrollController;
   bool _isSending = false;
+  bool _hasInitializedWelcome = false;
 
   @override
   void initState() {
@@ -34,10 +29,63 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    if (_hasInitializedWelcome) {
+      return;
+    }
+
+    _messages.add(
+      _ChatMessage.bot(
+        text: _serviceContext.welcomeMessage,
+        timestamp: _nowLabel(),
+      ),
+    );
+    _hasInitializedWelcome = true;
+  }
+
+  @override
   void dispose() {
     _inputController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  _ServiceContext get _serviceContext {
+    final rawServiceType =
+        GoRouterState.of(context).uri.queryParameters['service_type'] ??
+        'nitip';
+
+    switch (rawServiceType) {
+      case 'antar_jemput':
+        return const _ServiceContext(
+          serviceType: 'antar_jemput',
+          title: 'BangBot AI - Antar Jemput',
+          subtitle: 'Mode perjalanan aktif',
+          welcomeMessage:
+              'Halo! Saya BangBot 🤖 untuk layanan Antar Jemput. Tulis titik jemput dan tujuanmu, ya.',
+          suggestions: ['Jemput sekarang', 'Ke stasiun', '2 penumpang'],
+        );
+      case 'kurir':
+        return const _ServiceContext(
+          serviceType: 'kurir',
+          title: 'BangBot AI - Kurir',
+          subtitle: 'Mode pengiriman paket aktif',
+          welcomeMessage:
+              'Halo! Saya BangBot 🤖 untuk layanan Kurir. Tulis lokasi ambil, tujuan kirim, dan isi paket.',
+          suggestions: ['Kirim dokumen', 'Ambil di kantor', 'Kirim ke rumah'],
+        );
+      default:
+        return const _ServiceContext(
+          serviceType: 'nitip',
+          title: 'BangBot AI - Nitip',
+          subtitle: 'Mode titip belanja aktif',
+          welcomeMessage:
+              'Halo! Saya BangBot 🤖 untuk layanan Nitip. Ketik kebutuhanmu secara natural, saya bantu proses.',
+          suggestions: ['Mie Ayam', 'Ayam Geprek', 'Minuman dingin'],
+        );
+    }
   }
 
   Future<void> _sendMessage([String? presetText]) async {
@@ -60,7 +108,10 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
     try {
       final chatbotService = ref.read(chatbotApiServiceProvider);
-      final result = await chatbotService.sendMessage(raw);
+      final result = await chatbotService.sendMessage(
+        raw,
+        serviceType: _serviceContext.serviceType,
+      );
 
       setState(() {
         _messages.add(
@@ -68,8 +119,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             text: result.toAssistantText(),
             timestamp: _nowLabel(),
             meta: result.modelUsed == null
-                ? null
-                : 'Model: ${result.modelUsed}',
+                ? 'Layanan: ${_serviceContext.serviceType}'
+                : 'Layanan: ${_serviceContext.serviceType} • Model: ${result.modelUsed}',
           ),
         );
       });
@@ -151,8 +202,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'BangBot AI',
+                Text(
+                  _serviceContext.title,
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 16,
@@ -170,9 +221,12 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                       ),
                     ),
                     const SizedBox(width: 4),
-                    const Text(
-                      'Online & Siap Membantu',
-                      style: TextStyle(color: Colors.greenAccent, fontSize: 12),
+                    Text(
+                      _serviceContext.subtitle,
+                      style: const TextStyle(
+                        color: Colors.greenAccent,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
@@ -214,11 +268,11 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        _buildSuggestionChip('🍜 Mie Ayam'),
-                        const SizedBox(width: 8),
-                        _buildSuggestionChip('🍗 Ayam Geprek'),
-                        const SizedBox(width: 8),
-                        _buildSuggestionChip('🥤 Minuman'),
+                        for (final suggestion
+                            in _serviceContext.suggestions) ...[
+                          _buildSuggestionChip(suggestion),
+                          const SizedBox(width: 8),
+                        ],
                       ],
                     ),
                   ),
@@ -239,7 +293,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: const Color(0xFF141624),
-                              hintText: 'Ketik pesanan...',
+                              hintText: 'Ketik kebutuhan layanan...',
                               hintStyle: const TextStyle(
                                 color: Colors.white54,
                                 fontSize: 14,
@@ -308,7 +362,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   Widget _buildSuggestionChip(String label) {
     return InkWell(
       borderRadius: BorderRadius.circular(30),
-      onTap: () => _sendMessage(label.replaceAll(RegExp(r'^[^\s]+\s+'), '')),
+      onTap: () => _sendMessage(label),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
@@ -418,4 +472,20 @@ class _ChatMessage {
       meta: meta,
     );
   }
+}
+
+class _ServiceContext {
+  final String serviceType;
+  final String title;
+  final String subtitle;
+  final String welcomeMessage;
+  final List<String> suggestions;
+
+  const _ServiceContext({
+    required this.serviceType,
+    required this.title,
+    required this.subtitle,
+    required this.welcomeMessage,
+    required this.suggestions,
+  });
 }

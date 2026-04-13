@@ -309,6 +309,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
   }
 
+  String? _resolveIntendedRoute() {
+    final returnTo = GoRouterState.of(context).uri.queryParameters['returnTo'];
+    if (returnTo == null || returnTo.trim().isEmpty) {
+      return null;
+    }
+
+    final decoded = Uri.decodeComponent(returnTo).trim();
+    if (!decoded.startsWith('/')) {
+      return null;
+    }
+
+    if (decoded.startsWith(AppRoutes.login) || decoded == AppRoutes.splash) {
+      return null;
+    }
+
+    return decoded;
+  }
+
   Future<void> _handleLogin() async {
     if (_isSubmitting) {
       return;
@@ -335,7 +353,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return;
       }
 
-      context.go(AppRoutes.splash);
+      final intendedRoute = _resolveIntendedRoute();
+      if (intendedRoute != null) {
+        context.go(intendedRoute);
+      } else {
+        context.go(AppRoutes.splash);
+      }
     } on AuthException catch (e) {
       if (!mounted) {
         return;

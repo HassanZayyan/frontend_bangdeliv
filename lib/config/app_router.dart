@@ -9,6 +9,7 @@ import '../screens/forgot_password_screen.dart';
 import '../screens/splash_screen.dart';
 import '../screens/driver_home_screen.dart';
 import '../screens/driver_verification_status_screen.dart';
+import '../screens/activity_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/chatbot_screen.dart';
 import '../screens/order_history_screen.dart';
@@ -38,7 +39,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final location = state.matchedLocation;
 
-      return _resolveRedirect(session: session, location: location);
+      return _resolveRedirect(
+        session: session,
+        location: location,
+        fullLocation: state.uri.toString(),
+      );
     },
     routes: [
       GoRoute(
@@ -75,6 +80,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.chatbot,
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const ChatbotScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.track,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const TrackOrderScreen(),
       ),
       GoRoute(
         path: AppRoutes.editProfile,
@@ -142,14 +152,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const HomeScreen(),
           ),
           GoRoute(
-            path: AppRoutes.orders,
+            path: AppRoutes.activity,
             parentNavigatorKey: _shellNavigatorKey,
-            builder: (context, state) => const OrderHistoryScreen(),
+            builder: (context, state) => const ActivityScreen(),
           ),
           GoRoute(
-            path: AppRoutes.track,
+            path: AppRoutes.history,
             parentNavigatorKey: _shellNavigatorKey,
-            builder: (context, state) => const TrackOrderScreen(),
+            builder: (context, state) => const OrderHistoryScreen(),
           ),
           GoRoute(
             path: AppRoutes.profile,
@@ -165,23 +175,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 String? _resolveRedirect({
   required AuthSessionState session,
   required String location,
+  required String fullLocation,
 }) {
   if (!session.initialized) {
     return location == AppRoutes.splash ? null : AppRoutes.splash;
   }
 
   final isPublicRoute = _publicRoutes.contains(location);
+  final isGuestAccessibleRoute = _guestAccessibleRoutes.contains(location);
 
   if (!session.isAuthenticated) {
     if (location == AppRoutes.splash) {
-      return AppRoutes.login;
+      return AppRoutes.home;
     }
 
-    if (isPublicRoute) {
+    if (isPublicRoute || isGuestAccessibleRoute) {
       return null;
     }
 
-    return AppRoutes.login;
+    return _buildLoginRouteWithReturnTo(fullLocation);
   }
 
   if (location == AppRoutes.splash || isPublicRoute) {
@@ -230,6 +242,18 @@ String? _resolveRedirect({
   return AppRoutes.login;
 }
 
+String _buildLoginRouteWithReturnTo(String targetLocation) {
+  final normalizedTarget = targetLocation.trim();
+  if (normalizedTarget.isEmpty ||
+      !normalizedTarget.startsWith('/') ||
+      normalizedTarget.startsWith(AppRoutes.login)) {
+    return AppRoutes.login;
+  }
+
+  final encoded = Uri.encodeComponent(normalizedTarget);
+  return '${AppRoutes.login}?returnTo=$encoded';
+}
+
 String _defaultRouteFor(AuthSessionState session) {
   switch (session.role) {
     case SessionUserRole.customer:
@@ -253,6 +277,8 @@ const Set<String> _publicRoutes = {
   AppRoutes.forgotPassword,
 };
 
+const Set<String> _guestAccessibleRoutes = {AppRoutes.home};
+
 const Set<String> _driverRoutes = {
   AppRoutes.driverHome,
   AppRoutes.driverVerificationStatus,
@@ -260,7 +286,8 @@ const Set<String> _driverRoutes = {
 
 const Set<String> _customerOnlyRoutes = {
   AppRoutes.home,
-  AppRoutes.orders,
+  AppRoutes.activity,
+  AppRoutes.history,
   AppRoutes.track,
   AppRoutes.addresses,
   AppRoutes.addAddress,

@@ -13,7 +13,10 @@ class OrderHistoryScreen extends StatelessWidget {
       child: Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
-          title: const Text('Riwayat Pesanan', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          title: const Text(
+            'Riwayat Transaksi',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          ),
           backgroundColor: AppColors.white,
           elevation: 0,
           leading: IconButton(
@@ -51,7 +54,10 @@ class OrderHistoryScreen extends StatelessWidget {
   Widget _buildOrderList(List<OrderModel> orders) {
     if (orders.isEmpty) {
       return const Center(
-        child: Text('Tidak ada pesanan.', style: TextStyle(color: AppColors.textSecondary)),
+        child: Text(
+          'Tidak ada pesanan.',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
       );
     }
     return ListView.separated(
@@ -93,9 +99,18 @@ class OrderHistoryScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(order.id, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              Text(
+                order.id,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                ),
+              ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
@@ -135,9 +150,21 @@ class OrderHistoryScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(order.restaurantName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    Text(
+                      order.restaurantName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
                     const SizedBox(height: 4),
-                    Text(order.items, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                    Text(
+                      order.items,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -167,21 +194,45 @@ class OrderHistoryScreen extends StatelessWidget {
                 children: [
                   Text(
                     order.formattedPrice,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primaryDark),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: AppColors.primaryDark,
+                    ),
                   ),
                   const SizedBox(height: 2),
-                  Text(order.date, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                  Text(
+                    order.date,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
                 ],
               ),
               OutlinedButton.icon(
                 onPressed: () {},
-                icon: Icon(order.status == 'Diantar' ? Icons.location_on : Icons.refresh, size: 16),
+                icon: Icon(
+                  order.status == 'Diantar' ? Icons.location_on : Icons.refresh,
+                  size: 16,
+                ),
                 label: Text(order.status == 'Diantar' ? 'Lacak' : 'Pesan Lagi'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: order.status == 'Diantar' ? AppColors.primary : AppColors.textSecondary,
-                  side: BorderSide(color: order.status == 'Diantar' ? AppColors.primary : AppColors.textSecondary),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  foregroundColor: order.status == 'Diantar'
+                      ? AppColors.primary
+                      : AppColors.textSecondary,
+                  side: BorderSide(
+                    color: order.status == 'Diantar'
+                        ? AppColors.primary
+                        : AppColors.textSecondary,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                 ),
               ),
             ],

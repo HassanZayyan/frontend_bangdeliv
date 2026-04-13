@@ -76,100 +76,107 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           bottomRight: Radius.circular(24),
         ),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _searchController,
-              textInputAction: TextInputAction.search,
-              onSubmitted: (value) {
-                ref.read(homeSearchQueryProvider.notifier).setQuery(value);
-              },
-              decoration: InputDecoration(
-                hintText: 'Cari restoran atau menu...',
-                prefixIcon: const Icon(
-                  Icons.search,
-                  color: AppColors.textSecondary,
-                ),
-                filled: true,
-                fillColor: AppColors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none,
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-              ),
-            ),
+      child: TextField(
+        controller: _searchController,
+        textInputAction: TextInputAction.search,
+        onSubmitted: (value) {
+          ref.read(homeSearchQueryProvider.notifier).setQuery(value);
+        },
+        decoration: InputDecoration(
+          hintText: 'Cari restoran atau menu...',
+          prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+          filled: true,
+          fillColor: AppColors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
           ),
-          IconButton(
-            onPressed: () {
-              context.push(AppRoutes.notifications);
-            },
-            icon: const Icon(
-              Icons.notifications_outlined,
-              color: Colors.white,
-              size: 28,
-            ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openServiceChat(BuildContext context, String serviceType) {
+    final target =
+        '${AppRoutes.chatbot}?service_type=${Uri.encodeComponent(serviceType)}';
+    context.push(target);
+  }
+
+  Widget _buildServiceCards(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          _buildServiceCard(
+            context: context,
+            title: 'Antar Jemput',
+            serviceType: 'antar_jemput',
+            icon: Icons.route,
+            color: AppColors.primary,
+          ),
+          _buildServiceCard(
+            context: context,
+            title: 'Kurir',
+            serviceType: 'kurir',
+            icon: Icons.local_shipping_outlined,
+            color: AppColors.success,
+          ),
+          _buildServiceCard(
+            context: context,
+            title: 'Nitip',
+            serviceType: 'nitip',
+            icon: Icons.shopping_bag_outlined,
+            color: AppColors.primaryDark,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildChatbotBanner(BuildContext context) {
-    return GestureDetector(
-      onTap: () => context.push(AppRoutes.chatbot),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 20),
-        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-        decoration: BoxDecoration(
-          color: AppColors.darkBlue,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.white.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Text('✨', style: TextStyle(fontSize: 24)),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Pesan via AI Chatbot',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Ketik pesanan, AI yang urus semua!',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.8),
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
+  Widget _buildServiceCard({
+    required BuildContext context,
+    required String title,
+    required String serviceType,
+    required IconData icon,
+    required Color color,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(50),
+      onTap: () => _openServiceChat(context, serviceType),
+      child: Column(
+        children: [
+          Container(
+            width: 82,
+            height: 82,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            child: Icon(icon, color: AppColors.white, size: 32),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: 92,
+            child: Text(
+              title,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                height: 1.2,
               ),
             ),
-            const Icon(Icons.chevron_right, color: Colors.white),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -178,7 +185,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildChatbotBanner(context),
+        _buildServiceCards(context),
         const SizedBox(height: 24),
         const Center(
           child: Padding(
@@ -194,7 +201,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildChatbotBanner(context),
+        _buildServiceCards(context),
         const SizedBox(height: 24),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -238,7 +245,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildChatbotBanner(context),
+        _buildServiceCards(context),
         const SizedBox(height: 24),
         _buildSectionTitle('Kategori'),
         const SizedBox(height: 12),

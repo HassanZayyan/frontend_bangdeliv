@@ -11,8 +11,8 @@ class MainLayout extends StatelessWidget {
   int _calculateSelectedIndex(BuildContext context) {
     final String location = GoRouterState.of(context).uri.path;
     if (location.startsWith(AppRoutes.home)) return 0;
-    if (location.startsWith(AppRoutes.orders)) return 1;
-    if (location.startsWith('/track')) return 2;
+    if (location.startsWith(AppRoutes.activity)) return 1;
+    if (location.startsWith(AppRoutes.history)) return 2;
     if (location.startsWith(AppRoutes.profile)) return 3;
     return 0;
   }
@@ -23,10 +23,10 @@ class MainLayout extends StatelessWidget {
         context.go(AppRoutes.home);
         break;
       case 1:
-        context.go(AppRoutes.orders);
+        context.go(AppRoutes.activity);
         break;
       case 2:
-        context.go(AppRoutes.track);
+        context.go(AppRoutes.history);
         break;
       case 3:
         context.go(AppRoutes.profile);
@@ -46,9 +46,12 @@ class MainLayout extends StatelessWidget {
         currentIndex: _calculateSelectedIndex(context),
         onTap: (index) => _onItemTapped(index, context),
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Beranda'),
-          BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'Pesanan'),
-          BottomNavigationBarItem(icon: Icon(Icons.location_on), label: 'Lacak'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_filled),
+            label: 'Beranda',
+          ),
+          BottomNavigationBarItem(icon: Icon(Icons.bolt), label: 'Aktivitas'),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Riwayat'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
         ],
       ),
