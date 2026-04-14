@@ -72,13 +72,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         Container(
           height: 380,
           width: double.infinity,
-          decoration: const BoxDecoration(
-            color: AppColors.primary,
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(24),
-              bottomRight: Radius.circular(24),
-            ),
-          ),
+          decoration: const BoxDecoration(color: AppColors.primary),
         ),
         SafeArea(
           child: Padding(
@@ -125,7 +119,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 20),
                   decoration: BoxDecoration(
                     color: const Color(0xFFC94A1D),
-                    borderRadius: BorderRadius.circular(16),
                   ),
                   child: IntrinsicHeight(
                     child: Row(

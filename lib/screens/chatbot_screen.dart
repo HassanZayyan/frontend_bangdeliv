@@ -176,12 +176,13 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF141624),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1B1E30),
+        backgroundColor: AppColors.white,
         elevation: 0,
+        toolbarHeight: 72,
         leading: IconButton(
-          icon: const Icon(Icons.chevron_left, color: AppColors.white),
+          icon: const Icon(Icons.chevron_left, color: AppColors.textPrimary),
           onPressed: () => context.pop(),
         ),
         title: Row(
@@ -199,44 +200,54 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
               ),
             ),
             const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _serviceContext.title,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    _serviceContext.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        color: Colors.greenAccent,
-                        shape: BoxShape.circle,
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: AppColors.success,
+                          shape: BoxShape.circle,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      _serviceContext.subtitle,
-                      style: const TextStyle(
-                        color: Colors.greenAccent,
-                        fontSize: 12,
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          _serviceContext.subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.success,
+                            fontSize: 12,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ],
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.more_horiz, color: AppColors.white),
+            icon: const Icon(Icons.more_horiz, color: AppColors.textPrimary),
             onPressed: () {},
           ),
         ],
@@ -256,7 +267,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
             decoration: const BoxDecoration(
-              color: Color(0xFF1B1E30),
+              color: AppColors.white,
               borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
             ),
             child: SafeArea(
@@ -285,17 +296,17 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                           child: TextField(
                             controller: _inputController,
                             style: const TextStyle(
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                               fontSize: 14,
                             ),
                             textInputAction: TextInputAction.send,
                             onSubmitted: (_) => _sendMessage(),
                             decoration: InputDecoration(
                               filled: true,
-                              fillColor: const Color(0xFF141624),
+                              fillColor: AppColors.background,
                               hintText: 'Ketik kebutuhan layanan...',
                               hintStyle: const TextStyle(
-                                color: Colors.white54,
+                                color: AppColors.textSecondary,
                                 fontSize: 14,
                               ),
                               border: const OutlineInputBorder(
@@ -366,14 +377,14 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFF20202F),
+          color: AppColors.primaryLight,
           borderRadius: BorderRadius.circular(30),
           border: Border.all(color: AppColors.primary, width: 1.2),
         ),
         child: Text(
           label,
           style: const TextStyle(
-            color: AppColors.primary,
+            color: AppColors.primaryDark,
             fontSize: 13,
             fontWeight: FontWeight.normal,
           ),
@@ -384,6 +395,11 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
   Widget _buildMessageItem(_ChatMessage message) {
     final isUser = message.isUser;
+    final bubbleColor = isUser ? AppColors.primary : AppColors.white;
+    final textColor = isUser ? Colors.white : AppColors.textPrimary;
+    final metaColor = isUser
+        ? Colors.white.withValues(alpha: 0.8)
+        : AppColors.textSecondary;
 
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -400,7 +416,10 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             ),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: isUser ? AppColors.primary : const Color(0xFF1E2138),
+              color: bubbleColor,
+              border: isUser
+                  ? null
+                  : Border.all(color: AppColors.border, width: 1),
               borderRadius: BorderRadius.circular(16).copyWith(
                 topLeft: isUser
                     ? const Radius.circular(16)
@@ -415,14 +434,14 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
               children: [
                 Text(
                   message.text,
-                  style: const TextStyle(color: Colors.white, height: 1.5),
+                  style: TextStyle(color: textColor, height: 1.5),
                 ),
                 if (message.meta != null) ...[
                   const SizedBox(height: 8),
                   Text(
                     message.meta!,
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.65),
+                      color: metaColor,
                       fontSize: 11,
                     ),
                   ),
@@ -434,7 +453,10 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(
               message.timestamp,
-              style: const TextStyle(color: Colors.white54, fontSize: 12),
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+              ),
             ),
           ),
         ],

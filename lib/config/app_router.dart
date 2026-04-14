@@ -8,6 +8,9 @@ import '../screens/register_success_screen.dart';
 import '../screens/forgot_password_screen.dart';
 import '../screens/splash_screen.dart';
 import '../screens/driver_home_screen.dart';
+import '../screens/driver_orders_screen.dart';
+import '../screens/driver_history_screen.dart';
+import '../screens/driver_profile_screen.dart';
 import '../screens/driver_verification_status_screen.dart';
 import '../screens/activity_screen.dart';
 import '../screens/home_screen.dart';
@@ -24,19 +27,21 @@ import '../providers/auth_session_provider.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/notification_settings_screen.dart';
 import '../screens/main_layout.dart';
+import '../screens/driver_main_layout.dart';
 import 'app_routes.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<NavigatorState> _shellNavigatorKey =
     GlobalKey<NavigatorState>();
+final GlobalKey<NavigatorState> _driverShellNavigatorKey =
+    GlobalKey<NavigatorState>();
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final session = ref.watch(authSessionProvider);
-
-  return GoRouter(
+  final router = GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: AppRoutes.splash,
     redirect: (context, state) {
+      final session = ref.read(authSessionProvider);
       final location = state.matchedLocation;
 
       return _resolveRedirect(
@@ -134,11 +139,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const DriverVerificationStatusScreen(),
       ),
-      GoRoute(
-        path: AppRoutes.driverHome,
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const DriverHomeScreen(),
-      ),
       // ShellRoute untuk menu yang punya BottomNavigationBar
       ShellRoute(
         navigatorKey: _shellNavigatorKey,
@@ -148,28 +148,55 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(
             path: AppRoutes.home,
-            parentNavigatorKey: _shellNavigatorKey,
             builder: (context, state) => const HomeScreen(),
           ),
           GoRoute(
             path: AppRoutes.activity,
-            parentNavigatorKey: _shellNavigatorKey,
             builder: (context, state) => const ActivityScreen(),
           ),
           GoRoute(
             path: AppRoutes.history,
-            parentNavigatorKey: _shellNavigatorKey,
             builder: (context, state) => const OrderHistoryScreen(),
           ),
           GoRoute(
             path: AppRoutes.profile,
-            parentNavigatorKey: _shellNavigatorKey,
             builder: (context, state) => const ProfileScreen(),
+          ),
+        ],
+      ),
+      ShellRoute(
+        navigatorKey: _driverShellNavigatorKey,
+        builder: (context, state, child) {
+          return DriverMainLayout(child: child);
+        },
+        routes: [
+          GoRoute(
+            path: AppRoutes.driverHome,
+            builder: (context, state) => const DriverHomeScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.driverOrders,
+            builder: (context, state) => const DriverOrdersScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.driverHistory,
+            builder: (context, state) => const DriverHistoryScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.driverProfile,
+            builder: (context, state) => const DriverProfileScreen(),
           ),
         ],
       ),
     ],
   );
+
+  ref.onDispose(router.dispose);
+  ref.listen<AuthSessionState>(authSessionProvider, (previous, next) {
+    router.refresh();
+  });
+
+  return router;
 });
 
 String? _resolveRedirect({
@@ -217,7 +244,7 @@ String? _resolveRedirect({
         return AppRoutes.driverHome;
       }
 
-      if (location == AppRoutes.driverVerificationStatus) {
+      if (location == AppRoutes.profile) {
         return AppRoutes.driverHome;
       }
 
@@ -281,6 +308,9 @@ const Set<String> _guestAccessibleRoutes = {AppRoutes.home};
 
 const Set<String> _driverRoutes = {
   AppRoutes.driverHome,
+  AppRoutes.driverOrders,
+  AppRoutes.driverHistory,
+  AppRoutes.driverProfile,
   AppRoutes.driverVerificationStatus,
 };
 
@@ -296,7 +326,6 @@ const Set<String> _customerOnlyRoutes = {
 
 const Set<String> _driverNonActiveAllowedRoutes = {
   AppRoutes.driverVerificationStatus,
-  AppRoutes.profile,
   AppRoutes.editProfile,
   AppRoutes.changePassword,
 };

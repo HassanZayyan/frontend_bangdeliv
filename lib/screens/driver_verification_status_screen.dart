@@ -158,15 +158,16 @@ class _DriverVerificationStatusScreenState
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => context.go(AppRoutes.profile),
-                icon: const Icon(Icons.person_outline),
-                label: const Text('Kembali ke Profil'),
+              child: Text(
+                'Anda tidak perlu menunggu di halaman ini. Gunakan tombol refresh untuk cek status secara berkala.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              'Anda tidak perlu menunggu di halaman ini. Anda bisa kembali ke profil dan cek status secara berkala.',
+              'Jika dokumen ditolak, unggah ulang dari halaman ini sampai status aktif.',
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
@@ -177,30 +178,25 @@ class _DriverVerificationStatusScreenState
     );
   }
 
-  Future<void> _handleLogout() async {
-    await ref.read(authSessionProvider.notifier).logout();
-
-    if (!mounted) {
+  void _backToDriverProfile() {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
       return;
     }
 
-    context.go(AppRoutes.login);
+    context.go(AppRoutes.driverProfile);
   }
 
   AppBar _buildAppBar() {
     return AppBar(
       title: const Text('Status Verifikasi Driver'),
       automaticallyImplyLeading: false,
-      leading: IconButton(
-        onPressed: () => context.go(AppRoutes.profile),
-        icon: const Icon(Icons.person_outline),
-        tooltip: 'Ke Profil',
-      ),
       actions: [
         IconButton(
-          onPressed: _handleLogout,
-          icon: const Icon(Icons.logout),
-          tooltip: 'Keluar',
+          onPressed: _backToDriverProfile,
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Kembali ke Profil Driver',
         ),
       ],
     );

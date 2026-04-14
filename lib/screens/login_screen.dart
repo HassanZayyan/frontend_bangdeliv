@@ -42,44 +42,53 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
     final isCompact = MediaQuery.sizeOf(context).height < 860;
+    final canPop = Navigator.of(context).canPop();
 
-    return Scaffold(
-      backgroundColor: AppColors.primary,
-      body: SafeArea(
-        bottom: !isKeyboardOpen,
-        child: Column(
-          children: [
-            if (!isKeyboardOpen) ...[
-              // Top Header (Orange)
-              Expanded(flex: 3, child: centerHeader()),
-            ],
+    return PopScope<void>(
+      canPop: canPop,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          context.go(AppRoutes.home);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.primary,
+        body: SafeArea(
+          bottom: !isKeyboardOpen,
+          child: Column(
+            children: [
+              if (!isKeyboardOpen) ...[
+                // Top Header (Orange)
+                Expanded(flex: 3, child: centerHeader()),
+              ],
 
-            // Bottom Card (White)
-            Expanded(
-              flex: isKeyboardOpen ? 1 : (isCompact ? 7 : 6),
-              child: Container(
-                width: double.infinity,
-                padding: EdgeInsets.symmetric(
-                  horizontal: isCompact ? 20 : 24,
-                  vertical: isKeyboardOpen ? 16 : (isCompact ? 20 : 28),
-                ),
-                decoration: const BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(30),
-                    topRight: Radius.circular(30),
+              // Bottom Card (White)
+              Expanded(
+                flex: isKeyboardOpen ? 1 : (isCompact ? 7 : 6),
+                child: Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isCompact ? 20 : 24,
+                    vertical: isKeyboardOpen ? 16 : (isCompact ? 20 : 28),
                   ),
+                  decoration: const BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(30),
+                      topRight: Radius.circular(30),
+                    ),
+                  ),
+                  child: isKeyboardOpen
+                      ? SingleChildScrollView(
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          child: bottomForm(context, isCompact: isCompact),
+                        )
+                      : bottomForm(context, isCompact: isCompact),
                 ),
-                child: isKeyboardOpen
-                    ? SingleChildScrollView(
-                        keyboardDismissBehavior:
-                            ScrollViewKeyboardDismissBehavior.onDrag,
-                        child: bottomForm(context, isCompact: isCompact),
-                      )
-                    : bottomForm(context, isCompact: isCompact),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

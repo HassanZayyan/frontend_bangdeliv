@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../config/app_colors.dart';
 import '../models/order_model.dart';
-import 'package:go_router/go_router.dart';
 
 class OrderHistoryScreen extends StatelessWidget {
   const OrderHistoryScreen({super.key});
@@ -19,14 +18,7 @@ class OrderHistoryScreen extends StatelessWidget {
           ),
           backgroundColor: AppColors.white,
           elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.chevron_left, color: AppColors.textPrimary),
-            onPressed: () {
-              if (context.canPop()) {
-                context.pop();
-              }
-            },
-          ),
+          automaticallyImplyLeading: false,
           bottom: const TabBar(
             labelColor: AppColors.primary,
             unselectedLabelColor: AppColors.textSecondary,

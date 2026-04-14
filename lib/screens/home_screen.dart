@@ -69,13 +69,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget _buildHeader(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      decoration: const BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
-        ),
-      ),
+      decoration: const BoxDecoration(color: AppColors.primary),
       child: TextField(
         controller: _searchController,
         textInputAction: TextInputAction.search,
@@ -115,6 +109,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildServiceCard(
             context: context,
@@ -128,14 +123,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             title: 'Kurir',
             serviceType: 'kurir',
             icon: Icons.local_shipping_outlined,
-            color: AppColors.success,
+            color: AppColors.primary,
           ),
           _buildServiceCard(
             context: context,
             title: 'Nitip',
             serviceType: 'nitip',
             icon: Icons.shopping_bag_outlined,
-            color: AppColors.primaryDark,
+            color: AppColors.primary,
           ),
         ],
       ),
