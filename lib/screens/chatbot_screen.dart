@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../config/app_colors.dart';
+import '../providers/auth_session_provider.dart';
 import '../providers/api_providers.dart';
 import '../services/api_exception.dart';
 
@@ -64,8 +65,12 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           title: 'BangBot AI - Antar Jemput',
           subtitle: 'Mode perjalanan aktif',
           welcomeMessage:
-              'Halo! Saya BangBot 🤖 untuk layanan Antar Jemput. Tulis titik jemput dan tujuanmu, ya.',
-          suggestions: ['Jemput sekarang', 'Ke stasiun', '2 penumpang'],
+              'Halo! Saya BangBot 🤖 untuk layanan Antar Jemput. Alamat jemput diambil dari Alamat Saya pada profilmu, jadi tinggal ketik tujuanmu.',
+          suggestions: [
+            'Saya mau pergi ke Jalan Sudirman',
+            'Antar ke Stasiun Gambir',
+            'Tujuan ke Bandara Soekarno-Hatta',
+          ],
         );
       case 'kurir':
         return const _ServiceContext(
@@ -105,6 +110,22 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       _isSending = true;
     });
     _scrollToBottom();
+
+    if (_serviceContext.serviceType == 'antar_jemput') {
+      final reply = _buildRideReply(raw);
+      setState(() {
+        _messages.add(
+          _ChatMessage.bot(
+            text: reply,
+            timestamp: _nowLabel(),
+            meta: 'Layanan: antar_jemput • Konteks profil aktif',
+          ),
+        );
+        _isSending = false;
+      });
+      _scrollToBottom();
+      return;
+    }
 
     try {
       final chatbotService = ref.read(chatbotApiServiceProvider);
@@ -150,6 +171,134 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         _scrollToBottom();
       }
     }
+  }
+
+  String _buildRideReply(String userInput) {
+    final session = ref.read(authSessionProvider);
+    final profile = session.profile;
+    final displayName = _resolveDisplayName(profile?.name);
+    final pickupAddress = _resolvePickupAddress(session);
+
+    if (pickupAddress == null) {
+      return 'Sebelum lanjut Antar Jemput, alamat penjemputan wajib diisi dulu di menu Alamat Saya pada profil. Setelah itu, kirim lagi tujuanmu, misalnya: "Saya mau pergi ke Jalan XXX".';
+    }
+
+    final destination = _extractRideDestination(userInput);
+    if (destination == null) {
+      return 'Siap $displayName. Alamat jemput kamu di $pickupAddress. Sekarang kirim alamat tujuanmu, misalnya: "Antar ke Jalan XXX".';
+    }
+
+    return 'Baik $displayName, alamat jemput kamu di $pickupAddress dan tujuan kamu di $destination.';
+  }
+
+  String _resolveDisplayName(String? rawName) {
+    final name = (rawName ?? '').trim();
+    return name.isEmpty ? 'Kak' : name;
+  }
+
+  String? _resolvePickupAddress(AuthSessionState session) {
+    final addresses = session.profile?.addresses ?? const [];
+
+    for (final address in addresses) {
+      final value = address.displayAddress.trim();
+      if (address.isDefault && value.isNotEmpty) {
+        return value;
+      }
+    }
+
+    for (final address in addresses) {
+      final value = address.displayAddress.trim();
+      if (value.isNotEmpty) {
+        return value;
+      }
+    }
+
+    return null;
+  }
+
+  String? _extractRideDestination(String rawMessage) {
+    final input = rawMessage.trim();
+    if (input.isEmpty || _isRideControlCommand(input)) {
+      return null;
+    }
+
+    final patterns = <RegExp>[
+      RegExp(
+        r'(?:pergi\s+ke|menuju\s+ke|mau\s+ke|antar(?:kan)?\s+ke|drop\s?off\s+(?:di|ke)|tujuan(?:nya)?\s*(?:di|ke)?)\s+(.+)$',
+        caseSensitive: false,
+      ),
+      RegExp(r'\bke\s+(.+)$', caseSensitive: false),
+    ];
+
+    for (final pattern in patterns) {
+      final match = pattern.firstMatch(input);
+      if (match == null) {
+        continue;
+      }
+      final normalized = _normalizeRideLocation(match.group(1));
+      if (normalized != null) {
+        return normalized;
+      }
+    }
+
+    if (_looksLikeLocation(input)) {
+      return _normalizeRideLocation(input);
+    }
+
+    return null;
+  }
+
+  bool _isRideControlCommand(String text) {
+    final normalized = text.trim().toLowerCase();
+    return normalized == 'konfirmasi' ||
+        normalized == 'lanjut' ||
+        normalized == 'oke' ||
+        normalized == 'ok' ||
+        normalized == 'siap' ||
+        normalized == 'jemput sekarang';
+  }
+
+  String? _normalizeRideLocation(String? rawLocation) {
+    final cleaned = (rawLocation ?? '')
+        .replaceAll(RegExp(r'^[\s,.:;\-]+'), '')
+        .replaceAll(RegExp(r'[\s,.:;!?\-]+$'), '')
+        .trim();
+
+    if (cleaned.length < 4) {
+      return null;
+    }
+
+    return cleaned;
+  }
+
+  bool _looksLikeLocation(String text) {
+    final normalized = text.toLowerCase();
+    const locationHints = <String>[
+      'jalan',
+      'jl',
+      'gang',
+      'gg',
+      'blok',
+      'no',
+      'stasiun',
+      'bandara',
+      'terminal',
+      'mall',
+      'rumah',
+      'apartemen',
+      'kampus',
+      'kantor',
+      'kecamatan',
+      'kelurahan',
+    ];
+
+    for (final hint in locationHints) {
+      if (normalized.contains(hint)) {
+        return true;
+      }
+    }
+
+    return RegExp(r'\d').hasMatch(normalized);
   }
 
   void _scrollToBottom() {
@@ -440,10 +589,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                   const SizedBox(height: 8),
                   Text(
                     message.meta!,
-                    style: TextStyle(
-                      color: metaColor,
-                      fontSize: 11,
-                    ),
+                    style: TextStyle(color: metaColor, fontSize: 11),
                   ),
                 ],
               ],
