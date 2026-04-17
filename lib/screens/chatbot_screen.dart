@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../config/app_colors.dart';
+import '../config/app_routes.dart';
+import '../models/user_profile_model.dart';
 import '../providers/auth_session_provider.dart';
 import '../providers/api_providers.dart';
 import '../services/api_exception.dart';
@@ -21,6 +23,10 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   late final ScrollController _scrollController;
   bool _isSending = false;
   bool _hasInitializedWelcome = false;
+  bool _showAddressCta = false;
+  _RideConversationState _rideConversation = const _RideConversationState(
+    stage: _RideConversationStage.needPickup,
+  );
 
   @override
   void initState() {
@@ -112,15 +118,21 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     _scrollToBottom();
 
     if (_serviceContext.serviceType == 'antar_jemput') {
-      final reply = _buildRideReply(raw);
+      final reply = await _buildRideReply(raw);
+
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
         _messages.add(
           _ChatMessage.bot(
-            text: reply,
+            text: reply.text,
             timestamp: _nowLabel(),
-            meta: 'Layanan: antar_jemput • Konteks profil aktif',
+            meta: reply.meta,
           ),
         );
+        _showAddressCta = reply.needsAddressSetup;
         _isSending = false;
       });
       _scrollToBottom();
@@ -173,22 +185,216 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     }
   }
 
-  String _buildRideReply(String userInput) {
-    final session = ref.read(authSessionProvider);
+  Future<_RideReply> _buildRideReply(String userInput) async {
+    var session = ref.read(authSessionProvider);
     final profile = session.profile;
     final displayName = _resolveDisplayName(profile?.name);
-    final pickupAddress = _resolvePickupAddress(session);
+    var pickupAddressModel = _resolvePickupAddressModel(session);
+    var pickupAddress = pickupAddressModel?.displayAddress.trim();
 
     if (pickupAddress == null) {
-      return 'Sebelum lanjut Antar Jemput, alamat penjemputan wajib diisi dulu di menu Alamat Saya pada profil. Setelah itu, kirim lagi tujuanmu, misalnya: "Saya mau pergi ke Jalan XXX".';
+      await ref.read(authSessionProvider.notifier).refreshSession();
+      session = ref.read(authSessionProvider);
+      pickupAddressModel = _resolvePickupAddressModel(session);
+      pickupAddress = pickupAddressModel?.displayAddress.trim();
+    }
+
+    if (pickupAddress == null) {
+      _rideConversation = const _RideConversationState(
+        stage: _RideConversationStage.needPickup,
+      );
+      return const _RideReply(
+        text:
+            'Sebelum lanjut Antar Jemput, alamat penjemputan wajib diisi dulu di menu Alamat Saya pada profil. Setelah itu, kirim lagi tujuanmu, misalnya: "Saya mau pergi ke Jalan XXX".',
+        meta: 'Layanan: antar_jemput • Butuh alamat profil',
+        needsAddressSetup: true,
+      );
+    }
+
+    var nextConversation = _rideConversation.copyWith(
+      pickupAddress: pickupAddress,
+    );
+    final normalizedInput = userInput.trim();
+
+    if (_isRideResetCommand(normalizedInput)) {
+      nextConversation = nextConversation.copyWith(
+        stage: _RideConversationStage.needDestination,
+        clearDestination: true,
+      );
+      _rideConversation = nextConversation;
+      return _RideReply(
+        text:
+            'Baik $displayName, tujuan sebelumnya saya reset. Alamat jemput kamu di $pickupAddress. Sekarang kirim tujuan baru, misalnya: "Antar ke Jalan XXX".',
+        meta: 'Layanan: antar_jemput • Tujuan direset',
+      );
+    }
+
+    if (_isRideConfirmCommand(normalizedInput)) {
+      if (nextConversation.stage == _RideConversationStage.readyConfirm &&
+          nextConversation.destination != null) {
+        final currentDestination = nextConversation.destination!;
+
+        if (pickupAddressModel == null) {
+          _rideConversation = const _RideConversationState(
+            stage: _RideConversationStage.needPickup,
+          );
+          return const _RideReply(
+            text:
+                'Alamat jemput belum terdeteksi. Buka Alamat Saya dulu, lalu kirim lagi tujuanmu.',
+            meta: 'Layanan: antar_jemput • Butuh alamat profil',
+            needsAddressSetup: true,
+          );
+        }
+
+        try {
+          final rideOrderApiService = ref.read(rideOrderApiServiceProvider);
+          final submission = await rideOrderApiService.createRideOrder(
+            addressId: pickupAddressModel.id,
+            destinationAddress: currentDestination,
+            notes: 'Dibuat dari BangBot Antar Jemput.',
+          );
+
+          nextConversation = nextConversation.copyWith(
+            stage: _RideConversationStage.confirmed,
+          );
+          _rideConversation = nextConversation;
+
+          final orderCode = (submission.orderNumber ?? '').trim().isNotEmpty
+              ? submission.orderNumber!.trim()
+              : '#${submission.orderId}';
+
+          return _RideReply(
+            text:
+                'Siap $displayName, order Antar Jemput kamu sudah dikonfirmasi dan tersimpan. Kode order: $orderCode. Jemput di $pickupAddress dan tujuan di $currentDestination.',
+            meta: 'Layanan: antar_jemput • Pesanan dikonfirmasi',
+          );
+        } on ApiException catch (error) {
+          _rideConversation = nextConversation;
+          return _RideReply(
+            text:
+                'Konfirmasi gagal: ${error.message}. Coba ketik "Konfirmasi" lagi atau "Ubah Tujuan".',
+            meta: 'Layanan: antar_jemput • Gagal membuat order',
+          );
+        } catch (_) {
+          _rideConversation = nextConversation;
+          return const _RideReply(
+            text:
+                'Konfirmasi gagal karena gangguan koneksi. Coba ketik "Konfirmasi" lagi.',
+            meta: 'Layanan: antar_jemput • Gagal membuat order',
+          );
+        }
+      }
+
+      nextConversation = nextConversation.copyWith(
+        stage: _RideConversationStage.needDestination,
+      );
+      _rideConversation = nextConversation;
+      return _RideReply(
+        text:
+            'Alamat tujuan belum ada. Alamat jemput kamu di $pickupAddress. Kirim dulu tujuanmu, misalnya: "Antar ke Jalan XXX".',
+        meta: 'Layanan: antar_jemput • Menunggu tujuan',
+      );
     }
 
     final destination = _extractRideDestination(userInput);
-    if (destination == null) {
-      return 'Siap $displayName. Alamat jemput kamu di $pickupAddress. Sekarang kirim alamat tujuanmu, misalnya: "Antar ke Jalan XXX".';
+    if (destination != null) {
+      nextConversation = nextConversation.copyWith(
+        stage: _RideConversationStage.readyConfirm,
+        destination: destination,
+      );
+      _rideConversation = nextConversation;
+      return _RideReply(
+        text:
+            'Baik $displayName, alamat jemput kamu di $pickupAddress dan tujuan kamu di $destination. Ketik "Konfirmasi" untuk lanjut atau "Ubah Tujuan" untuk ganti tujuan.',
+        meta: 'Layanan: antar_jemput • Draft perjalanan',
+      );
     }
 
-    return 'Baik $displayName, alamat jemput kamu di $pickupAddress dan tujuan kamu di $destination.';
+    if (nextConversation.stage == _RideConversationStage.readyConfirm &&
+        nextConversation.destination != null) {
+      _rideConversation = nextConversation;
+      return _RideReply(
+        text:
+            'Draft perjalananmu: jemput di $pickupAddress dan tujuan di ${nextConversation.destination}. Ketik "Konfirmasi" untuk lanjut atau "Ubah Tujuan" untuk ganti tujuan.',
+        meta: 'Layanan: antar_jemput • Menunggu konfirmasi',
+      );
+    }
+
+    if (nextConversation.stage == _RideConversationStage.confirmed) {
+      nextConversation = nextConversation.copyWith(
+        stage: _RideConversationStage.needDestination,
+        clearDestination: true,
+      );
+      _rideConversation = nextConversation;
+      return _RideReply(
+        text:
+            'Perjalanan sebelumnya sudah dikonfirmasi. Kalau mau buat perjalanan baru, kirim tujuan baru kamu, misalnya: "Antar ke Jalan XXX".',
+        meta: 'Layanan: antar_jemput • Menunggu tujuan baru',
+      );
+    }
+
+    nextConversation = nextConversation.copyWith(
+      stage: _RideConversationStage.needDestination,
+    );
+    _rideConversation = nextConversation;
+    return _RideReply(
+      text:
+          'Siap $displayName. Alamat jemput kamu di $pickupAddress. Sekarang kirim alamat tujuanmu, misalnya: "Antar ke Jalan XXX".',
+      meta: 'Layanan: antar_jemput • Menunggu tujuan',
+    );
+  }
+
+  Future<void> _openAddressManager() async {
+    if (_isSending) {
+      return;
+    }
+
+    await context.push<bool>(AppRoutes.addresses);
+    if (!mounted) {
+      return;
+    }
+
+    await ref.read(authSessionProvider.notifier).refreshSession();
+    if (!mounted) {
+      return;
+    }
+
+    final session = ref.read(authSessionProvider);
+    final pickupAddress = _resolvePickupAddress(session);
+
+    setState(() {
+      if (pickupAddress == null) {
+        _rideConversation = const _RideConversationState(
+          stage: _RideConversationStage.needPickup,
+        );
+        _showAddressCta = true;
+        _messages.add(
+          _ChatMessage.bot(
+            text:
+                'Alamat jemput belum terdeteksi. Pastikan kamu sudah menyimpan alamat utama di menu Alamat Saya, lalu kembali ke chat ini.',
+            timestamp: _nowLabel(),
+            meta: 'Layanan: antar_jemput • Alamat profil belum tersedia',
+          ),
+        );
+      } else {
+        _rideConversation = _rideConversation.copyWith(
+          stage: _RideConversationStage.needDestination,
+          pickupAddress: pickupAddress,
+          clearDestination: true,
+        );
+        _showAddressCta = false;
+        _messages.add(
+          _ChatMessage.bot(
+            text:
+                'Alamat jemput sudah tersinkron: $pickupAddress. Sekarang kirim tujuanmu, misalnya "Antar ke Jalan XXX".',
+            timestamp: _nowLabel(),
+            meta: 'Layanan: antar_jemput • Alamat profil tersinkron',
+          ),
+        );
+      }
+    });
+
+    _scrollToBottom();
   }
 
   String _resolveDisplayName(String? rawName) {
@@ -196,24 +402,34 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     return name.isEmpty ? 'Kak' : name;
   }
 
-  String? _resolvePickupAddress(AuthSessionState session) {
-    final addresses = session.profile?.addresses ?? const [];
+  SavedAddressModel? _resolvePickupAddressModel(AuthSessionState session) {
+    final addresses = session.profile?.addresses ?? const <SavedAddressModel>[];
 
     for (final address in addresses) {
       final value = address.displayAddress.trim();
       if (address.isDefault && value.isNotEmpty) {
-        return value;
+        return address;
       }
     }
 
     for (final address in addresses) {
       final value = address.displayAddress.trim();
       if (value.isNotEmpty) {
-        return value;
+        return address;
       }
     }
 
     return null;
+  }
+
+  String? _resolvePickupAddress(AuthSessionState session) {
+    final pickup = _resolvePickupAddressModel(session);
+    final value = pickup?.displayAddress.trim();
+    if (value == null || value.isEmpty) {
+      return null;
+    }
+
+    return value;
   }
 
   String? _extractRideDestination(String rawMessage) {
@@ -249,6 +465,10 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   }
 
   bool _isRideControlCommand(String text) {
+    return _isRideConfirmCommand(text) || _isRideResetCommand(text);
+  }
+
+  bool _isRideConfirmCommand(String text) {
     final normalized = text.trim().toLowerCase();
     return normalized == 'konfirmasi' ||
         normalized == 'lanjut' ||
@@ -256,6 +476,13 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         normalized == 'ok' ||
         normalized == 'siap' ||
         normalized == 'jemput sekarang';
+  }
+
+  bool _isRideResetCommand(String text) {
+    final normalized = text.trim().toLowerCase();
+    return normalized == 'ubah tujuan' ||
+        normalized == 'ganti tujuan' ||
+        normalized == 'reset tujuan';
   }
 
   String? _normalizeRideLocation(String? rawLocation) {
@@ -424,6 +651,18 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (_serviceContext.serviceType == 'antar_jemput' &&
+                      _showAddressCta) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _openAddressManager,
+                        icon: const Icon(Icons.location_on_outlined),
+                        label: const Text('Buka Alamat Saya'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
@@ -640,6 +879,53 @@ class _ChatMessage {
       meta: meta,
     );
   }
+}
+
+enum _RideConversationStage {
+  needPickup,
+  needDestination,
+  readyConfirm,
+  confirmed,
+}
+
+class _RideConversationState {
+  final _RideConversationStage stage;
+  final String? pickupAddress;
+  final String? destination;
+
+  const _RideConversationState({
+    required this.stage,
+    this.pickupAddress,
+    this.destination,
+  });
+
+  _RideConversationState copyWith({
+    _RideConversationStage? stage,
+    String? pickupAddress,
+    bool clearPickupAddress = false,
+    String? destination,
+    bool clearDestination = false,
+  }) {
+    return _RideConversationState(
+      stage: stage ?? this.stage,
+      pickupAddress: clearPickupAddress
+          ? null
+          : (pickupAddress ?? this.pickupAddress),
+      destination: clearDestination ? null : (destination ?? this.destination),
+    );
+  }
+}
+
+class _RideReply {
+  final String text;
+  final String meta;
+  final bool needsAddressSetup;
+
+  const _RideReply({
+    required this.text,
+    required this.meta,
+    this.needsAddressSetup = false,
+  });
 }
 
 class _ServiceContext {

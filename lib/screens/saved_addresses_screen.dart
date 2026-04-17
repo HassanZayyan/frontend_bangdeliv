@@ -1,19 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../models/user_profile_model.dart';
+import '../providers/auth_session_provider.dart';
 import '../services/auth_service.dart';
 
-class SavedAddressesScreen extends StatefulWidget {
+class SavedAddressesScreen extends ConsumerStatefulWidget {
   const SavedAddressesScreen({super.key});
 
   @override
-  State<SavedAddressesScreen> createState() => _SavedAddressesScreenState();
+  ConsumerState<SavedAddressesScreen> createState() =>
+      _SavedAddressesScreenState();
 }
 
-class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
+class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
   late Future<List<SavedAddressModel>> _addressesFuture;
 
   @override
@@ -131,6 +134,7 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
   Future<void> _openAddAddress() async {
     final created = await context.push<bool>(AppRoutes.addAddress);
     if (created == true && mounted) {
+      await ref.read(authSessionProvider.notifier).refreshSession();
       _reloadAddresses();
     }
   }
@@ -149,6 +153,7 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
       },
     );
     if (updated == true && mounted) {
+      await ref.read(authSessionProvider.notifier).refreshSession();
       _reloadAddresses();
     }
   }
