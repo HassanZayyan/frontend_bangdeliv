@@ -1,20 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../config/app_colors.dart';
 import '../models/user_profile_model.dart';
+import '../providers/auth_session_provider.dart';
 import '../services/auth_service.dart';
 
-class AddAddressScreen extends StatefulWidget {
+class AddAddressScreen extends ConsumerStatefulWidget {
   const AddAddressScreen({super.key, this.initialAddress});
 
   final SavedAddressModel? initialAddress;
 
   @override
-  State<AddAddressScreen> createState() => _AddAddressScreenState();
+  ConsumerState<AddAddressScreen> createState() => _AddAddressScreenState();
 }
 
-class _AddAddressScreenState extends State<AddAddressScreen> {
+class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
   final _formKey = GlobalKey<FormState>();
   final _recipientController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -348,14 +350,25 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
     });
 
     try {
+      final rawFullAddress = _fullAddressController.text.trim();
+      final validatedAddress = await AuthService.validateSavedAddress(
+        fullAddress: rawFullAddress,
+      );
+      final normalizedFullAddress =
+          validatedAddress.formattedAddress.trim().isEmpty
+          ? rawFullAddress
+          : validatedAddress.formattedAddress.trim();
+
       if (_isEditMode) {
         await AuthService.updateSavedAddress(
           addressId: widget.initialAddress!.id,
           label: _selectedLabel!,
           recipientName: _recipientController.text.trim(),
           phone: _phoneController.text.trim(),
-          fullAddress: _fullAddressController.text.trim(),
+          fullAddress: normalizedFullAddress,
           detail: _detailController.text.trim(),
+          latitude: validatedAddress.latitude,
+          longitude: validatedAddress.longitude,
           isDefault: _isDefault,
         );
       } else {
@@ -363,11 +376,15 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
           label: _selectedLabel!,
           recipientName: _recipientController.text.trim(),
           phone: _phoneController.text.trim(),
-          fullAddress: _fullAddressController.text.trim(),
+          fullAddress: normalizedFullAddress,
           detail: _detailController.text.trim(),
+          latitude: validatedAddress.latitude,
+          longitude: validatedAddress.longitude,
           isDefault: _isDefault,
         );
       }
+
+      await ref.read(authSessionProvider.notifier).refreshSession();
 
       if (!mounted) {
         return;
@@ -443,6 +460,8 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
       await AuthService.deleteSavedAddress(
         addressId: widget.initialAddress!.id,
       );
+
+      await ref.read(authSessionProvider.notifier).refreshSession();
 
       if (!mounted) {
         return;

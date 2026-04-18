@@ -4,6 +4,7 @@ import '../models/home_data_model.dart';
 import '../services/api_client.dart';
 import '../services/chatbot_api_service.dart';
 import '../services/home_api_service.dart';
+import '../services/ride_order_api_service.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) {
   return ApiClient();
@@ -17,6 +18,11 @@ final homeApiServiceProvider = Provider<HomeApiService>((ref) {
 final chatbotApiServiceProvider = Provider<ChatbotApiService>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   return ChatbotApiService(apiClient);
+});
+
+final rideOrderApiServiceProvider = Provider<RideOrderApiService>((ref) {
+  final apiClient = ref.watch(apiClientProvider);
+  return RideOrderApiService(apiClient);
 });
 
 class HomeSearchQueryNotifier extends Notifier<String> {

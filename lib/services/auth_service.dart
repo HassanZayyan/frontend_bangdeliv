@@ -210,12 +210,53 @@ class AuthService {
     return profile.addresses;
   }
 
+  static Future<AddressValidationResult> validateSavedAddress({
+    required String fullAddress,
+  }) async {
+    final uri = Uri.parse('${AppEnv.apiBaseUrl}/user/addresses/validate');
+
+    try {
+      final response = await http
+          .post(
+            uri,
+            headers: await authorizedHeaders(),
+            body: jsonEncode({'full_address': fullAddress.trim()}),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> payload =
+            jsonDecode(response.body) as Map<String, dynamic>;
+        final Map<String, dynamic> data =
+            (payload['data'] as Map<String, dynamic>?) ?? const {};
+
+        return AddressValidationResult.fromJson(data);
+      }
+
+      throw AuthException(
+        _extractErrorMessage(response, fallback: 'Gagal memvalidasi alamat.'),
+      );
+    } on TimeoutException {
+      throw const AuthException(
+        'Koneksi ke server timeout. Coba cek backend kamu berjalan.',
+      );
+    } on AuthException {
+      rethrow;
+    } catch (_) {
+      throw const AuthException(
+        'Gagal terhubung ke server. Periksa API_BASE_URL dan koneksi jaringan.',
+      );
+    }
+  }
+
   static Future<SavedAddressModel> createSavedAddress({
     required String label,
     required String recipientName,
     required String phone,
     required String fullAddress,
     String detail = '',
+    double? latitude,
+    double? longitude,
     bool isDefault = false,
   }) async {
     final uri = Uri.parse('${AppEnv.apiBaseUrl}/user/addresses');
@@ -231,6 +272,8 @@ class AuthService {
               'phone': phone,
               'full_address': fullAddress,
               'detail': detail,
+              if (latitude != null) 'latitude': latitude,
+              if (longitude != null) 'longitude': longitude,
               'is_default': isDefault,
             }),
           )
@@ -268,6 +311,8 @@ class AuthService {
     required String phone,
     required String fullAddress,
     String detail = '',
+    double? latitude,
+    double? longitude,
     bool isDefault = false,
   }) async {
     final uri = Uri.parse('${AppEnv.apiBaseUrl}/user/addresses/$addressId');
@@ -283,6 +328,8 @@ class AuthService {
               'phone': phone,
               'full_address': fullAddress,
               'detail': detail,
+              if (latitude != null) 'latitude': latitude,
+              if (longitude != null) 'longitude': longitude,
               'is_default': isDefault,
             }),
           )
@@ -549,6 +596,34 @@ class AuthException implements Exception {
 
   @override
   String toString() => message;
+}
+
+class AddressValidationResult {
+  final String formattedAddress;
+  final double latitude;
+  final double longitude;
+
+  const AddressValidationResult({
+    required this.formattedAddress,
+    required this.latitude,
+    required this.longitude,
+  });
+
+  factory AddressValidationResult.fromJson(Map<String, dynamic> json) {
+    return AddressValidationResult(
+      formattedAddress: (json['formatted_address'] ?? '').toString(),
+      latitude: _asDouble(json['latitude']),
+      longitude: _asDouble(json['longitude']),
+    );
+  }
+
+  static double _asDouble(dynamic value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(value?.toString() ?? '') ?? 0;
+  }
 }
 
 class LoginCredentials {

@@ -111,6 +111,8 @@ class SavedAddressModel {
   final String phone;
   final String fullAddress;
   final String detail;
+  final double latitude;
+  final double longitude;
   final bool isDefault;
 
   const SavedAddressModel({
@@ -120,6 +122,8 @@ class SavedAddressModel {
     required this.phone,
     required this.fullAddress,
     required this.detail,
+    this.latitude = 0,
+    this.longitude = 0,
     required this.isDefault,
   });
 
@@ -138,6 +142,8 @@ class SavedAddressModel {
       phone: (json['phone'] ?? '').toString(),
       fullAddress: (json['full_address'] ?? '').toString(),
       detail: (json['detail'] ?? '').toString(),
+      latitude: _asDouble(json['latitude']),
+      longitude: _asDouble(json['longitude']),
       isDefault: json['is_default'] == true,
     );
   }
@@ -147,5 +153,13 @@ class SavedAddressModel {
       return value;
     }
     return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static double _asDouble(dynamic value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(value?.toString() ?? '') ?? 0;
   }
 }
