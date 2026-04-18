@@ -1,4 +1,4 @@
-enum ChatbotIntent { pesanMakanan, outOfDomain, unknown }
+enum ChatbotIntent { pesanMakanan, courierOrder, outOfDomain, unknown }
 
 class ChatbotOrderItem {
   final String menu;
@@ -26,6 +26,8 @@ class ChatbotMatchedItem {
 class ChatbotValidation {
   final bool isValidOrder;
   final List<String> rejectionReasons;
+  final List<String> missingFields;
+  final List<String> nextActions;
   final String? matchedRestaurantName;
   final List<ChatbotMatchedItem> matchedItems;
   final List<ChatbotOrderItem> unmatchedItems;
@@ -33,6 +35,8 @@ class ChatbotValidation {
   const ChatbotValidation({
     required this.isValidOrder,
     required this.rejectionReasons,
+    required this.missingFields,
+    required this.nextActions,
     required this.matchedRestaurantName,
     required this.matchedItems,
     required this.unmatchedItems,
@@ -45,6 +49,11 @@ class ChatbotResult {
   final List<ChatbotOrderItem> items;
   final String? modelUsed;
   final ChatbotValidation? validation;
+  final String? assistantText;
+  final bool isOrderCreated;
+  final int? createdOrderId;
+  final String? createdOrderNumber;
+  final String? createdOrderStatus;
 
   const ChatbotResult({
     required this.intent,
@@ -52,6 +61,11 @@ class ChatbotResult {
     required this.items,
     required this.modelUsed,
     required this.validation,
+    required this.assistantText,
+    required this.isOrderCreated,
+    required this.createdOrderId,
+    required this.createdOrderNumber,
+    required this.createdOrderStatus,
   });
 
   factory ChatbotResult.fromApiJson(Map<String, dynamic> json) {
@@ -62,6 +76,7 @@ class ChatbotResult {
     final intentValue = data['intent']?.toString().toLowerCase() ?? '';
     final intent = switch (intentValue) {
       'pesan_makanan' => ChatbotIntent.pesanMakanan,
+      'courier_order' => ChatbotIntent.courierOrder,
       'out_of_domain' => ChatbotIntent.outOfDomain,
       _ => ChatbotIntent.unknown,
     };
@@ -88,12 +103,23 @@ class ChatbotResult {
         ? null
         : _parseValidation(validationRaw);
 
+    final orderRaw = (data['order'] is Map<String, dynamic>)
+        ? data['order'] as Map<String, dynamic>
+        : <String, dynamic>{};
+
+    final isOrderCreated = orderRaw['created'] == true;
+
     return ChatbotResult(
       intent: intent,
       resto: data['resto']?.toString(),
       items: items,
       modelUsed: json['model_used']?.toString(),
       validation: validation,
+      assistantText: data['assistant_text']?.toString(),
+      isOrderCreated: isOrderCreated,
+      createdOrderId: int.tryParse(orderRaw['id']?.toString() ?? ''),
+      createdOrderNumber: orderRaw['order_number']?.toString(),
+      createdOrderStatus: orderRaw['status']?.toString(),
     );
   }
 
@@ -105,6 +131,22 @@ class ChatbotResult {
         .map((item) => item.toString())
         .where((item) => item.trim().isNotEmpty)
         .toList(growable: false);
+
+    final missingFieldsRaw = (json['missing_fields'] is List<dynamic>)
+      ? json['missing_fields'] as List<dynamic>
+      : const <dynamic>[];
+    final missingFields = missingFieldsRaw
+      .map((item) => item.toString().trim())
+      .where((item) => item.isNotEmpty)
+      .toList(growable: false);
+
+    final nextActionsRaw = (json['next_actions'] is List<dynamic>)
+      ? json['next_actions'] as List<dynamic>
+      : const <dynamic>[];
+    final nextActions = nextActionsRaw
+      .map((item) => item.toString().trim())
+      .where((item) => item.isNotEmpty)
+      .toList(growable: false);
 
     final matchedRestaurant =
         (json['matched_restaurant'] is Map<String, dynamic>)
@@ -143,6 +185,8 @@ class ChatbotResult {
     return ChatbotValidation(
       isValidOrder: json['is_valid_order'] == true,
       rejectionReasons: reasons,
+      missingFields: missingFields,
+      nextActions: nextActions,
       matchedRestaurantName: matchedRestaurant?['name']?.toString(),
       matchedItems: matchedItems,
       unmatchedItems: unmatchedItems,
@@ -150,6 +194,31 @@ class ChatbotResult {
   }
 
   String toAssistantText() {
+    final backendMessage = assistantText?.trim() ?? '';
+    if (backendMessage.isNotEmpty) {
+      return backendMessage;
+    }
+
+    if (intent == ChatbotIntent.courierOrder) {
+      if (isOrderCreated) {
+        if (createdOrderNumber != null &&
+            createdOrderNumber!.trim().isNotEmpty) {
+          return 'Order kurir berhasil dibuat dengan nomor $createdOrderNumber.';
+        }
+        return 'Order kurir berhasil dibuat.';
+      }
+
+      if (validation != null && validation!.rejectionReasons.isNotEmpty) {
+        final buffer = StringBuffer('Order kurir belum bisa dibuat karena:\n');
+        for (final reason in validation!.rejectionReasons) {
+          buffer.writeln('- $reason');
+        }
+        return buffer.toString().trimRight();
+      }
+
+      return 'Data kurir belum lengkap. Mohon isi lokasi ambil, tujuan kirim, dan isi paket.';
+    }
+
     if (intent == ChatbotIntent.outOfDomain) {
       return 'Aku fokus bantu pemesanan makanan. Coba tulis menu dan jumlahnya, ya.';
     }

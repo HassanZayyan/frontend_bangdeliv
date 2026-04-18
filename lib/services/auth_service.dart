@@ -513,6 +513,14 @@ class AuthService {
 
       final dynamic message = payload['message'];
       if (message is String && message.trim().isNotEmpty) {
+        final normalizedMessage = message.toLowerCase();
+
+        // Avoid exposing raw SQL errors to end users.
+        if (normalizedMessage.contains('sqlstate') ||
+            normalizedMessage.contains('integrity constraint')) {
+          return '$fallback (${response.statusCode}).';
+        }
+
         return message;
       }
 

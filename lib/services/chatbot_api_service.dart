@@ -11,15 +11,22 @@ class ChatbotApiService {
   Future<ChatbotResult> sendMessage(
     String message, {
     required String serviceType,
+    String? sessionId,
   }) async {
+    final requestBody = <String, dynamic>{
+      'message': message,
+      'service_type': serviceType,
+    };
+
+    if (sessionId != null && sessionId.trim().isNotEmpty) {
+      requestBody['session_id'] = sessionId.trim();
+    }
+
     Map<String, dynamic> response;
     try {
       response = await _apiClient.post(
         '/chatbot/process',
-        body: <String, dynamic>{
-          'message': message,
-          'service_type': serviceType,
-        },
+        body: requestBody,
         headers: await AuthService.authorizedHeaders(),
       );
     } on AuthException catch (error) {

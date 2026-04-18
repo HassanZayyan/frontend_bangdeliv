@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../config/app_colors.dart';
+import '../config/app_routes.dart';
+import '../models/chatbot_model.dart';
 import '../providers/auth_session_provider.dart';
 import '../providers/api_providers.dart';
 import '../services/api_exception.dart';
@@ -19,6 +21,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
   late final TextEditingController _inputController;
   late final ScrollController _scrollController;
+  late final String _sessionId;
+  String? _pendingCourierDraft;
   bool _isSending = false;
   bool _hasInitializedWelcome = false;
 
@@ -27,6 +31,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     super.initState();
     _inputController = TextEditingController();
     _scrollController = ScrollController();
+    _sessionId =
+        'chat-${DateTime.now().millisecondsSinceEpoch}-${identityHashCode(this)}';
   }
 
   @override
@@ -103,6 +109,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       return;
     }
 
+    final outboundMessage = _composeCourierOutboundMessage(raw);
+
     _inputController.clear();
 
     setState(() {
@@ -130,18 +138,34 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     try {
       final chatbotService = ref.read(chatbotApiServiceProvider);
       final result = await chatbotService.sendMessage(
-        raw,
+        outboundMessage,
         serviceType: _serviceContext.serviceType,
+        sessionId: _sessionId,
       );
+
+      _updateCourierDraftAfterResponse(result, outboundMessage);
+
+      final botMessage = result.toAssistantText();
+      final metaParts = <String>['Layanan: ${_serviceContext.serviceType}'];
+      if (result.modelUsed != null && result.modelUsed!.trim().isNotEmpty) {
+        metaParts.add('Model: ${result.modelUsed}');
+      }
+      if (result.isOrderCreated) {
+        final orderRef = result.createdOrderNumber?.trim();
+        if (orderRef != null && orderRef.isNotEmpty) {
+          metaParts.add('Order: $orderRef');
+        } else if (result.createdOrderId != null) {
+          metaParts.add('Order ID: ${result.createdOrderId}');
+        }
+      }
 
       setState(() {
         _messages.add(
           _ChatMessage.bot(
-            text: result.toAssistantText(),
+            text: botMessage,
             timestamp: _nowLabel(),
-            meta: result.modelUsed == null
-                ? 'Layanan: ${_serviceContext.serviceType}'
-                : 'Layanan: ${_serviceContext.serviceType} • Model: ${result.modelUsed}',
+            meta: metaParts.join(' • '),
+            action: _buildMessageAction(result),
           ),
         );
       });
@@ -171,6 +195,105 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         _scrollToBottom();
       }
     }
+  }
+
+  String _composeCourierOutboundMessage(String rawMessage) {
+    if (_serviceContext.serviceType != 'kurir') {
+      return rawMessage;
+    }
+
+    final current = rawMessage.trim();
+    if (current.isEmpty) {
+      return current;
+    }
+
+    if (_isCourierResetIntent(current)) {
+      _pendingCourierDraft = null;
+      return current;
+    }
+
+    final previous = _pendingCourierDraft?.trim();
+    if (previous == null || previous.isEmpty) {
+      return current;
+    }
+
+    final normalizedPrevious = previous.toLowerCase();
+    final normalizedCurrent = current.toLowerCase();
+    if (normalizedPrevious.contains(normalizedCurrent)) {
+      return previous;
+    }
+
+    return '$previous\n$current';
+  }
+
+  bool _isCourierResetIntent(String text) {
+    final normalized = text.trim().toLowerCase();
+    return normalized == 'reset' ||
+        normalized == 'ulang' ||
+        normalized == 'batal' ||
+        normalized == 'order baru';
+  }
+
+  void _updateCourierDraftAfterResponse(ChatbotResult result, String outbound) {
+    if (_serviceContext.serviceType != 'kurir') {
+      return;
+    }
+
+    if (result.isOrderCreated) {
+      _pendingCourierDraft = null;
+      return;
+    }
+
+    final validation = result.validation;
+    if (validation == null) {
+      _pendingCourierDraft = null;
+      return;
+    }
+
+    if (validation.isValidOrder) {
+      _pendingCourierDraft = null;
+      return;
+    }
+
+    _pendingCourierDraft = outbound.trim();
+  }
+
+  _ChatMessageAction? _buildMessageAction(ChatbotResult result) {
+    if (_serviceContext.serviceType != 'kurir') {
+      return null;
+    }
+
+    if (result.isOrderCreated) {
+      return null;
+    }
+
+    final validation = result.validation;
+    if (validation == null) {
+      return null;
+    }
+
+    final requiresAddressSetup =
+        validation.nextActions
+            .map((action) => action.trim().toUpperCase())
+            .contains('OPEN_ADDRESSES') ||
+        validation.rejectionReasons.any(
+          (reason) => reason.toLowerCase().contains('alamat saya sebagai default'),
+        );
+
+    if (!requiresAddressSetup) {
+      return null;
+    }
+
+    return _ChatMessageAction(
+      label: 'Isi Alamat Saya',
+      onTap: () async {
+        await context.push(AppRoutes.addresses);
+        if (!mounted) {
+          return;
+        }
+        await ref.read(authSessionProvider.notifier).refreshSession();
+      },
+    );
   }
 
   String _buildRideReply(String userInput) {
@@ -592,6 +715,32 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                     style: TextStyle(color: metaColor, fontSize: 11),
                   ),
                 ],
+                if (message.action != null) ...[
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: message.action!.onTap,
+                    icon: const Icon(Icons.location_on_outlined, size: 16),
+                    label: Text(message.action!.label),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: isUser
+                          ? Colors.white
+                          : AppColors.primaryDark,
+                      side: BorderSide(
+                        color: isUser
+                            ? Colors.white.withValues(alpha: 0.35)
+                            : AppColors.primary,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -616,12 +765,14 @@ class _ChatMessage {
   final String timestamp;
   final bool isUser;
   final String? meta;
+  final _ChatMessageAction? action;
 
   const _ChatMessage({
     required this.text,
     required this.timestamp,
     required this.isUser,
     this.meta,
+    this.action,
   });
 
   factory _ChatMessage.user({required String text, required String timestamp}) {
@@ -632,14 +783,23 @@ class _ChatMessage {
     required String text,
     required String timestamp,
     String? meta,
+    _ChatMessageAction? action,
   }) {
     return _ChatMessage(
       text: text,
       timestamp: timestamp,
       isUser: false,
       meta: meta,
+      action: action,
     );
   }
+}
+
+class _ChatMessageAction {
+  final String label;
+  final VoidCallback onTap;
+
+  const _ChatMessageAction({required this.label, required this.onTap});
 }
 
 class _ServiceContext {
