@@ -269,6 +269,21 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             meta: 'Layanan: antar_jemput • Pesanan dikonfirmasi',
           );
         } on ApiException catch (error) {
+          final normalizedMessage = error.message.toLowerCase();
+          if (normalizedMessage.contains('tidak valid') ||
+              normalizedMessage.contains('tidak ditemukan')) {
+            nextConversation = nextConversation.copyWith(
+              stage: _RideConversationStage.needDestination,
+              clearDestination: true,
+            );
+            _rideConversation = nextConversation;
+            return _RideReply(
+              text:
+                  'Tujuan sebelumnya tidak valid di peta. Kirim ulang tujuan yang lebih spesifik, misalnya: "Antar ke Jalan Sudirman No 10 Jakarta".',
+              meta: 'Layanan: antar_jemput • Tujuan tidak valid',
+            );
+          }
+
           _rideConversation = nextConversation;
           return _RideReply(
             text:
@@ -298,16 +313,62 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
     final destination = _extractRideDestination(userInput);
     if (destination != null) {
-      nextConversation = nextConversation.copyWith(
-        stage: _RideConversationStage.readyConfirm,
-        destination: destination,
-      );
-      _rideConversation = nextConversation;
-      return _RideReply(
-        text:
-            'Baik $displayName, alamat jemput kamu di $pickupAddress dan tujuan kamu di $destination. Ketik "Konfirmasi" untuk lanjut atau "Ubah Tujuan" untuk ganti tujuan.',
-        meta: 'Layanan: antar_jemput • Draft perjalanan',
-      );
+      try {
+        final rideOrderApiService = ref.read(rideOrderApiServiceProvider);
+        final validatedDestination = await rideOrderApiService
+            .validateDestinationAddress(destinationAddress: destination);
+        final normalizedDestination =
+            validatedDestination.formattedAddress.isEmpty
+            ? destination
+            : validatedDestination.formattedAddress;
+
+        nextConversation = nextConversation.copyWith(
+          stage: _RideConversationStage.readyConfirm,
+          destination: normalizedDestination,
+        );
+        _rideConversation = nextConversation;
+        return _RideReply(
+          text:
+              'Baik $displayName, alamat jemput kamu di $pickupAddress dan tujuan kamu di $normalizedDestination. Ketik "Konfirmasi" untuk lanjut atau "Ubah Tujuan" untuk ganti tujuan.',
+          meta: 'Layanan: antar_jemput • Draft perjalanan',
+        );
+      } on ApiException catch (error) {
+        final normalizedMessage = error.message.toLowerCase();
+        final isInvalidDestination =
+            normalizedMessage.contains('tidak valid') ||
+            normalizedMessage.contains('tidak ditemukan');
+
+        nextConversation = nextConversation.copyWith(
+          stage: _RideConversationStage.needDestination,
+          clearDestination: true,
+        );
+        _rideConversation = nextConversation;
+
+        if (isInvalidDestination) {
+          return _RideReply(
+            text:
+                'Tujuan "$destination" tidak ditemukan di peta. Coba kirim alamat yang lebih lengkap, misalnya: "Antar ke Jalan Sudirman No 10 Jakarta".',
+            meta: 'Layanan: antar_jemput • Tujuan tidak valid',
+          );
+        }
+
+        return _RideReply(
+          text:
+              'Saya belum bisa memvalidasi tujuan sekarang (${error.message}). Coba ulangi dengan alamat yang lebih lengkap.',
+          meta: 'Layanan: antar_jemput • Validasi tujuan gagal',
+        );
+      } catch (_) {
+        nextConversation = nextConversation.copyWith(
+          stage: _RideConversationStage.needDestination,
+          clearDestination: true,
+        );
+        _rideConversation = nextConversation;
+        return const _RideReply(
+          text:
+              'Gagal memvalidasi tujuan karena gangguan jaringan. Coba kirim ulang tujuanmu.',
+          meta: 'Layanan: antar_jemput • Validasi tujuan gagal',
+        );
+      }
     }
 
     if (nextConversation.stage == _RideConversationStage.readyConfirm &&

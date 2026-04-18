@@ -350,14 +350,25 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
     });
 
     try {
+      final rawFullAddress = _fullAddressController.text.trim();
+      final validatedAddress = await AuthService.validateSavedAddress(
+        fullAddress: rawFullAddress,
+      );
+      final normalizedFullAddress =
+          validatedAddress.formattedAddress.trim().isEmpty
+          ? rawFullAddress
+          : validatedAddress.formattedAddress.trim();
+
       if (_isEditMode) {
         await AuthService.updateSavedAddress(
           addressId: widget.initialAddress!.id,
           label: _selectedLabel!,
           recipientName: _recipientController.text.trim(),
           phone: _phoneController.text.trim(),
-          fullAddress: _fullAddressController.text.trim(),
+          fullAddress: normalizedFullAddress,
           detail: _detailController.text.trim(),
+          latitude: validatedAddress.latitude,
+          longitude: validatedAddress.longitude,
           isDefault: _isDefault,
         );
       } else {
@@ -365,8 +376,10 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
           label: _selectedLabel!,
           recipientName: _recipientController.text.trim(),
           phone: _phoneController.text.trim(),
-          fullAddress: _fullAddressController.text.trim(),
+          fullAddress: normalizedFullAddress,
           detail: _detailController.text.trim(),
+          latitude: validatedAddress.latitude,
+          longitude: validatedAddress.longitude,
           isDefault: _isDefault,
         );
       }

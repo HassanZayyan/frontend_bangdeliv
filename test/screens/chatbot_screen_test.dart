@@ -8,6 +8,7 @@ import 'package:frontend_bangdeliv/providers/auth_session_provider.dart';
 import 'package:frontend_bangdeliv/providers/api_providers.dart';
 import 'package:frontend_bangdeliv/screens/chatbot_screen.dart';
 import 'package:frontend_bangdeliv/services/api_client.dart';
+import 'package:frontend_bangdeliv/services/api_exception.dart';
 import 'package:frontend_bangdeliv/services/ride_order_api_service.dart';
 
 void main() {
@@ -47,9 +48,26 @@ void main() {
       );
     },
   );
+
+  testWidgets('invalid destination is rejected before draft confirmation', (
+    WidgetTester tester,
+  ) async {
+    await _pumpRideChatbot(
+      tester,
+      rideOrderApiService: _FakeRideOrderApiService(rejectIsekai: true),
+    );
+
+    await _sendMessage(tester, 'saya mau ke isekai');
+
+    expect(find.textContaining('tidak ditemukan di peta'), findsOneWidget);
+    expect(find.textContaining('Ketik "Konfirmasi"'), findsNothing);
+  });
 }
 
-Future<void> _pumpRideChatbot(WidgetTester tester) async {
+Future<void> _pumpRideChatbot(
+  WidgetTester tester, {
+  RideOrderApiService? rideOrderApiService,
+}) async {
   final router = GoRouter(
     initialLocation: '/chatbot?service_type=antar_jemput',
     routes: <RouteBase>[
@@ -76,7 +94,7 @@ Future<void> _pumpRideChatbot(WidgetTester tester) async {
           () => _FakeAuthSessionNotifier(_buildAuthenticatedSession()),
         ),
         rideOrderApiServiceProvider.overrideWithValue(
-          _FakeRideOrderApiService(),
+          rideOrderApiService ?? _FakeRideOrderApiService(),
         ),
       ],
       child: MaterialApp.router(routerConfig: router),
@@ -142,7 +160,27 @@ class _FakeAuthSessionNotifier extends AuthSessionNotifier {
 }
 
 class _FakeRideOrderApiService extends RideOrderApiService {
-  _FakeRideOrderApiService() : super(ApiClient());
+  _FakeRideOrderApiService({this.rejectIsekai = false}) : super(ApiClient());
+
+  final bool rejectIsekai;
+
+  @override
+  Future<RideDestinationValidationResult> validateDestinationAddress({
+    required String destinationAddress,
+  }) async {
+    final normalized = destinationAddress.trim().toLowerCase();
+    if (rejectIsekai && normalized.contains('isekai')) {
+      throw const ApiException(
+        'Alamat tujuan tidak valid atau tidak ditemukan di peta.',
+      );
+    }
+
+    return RideDestinationValidationResult(
+      formattedAddress: destinationAddress.trim(),
+      latitude: -6.21462000,
+      longitude: 106.84513000,
+    );
+  }
 
   @override
   Future<RideOrderSubmissionResult> createRideOrder({
