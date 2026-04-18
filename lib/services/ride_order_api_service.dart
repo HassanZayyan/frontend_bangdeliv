@@ -31,10 +31,12 @@ class RideDestinationValidationResult {
 class RideOrderSubmissionResult {
   final int orderId;
   final String? orderNumber;
+  final double? deliveryFee;
 
   const RideOrderSubmissionResult({
     required this.orderId,
     required this.orderNumber,
+    this.deliveryFee,
   });
 
   factory RideOrderSubmissionResult.fromApiJson(Map<String, dynamic> json) {
@@ -48,7 +50,21 @@ class RideOrderSubmissionResult {
     return RideOrderSubmissionResult(
       orderId: orderId,
       orderNumber: orderNumber,
+      deliveryFee: _asDoubleOrNull(data['delivery_fee']),
     );
+  }
+
+  static double? _asDoubleOrNull(dynamic value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    final parsed = double.tryParse(value?.toString() ?? '');
+    if (parsed == null) {
+      return null;
+    }
+
+    return parsed;
   }
 }
 
