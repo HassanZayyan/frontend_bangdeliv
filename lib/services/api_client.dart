@@ -18,13 +18,15 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? queryParams,
     Map<String, String>? headers,
+    Duration? timeout,
   }) async {
     final uri = _buildUri(path, queryParams);
+    final requestTimeout = timeout ?? _timeout;
 
     try {
       final response = await _httpClient
           .get(uri, headers: _defaultHeaders(headers))
-          .timeout(_timeout);
+          .timeout(requestTimeout);
 
       return _decodeResponse(response);
     } on TimeoutException {
@@ -39,8 +41,10 @@ class ApiClient {
     Map<String, dynamic>? body,
     Map<String, dynamic>? queryParams,
     Map<String, String>? headers,
+    Duration? timeout,
   }) async {
     final uri = _buildUri(path, queryParams);
+    final requestTimeout = timeout ?? _timeout;
 
     try {
       final response = await _httpClient
@@ -49,7 +53,7 @@ class ApiClient {
             headers: _defaultHeaders(headers),
             body: jsonEncode(body ?? <String, dynamic>{}),
           )
-          .timeout(_timeout);
+          .timeout(requestTimeout);
 
       return _decodeResponse(response);
     } on TimeoutException {

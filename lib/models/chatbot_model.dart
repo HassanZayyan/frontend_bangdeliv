@@ -1,4 +1,10 @@
-enum ChatbotIntent { pesanMakanan, courierOrder, outOfDomain, unknown }
+enum ChatbotIntent {
+  pesanMakanan,
+  courierOrder,
+  rideOrder,
+  outOfDomain,
+  unknown,
+}
 
 class ChatbotOrderItem {
   final String menu;
@@ -77,6 +83,7 @@ class ChatbotResult {
     final intent = switch (intentValue) {
       'pesan_makanan' => ChatbotIntent.pesanMakanan,
       'courier_order' => ChatbotIntent.courierOrder,
+      'ride_order' => ChatbotIntent.rideOrder,
       'out_of_domain' => ChatbotIntent.outOfDomain,
       _ => ChatbotIntent.unknown,
     };
@@ -133,20 +140,20 @@ class ChatbotResult {
         .toList(growable: false);
 
     final missingFieldsRaw = (json['missing_fields'] is List<dynamic>)
-      ? json['missing_fields'] as List<dynamic>
-      : const <dynamic>[];
+        ? json['missing_fields'] as List<dynamic>
+        : const <dynamic>[];
     final missingFields = missingFieldsRaw
-      .map((item) => item.toString().trim())
-      .where((item) => item.isNotEmpty)
-      .toList(growable: false);
+        .map((item) => item.toString().trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
 
     final nextActionsRaw = (json['next_actions'] is List<dynamic>)
-      ? json['next_actions'] as List<dynamic>
-      : const <dynamic>[];
+        ? json['next_actions'] as List<dynamic>
+        : const <dynamic>[];
     final nextActions = nextActionsRaw
-      .map((item) => item.toString().trim())
-      .where((item) => item.isNotEmpty)
-      .toList(growable: false);
+        .map((item) => item.toString().trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
 
     final matchedRestaurant =
         (json['matched_restaurant'] is Map<String, dynamic>)

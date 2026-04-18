@@ -3,73 +3,70 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:frontend_bangdeliv/models/chatbot_model.dart';
 import 'package:frontend_bangdeliv/models/user_profile_model.dart';
-import 'package:frontend_bangdeliv/providers/auth_session_provider.dart';
 import 'package:frontend_bangdeliv/providers/api_providers.dart';
+import 'package:frontend_bangdeliv/providers/auth_session_provider.dart';
 import 'package:frontend_bangdeliv/screens/chatbot_screen.dart';
 import 'package:frontend_bangdeliv/services/api_client.dart';
 import 'package:frontend_bangdeliv/services/api_exception.dart';
-import 'package:frontend_bangdeliv/services/ride_order_api_service.dart';
+import 'package:frontend_bangdeliv/services/chatbot_api_service.dart';
 
 void main() {
-  testWidgets('destination message shows confirm prompt', (
+  testWidgets('antar_jemput now uses backend chatbot response', (
     WidgetTester tester,
   ) async {
-    await _pumpRideChatbot(tester);
+    final fakeService = _FakeChatbotApiService();
 
-    await _sendMessage(tester, 'Antar ke Jalan Sudirman No 10');
-
-    expect(find.textContaining('Ketik "Konfirmasi"'), findsOneWidget);
-  });
-
-  testWidgets('ubah tujuan resets destination draft', (
-    WidgetTester tester,
-  ) async {
-    await _pumpRideChatbot(tester);
-
-    await _sendMessage(tester, 'Antar ke Jalan Sudirman No 10');
-    await _sendMessage(tester, 'ubah tujuan');
-
-    expect(find.textContaining('tujuan sebelumnya saya reset'), findsOneWidget);
-  });
-
-  testWidgets(
-    'after confirmation, non-destination input asks for new trip destination',
-    (WidgetTester tester) async {
-      await _pumpRideChatbot(tester);
-
-      await _sendMessage(tester, 'Antar ke Jalan Sudirman No 10');
-      await _sendMessage(tester, 'konfirmasi');
-      await _sendMessage(tester, 'halo bangbot');
-
-      expect(
-        find.textContaining('Perjalanan sebelumnya sudah dikonfirmasi'),
-        findsOneWidget,
-      );
-    },
-  );
-
-  testWidgets('invalid destination is rejected before draft confirmation', (
-    WidgetTester tester,
-  ) async {
-    await _pumpRideChatbot(
+    await _pumpChatbot(
       tester,
-      rideOrderApiService: _FakeRideOrderApiService(rejectIsekai: true),
+      serviceType: 'antar_jemput',
+      chatbotApiService: fakeService,
     );
 
-    await _sendMessage(tester, 'saya mau ke isekai');
+    await _sendMessage(tester, 'antar ke polines');
 
-    expect(find.textContaining('tidak ditemukan di peta'), findsOneWidget);
-    expect(find.textContaining('Ketik "Konfirmasi"'), findsNothing);
+    expect(find.textContaining('Ketik "Konfirmasi"'), findsOneWidget);
+    expect(fakeService.callCount, 1);
+    expect(fakeService.lastServiceType, 'antar_jemput');
+  });
+
+  testWidgets('show address action when backend asks OPEN_ADDRESSES', (
+    WidgetTester tester,
+  ) async {
+    await _pumpChatbot(
+      tester,
+      serviceType: 'antar_jemput',
+      chatbotApiService: _FakeChatbotApiService(),
+    );
+
+    await _sendMessage(tester, 'butuh alamat profil');
+
+    expect(find.text('Isi Alamat Saya'), findsOneWidget);
+  });
+
+  testWidgets('show api error message from chatbot service', (
+    WidgetTester tester,
+  ) async {
+    await _pumpChatbot(
+      tester,
+      serviceType: 'kurir',
+      chatbotApiService: _FakeChatbotApiService(),
+    );
+
+    await _sendMessage(tester, 'trigger error');
+
+    expect(find.textContaining('terjadi kendala'), findsOneWidget);
   });
 }
 
-Future<void> _pumpRideChatbot(
+Future<void> _pumpChatbot(
   WidgetTester tester, {
-  RideOrderApiService? rideOrderApiService,
+  required String serviceType,
+  required ChatbotApiService chatbotApiService,
 }) async {
   final router = GoRouter(
-    initialLocation: '/chatbot?service_type=antar_jemput',
+    initialLocation: '/chatbot?service_type=$serviceType',
     routes: <RouteBase>[
       GoRoute(
         path: '/chatbot',
@@ -93,9 +90,7 @@ Future<void> _pumpRideChatbot(
         authSessionProvider.overrideWith(
           () => _FakeAuthSessionNotifier(_buildAuthenticatedSession()),
         ),
-        rideOrderApiServiceProvider.overrideWithValue(
-          rideOrderApiService ?? _FakeRideOrderApiService(),
-        ),
+        chatbotApiServiceProvider.overrideWithValue(chatbotApiService),
       ],
       child: MaterialApp.router(routerConfig: router),
     ),
@@ -159,38 +154,64 @@ class _FakeAuthSessionNotifier extends AuthSessionNotifier {
   }
 }
 
-class _FakeRideOrderApiService extends RideOrderApiService {
-  _FakeRideOrderApiService({this.rejectIsekai = false}) : super(ApiClient());
+class _FakeChatbotApiService extends ChatbotApiService {
+  _FakeChatbotApiService() : super(ApiClient());
 
-  final bool rejectIsekai;
+  int callCount = 0;
+  String? lastServiceType;
 
   @override
-  Future<RideDestinationValidationResult> validateDestinationAddress({
-    required String destinationAddress,
+  Future<ChatbotResult> sendMessage(
+    String message, {
+    required String serviceType,
+    String? sessionId,
   }) async {
-    final normalized = destinationAddress.trim().toLowerCase();
-    if (rejectIsekai && normalized.contains('isekai')) {
-      throw const ApiException(
-        'Alamat tujuan tidak valid atau tidak ditemukan di peta.',
-      );
+    callCount += 1;
+    lastServiceType = serviceType;
+
+    final normalized = message.trim().toLowerCase();
+    if (normalized == 'trigger error') {
+      throw const ApiException('Chatbot timeout');
     }
 
-    return RideDestinationValidationResult(
-      formattedAddress: destinationAddress.trim(),
-      latitude: -6.21462000,
-      longitude: 106.84513000,
-    );
-  }
+    if (normalized.contains('alamat')) {
+      return ChatbotResult.fromApiJson({
+        'status': 'success',
+        'model_used': 'gemini-2.5-flash',
+        'data': {
+          'intent': serviceType == 'antar_jemput'
+              ? 'ride_order'
+              : 'courier_order',
+          'assistant_text':
+              'Alamat jemput di profil belum tersedia. Silakan isi Alamat Saya.',
+          'validation': {
+            'is_valid_order': false,
+            'rejection_reasons': ['Lokasi jemput di profil belum tersedia.'],
+            'missing_fields': ['pickup_address'],
+            'next_actions': ['OPEN_ADDRESSES'],
+          },
+          'order': {'created': false},
+        },
+      });
+    }
 
-  @override
-  Future<RideOrderSubmissionResult> createRideOrder({
-    required int addressId,
-    required String destinationAddress,
-    String? notes,
-  }) async {
-    return const RideOrderSubmissionResult(
-      orderId: 999,
-      orderNumber: 'BDR-TEST-9999',
-    );
+    return ChatbotResult.fromApiJson({
+      'status': 'success',
+      'model_used': 'gemini-2.5-flash',
+      'data': {
+        'intent': serviceType == 'antar_jemput'
+            ? 'ride_order'
+            : 'courier_order',
+        'assistant_text':
+            'Draft siap. Ketik "Konfirmasi" untuk lanjut atau "Ubah Tujuan".',
+        'validation': {
+          'is_valid_order': true,
+          'rejection_reasons': [],
+          'missing_fields': [],
+          'next_actions': [],
+        },
+        'order': {'created': false},
+      },
+    });
   }
 }

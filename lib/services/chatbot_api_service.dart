@@ -7,6 +7,7 @@ class ChatbotApiService {
   ChatbotApiService(this._apiClient);
 
   final ApiClient _apiClient;
+  static const Duration _chatbotTimeout = Duration(seconds: 20);
 
   Future<ChatbotResult> sendMessage(
     String message, {
@@ -28,6 +29,7 @@ class ChatbotApiService {
         '/chatbot/process',
         body: requestBody,
         headers: await AuthService.authorizedHeaders(),
+        timeout: _chatbotTimeout,
       );
     } on AuthException catch (error) {
       throw ApiException(error.message);
