@@ -6,6 +6,7 @@ import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../models/customer_order_model.dart';
 import '../providers/customer_order_providers.dart';
+import '../widgets/tracking_map_section.dart';
 
 class TrackOrderScreen extends ConsumerWidget {
   const TrackOrderScreen({super.key});
@@ -213,120 +214,179 @@ class TrackOrderScreen extends ConsumerWidget {
   Widget _buildDetailView(CustomerOrderDetailModel detail) {
     final order = detail.summary;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildHeaderCard(order),
-          const SizedBox(height: 12),
-          _buildInfoCard(
-            title: 'Ringkasan Order',
-            children: [
-              _infoRow('Order', order.orderNumber),
-              _infoRow('Layanan', order.serviceTypeLabel),
-              _infoRow('Status', order.statusLabel),
-              _infoRow('Total', _formatCurrency(order.totalAmount)),
-              _infoRow('ETA', _estimateArrivalText(order.estimatedDelivery)),
-              if ((detail.deliveryDistanceText ?? '').trim().isNotEmpty)
-                _infoRow('Jarak', detail.deliveryDistanceText!.trim()),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _buildInfoCard(
-            title: 'Alamat Pengantaran',
-            children: [
-              Text(
-                order.deliveryAddress,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w500,
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: TrackingMapSection(
+                dropoffAddress: order.deliveryAddress,
+                pickupLatitude: detail.pickupLatitude,
+                pickupLongitude: detail.pickupLongitude,
+                dropoffLatitude: detail.dropoffLatitude,
+                dropoffLongitude: detail.dropoffLongitude,
+                driverLatitude: detail.driverLatitude,
+                driverLongitude: detail.driverLongitude,
+                driverLocationUpdatedAt: detail.driverLocationUpdatedAt,
+                height: constraints.maxHeight,
+                borderRadius: 0,
+                showLegend: true,
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _buildInfoCard(
-            title: 'Timeline Status',
-            children: [
-              if (detail.timeline.isEmpty)
-                const Text(
-                  'Belum ada update status.',
-                  style: TextStyle(color: AppColors.textSecondary),
-                )
-              else
-                for (final item in detail.timeline)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          margin: const EdgeInsets.only(top: 4),
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            color: _statusColor(item.code),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                item.label,
-                                style: const TextStyle(
-                                  color: AppColors.textPrimary,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              Text(
-                                _formatDateTime(item.changedAt),
-                                style: const TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+            ),
+            DraggableScrollableSheet(
+              initialChildSize: 0.35,
+              minChildSize: 0.18,
+              maxChildSize: 0.9,
+              snap: true,
+              snapSizes: const [0.35, 0.6, 0.9],
+              builder: (context, scrollController) {
+                return Container(
+                  decoration: const BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(20),
                     ),
                   ),
-            ],
-          ),
-          if ((detail.driverName ?? '').trim().isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _buildInfoCard(
-              title: 'Driver',
-              children: [
-                Text(
-                  detail.driverName!.trim(),
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 8),
+                      Container(
+                        width: 42,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: AppColors.textSecondary.withValues(alpha: 0.35),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: ListView(
+                          controller: scrollController,
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                          children: [
+                            _buildHeaderCard(order),
+                            const SizedBox(height: 12),
+                            _buildInfoCard(
+                              title: 'Ringkasan Order',
+                              children: [
+                                _infoRow('Order', order.orderNumber),
+                                _infoRow('Layanan', order.serviceTypeLabel),
+                                _infoRow('Status', order.statusLabel),
+                                _infoRow('Total', _formatCurrency(order.totalAmount)),
+                                _infoRow(
+                                  'ETA',
+                                  _estimateArrivalText(order.estimatedDelivery),
+                                ),
+                                if ((detail.deliveryDistanceText ?? '').trim().isNotEmpty)
+                                  _infoRow('Jarak', detail.deliveryDistanceText!.trim()),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            _buildInfoCard(
+                              title: 'Alamat Pengantaran',
+                              children: [
+                                Text(
+                                  order.deliveryAddress,
+                                  style: const TextStyle(
+                                    color: AppColors.textPrimary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            _buildInfoCard(
+                              title: 'Timeline Status',
+                              children: [
+                                if (detail.timeline.isEmpty)
+                                  const Text(
+                                    'Belum ada update status.',
+                                    style: TextStyle(color: AppColors.textSecondary),
+                                  )
+                                else
+                                  for (final item in detail.timeline)
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 10),
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Container(
+                                            margin: const EdgeInsets.only(top: 4),
+                                            width: 10,
+                                            height: 10,
+                                            decoration: BoxDecoration(
+                                              color: _statusColor(item.code),
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  item.label,
+                                                  style: const TextStyle(
+                                                    color: AppColors.textPrimary,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  _formatDateTime(item.changedAt),
+                                                  style: const TextStyle(
+                                                    color: AppColors.textSecondary,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                              ],
+                            ),
+                            if ((detail.driverName ?? '').trim().isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              _buildInfoCard(
+                                title: 'Driver',
+                                children: [
+                                  Text(
+                                    detail.driverName!.trim(),
+                                    style: const TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                            if ((detail.notes ?? '').trim().isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              _buildInfoCard(
+                                title: 'Catatan',
+                                children: [
+                                  Text(
+                                    detail.notes!.trim(),
+                                    style: const TextStyle(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
+                );
+              },
             ),
           ],
-          if ((detail.notes ?? '').trim().isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _buildInfoCard(
-              title: 'Catatan',
-              children: [
-                Text(
-                  detail.notes!.trim(),
-                  style: const TextStyle(color: AppColors.textSecondary),
-                ),
-              ],
-            ),
-          ],
-          const SizedBox(height: 80),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -348,7 +408,7 @@ class TrackOrderScreen extends ConsumerWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
-              Icons.local_shipping_outlined,
+              _serviceTypeIcon(order.serviceTypeCode),
               color: _statusColor(order.statusCode),
             ),
           ),
@@ -475,6 +535,19 @@ class TrackOrderScreen extends ConsumerWidget {
         return AppColors.error;
       default:
         return AppColors.primary;
+    }
+  }
+
+  IconData _serviceTypeIcon(String code) {
+    switch (code.toUpperCase()) {
+      case 'RIDE':
+        return Icons.directions_bike_outlined;
+      case 'COURIER':
+        return Icons.local_shipping_outlined;
+      case 'SHOPPING':
+        return Icons.shopping_bag_outlined;
+      default:
+        return Icons.local_shipping_outlined;
     }
   }
 

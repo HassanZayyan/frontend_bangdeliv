@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../config/app_colors.dart';
+import '../config/app_routes.dart';
+import '../models/address_location_picker_result.dart';
 import '../models/user_profile_model.dart';
 import '../providers/auth_session_provider.dart';
 import '../services/auth_service.dart';
@@ -25,6 +27,9 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
 
   String? _selectedLabel;
   String? _labelErrorText;
+  double? _selectedLatitude;
+  double? _selectedLongitude;
+  String _selectedLocationSource = 'Belum dipilih';
 
   bool _isDefault = false;
   bool _isLoadingProfile = true;
@@ -57,6 +62,15 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
 
     _detailController.text = address.detail;
     _isDefault = address.isDefault;
+    if (_isCoordinatePairValid(address.latitude, address.longitude)) {
+      _selectedLatitude = address.latitude;
+      _selectedLongitude = address.longitude;
+      _selectedLocationSource = 'Alamat tersimpan';
+    } else {
+      _selectedLatitude = null;
+      _selectedLongitude = null;
+      _selectedLocationSource = 'Belum dipilih';
+    }
     _isLoadingProfile = false;
   }
 
@@ -198,6 +212,8 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
                                 return null;
                               },
                             ),
+                            SizedBox(height: fieldSpacing),
+                            _buildLocationPickerCard(),
                             SizedBox(height: fieldSpacing),
                             _buildTextField(
                               label: 'Detail Tambahan (Opsional)',
@@ -351,13 +367,45 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
 
     try {
       final rawFullAddress = _fullAddressController.text.trim();
-      final validatedAddress = await AuthService.validateSavedAddress(
-        fullAddress: rawFullAddress,
-      );
-      final normalizedFullAddress =
-          validatedAddress.formattedAddress.trim().isEmpty
-          ? rawFullAddress
-          : validatedAddress.formattedAddress.trim();
+      final hasPinnedLocation =
+          _isCoordinatePairValid(_selectedLatitude, _selectedLongitude);
+
+      String normalizedFullAddress = rawFullAddress;
+      double? latitudeToSave;
+      double? longitudeToSave;
+
+      if (hasPinnedLocation) {
+        latitudeToSave = _selectedLatitude;
+        longitudeToSave = _selectedLongitude;
+
+        try {
+          final validatedAddress = await AuthService.validateSavedAddress(
+            fullAddress: rawFullAddress,
+          );
+          final formattedAddress = validatedAddress.formattedAddress.trim();
+          if (formattedAddress.isNotEmpty) {
+            normalizedFullAddress = formattedAddress;
+          }
+        } on AuthException {
+          // Keep raw address text when geocoding is unavailable.
+        }
+      } else {
+        final validatedAddress = await AuthService.validateSavedAddress(
+          fullAddress: rawFullAddress,
+        );
+
+        final formattedAddress = validatedAddress.formattedAddress.trim();
+        normalizedFullAddress =
+            formattedAddress.isEmpty ? rawFullAddress : formattedAddress;
+        latitudeToSave = validatedAddress.latitude;
+        longitudeToSave = validatedAddress.longitude;
+      }
+
+      if (!_isCoordinatePairValid(latitudeToSave, longitudeToSave)) {
+        throw const AuthException(
+          'Koordinat alamat belum valid. Pilih titik di peta atau cek kembali alamat lengkap.',
+        );
+      }
 
       if (_isEditMode) {
         await AuthService.updateSavedAddress(
@@ -367,8 +415,8 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
           phone: _phoneController.text.trim(),
           fullAddress: normalizedFullAddress,
           detail: _detailController.text.trim(),
-          latitude: validatedAddress.latitude,
-          longitude: validatedAddress.longitude,
+          latitude: latitudeToSave,
+          longitude: longitudeToSave,
           isDefault: _isDefault,
         );
       } else {
@@ -378,8 +426,8 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
           phone: _phoneController.text.trim(),
           fullAddress: normalizedFullAddress,
           detail: _detailController.text.trim(),
-          latitude: validatedAddress.latitude,
-          longitude: validatedAddress.longitude,
+          latitude: latitudeToSave,
+          longitude: longitudeToSave,
           isDefault: _isDefault,
         );
       }
@@ -420,6 +468,31 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
         });
       }
     }
+  }
+
+  Future<void> _openLocationPicker() async {
+    if (_isSubmitting || _isDeleting) {
+      return;
+    }
+
+    final result = await context.push<AddressLocationPickerResult>(
+      AppRoutes.addressLocationPicker,
+      extra: {
+        'latitude': _selectedLatitude,
+        'longitude': _selectedLongitude,
+      },
+    );
+
+    if (!mounted || result == null) {
+      return;
+    }
+
+    setState(() {
+      _selectedLatitude = result.latitude;
+      _selectedLongitude = result.longitude;
+      _selectedLocationSource =
+          result.source == 'gps' ? 'Lokasi saat ini' : 'Dipilih di peta';
+    });
   }
 
   Future<void> _handleDeleteAddress() async {
@@ -543,6 +616,75 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
     );
   }
 
+  Widget _buildLocationPickerCard() {
+    final hasPinnedLocation =
+        _isCoordinatePairValid(_selectedLatitude, _selectedLongitude);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.place_outlined, color: AppColors.textSecondary),
+              SizedBox(width: 8),
+              Text(
+                'Lokasi di Peta',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            hasPinnedLocation
+                ? 'Titik: ${_selectedLatitude!.toStringAsFixed(6)}, ${_selectedLongitude!.toStringAsFixed(6)}'
+                : 'Belum ada titik terpilih. Disarankan pilih titik agar alamat lebih akurat.',
+            style: TextStyle(
+              color: hasPinnedLocation
+                  ? AppColors.textPrimary
+                  : AppColors.textSecondary,
+              fontSize: 13,
+              fontWeight: hasPinnedLocation ? FontWeight.w600 : FontWeight.w500,
+              height: 1.4,
+            ),
+          ),
+          if (hasPinnedLocation) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Sumber: $_selectedLocationSource',
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _openLocationPicker,
+              icon: Icon(
+                hasPinnedLocation ? Icons.edit_location_alt : Icons.map_outlined,
+              ),
+              label: Text(hasPinnedLocation ? 'Ubah Titik di Peta' : 'Pilih Titik di Peta'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAddressLabelSelector() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -622,6 +764,22 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
         ),
       ),
     );
+  }
+
+  bool _isCoordinatePairValid(double? latitude, double? longitude) {
+    if (latitude == null || longitude == null) {
+      return false;
+    }
+
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+      return false;
+    }
+
+    if (latitude == 0 && longitude == 0) {
+      return false;
+    }
+
+    return true;
   }
 
   @override
