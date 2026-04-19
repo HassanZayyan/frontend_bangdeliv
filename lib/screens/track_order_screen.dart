@@ -254,7 +254,9 @@ class TrackOrderScreen extends ConsumerWidget {
                         width: 42,
                         height: 5,
                         decoration: BoxDecoration(
-                          color: AppColors.textSecondary.withValues(alpha: 0.35),
+                          color: AppColors.textSecondary.withValues(
+                            alpha: 0.35,
+                          ),
                           borderRadius: BorderRadius.circular(999),
                         ),
                       ),
@@ -272,13 +274,21 @@ class TrackOrderScreen extends ConsumerWidget {
                                 _infoRow('Order', order.orderNumber),
                                 _infoRow('Layanan', order.serviceTypeLabel),
                                 _infoRow('Status', order.statusLabel),
-                                _infoRow('Total', _formatCurrency(order.totalAmount)),
+                                _infoRow(
+                                  'Total',
+                                  _formatCurrency(order.totalAmount),
+                                ),
                                 _infoRow(
                                   'ETA',
                                   _estimateArrivalText(order.estimatedDelivery),
                                 ),
-                                if ((detail.deliveryDistanceText ?? '').trim().isNotEmpty)
-                                  _infoRow('Jarak', detail.deliveryDistanceText!.trim()),
+                                if ((detail.deliveryDistanceText ?? '')
+                                    .trim()
+                                    .isNotEmpty)
+                                  _infoRow(
+                                    'Jarak',
+                                    detail.deliveryDistanceText!.trim(),
+                                  ),
                               ],
                             ),
                             const SizedBox(height: 12),
@@ -301,17 +311,24 @@ class TrackOrderScreen extends ConsumerWidget {
                                 if (detail.timeline.isEmpty)
                                   const Text(
                                     'Belum ada update status.',
-                                    style: TextStyle(color: AppColors.textSecondary),
+                                    style: TextStyle(
+                                      color: AppColors.textSecondary,
+                                    ),
                                   )
                                 else
                                   for (final item in detail.timeline)
                                     Padding(
-                                      padding: const EdgeInsets.only(bottom: 10),
+                                      padding: const EdgeInsets.only(
+                                        bottom: 10,
+                                      ),
                                       child: Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Container(
-                                            margin: const EdgeInsets.only(top: 4),
+                                            margin: const EdgeInsets.only(
+                                              top: 4,
+                                            ),
                                             width: 10,
                                             height: 10,
                                             decoration: BoxDecoration(
@@ -328,14 +345,18 @@ class TrackOrderScreen extends ConsumerWidget {
                                                 Text(
                                                   item.label,
                                                   style: const TextStyle(
-                                                    color: AppColors.textPrimary,
+                                                    color:
+                                                        AppColors.textPrimary,
                                                     fontWeight: FontWeight.w700,
                                                   ),
                                                 ),
                                                 Text(
-                                                  _formatDateTime(item.changedAt),
+                                                  _formatDateTime(
+                                                    item.changedAt,
+                                                  ),
                                                   style: const TextStyle(
-                                                    color: AppColors.textSecondary,
+                                                    color:
+                                                        AppColors.textSecondary,
                                                     fontSize: 12,
                                                   ),
                                                 ),
@@ -347,7 +368,9 @@ class TrackOrderScreen extends ConsumerWidget {
                                     ),
                               ],
                             ),
-                            if ((detail.driverName ?? '').trim().isNotEmpty) ...[
+                            if ((detail.driverName ?? '')
+                                .trim()
+                                .isNotEmpty) ...[
                               const SizedBox(height: 12),
                               _buildInfoCard(
                                 title: 'Driver',
