@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../models/chatbot_model.dart';
-import '../models/user_profile_model.dart';
 import '../providers/auth_session_provider.dart';
 import '../providers/api_providers.dart';
 import '../services/api_exception.dart';
