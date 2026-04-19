@@ -1,22 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+
+import '../widgets/tracking_map_section.dart';
 
 class PrivacyMapScreen extends StatelessWidget {
   const PrivacyMapScreen({super.key});
-
-  static const CameraPosition _initialCameraPosition = CameraPosition(
-    target: LatLng(-7.0503, 110.4370),
-    zoom: 14,
-  );
-
-  static const Marker _officeMarker = Marker(
-    markerId: MarkerId('bangdeliv-demo-marker'),
-    position: LatLng(-7.0503, 110.4370),
-    infoWindow: InfoWindow(
-      title: 'BangDeliv Demo Map',
-      snippet: 'Screen sementara dari menu Kebijakan Privasi',
-    ),
-  );
 
   @override
   Widget build(BuildContext context) {
@@ -24,14 +11,18 @@ class PrivacyMapScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Map Privasi (Sementara)')),
       body: Column(
         children: [
-          Expanded(
-            child: GoogleMap(
-              initialCameraPosition: _initialCameraPosition,
-              markers: {_officeMarker},
-              myLocationButtonEnabled: false,
-              mapToolbarEnabled: true,
-              zoomControlsEnabled: true,
-              compassEnabled: true,
+          const Expanded(
+            child: Padding(
+              padding: EdgeInsets.all(12),
+              child: TrackingMapSection(
+                dropoffAddress: 'BangDeliv Demo Office',
+                pickupLatitude: -7.0522,
+                pickupLongitude: 110.4350,
+                dropoffLatitude: -7.0503,
+                dropoffLongitude: 110.4370,
+                driverLatitude: -7.0513,
+                driverLongitude: 110.4361,
+              ),
             ),
           ),
           Container(

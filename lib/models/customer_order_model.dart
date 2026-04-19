@@ -275,6 +275,13 @@ class CustomerOrderDetailModel {
   final String? paymentMethod;
   final String? notes;
   final String? driverName;
+  final double? pickupLatitude;
+  final double? pickupLongitude;
+  final double? dropoffLatitude;
+  final double? dropoffLongitude;
+  final double? driverLatitude;
+  final double? driverLongitude;
+  final DateTime? driverLocationUpdatedAt;
   final String? deliveryDistanceText;
   final List<OrderStatusSnapshot> timeline;
 
@@ -284,6 +291,13 @@ class CustomerOrderDetailModel {
     required this.paymentMethod,
     required this.notes,
     required this.driverName,
+    required this.pickupLatitude,
+    required this.pickupLongitude,
+    required this.dropoffLatitude,
+    required this.dropoffLongitude,
+    required this.driverLatitude,
+    required this.driverLongitude,
+    required this.driverLocationUpdatedAt,
     required this.deliveryDistanceText,
     required this.timeline,
   });
@@ -297,6 +311,33 @@ class CustomerOrderDetailModel {
     final driverUser = (driver['user'] is Map<String, dynamic>)
         ? driver['user'] as Map<String, dynamic>
         : const <String, dynamic>{};
+
+    final locations = _extractOrderLocations(json);
+    final pickupLocation = _findLocationByRole(locations, 'PICKUP');
+    final dropoffLocation = _findLocationByRole(locations, 'DROPOFF');
+
+    final dropoffLatitude = _asNullableDouble(
+      json['delivery_latitude'] ?? dropoffLocation?['latitude'],
+    );
+    final dropoffLongitude = _asNullableDouble(
+      json['delivery_longitude'] ?? dropoffLocation?['longitude'],
+    );
+
+    final pickupSource = (json['address'] is Map<String, dynamic>)
+        ? json['address'] as Map<String, dynamic>
+        : const <String, dynamic>{};
+
+    final pickupLatitude = _asNullableDouble(
+      pickupLocation?['latitude'] ?? pickupSource['latitude'],
+    );
+    final pickupLongitude = _asNullableDouble(
+      pickupLocation?['longitude'] ?? pickupSource['longitude'],
+    );
+
+    final parsedDriverLatitude = _asNullableDouble(driver['current_latitude']);
+    final parsedDriverLongitude = _asNullableDouble(
+      driver['current_longitude'],
+    );
 
     final histories = (json['status_histories'] is List)
         ? (json['status_histories'] as List)
@@ -346,8 +387,96 @@ class CustomerOrderDetailModel {
       paymentMethod: json['payment_method']?.toString(),
       notes: json['notes']?.toString(),
       driverName: driverUser['name']?.toString(),
+      pickupLatitude: pickupLatitude != null && _isValidLatitude(pickupLatitude)
+          ? pickupLatitude
+          : null,
+      pickupLongitude:
+          pickupLongitude != null && _isValidLongitude(pickupLongitude)
+          ? pickupLongitude
+          : null,
+      dropoffLatitude:
+          dropoffLatitude != null && _isValidLatitude(dropoffLatitude)
+          ? dropoffLatitude
+          : null,
+      dropoffLongitude:
+          dropoffLongitude != null && _isValidLongitude(dropoffLongitude)
+          ? dropoffLongitude
+          : null,
+      driverLatitude:
+          parsedDriverLatitude != null && _isValidLatitude(parsedDriverLatitude)
+          ? parsedDriverLatitude
+          : null,
+      driverLongitude:
+          parsedDriverLongitude != null &&
+              _isValidLongitude(parsedDriverLongitude)
+          ? parsedDriverLongitude
+          : null,
+      driverLocationUpdatedAt: CustomerOrderSummaryModel._asDateTime(
+        driver['updated_at'],
+      ),
       deliveryDistanceText: json['delivery_distance_text']?.toString(),
       timeline: timeline,
     );
+  }
+
+  static List<Map<String, dynamic>> _extractOrderLocations(
+    Map<String, dynamic> json,
+  ) {
+    if (json['order_locations'] is List) {
+      return (json['order_locations'] as List)
+          .whereType<Map<String, dynamic>>()
+          .toList(growable: false);
+    }
+
+    if (json['orderLocations'] is List) {
+      return (json['orderLocations'] as List)
+          .whereType<Map<String, dynamic>>()
+          .toList(growable: false);
+    }
+
+    return const <Map<String, dynamic>>[];
+  }
+
+  static Map<String, dynamic>? _findLocationByRole(
+    List<Map<String, dynamic>> locations,
+    String role,
+  ) {
+    for (final location in locations) {
+      final code = (location['location_role'] ?? location['role'] ?? '')
+          .toString()
+          .trim()
+          .toUpperCase();
+
+      if (code == role) {
+        return location;
+      }
+    }
+
+    return null;
+  }
+
+  static bool _isValidLatitude(double value) {
+    return value >= -90 && value <= 90;
+  }
+
+  static bool _isValidLongitude(double value) {
+    return value >= -180 && value <= 180;
+  }
+
+  static double? _asNullableDouble(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    final raw = value.toString().trim();
+    if (raw.isEmpty) {
+      return null;
+    }
+
+    return double.tryParse(raw);
   }
 }
