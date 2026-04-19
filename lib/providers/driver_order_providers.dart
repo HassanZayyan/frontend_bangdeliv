@@ -109,6 +109,14 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
 
     try {
       await ref.read(driverOrderServiceProvider).acceptOrder(id);
+      DriverOrderModel? syncedOrder;
+      try {
+        syncedOrder = await ref.read(driverOrderServiceProvider).fetchOrderDetail(
+          id,
+        );
+      } catch (_) {
+        syncedOrder = null;
+      }
 
       final latest = state.asData?.value;
       if (latest == null) {
@@ -117,9 +125,17 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
 
       final cleanedProcessingIds = <String>{...latest.processingOrderIds}
         ..remove(id);
+      final syncedRunning = syncedOrder == null
+          ? latest.running
+          : _upsertRunningOrder(latest.running, syncedOrder);
       state = AsyncData(
-        latest.copyWith(processingOrderIds: cleanedProcessingIds),
+        latest.copyWith(
+          running: syncedRunning,
+          processingOrderIds: cleanedProcessingIds,
+        ),
       );
+
+      ref.invalidate(driverOrderDetailProvider(id));
 
       return null;
     } catch (error) {
@@ -192,6 +208,170 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     }
   }
 
+  Future<String?> transitionOrderStatus({
+    required String orderId,
+    required String actionCode,
+    String? targetStatusCode,
+    String? note,
+    double? latitude,
+    double? longitude,
+  }) async {
+    final current = state.asData?.value;
+    if (current == null) {
+      return 'Data order belum siap.';
+    }
+
+    if (current.isProcessing(orderId)) {
+      return null;
+    }
+
+    final processingOrderIds = <String>{
+      ...current.processingOrderIds,
+      orderId,
+    };
+
+    state = AsyncData(current.copyWith(processingOrderIds: processingOrderIds));
+
+    try {
+      final updated = await ref.read(driverOrderServiceProvider).transitionStatus(
+        orderId: orderId,
+        actionCode: actionCode,
+        targetStatusCode: targetStatusCode,
+        note: note,
+        latitude: latitude,
+        longitude: longitude,
+      );
+
+      final latest = state.asData?.value;
+      if (latest == null) {
+        return null;
+      }
+
+      final cleanedProcessingIds = <String>{...latest.processingOrderIds}
+        ..remove(orderId);
+      final syncedRunning = _isTerminalStatus(updated.statusCode)
+          ? _removeRunningOrder(latest.running, orderId)
+          : _upsertRunningOrder(latest.running, updated);
+
+      state = AsyncData(
+        latest.copyWith(
+          running: syncedRunning,
+          processingOrderIds: cleanedProcessingIds,
+        ),
+      );
+
+      ref.invalidate(driverOrderDetailProvider(orderId));
+      return null;
+    } catch (error) {
+      final latest = state.asData?.value;
+      if (latest == null) {
+        return error.toString();
+      }
+
+      final rollbackProcessingIds = <String>{...latest.processingOrderIds}
+        ..remove(orderId);
+      state = AsyncData(
+        latest.copyWith(processingOrderIds: rollbackProcessingIds),
+      );
+      return error.toString();
+    }
+  }
+
+  Future<String?> collectCod({
+    required String orderId,
+    required double amount,
+    String? note,
+  }) async {
+    final current = state.asData?.value;
+    if (current == null) {
+      return 'Data order belum siap.';
+    }
+
+    if (current.isProcessing(orderId)) {
+      return null;
+    }
+
+    final processingOrderIds = <String>{
+      ...current.processingOrderIds,
+      orderId,
+    };
+
+    state = AsyncData(current.copyWith(processingOrderIds: processingOrderIds));
+
+    try {
+      await ref.read(driverOrderServiceProvider).collectCod(
+        orderId: orderId,
+        amount: amount,
+        note: note,
+      );
+
+      final refreshed = await ref.read(driverOrderServiceProvider).fetchOrderDetail(
+        orderId,
+      );
+
+      final latest = state.asData?.value;
+      if (latest == null) {
+        return null;
+      }
+
+      final cleanedProcessingIds = <String>{...latest.processingOrderIds}
+        ..remove(orderId);
+      state = AsyncData(
+        latest.copyWith(
+          running: _upsertRunningOrder(latest.running, refreshed),
+          processingOrderIds: cleanedProcessingIds,
+        ),
+      );
+
+      ref.invalidate(driverOrderDetailProvider(orderId));
+      return null;
+    } catch (error) {
+      final latest = state.asData?.value;
+      if (latest == null) {
+        return error.toString();
+      }
+
+      final rollbackProcessingIds = <String>{...latest.processingOrderIds}
+        ..remove(orderId);
+      state = AsyncData(
+        latest.copyWith(processingOrderIds: rollbackProcessingIds),
+      );
+      return error.toString();
+    }
+  }
+
+  List<DriverOrderModel> _upsertRunningOrder(
+    List<DriverOrderModel> running,
+    DriverOrderModel updated,
+  ) {
+    final next = List<DriverOrderModel>.from(running);
+    final index = next.indexWhere((order) => order.id == updated.id);
+
+    if (index < 0) {
+      next.insert(0, updated);
+      return next;
+    }
+
+    next[index] = updated;
+    return next;
+  }
+
+  List<DriverOrderModel> _removeRunningOrder(
+    List<DriverOrderModel> running,
+    String orderId,
+  ) {
+    return running
+        .where((order) => order.id != orderId)
+        .toList(growable: false);
+  }
+
+  bool _isTerminalStatus(String code) {
+    final normalized = code.toUpperCase();
+    return normalized == 'COMPLETED' ||
+        normalized == 'CANCELLED' ||
+        normalized == 'CANCELLED_WITH_FEE';
+  }
+
   String _currentHourMinute() {
     final now = DateTime.now();
     final hour = now.hour.toString().padLeft(2, '0');
@@ -204,6 +384,11 @@ final driverOrdersProvider =
     AsyncNotifierProvider<DriverOrdersNotifier, DriverOrdersState>(
       DriverOrdersNotifier.new,
     );
+
+final driverOrderDetailProvider =
+    FutureProvider.family<DriverOrderModel, String>((ref, orderId) async {
+      return ref.read(driverOrderServiceProvider).fetchOrderDetail(orderId);
+    });
 
 final driverHistoryProvider = FutureProvider<List<DriverHistoryOrderModel>>((
   ref,

@@ -4,6 +4,7 @@ class AppRoutes {
   static const String home = '/home';
   static const String driverHome = '/driver/home';
   static const String driverOrders = '/driver/orders';
+  static const String driverOrderActive = '/driver/orders/:orderId/active';
   static const String driverHistory = '/driver/history';
   static const String driverProfile = '/driver/profile';
   static const String driverVerificationStatus = '/driver/verification-status';
@@ -24,4 +25,8 @@ class AppRoutes {
   static const String registerSuccess = '/register-success';
   static const String forgotPassword = '/forgot-password';
   static const String privacyMapPreview = '/privacy-map-preview';
+
+  static String driverOrderActivePath(String orderId) {
+    return '/driver/orders/$orderId/active';
+  }
 }

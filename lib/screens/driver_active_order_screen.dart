@@ -1,0 +1,443 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
+import '../config/app_colors.dart';
+import '../models/driver_order_model.dart';
+import '../providers/driver_order_providers.dart';
+
+class DriverActiveOrderScreen extends ConsumerWidget {
+  final String orderId;
+
+  const DriverActiveOrderScreen({
+    super.key,
+    required this.orderId,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (orderId.trim().isEmpty) {
+      return const Scaffold(
+        body: Center(
+          child: Text('Order ID tidak valid.'),
+        ),
+      );
+    }
+
+    final detailState = ref.watch(driverOrderDetailProvider(orderId));
+    final ordersState = ref.watch(driverOrdersProvider);
+
+    final isProcessing = ordersState.maybeWhen(
+      data: (value) => value.isProcessing(orderId),
+      orElse: () => false,
+    );
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text(
+          'Order Aktif',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+        backgroundColor: AppColors.white,
+        elevation: 0,
+      ),
+      body: detailState.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stackTrace) {
+          return _ErrorState(
+            message: error.toString(),
+            onRetry: () {
+              ref.invalidate(driverOrderDetailProvider(orderId));
+            },
+          );
+        },
+        data: (order) {
+          return RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(driverOrderDetailProvider(orderId));
+              await ref.read(driverOrderDetailProvider(orderId).future);
+            },
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+              children: [
+                _MapCard(order: order),
+                const SizedBox(height: 12),
+                _OrderMetaCard(order: order),
+                const SizedBox(height: 12),
+                _TimelineCard(timeline: order.statusTimeline),
+                const SizedBox(height: 12),
+                _ActionCard(
+                  order: order,
+                  isProcessing: isProcessing,
+                  onTapAction: (action) async {
+                    final notifier = ref.read(driverOrdersProvider.notifier);
+
+                    String? error;
+                    if (action.isCodCollection) {
+                      error = await notifier.collectCod(
+                        orderId: order.id,
+                        amount: order.totalPrice,
+                        note: 'Pembayaran COD dicatat dari app driver.',
+                      );
+                    } else {
+                      error = await notifier.transitionOrderStatus(
+                        orderId: order.id,
+                        actionCode: action.actionCode,
+                        targetStatusCode: action.targetStatusCode,
+                      );
+                    }
+
+                    if (!context.mounted) {
+                      return;
+                    }
+
+                    if (error == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('${action.label} berhasil.'),
+                        ),
+                      );
+                      ref.invalidate(driverOrderDetailProvider(order.id));
+                      return;
+                    }
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(error),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _MapCard extends StatelessWidget {
+  final DriverOrderModel order;
+
+  const _MapCard({required this.order});
+
+  @override
+  Widget build(BuildContext context) {
+    final pickup = _latLng(order.pickupLatitude, order.pickupLongitude);
+    final dropoff = _latLng(order.dropoffLatitude, order.dropoffLongitude);
+
+    if (pickup == null && dropoff == null) {
+      return Container(
+        height: 220,
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: const Center(
+          child: Text(
+            'Koordinat map belum tersedia untuk order ini.',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
+        ),
+      );
+    }
+
+    final initial = pickup ?? dropoff!;
+    final markers = <Marker>{
+      if (pickup != null)
+        Marker(
+          markerId: const MarkerId('pickup'),
+          position: pickup,
+          infoWindow: const InfoWindow(title: 'Pickup'),
+        ),
+      if (dropoff != null)
+        Marker(
+          markerId: const MarkerId('dropoff'),
+          position: dropoff,
+          infoWindow: const InfoWindow(title: 'Dropoff'),
+        ),
+    };
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: SizedBox(
+        height: 230,
+        child: GoogleMap(
+          initialCameraPosition: CameraPosition(target: initial, zoom: 13.2),
+          markers: markers,
+          myLocationButtonEnabled: false,
+          mapToolbarEnabled: true,
+          zoomControlsEnabled: false,
+          compassEnabled: true,
+        ),
+      ),
+    );
+  }
+
+  LatLng? _latLng(double? lat, double? lng) {
+    if (lat == null || lng == null) {
+      return null;
+    }
+    return LatLng(lat, lng);
+  }
+}
+
+class _OrderMetaCard extends StatelessWidget {
+  final DriverOrderModel order;
+
+  const _OrderMetaCard({required this.order});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${order.orderNumber.isEmpty ? order.id : order.orderNumber} • ${order.customerName}',
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _pill(order.serviceTypeCode, AppColors.primary.withValues(alpha: 0.1), AppColors.primaryDark),
+              _pill(order.statusDisplayName ?? order.statusCode, AppColors.success.withValues(alpha: 0.1), AppColors.success),
+              _pill('COD ${order.paymentStatus.toUpperCase()}', AppColors.darkBlue.withValues(alpha: 0.08), AppColors.darkBlue),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _row('Pickup', order.pickupAddress),
+          const SizedBox(height: 6),
+          _row('Dropoff', order.dropoffAddress),
+          const SizedBox(height: 8),
+          Text(
+            'Fee ${_formatCurrency(order.fee)} • Total ${_formatCurrency(order.totalPrice.round())}',
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pill(String text, Color bg, Color fg) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(100),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+
+  Widget _row(String title, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 58,
+          child: Text(
+            '$title:',
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _formatCurrency(int amount) {
+    final raw = amount.toString();
+    final buffer = StringBuffer();
+
+    for (int i = 0; i < raw.length; i++) {
+      final reverseIndex = raw.length - i;
+      buffer.write(raw[i]);
+      if (reverseIndex > 1 && reverseIndex % 3 == 1) {
+        buffer.write('.');
+      }
+    }
+
+    return 'Rp $buffer';
+  }
+}
+
+class _TimelineCard extends StatelessWidget {
+  final List<DriverOrderTimelineItemModel> timeline;
+
+  const _TimelineCard({required this.timeline});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Timeline Status',
+            style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: 8),
+          if (timeline.isEmpty)
+            const Text(
+              'Belum ada histori status.',
+              style: TextStyle(color: AppColors.textSecondary),
+            )
+          else
+            ...timeline.map(
+              (item) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  '• ${item.statusDisplayName ?? item.statusCode} ${item.createdAt == null ? '' : '- ${item.createdAt!.hour.toString().padLeft(2, '0')}:${item.createdAt!.minute.toString().padLeft(2, '0')}' }',
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionCard extends StatelessWidget {
+  final DriverOrderModel order;
+  final bool isProcessing;
+  final Future<void> Function(DriverOrderActionModel action) onTapAction;
+
+  const _ActionCard({
+    required this.order,
+    required this.isProcessing,
+    required this.onTapAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final actions = order.availableActions;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Aksi Driver',
+            style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: 10),
+          if (actions.isEmpty)
+            const Text(
+              'Tidak ada aksi yang tersedia pada status ini.',
+              style: TextStyle(color: AppColors.textSecondary),
+            )
+          else
+            ...actions.map(
+              (action) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: isProcessing || action.blocked
+                        ? null
+                        : () async {
+                            await onTapAction(action);
+                          },
+                    child: isProcessing
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.white,
+                            ),
+                          )
+                        : Text(action.label),
+                  ),
+                ),
+              ),
+            ),
+          if (actions.any((action) => action.blocked))
+            Text(
+              actions
+                      .firstWhere((action) => action.blocked)
+                      .blockedReason ??
+                  'Aksi masih terkunci.',
+              style: const TextStyle(color: AppColors.error, fontSize: 12),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _ErrorState({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, color: AppColors.error, size: 32),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Coba Lagi'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

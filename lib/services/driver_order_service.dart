@@ -26,6 +26,73 @@ class DriverOrderService {
     ]);
   }
 
+  Future<DriverOrderModel> fetchOrderDetail(String orderId) async {
+    final response = await _get('/v1/driver/orders/$orderId');
+    final data = _extractData(response);
+
+    if (data.isEmpty) {
+      throw const DriverOrderApiException(
+        'Detail order driver tidak ditemukan.',
+        statusCode: 404,
+      );
+    }
+
+    return DriverOrderModel.fromJson(data);
+  }
+
+  Future<DriverOrderModel> transitionStatus({
+    required String orderId,
+    required String actionCode,
+    String? targetStatusCode,
+    String? note,
+    double? latitude,
+    double? longitude,
+  }) async {
+    final normalizedTargetStatusCode = targetStatusCode?.trim();
+    final normalizedNote = note?.trim();
+
+    final response = await _post(
+      '/v1/driver/orders/$orderId/status-transition',
+      body: <String, dynamic>{
+        'action_code': actionCode,
+        if (normalizedTargetStatusCode != null &&
+            normalizedTargetStatusCode.isNotEmpty)
+          'target_status_code': normalizedTargetStatusCode,
+        if (normalizedNote != null && normalizedNote.isNotEmpty)
+          'note': normalizedNote,
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
+      },
+    );
+
+    final data = _extractData(response);
+    if (data.isEmpty) {
+      throw const DriverOrderApiException(
+        'Respons transisi status tidak valid.',
+        statusCode: 500,
+      );
+    }
+
+    return DriverOrderModel.fromJson(data);
+  }
+
+  Future<void> collectCod({
+    required String orderId,
+    required double amount,
+    String? note,
+  }) async {
+    final normalizedNote = note?.trim();
+
+    await _post(
+      '/v1/orders/$orderId/payment/collect-cod',
+      body: <String, dynamic>{
+        'amount': amount,
+        if (normalizedNote != null && normalizedNote.isNotEmpty)
+          'note': normalizedNote,
+      },
+    );
+  }
+
   Future<DriverOrdersPayload> fetchOrders({bool fallbackToMock = true}) async {
     try {
       final response = await _get('/v1/driver/orders');
@@ -161,16 +228,29 @@ class DriverOrderService {
         );
   }
 
-  Future<void> _post(String path) async {
+  Future<Map<String, dynamic>> _post(
+    String path, {
+    Map<String, dynamic>? body,
+  }) async {
     final uri = _buildUri(path);
     final headers = await AuthService.authorizedHeaders();
+    final payload = body ?? const <String, dynamic>{};
 
     final response = await http
-        .post(uri, headers: headers, body: '{}')
+        .post(uri, headers: headers, body: jsonEncode(payload))
         .timeout(_timeout);
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      return;
+      if (response.body.isEmpty) {
+        return const <String, dynamic>{};
+      }
+
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+
+      return const <String, dynamic>{};
     }
 
     throw DriverOrderApiException(
