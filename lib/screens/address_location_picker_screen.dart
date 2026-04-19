@@ -21,7 +21,8 @@ class AddressLocationPickerScreen extends StatefulWidget {
       _AddressLocationPickerScreenState();
 }
 
-class _AddressLocationPickerScreenState extends State<AddressLocationPickerScreen> {
+class _AddressLocationPickerScreenState
+    extends State<AddressLocationPickerScreen> {
   static const LatLng _fallbackCenter = LatLng(-7.0503, 110.4370);
 
   GoogleMapController? _mapController;
@@ -34,7 +35,8 @@ class _AddressLocationPickerScreenState extends State<AddressLocationPickerScree
   void initState() {
     super.initState();
 
-    final hasInitialCoordinate = widget.initialLatitude != null &&
+    final hasInitialCoordinate =
+        widget.initialLatitude != null &&
         widget.initialLongitude != null &&
         widget.initialLatitude! >= -90 &&
         widget.initialLatitude! <= 90 &&
@@ -208,9 +210,12 @@ class _AddressLocationPickerScreenState extends State<AddressLocationPickerScree
     try {
       final isServiceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!isServiceEnabled) {
-        _showMessage('Layanan lokasi belum aktif. Aktifkan GPS lalu coba lagi.');
+        _showMessage(
+          'Layanan lokasi belum aktif. Aktifkan GPS lalu coba lagi.',
+        );
         setState(() {
-          _locationHint = 'GPS belum aktif, kamu tetap bisa memilih titik dengan drag peta.';
+          _locationHint =
+              'GPS belum aktif, kamu tetap bisa memilih titik dengan drag peta.';
         });
         return;
       }
@@ -223,13 +228,16 @@ class _AddressLocationPickerScreenState extends State<AddressLocationPickerScree
       if (permission == LocationPermission.denied) {
         _showMessage('Izin lokasi ditolak. Pilih titik manual di peta.');
         setState(() {
-          _locationHint = 'Izin lokasi ditolak, gunakan drag peta untuk memilih titik.';
+          _locationHint =
+              'Izin lokasi ditolak, gunakan drag peta untuk memilih titik.';
         });
         return;
       }
 
       if (permission == LocationPermission.deniedForever) {
-        _showMessage('Izin lokasi ditolak permanen. Buka pengaturan untuk mengaktifkannya.');
+        _showMessage(
+          'Izin lokasi ditolak permanen. Buka pengaturan untuk mengaktifkannya.',
+        );
         await Geolocator.openAppSettings();
         setState(() {
           _locationHint =
@@ -249,9 +257,7 @@ class _AddressLocationPickerScreenState extends State<AddressLocationPickerScree
 
       final controller = _mapController;
       if (controller != null) {
-        await controller.animateCamera(
-          CameraUpdate.newLatLngZoom(target, 18),
-        );
+        await controller.animateCamera(CameraUpdate.newLatLngZoom(target, 18));
       }
 
       if (!mounted) {
@@ -259,13 +265,17 @@ class _AddressLocationPickerScreenState extends State<AddressLocationPickerScree
       }
 
       setState(() {
-        _locationHint = 'Lokasi saat ini berhasil digunakan sebagai titik awal.';
+        _locationHint =
+            'Lokasi saat ini berhasil digunakan sebagai titik awal.';
         _selectedSource = 'gps';
       });
     } catch (_) {
-      _showMessage('Gagal mengambil lokasi saat ini. Coba lagi atau pilih titik manual.');
+      _showMessage(
+        'Gagal mengambil lokasi saat ini. Coba lagi atau pilih titik manual.',
+      );
       setState(() {
-        _locationHint = 'Lokasi tidak tersedia, kamu tetap bisa drag peta untuk memilih titik.';
+        _locationHint =
+            'Lokasi tidak tersedia, kamu tetap bisa drag peta untuk memilih titik.';
       });
     } finally {
       if (mounted) {
@@ -292,10 +302,7 @@ class _AddressLocationPickerScreenState extends State<AddressLocationPickerScree
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.black87,
-      ),
+      SnackBar(content: Text(message), backgroundColor: Colors.black87),
     );
   }
 }

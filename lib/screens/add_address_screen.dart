@@ -367,8 +367,10 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
 
     try {
       final rawFullAddress = _fullAddressController.text.trim();
-      final hasPinnedLocation =
-          _isCoordinatePairValid(_selectedLatitude, _selectedLongitude);
+      final hasPinnedLocation = _isCoordinatePairValid(
+        _selectedLatitude,
+        _selectedLongitude,
+      );
 
       String normalizedFullAddress = rawFullAddress;
       double? latitudeToSave;
@@ -395,8 +397,9 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
         );
 
         final formattedAddress = validatedAddress.formattedAddress.trim();
-        normalizedFullAddress =
-            formattedAddress.isEmpty ? rawFullAddress : formattedAddress;
+        normalizedFullAddress = formattedAddress.isEmpty
+            ? rawFullAddress
+            : formattedAddress;
         latitudeToSave = validatedAddress.latitude;
         longitudeToSave = validatedAddress.longitude;
       }
@@ -477,10 +480,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
 
     final result = await context.push<AddressLocationPickerResult>(
       AppRoutes.addressLocationPicker,
-      extra: {
-        'latitude': _selectedLatitude,
-        'longitude': _selectedLongitude,
-      },
+      extra: {'latitude': _selectedLatitude, 'longitude': _selectedLongitude},
     );
 
     if (!mounted || result == null) {
@@ -490,8 +490,9 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
     setState(() {
       _selectedLatitude = result.latitude;
       _selectedLongitude = result.longitude;
-      _selectedLocationSource =
-          result.source == 'gps' ? 'Lokasi saat ini' : 'Dipilih di peta';
+      _selectedLocationSource = result.source == 'gps'
+          ? 'Lokasi saat ini'
+          : 'Dipilih di peta';
     });
   }
 
@@ -617,8 +618,10 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
   }
 
   Widget _buildLocationPickerCard() {
-    final hasPinnedLocation =
-        _isCoordinatePairValid(_selectedLatitude, _selectedLongitude);
+    final hasPinnedLocation = _isCoordinatePairValid(
+      _selectedLatitude,
+      _selectedLongitude,
+    );
 
     return Container(
       width: double.infinity,
@@ -675,9 +678,15 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
             child: OutlinedButton.icon(
               onPressed: _openLocationPicker,
               icon: Icon(
-                hasPinnedLocation ? Icons.edit_location_alt : Icons.map_outlined,
+                hasPinnedLocation
+                    ? Icons.edit_location_alt
+                    : Icons.map_outlined,
               ),
-              label: Text(hasPinnedLocation ? 'Ubah Titik di Peta' : 'Pilih Titik di Peta'),
+              label: Text(
+                hasPinnedLocation
+                    ? 'Ubah Titik di Peta'
+                    : 'Pilih Titik di Peta',
+              ),
             ),
           ),
         ],
@@ -771,7 +780,10 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
       return false;
     }
 
-    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+    if (latitude < -90 ||
+        latitude > 90 ||
+        longitude < -180 ||
+        longitude > 180) {
       return false;
     }
 
