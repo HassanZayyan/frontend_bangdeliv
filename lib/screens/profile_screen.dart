@@ -117,9 +117,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 const SizedBox(height: 24),
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFC94A1D),
-                  ),
+                  decoration: BoxDecoration(color: const Color(0xFFC94A1D)),
                   child: IntrinsicHeight(
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -253,6 +251,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 _buildMenuTile(
                   icon: Icons.shield_outlined,
                   title: 'Kebijakan Privasi',
+                  onTap: () => context.push(AppRoutes.privacyMapPreview),
                 ),
                 const Divider(height: 1, indent: 60, color: AppColors.border),
                 _buildMenuTile(
