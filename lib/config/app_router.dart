@@ -11,6 +11,7 @@ import '../screens/driver_home_screen.dart';
 import '../screens/driver_orders_screen.dart';
 import '../screens/driver_history_screen.dart';
 import '../screens/driver_profile_screen.dart';
+import '../screens/driver_active_order_screen.dart';
 import '../screens/driver_verification_status_screen.dart';
 import '../screens/activity_screen.dart';
 import '../screens/home_screen.dart';
@@ -185,6 +186,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const DriverOrdersScreen(),
           ),
           GoRoute(
+            path: AppRoutes.driverOrderActive,
+            builder: (context, state) {
+              final orderId = state.pathParameters['orderId'] ?? '';
+              return DriverActiveOrderScreen(orderId: orderId);
+            },
+          ),
+          GoRoute(
             path: AppRoutes.driverHistory,
             builder: (context, state) => const DriverHistoryScreen(),
           ),
@@ -234,7 +242,7 @@ String? _resolveRedirect({
   }
 
   if (session.role == SessionUserRole.customer) {
-    if (_driverRoutes.contains(location)) {
+    if (_isDriverRoute(location)) {
       return AppRoutes.home;
     }
 
@@ -312,14 +320,6 @@ const Set<String> _publicRoutes = {
 
 const Set<String> _guestAccessibleRoutes = {AppRoutes.home};
 
-const Set<String> _driverRoutes = {
-  AppRoutes.driverHome,
-  AppRoutes.driverOrders,
-  AppRoutes.driverHistory,
-  AppRoutes.driverProfile,
-  AppRoutes.driverVerificationStatus,
-};
-
 const Set<String> _customerOnlyRoutes = {
   AppRoutes.home,
   AppRoutes.activity,
@@ -335,3 +335,9 @@ const Set<String> _driverNonActiveAllowedRoutes = {
   AppRoutes.editProfile,
   AppRoutes.changePassword,
 };
+
+bool _isDriverRoute(String location) {
+  final normalized = location.trim();
+  return normalized == AppRoutes.driverVerificationStatus ||
+      normalized.startsWith('/driver/');
+}
