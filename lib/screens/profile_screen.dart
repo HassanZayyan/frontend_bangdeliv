@@ -91,10 +91,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                     color: AppColors.darkBlue,
                   ),
-                  child: const Icon(
-                    Icons.person,
-                    size: 50,
-                    color: AppColors.primary,
+                  child: ClipOval(
+                    child: _buildAvatarImage(profile.avatarUrl),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -431,6 +429,29 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ],
       ),
       onTap: onTap ?? () {},
+    );
+  }
+
+  Widget _buildAvatarImage(String? avatarUrl) {
+    final normalized = avatarUrl?.trim() ?? '';
+    if (normalized.isEmpty) {
+      return const Icon(
+        Icons.person,
+        size: 50,
+        color: AppColors.primary,
+      );
+    }
+
+    return Image.network(
+      normalized,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) {
+        return const Icon(
+          Icons.person,
+          size: 50,
+          color: AppColors.primary,
+        );
+      },
     );
   }
 

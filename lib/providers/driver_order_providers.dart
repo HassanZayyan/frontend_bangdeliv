@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/driver_order_model.dart';
+import 'auth_session_provider.dart';
 import '../services/driver_order_service.dart';
 
 final driverOrderServiceProvider = Provider<DriverOrderService>((ref) {
@@ -380,6 +381,136 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
   }
 }
 
+class DriverAvailabilityState {
+  final String status;
+  final bool isUpdating;
+  final bool hasSyncIssue;
+  final String? syncIssueMessage;
+
+  const DriverAvailabilityState({
+    required this.status,
+    this.isUpdating = false,
+    this.hasSyncIssue = false,
+    this.syncIssueMessage,
+  });
+
+  bool get isOnline =>
+      status == 'available' || status == 'online' || status == 'busy';
+
+  DriverAvailabilityState copyWith({
+    String? status,
+    bool? isUpdating,
+    bool? hasSyncIssue,
+    String? syncIssueMessage,
+    bool clearSyncIssueMessage = false,
+  }) {
+    return DriverAvailabilityState(
+      status: status ?? this.status,
+      isUpdating: isUpdating ?? this.isUpdating,
+      hasSyncIssue: hasSyncIssue ?? this.hasSyncIssue,
+      syncIssueMessage: clearSyncIssueMessage
+          ? null
+          : (syncIssueMessage ?? this.syncIssueMessage),
+    );
+  }
+}
+
+class DriverAvailabilityNotifier extends AsyncNotifier<DriverAvailabilityState> {
+  @override
+  Future<DriverAvailabilityState> build() async {
+    try {
+      final status = await ref.read(driverOrderServiceProvider).fetchAvailabilityStatus();
+      return DriverAvailabilityState(status: _normalizeStatus(status));
+    } on DriverOrderApiException catch (error) {
+      return DriverAvailabilityState(
+        status: _fallbackStatusFromSession(),
+        hasSyncIssue: true,
+        syncIssueMessage: error.message,
+      );
+    } catch (_) {
+      return DriverAvailabilityState(
+        status: _fallbackStatusFromSession(),
+        hasSyncIssue: true,
+        syncIssueMessage: 'Gagal sinkronkan status kerja driver.',
+      );
+    }
+  }
+
+  Future<String?> setOnline(bool value) async {
+    final current =
+        state.asData?.value ??
+        DriverAvailabilityState(status: _fallbackStatusFromSession());
+
+    if (current.isUpdating) {
+      return null;
+    }
+
+    state = AsyncData(
+      current.copyWith(
+        isUpdating: true,
+        hasSyncIssue: false,
+        clearSyncIssueMessage: true,
+      ),
+    );
+
+    try {
+      final status = await ref.read(driverOrderServiceProvider).updateAvailability(
+            isOnline: value,
+          );
+
+      await ref.read(authSessionProvider.notifier).refreshSession();
+
+      state = AsyncData(
+        DriverAvailabilityState(
+          status: _normalizeStatus(status),
+          isUpdating: false,
+          hasSyncIssue: false,
+          syncIssueMessage: null,
+        ),
+      );
+
+      return null;
+    } on DriverOrderApiException catch (error) {
+      state = AsyncData(
+        current.copyWith(
+          isUpdating: false,
+          hasSyncIssue: true,
+          syncIssueMessage: error.message,
+        ),
+      );
+      return error.message;
+    } catch (error) {
+      state = AsyncData(
+        current.copyWith(
+          isUpdating: false,
+          hasSyncIssue: true,
+          syncIssueMessage: 'Gagal memperbarui status kerja driver.',
+        ),
+      );
+      return error.toString();
+    }
+  }
+
+  String _fallbackStatusFromSession() {
+    final profile = ref.read(authSessionProvider).profile;
+    final rawStatus = profile?.driverProfile?.status ?? 'offline';
+    return _normalizeStatus(rawStatus);
+  }
+
+  String _normalizeStatus(String rawStatus) {
+    final normalized = rawStatus.trim().toLowerCase();
+    if (normalized == 'available' || normalized == 'busy' || normalized == 'offline') {
+      return normalized;
+    }
+
+    if (normalized == 'online') {
+      return 'available';
+    }
+
+    return 'offline';
+  }
+}
+
 final driverOrdersProvider =
     AsyncNotifierProvider<DriverOrdersNotifier, DriverOrdersState>(
       DriverOrdersNotifier.new,
@@ -403,3 +534,8 @@ final driverActiveOrderProvider = Provider<DriverOrderModel?>((ref) {
     orElse: () => null,
   );
 });
+
+final driverAvailabilityProvider =
+    AsyncNotifierProvider<DriverAvailabilityNotifier, DriverAvailabilityState>(
+      DriverAvailabilityNotifier.new,
+    );

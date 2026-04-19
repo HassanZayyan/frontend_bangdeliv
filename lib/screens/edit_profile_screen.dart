@@ -1,8 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../config/app_colors.dart';
 import '../services/auth_service.dart';
+
+enum _AvatarPickerAction { camera, gallery, remove }
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -16,6 +21,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
+  final ImagePicker _imagePicker = ImagePicker();
+
+  XFile? _selectedAvatar;
+  String? _currentAvatarUrl;
+  bool _removeAvatar = false;
 
   bool _isLoading = true;
   bool _isSubmitting = false;
@@ -36,6 +46,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       _nameController.text = profile.name;
       _phoneController.text = profile.phone;
       _emailController.text = profile.email;
+      _currentAvatarUrl = profile.avatarUrl;
+      _selectedAvatar = null;
+      _removeAvatar = false;
     } on AuthException catch (e) {
       if (!mounted) {
         return;
@@ -83,36 +96,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     const SizedBox(height: 20),
                     Stack(
                       children: [
-                        Container(
-                          height: 120,
-                          width: 120,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: AppColors.primaryLight,
-                              width: 4,
-                            ),
-                            color: AppColors.darkBlue,
-                          ),
-                          child: const Icon(
-                            Icons.person,
-                            size: 60,
-                            color: AppColors.primary,
-                          ),
-                        ),
+                        _buildAvatarPreview(),
                         Positioned(
                           bottom: 0,
                           right: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: const BoxDecoration(
-                              color: AppColors.primary,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.camera_alt,
-                              color: Colors.white,
-                              size: 20,
+                          child: InkWell(
+                            onTap: _isSubmitting ? null : _openAvatarPickerSheet,
+                            borderRadius: BorderRadius.circular(100),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: const BoxDecoration(
+                                color: AppColors.primary,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.camera_alt,
+                                color: Colors.white,
+                                size: 20,
+                              ),
                             ),
                           ),
                         ),
@@ -229,6 +230,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         name: _nameController.text.trim(),
         phone: _phoneController.text.trim(),
         email: _emailController.text.trim(),
+        avatarPath: _selectedAvatar?.path,
+        removeAvatar: _removeAvatar,
       );
 
       if (!mounted) {
@@ -303,6 +306,148 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ),
       ],
     );
+  }
+
+  Widget _buildAvatarPreview() {
+    final normalizedAvatarUrl = (_currentAvatarUrl ?? '').trim();
+
+    return Container(
+      height: 120,
+      width: 120,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: AppColors.primaryLight,
+          width: 4,
+        ),
+        color: AppColors.darkBlue,
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          const Center(
+            child: Icon(
+              Icons.person,
+              size: 60,
+              color: AppColors.primary,
+            ),
+          ),
+          if (_selectedAvatar != null)
+            Image.file(
+              File(_selectedAvatar!.path),
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return const SizedBox.shrink();
+              },
+            )
+          else if (!_removeAvatar && normalizedAvatarUrl.isNotEmpty)
+            Image.network(
+              normalizedAvatarUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return const SizedBox.shrink();
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openAvatarPickerSheet() async {
+    final hasAvatar = _selectedAvatar != null ||
+        (!_removeAvatar && (_currentAvatarUrl ?? '').trim().isNotEmpty);
+
+    final action = await showModalBottomSheet<_AvatarPickerAction>(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.camera_alt_outlined),
+                  title: const Text('Ambil dari Kamera'),
+                  onTap: () =>
+                      Navigator.of(context).pop(_AvatarPickerAction.camera),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_library_outlined),
+                  title: const Text('Pilih dari Galeri'),
+                  onTap: () =>
+                      Navigator.of(context).pop(_AvatarPickerAction.gallery),
+                ),
+                if (hasAvatar)
+                  ListTile(
+                    leading: const Icon(
+                      Icons.delete_outline,
+                      color: AppColors.error,
+                    ),
+                    title: const Text(
+                      'Hapus Foto Profil',
+                      style: TextStyle(color: AppColors.error),
+                    ),
+                    onTap: () =>
+                        Navigator.of(context).pop(_AvatarPickerAction.remove),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (action == null) {
+      return;
+    }
+
+    if (action == _AvatarPickerAction.remove) {
+      setState(() {
+        _selectedAvatar = null;
+        _removeAvatar = true;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Foto profil akan dihapus saat disimpan.'),
+        ),
+      );
+
+      return;
+    }
+
+    final source = action == _AvatarPickerAction.camera
+        ? ImageSource.camera
+        : ImageSource.gallery;
+
+    try {
+      final picked = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 85,
+      );
+
+      if (!mounted || picked == null) {
+        return;
+      }
+
+      setState(() {
+        _selectedAvatar = picked;
+        _removeAvatar = false;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Gagal memilih foto profil. Coba lagi.'),
+          backgroundColor: Colors.red.shade600,
+        ),
+      );
+    }
   }
 
   @override

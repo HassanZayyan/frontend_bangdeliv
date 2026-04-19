@@ -5,6 +5,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../config/app_colors.dart';
 import '../models/driver_order_model.dart';
 import '../providers/driver_order_providers.dart';
+import '../services/driver_order_service.dart';
 
 class DriverActiveOrderScreen extends ConsumerWidget {
   final String orderId;
@@ -16,10 +17,10 @@ class DriverActiveOrderScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (orderId.trim().isEmpty) {
+    if (orderId.trim().isEmpty || !_isServerOrderId(orderId)) {
       return const Scaffold(
         body: Center(
-          child: Text('Order ID tidak valid.'),
+          child: Text('Order ID tidak valid untuk data server.'),
         ),
       );
     }
@@ -46,7 +47,7 @@ class DriverActiveOrderScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stackTrace) {
           return _ErrorState(
-            message: error.toString(),
+            message: _mapDetailError(error),
             onRetry: () {
               ref.invalidate(driverOrderDetailProvider(orderId));
             },
@@ -117,6 +118,22 @@ class DriverActiveOrderScreen extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  bool _isServerOrderId(String raw) {
+    return RegExp(r'^\d+$').hasMatch(raw.trim());
+  }
+
+  String _mapDetailError(Object error) {
+    if (error is DriverOrderApiException) {
+      if (error.statusCode == 404) {
+        return 'Order tidak ditemukan di server. Coba refresh daftar order.';
+      }
+
+      return error.message;
+    }
+
+    return error.toString();
   }
 }
 
