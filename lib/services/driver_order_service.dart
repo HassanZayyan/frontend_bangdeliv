@@ -8,7 +8,9 @@ import '../models/driver_order_model.dart';
 import 'auth_service.dart';
 
 class DriverOrderService {
-  static const Duration _timeout = Duration(seconds: 20);
+  static const Duration _timeout = Duration(seconds: 12);
+  static const Duration _listTimeout = Duration(seconds: 8);
+  static const Duration _detailTimeout = Duration(seconds: 10);
 
   Future<void> acceptOrder(String orderId) async {
     await _postWithFallbackPaths([
@@ -27,7 +29,10 @@ class DriverOrderService {
   }
 
   Future<DriverOrderModel> fetchOrderDetail(String orderId) async {
-    final response = await _get('/v1/driver/orders/$orderId');
+    final response = await _safeGet(
+      '/v1/driver/orders/$orderId',
+      timeout: _detailTimeout,
+    );
     final data = _extractData(response);
 
     if (data.isEmpty) {
@@ -93,9 +98,38 @@ class DriverOrderService {
     );
   }
 
+  Future<String> fetchAvailabilityStatus() async {
+    final response = await _safeGet(
+      '/v1/driver/availability',
+      timeout: _listTimeout,
+    );
+    final data = _extractData(response);
+    final status = (data['status'] ?? 'offline').toString().trim().toLowerCase();
+    return status.isEmpty ? 'offline' : status;
+  }
+
+  Future<String> updateAvailability({required bool isOnline}) async {
+    final response = await _patch(
+      '/v1/driver/availability',
+      body: <String, dynamic>{
+        'is_online': isOnline,
+      },
+    );
+
+    final data = _extractData(response);
+    final status = (data['status'] ?? 'offline').toString().trim().toLowerCase();
+    return status.isEmpty ? 'offline' : status;
+  }
+
   Future<DriverOrdersPayload> fetchOrders({bool fallbackToMock = true}) async {
+    final allowMockFallback = fallbackToMock && AppEnv.enableDriverMockFallback;
+
     try {
-      final response = await _get('/v1/driver/orders');
+      final response = await _safeGet(
+        '/v1/driver/orders',
+        timeout: _listTimeout,
+      );
+
       final data = _extractData(response);
 
       final incomingRaw = _extractList(
@@ -105,7 +139,7 @@ class DriverOrderService {
         data['running_orders'] ?? data['running'] ?? data['active_orders'],
       );
 
-      if (incomingRaw.isEmpty && runningRaw.isEmpty && fallbackToMock) {
+      if (incomingRaw.isEmpty && runningRaw.isEmpty && allowMockFallback) {
         return _mockOrdersPayload();
       }
 
@@ -117,13 +151,13 @@ class DriverOrderService {
     } on AuthException {
       rethrow;
     } on DriverOrderApiException catch (error) {
-      if (!fallbackToMock || error.statusCode == 401) {
+      if (!allowMockFallback || error.statusCode == 401) {
         rethrow;
       }
 
       return _mockOrdersPayload();
     } catch (_) {
-      if (!fallbackToMock) {
+      if (!allowMockFallback) {
         rethrow;
       }
 
@@ -134,14 +168,19 @@ class DriverOrderService {
   Future<List<DriverHistoryOrderModel>> fetchHistory({
     bool fallbackToMock = true,
   }) async {
+    final allowMockFallback = fallbackToMock && AppEnv.enableDriverMockFallback;
+
     try {
-      final response = await _get('/v1/driver/history');
+      final response = await _safeGet(
+        '/v1/driver/history',
+        timeout: _listTimeout,
+      );
       final data = _extractData(response);
       final historyRaw = _extractList(
         data['history_orders'] ?? data['history'] ?? data['orders'],
       );
 
-      if (historyRaw.isEmpty && fallbackToMock) {
+      if (historyRaw.isEmpty && allowMockFallback) {
         return _mockHistory();
       }
 
@@ -151,13 +190,13 @@ class DriverOrderService {
     } on AuthException {
       rethrow;
     } on DriverOrderApiException catch (error) {
-      if (!fallbackToMock || error.statusCode == 401) {
+      if (!allowMockFallback || error.statusCode == 401) {
         rethrow;
       }
 
       return _mockHistory();
     } catch (_) {
-      if (!fallbackToMock) {
+      if (!allowMockFallback) {
         rethrow;
       }
 
@@ -168,13 +207,16 @@ class DriverOrderService {
   Future<Map<String, dynamic>> _get(
     String path, {
     Map<String, String>? query,
+    Duration? timeout,
   }) async {
     final uri = _buildUri(path, query: query);
     final headers = await AuthService.authorizedHeaders(
       includeJsonContentType: false,
     );
 
-    final response = await http.get(uri, headers: headers).timeout(_timeout);
+    final response = await http
+        .get(uri, headers: headers)
+        .timeout(timeout ?? _timeout);
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       if (response.body.isEmpty) {
@@ -196,6 +238,31 @@ class DriverOrderService {
       ),
       statusCode: response.statusCode,
     );
+  }
+
+  Future<Map<String, dynamic>> _safeGet(
+    String path, {
+    Map<String, String>? query,
+    Duration? timeout,
+  }) async {
+    try {
+      return await _get(path, query: query, timeout: timeout);
+    } on TimeoutException {
+      throw const DriverOrderApiException(
+        'Koneksi timeout. Pastikan backend aktif dan API_BASE_URL benar.',
+        statusCode: 408,
+      );
+    } on http.ClientException {
+      throw const DriverOrderApiException(
+        'Gagal terhubung ke server. Cek API_BASE_URL dan jaringan perangkat.',
+        statusCode: 0,
+      );
+    } on FormatException {
+      throw const DriverOrderApiException(
+        'Format respons server tidak valid.',
+        statusCode: 500,
+      );
+    }
   }
 
   Future<void> _postWithFallbackPaths(List<String> paths) async {
@@ -236,9 +303,22 @@ class DriverOrderService {
     final headers = await AuthService.authorizedHeaders();
     final payload = body ?? const <String, dynamic>{};
 
-    final response = await http
-        .post(uri, headers: headers, body: jsonEncode(payload))
-        .timeout(_timeout);
+    late final http.Response response;
+    try {
+      response = await http
+          .post(uri, headers: headers, body: jsonEncode(payload))
+          .timeout(_timeout);
+    } on TimeoutException {
+      throw const DriverOrderApiException(
+        'Koneksi timeout. Pastikan backend aktif dan API_BASE_URL benar.',
+        statusCode: 408,
+      );
+    } on http.ClientException {
+      throw const DriverOrderApiException(
+        'Gagal terhubung ke server. Cek API_BASE_URL dan jaringan perangkat.',
+        statusCode: 0,
+      );
+    }
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       if (response.body.isEmpty) {
@@ -257,6 +337,53 @@ class DriverOrderService {
       AuthService.extractErrorMessage(
         response,
         fallback: 'Gagal memproses aksi order driver.',
+      ),
+      statusCode: response.statusCode,
+    );
+  }
+
+  Future<Map<String, dynamic>> _patch(
+    String path, {
+    Map<String, dynamic>? body,
+  }) async {
+    final uri = _buildUri(path);
+    final headers = await AuthService.authorizedHeaders();
+    final payload = body ?? const <String, dynamic>{};
+
+    late final http.Response response;
+    try {
+      response = await http
+          .patch(uri, headers: headers, body: jsonEncode(payload))
+          .timeout(_timeout);
+    } on TimeoutException {
+      throw const DriverOrderApiException(
+        'Koneksi timeout. Pastikan backend aktif dan API_BASE_URL benar.',
+        statusCode: 408,
+      );
+    } on http.ClientException {
+      throw const DriverOrderApiException(
+        'Gagal terhubung ke server. Cek API_BASE_URL dan jaringan perangkat.',
+        statusCode: 0,
+      );
+    }
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (response.body.isEmpty) {
+        return const <String, dynamic>{};
+      }
+
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+
+      return const <String, dynamic>{};
+    }
+
+    throw DriverOrderApiException(
+      AuthService.extractErrorMessage(
+        response,
+        fallback: 'Gagal memperbarui status kerja driver.',
       ),
       statusCode: response.statusCode,
     );

@@ -3,6 +3,8 @@ class UserProfileModel {
   final String name;
   final String phone;
   final String email;
+  final String? avatar;
+  final String? avatarUrl;
   final String role;
   final DriverProfileModel? driverProfile;
   final UserStatsModel stats;
@@ -13,6 +15,8 @@ class UserProfileModel {
     required this.name,
     required this.phone,
     required this.email,
+    required this.avatar,
+    required this.avatarUrl,
     required this.role,
     required this.driverProfile,
     required this.stats,
@@ -29,6 +33,8 @@ class UserProfileModel {
       name: (json['name'] ?? '').toString(),
       phone: (json['phone'] ?? '').toString(),
       email: (json['email'] ?? '').toString(),
+      avatar: _asNullableString(json['avatar']),
+      avatarUrl: _asNullableString(json['avatar_url']),
       role: (json['role'] ?? '').toString(),
       driverProfile: (json['driver_profile'] is Map<String, dynamic>)
           ? DriverProfileModel.fromJson(
@@ -51,22 +57,59 @@ class UserProfileModel {
     }
     return int.tryParse(value?.toString() ?? '') ?? 0;
   }
+
+  static String? _asNullableString(dynamic value) {
+    final raw = value?.toString().trim() ?? '';
+    if (raw.isEmpty) {
+      return null;
+    }
+
+    return raw;
+  }
 }
 
 class DriverProfileModel {
   final String registrationStatus;
   final String status;
+  final String vehiclePlate;
+  final String licenseNumber;
+  final double avgRating;
+  final int totalDeliveries;
 
   const DriverProfileModel({
     required this.registrationStatus,
     required this.status,
+    required this.vehiclePlate,
+    required this.licenseNumber,
+    required this.avgRating,
+    required this.totalDeliveries,
   });
 
   factory DriverProfileModel.fromJson(Map<String, dynamic> json) {
     return DriverProfileModel(
       registrationStatus: (json['registration_status'] ?? '').toString(),
       status: (json['status'] ?? '').toString(),
+      vehiclePlate: (json['vehicle_plate'] ?? '').toString(),
+      licenseNumber: (json['license_number'] ?? '').toString(),
+      avgRating: _asDouble(json['avg_rating']),
+      totalDeliveries: _asInt(json['total_deliveries']),
     );
+  }
+
+  static int _asInt(dynamic value) {
+    if (value is int) {
+      return value;
+    }
+
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static double _asDouble(dynamic value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(value?.toString() ?? '') ?? 0;
   }
 }
 

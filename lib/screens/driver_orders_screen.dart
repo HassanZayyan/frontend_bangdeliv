@@ -59,7 +59,10 @@ class DriverOrdersScreen extends ConsumerWidget {
                         processingOrderIds: data.processingOrderIds,
                         isMockMode: data.isMockData,
                       ),
-                      _RunningOrdersTab(orders: data.running),
+                      _RunningOrdersTab(
+                        orders: data.running,
+                        isMockMode: data.isMockData,
+                      ),
                     ],
                   ),
                 ),
@@ -179,8 +182,12 @@ class _IncomingOrdersTab extends ConsumerWidget {
 
 class _RunningOrdersTab extends ConsumerWidget {
   final List<DriverOrderModel> orders;
+  final bool isMockMode;
 
-  const _RunningOrdersTab({required this.orders});
+  const _RunningOrdersTab({
+    required this.orders,
+    this.isMockMode = false,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -205,6 +212,18 @@ class _RunningOrdersTab extends ConsumerWidget {
             order: order,
             isIncoming: false,
             onNavigate: () {
+              if (isMockMode || !_isServerOrderId(order.id)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Detail order tidak tersedia karena data masih mode demo.',
+                    ),
+                    backgroundColor: AppColors.primaryDark,
+                  ),
+                );
+                return;
+              }
+
               context.go(AppRoutes.driverOrderActivePath(order.id));
             },
             onContact: () {
@@ -223,6 +242,10 @@ class _RunningOrdersTab extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  bool _isServerOrderId(String orderId) {
+    return RegExp(r'^\d+$').hasMatch(orderId.trim());
   }
 }
 
@@ -305,7 +328,7 @@ class _OrderCard extends StatelessWidget {
               children: [
                 if (order.serviceTypeCode.isNotEmpty)
                   _metaChip(
-                    '${order.serviceTypeCode.toUpperCase()}',
+                    order.serviceTypeCode.toUpperCase(),
                     AppColors.primary.withValues(alpha: 0.1),
                     AppColors.primaryDark,
                   ),
