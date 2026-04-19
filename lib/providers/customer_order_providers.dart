@@ -30,35 +30,34 @@ final customerSortedOrdersProvider = Provider<List<CustomerOrderSummaryModel>>((
   );
 });
 
-final customerCompletedOrdersProvider = Provider<List<CustomerOrderSummaryModel>>(
+final customerCompletedOrdersProvider =
+    Provider<List<CustomerOrderSummaryModel>>((ref) {
+      final orders = ref.watch(customerSortedOrdersProvider);
+      return orders.where((order) => order.isCompleted).toList(growable: false);
+    });
+
+final customerActivityOrdersProvider =
+    Provider<List<CustomerOrderSummaryModel>>((ref) {
+      final orders = ref.watch(customerSortedOrdersProvider);
+      return orders
+          .where((order) => !order.isCompleted)
+          .toList(growable: false);
+    });
+
+final customerOngoingOrdersProvider = Provider<List<CustomerOrderSummaryModel>>(
   (ref) {
-    final orders = ref.watch(customerSortedOrdersProvider);
-    return orders.where((order) => order.isCompleted).toList(growable: false);
+    final orders = ref.watch(customerActivityOrdersProvider);
+    return orders
+        .where((order) => !order.isTerminalStatus)
+        .toList(growable: false);
   },
 );
 
-final customerActivityOrdersProvider = Provider<List<CustomerOrderSummaryModel>>((
-  ref,
-) {
-  final orders = ref.watch(customerSortedOrdersProvider);
-  return orders.where((order) => !order.isCompleted).toList(growable: false);
-});
-
-final customerOngoingOrdersProvider = Provider<List<CustomerOrderSummaryModel>>((
-  ref,
-) {
-  final orders = ref.watch(customerActivityOrdersProvider);
-  return orders
-      .where((order) => !order.isTerminalStatus)
-      .toList(growable: false);
-});
-
-final customerCancelledOrdersProvider = Provider<List<CustomerOrderSummaryModel>>((
-  ref,
-) {
-  final orders = ref.watch(customerActivityOrdersProvider);
-  return orders.where((order) => order.isCancelled).toList(growable: false);
-});
+final customerCancelledOrdersProvider =
+    Provider<List<CustomerOrderSummaryModel>>((ref) {
+      final orders = ref.watch(customerActivityOrdersProvider);
+      return orders.where((order) => order.isCancelled).toList(growable: false);
+    });
 
 final customerOrderDetailProvider =
     FutureProvider.family<CustomerOrderDetailModel, int>((ref, orderId) async {

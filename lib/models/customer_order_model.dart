@@ -80,12 +80,14 @@ class CustomerOrderSummaryModel {
         : const <String, dynamic>{};
 
     final codeFromObject = (rawMap['code'] ?? '').toString().trim();
-    final labelFromObject =
-        (rawMap['display_name'] ?? rawMap['name'] ?? '').toString().trim();
+    final labelFromObject = (rawMap['display_name'] ?? rawMap['name'] ?? '')
+        .toString()
+        .trim();
 
     final codeFromPayload = (json['service_type_code'] ?? '').toString().trim();
-    final labelFromPayload =
-        (json['service_type_label'] ?? '').toString().trim();
+    final labelFromPayload = (json['service_type_label'] ?? '')
+        .toString()
+        .trim();
 
     final rawString = rawServiceType is String ? rawServiceType.trim() : '';
 
@@ -153,9 +155,9 @@ class CustomerOrderSummaryModel {
 
   static String _extractItemsSummary(Map<String, dynamic> json) {
     final items = (json['items'] is List)
-        ? (json['items'] as List)
-            .whereType<Map<String, dynamic>>()
-            .toList(growable: false)
+        ? (json['items'] as List).whereType<Map<String, dynamic>>().toList(
+            growable: false,
+          )
         : const <Map<String, dynamic>>[];
 
     if (items.isEmpty) {
@@ -298,39 +300,45 @@ class CustomerOrderDetailModel {
 
     final histories = (json['status_histories'] is List)
         ? (json['status_histories'] as List)
-            .whereType<Map<String, dynamic>>()
-            .toList(growable: false)
+              .whereType<Map<String, dynamic>>()
+              .toList(growable: false)
         : (json['statusHistories'] is List)
         ? (json['statusHistories'] as List)
-            .whereType<Map<String, dynamic>>()
-            .toList(growable: false)
+              .whereType<Map<String, dynamic>>()
+              .toList(growable: false)
         : const <Map<String, dynamic>>[];
 
-    final timeline = histories.map((history) {
-      final status = (history['status_ref'] is Map<String, dynamic>)
-          ? history['status_ref'] as Map<String, dynamic>
-          : (history['statusRef'] is Map<String, dynamic>)
-          ? history['statusRef'] as Map<String, dynamic>
-          : const <String, dynamic>{};
+    final timeline =
+        histories
+            .map((history) {
+              final status = (history['status_ref'] is Map<String, dynamic>)
+                  ? history['status_ref'] as Map<String, dynamic>
+                  : (history['statusRef'] is Map<String, dynamic>)
+                  ? history['statusRef'] as Map<String, dynamic>
+                  : const <String, dynamic>{};
 
-      final code = (status['code'] ?? '').toString().trim().toUpperCase();
-      final label = (status['display_name'] ?? '').toString().trim();
+              final code = (status['code'] ?? '')
+                  .toString()
+                  .trim()
+                  .toUpperCase();
+              final label = (status['display_name'] ?? '').toString().trim();
 
-      return OrderStatusSnapshot(
-        code: code,
-        label: label.isNotEmpty
-            ? label
-            : CustomerOrderSummaryModel._statusLabelFromCode(code),
-        changedAt: CustomerOrderSummaryModel._asDateTime(
-          history['created_at'] ?? history['updated_at'],
-        ),
-      );
-    }).toList(growable: false)
-      ..sort((a, b) {
-        final aTime = a.changedAt?.millisecondsSinceEpoch ?? 0;
-        final bTime = b.changedAt?.millisecondsSinceEpoch ?? 0;
-        return aTime.compareTo(bTime);
-      });
+              return OrderStatusSnapshot(
+                code: code,
+                label: label.isNotEmpty
+                    ? label
+                    : CustomerOrderSummaryModel._statusLabelFromCode(code),
+                changedAt: CustomerOrderSummaryModel._asDateTime(
+                  history['created_at'] ?? history['updated_at'],
+                ),
+              );
+            })
+            .toList(growable: false)
+          ..sort((a, b) {
+            final aTime = a.changedAt?.millisecondsSinceEpoch ?? 0;
+            final bTime = b.changedAt?.millisecondsSinceEpoch ?? 0;
+            return aTime.compareTo(bTime);
+          });
 
     return CustomerOrderDetailModel(
       summary: summary,

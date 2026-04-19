@@ -26,7 +26,9 @@ final rideOrderApiServiceProvider = Provider<RideOrderApiService>((ref) {
   return RideOrderApiService(apiClient);
 });
 
-final customerOrderApiServiceProvider = Provider<CustomerOrderApiService>((ref) {
+final customerOrderApiServiceProvider = Provider<CustomerOrderApiService>((
+  ref,
+) {
   final apiClient = ref.watch(apiClientProvider);
   return CustomerOrderApiService(apiClient);
 });

@@ -188,7 +188,9 @@ class CustomerOrderCard extends StatelessWidget {
                           label: const Text('Pesan Lagi'),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: AppColors.textSecondary,
-                            side: const BorderSide(color: AppColors.textSecondary),
+                            side: const BorderSide(
+                              color: AppColors.textSecondary,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),

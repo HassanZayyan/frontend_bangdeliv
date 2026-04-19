@@ -51,7 +51,9 @@ class TrackOrderScreen extends ConsumerWidget {
           );
         }
 
-        final detailAsync = ref.watch(customerOrderDetailProvider(activeOrder.id));
+        final detailAsync = ref.watch(
+          customerOrderDetailProvider(activeOrder.id),
+        );
         return _buildScaffold(
           context,
           ref,
@@ -121,7 +123,9 @@ class TrackOrderScreen extends ConsumerWidget {
                         onPressed: () {
                           ref.invalidate(customerOrdersProvider);
                           if (orderId != null) {
-                            ref.invalidate(customerOrderDetailProvider(orderId));
+                            ref.invalidate(
+                              customerOrderDetailProvider(orderId),
+                            );
                           }
                         },
                         child: const Text('Coba Lagi'),
