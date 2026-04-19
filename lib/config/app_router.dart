@@ -26,6 +26,7 @@ import '../models/user_profile_model.dart';
 import '../providers/auth_session_provider.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/notification_settings_screen.dart';
+import '../screens/privacy_map_screen.dart';
 import '../screens/main_layout.dart';
 import '../screens/driver_main_layout.dart';
 import 'app_routes.dart';
@@ -133,6 +134,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.notificationSettings,
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const NotificationSettingsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.privacyMapPreview,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const PrivacyMapScreen(),
       ),
       GoRoute(
         path: AppRoutes.driverVerificationStatus,
