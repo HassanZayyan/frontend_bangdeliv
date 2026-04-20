@@ -51,9 +51,7 @@ class ChatbotApiService {
     String? serviceType,
     int limit = 20,
   }) async {
-    final query = <String, dynamic>{
-      'limit': limit,
-    };
+    final query = <String, dynamic>{'limit': limit};
 
     if (serviceType != null && serviceType.trim().isNotEmpty) {
       query['service_type'] = serviceType.trim();
