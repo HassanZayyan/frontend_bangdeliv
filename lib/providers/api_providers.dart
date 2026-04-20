@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/home_data_model.dart';
 import '../services/api_client.dart';
 import '../services/chatbot_api_service.dart';
+import '../services/customer_order_api_service.dart';
 import '../services/home_api_service.dart';
 import '../services/ride_order_api_service.dart';
 
@@ -23,6 +24,13 @@ final chatbotApiServiceProvider = Provider<ChatbotApiService>((ref) {
 final rideOrderApiServiceProvider = Provider<RideOrderApiService>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   return RideOrderApiService(apiClient);
+});
+
+final customerOrderApiServiceProvider = Provider<CustomerOrderApiService>((
+  ref,
+) {
+  final apiClient = ref.watch(apiClientProvider);
+  return CustomerOrderApiService(apiClient);
 });
 
 class HomeSearchQueryNotifier extends Notifier<String> {
