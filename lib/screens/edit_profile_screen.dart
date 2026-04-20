@@ -1,22 +1,24 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../config/app_colors.dart';
+import '../providers/auth_session_provider.dart';
 import '../services/auth_service.dart';
 
 enum _AvatarPickerAction { camera, gallery, remove }
 
-class EditProfileScreen extends StatefulWidget {
+class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
 
   @override
-  State<EditProfileScreen> createState() => _EditProfileScreenState();
+  ConsumerState<EditProfileScreen> createState() => _EditProfileScreenState();
 }
 
-class _EditProfileScreenState extends State<EditProfileScreen> {
+class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -101,7 +103,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           bottom: 0,
                           right: 0,
                           child: InkWell(
-                            onTap: _isSubmitting ? null : _openAvatarPickerSheet,
+                            onTap: _isSubmitting
+                                ? null
+                                : _openAvatarPickerSheet,
                             borderRadius: BorderRadius.circular(100),
                             child: Container(
                               padding: const EdgeInsets.all(8),
@@ -226,13 +230,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     });
 
     try {
-      await AuthService.updateCurrentUserProfile(
+      final updatedProfile = await AuthService.updateCurrentUserProfile(
         name: _nameController.text.trim(),
         phone: _phoneController.text.trim(),
         email: _emailController.text.trim(),
         avatarPath: _selectedAvatar?.path,
         removeAvatar: _removeAvatar,
       );
+
+      ref.read(authSessionProvider.notifier).syncProfile(updatedProfile);
 
       if (!mounted) {
         return;
@@ -317,21 +323,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(
-          color: AppColors.primaryLight,
-          width: 4,
-        ),
+        border: Border.all(color: AppColors.primaryLight, width: 4),
         color: AppColors.darkBlue,
       ),
       child: Stack(
         fit: StackFit.expand,
         children: [
           const Center(
-            child: Icon(
-              Icons.person,
-              size: 60,
-              color: AppColors.primary,
-            ),
+            child: Icon(Icons.person, size: 60, color: AppColors.primary),
           ),
           if (_selectedAvatar != null)
             Image.file(
@@ -355,7 +354,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _openAvatarPickerSheet() async {
-    final hasAvatar = _selectedAvatar != null ||
+    final hasAvatar =
+        _selectedAvatar != null ||
         (!_removeAvatar && (_currentAvatarUrl ?? '').trim().isNotEmpty);
 
     final action = await showModalBottomSheet<_AvatarPickerAction>(
@@ -400,6 +400,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
 
     if (action == null) {
+      return;
+    }
+
+    if (!mounted) {
       return;
     }
 

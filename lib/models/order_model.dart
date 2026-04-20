@@ -1,3 +1,5 @@
+import '../utils/currency_formatter.dart';
+
 class OrderModel {
   final String id;
   final String restaurantName;
@@ -5,7 +7,7 @@ class OrderModel {
   final double price;
   final String date;
   final String status; // 'Selesai', 'Diantar', 'Dibatalkan'
-  final int rating;    // 0 jika belum dirating
+  final int rating; // 0 jika belum dirating
 
   OrderModel({
     required this.id,
@@ -16,8 +18,8 @@ class OrderModel {
     required this.status,
     this.rating = 0,
   });
-  
+
   String get formattedPrice {
-    return "Rp ${price.toInt()}";
+    return formatRupiah(price);
   }
 }

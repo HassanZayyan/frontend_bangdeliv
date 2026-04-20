@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
+import '../models/food_model.dart';
 import '../models/home_data_model.dart';
+import '../models/merchant_model.dart';
 import '../providers/api_providers.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -102,6 +104,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final target =
         '${AppRoutes.chatbot}?service_type=${Uri.encodeComponent(serviceType)}';
     context.push(target);
+  }
+
+  void _openPopularMenuDetail(BuildContext context, FoodModel food) {
+    if (food.id.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Detail menu tidak tersedia.')),
+      );
+      return;
+    }
+
+    context.push(AppRoutes.menuDetailPath(food.id), extra: food);
+  }
+
+  void _openMerchantDetail(BuildContext context, MerchantModel merchant) {
+    if (merchant.id.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Detail merchant tidak tersedia.')),
+      );
+      return;
+    }
+
+    context.push(AppRoutes.merchantDetailPath(merchant.id), extra: merchant);
   }
 
   Widget _buildServiceCards(BuildContext context) {
@@ -333,93 +357,103 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         itemBuilder: (context, index) {
           final food = data.popularMenus[index];
 
-          return Container(
-            width: 180,
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(14),
-                  ),
-                  child: SizedBox(
-                    height: 104,
-                    width: double.infinity,
-                    child: food.imageUrl.isEmpty
-                        ? Container(
-                            color: AppColors.primaryLight,
-                            child: const Icon(Icons.restaurant_menu_outlined),
-                          )
-                        : Image.network(
-                            food.imageUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Container(
-                                  color: AppColors.primaryLight,
-                                  child: const Icon(
-                                    Icons.broken_image_outlined,
-                                  ),
-                                ),
-                          ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        food.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        food.restaurantName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.star_rounded,
-                            color: Colors.amber,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(food.rating.toStringAsFixed(1)),
-                          const Spacer(),
-                          Text(
-                            food.formattedPrice,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+          return _buildPopularMenuCard(
+            context: context,
+            food: food,
+            onTap: () => _openPopularMenuDetail(context, food),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildPopularMenuCard({
+    required BuildContext context,
+    required FoodModel food,
+    required VoidCallback onTap,
+  }) {
+    return SizedBox(
+      width: 180,
+      child: Material(
+        color: AppColors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: AppColors.border),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                height: 104,
+                width: double.infinity,
+                child: food.imageUrl.isEmpty
+                    ? Container(
+                        color: AppColors.primaryLight,
+                        child: const Icon(Icons.restaurant_menu_outlined),
+                      )
+                    : Image.network(
+                        food.imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          color: AppColors.primaryLight,
+                          child: const Icon(Icons.broken_image_outlined),
+                        ),
+                      ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      food.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      food.restaurantName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.star_rounded,
+                          color: Colors.amber,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(food.rating.toStringAsFixed(1)),
+                        const Spacer(),
+                        Text(
+                          food.formattedPrice,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -438,13 +472,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       itemBuilder: (context, index) {
         final merchant = data.nearbyMerchants[index];
 
-        return Container(
+        return _buildNearbyMerchantCard(
+          merchant: merchant,
+          onTap: () => _openMerchantDetail(context, merchant),
+        );
+      },
+    );
+  }
+
+  Widget _buildNearbyMerchantCard({
+    required MerchantModel merchant,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: AppColors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.border),
-          ),
           child: Row(
             children: [
               ClipRRect(
@@ -494,10 +544,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ],
                 ),
               ),
+              const SizedBox(width: 6),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.textSecondary,
+              ),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 

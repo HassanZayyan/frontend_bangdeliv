@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -18,8 +19,13 @@ class RegisterDriverScreen extends ConsumerStatefulWidget {
 
 class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _vehiclePlateController = TextEditingController();
+  final _platePrefixController = TextEditingController();
+  final _plateNumberController = TextEditingController();
+  final _plateSuffixController = TextEditingController();
   final _licenseNumberController = TextEditingController();
+  final _platePrefixFocusNode = FocusNode();
+  final _plateNumberFocusNode = FocusNode();
+  final _plateSuffixFocusNode = FocusNode();
   bool _isSubmitting = false;
 
   @override
@@ -106,25 +112,7 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
           const SizedBox(height: 8),
           _InfoTile(label: 'Email', value: email.isEmpty ? '-' : email),
           const SizedBox(height: 18),
-          TextFormField(
-            controller: _vehiclePlateController,
-            textInputAction: TextInputAction.next,
-            decoration: const InputDecoration(
-              hintText: 'Nomor Plat Kendaraan',
-              prefixIcon: Icon(
-                Icons.directions_car_outlined,
-                color: AppColors.textSecondary,
-              ),
-            ),
-            validator: (value) {
-              final vehiclePlate = value?.trim() ?? '';
-              if (vehiclePlate.isEmpty) {
-                return 'Nomor plat wajib diisi';
-              }
-
-              return null;
-            },
-          ),
+          _buildVehiclePlateFields(),
           const SizedBox(height: 16),
           TextFormField(
             controller: _licenseNumberController,
@@ -181,6 +169,123 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
     );
   }
 
+  Widget _buildVehiclePlateFields() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Nomor Plat Kendaraan',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 3,
+              child: TextFormField(
+                controller: _platePrefixController,
+                focusNode: _platePrefixFocusNode,
+                textInputAction: TextInputAction.next,
+                textCapitalization: TextCapitalization.characters,
+                keyboardType: TextInputType.text,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z]')),
+                  LengthLimitingTextInputFormatter(2),
+                  _UpperCaseTextFormatter(),
+                ],
+                decoration: const InputDecoration(hintText: 'H'),
+                validator: (value) {
+                  final prefix = value?.trim() ?? '';
+                  if (prefix.isEmpty) {
+                    return 'Wajib';
+                  }
+
+                  return null;
+                },
+                onFieldSubmitted: (_) {
+                  _plateNumberFocusNode.requestFocus();
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 4,
+              child: TextFormField(
+                controller: _plateNumberController,
+                focusNode: _plateNumberFocusNode,
+                textInputAction: TextInputAction.next,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(4),
+                ],
+                decoration: const InputDecoration(hintText: '1234'),
+                validator: (value) {
+                  final number = value?.trim() ?? '';
+                  if (number.isEmpty) {
+                    return 'Wajib';
+                  }
+
+                  return null;
+                },
+                onFieldSubmitted: (_) {
+                  _plateSuffixFocusNode.requestFocus();
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 4,
+              child: TextFormField(
+                controller: _plateSuffixController,
+                focusNode: _plateSuffixFocusNode,
+                textInputAction: TextInputAction.next,
+                textCapitalization: TextCapitalization.characters,
+                keyboardType: TextInputType.text,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z]')),
+                  LengthLimitingTextInputFormatter(3),
+                  _UpperCaseTextFormatter(),
+                ],
+                decoration: const InputDecoration(hintText: 'ABC'),
+                validator: (value) {
+                  final suffix = value?.trim() ?? '';
+                  if (suffix.isEmpty) {
+                    return 'Wajib';
+                  }
+
+                  return null;
+                },
+                onFieldSubmitted: (_) {
+                  FocusScope.of(context).requestFocus();
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Format: huruf - angka - huruf (contoh: H 1234 ABC)',
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+        ),
+      ],
+    );
+  }
+
+  String _buildVehiclePlate() {
+    final prefix = _platePrefixController.text.trim().toUpperCase();
+    final number = _plateNumberController.text.trim();
+    final suffix = _plateSuffixController.text.trim().toUpperCase();
+
+    return '$prefix $number $suffix';
+  }
+
   Future<void> _handleUpgrade() async {
     if (_isSubmitting) {
       return;
@@ -197,7 +302,7 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
 
     try {
       await AuthService.upgradeToDriver(
-        vehiclePlate: _vehiclePlateController.text.trim(),
+        vehiclePlate: _buildVehiclePlate(),
         licenseNumber: _licenseNumberController.text.trim(),
       );
 
@@ -230,9 +335,26 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
 
   @override
   void dispose() {
-    _vehiclePlateController.dispose();
+    _platePrefixController.dispose();
+    _plateNumberController.dispose();
+    _plateSuffixController.dispose();
     _licenseNumberController.dispose();
+    _platePrefixFocusNode.dispose();
+    _plateNumberFocusNode.dispose();
+    _plateSuffixFocusNode.dispose();
     super.dispose();
+  }
+}
+
+class _UpperCaseTextFormatter extends TextInputFormatter {
+  const _UpperCaseTextFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return newValue.copyWith(text: newValue.text.toUpperCase());
   }
 }
 

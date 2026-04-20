@@ -6,22 +6,18 @@ import '../config/app_colors.dart';
 import '../models/driver_order_model.dart';
 import '../providers/driver_order_providers.dart';
 import '../services/driver_order_service.dart';
+import '../utils/currency_formatter.dart';
 
 class DriverActiveOrderScreen extends ConsumerWidget {
   final String orderId;
 
-  const DriverActiveOrderScreen({
-    super.key,
-    required this.orderId,
-  });
+  const DriverActiveOrderScreen({super.key, required this.orderId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (orderId.trim().isEmpty || !_isServerOrderId(orderId)) {
       return const Scaffold(
-        body: Center(
-          child: Text('Order ID tidak valid untuk data server.'),
-        ),
+        body: Center(child: Text('Order ID tidak valid untuk data server.')),
       );
     }
 
@@ -96,9 +92,7 @@ class DriverActiveOrderScreen extends ConsumerWidget {
 
                     if (error == null) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('${action.label} berhasil.'),
-                        ),
+                        SnackBar(content: Text('${action.label} berhasil.')),
                       );
                       ref.invalidate(driverOrderDetailProvider(order.id));
                       return;
@@ -234,9 +228,21 @@ class _OrderMetaCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _pill(order.serviceTypeCode, AppColors.primary.withValues(alpha: 0.1), AppColors.primaryDark),
-              _pill(order.statusDisplayName ?? order.statusCode, AppColors.success.withValues(alpha: 0.1), AppColors.success),
-              _pill('COD ${order.paymentStatus.toUpperCase()}', AppColors.darkBlue.withValues(alpha: 0.08), AppColors.darkBlue),
+              _pill(
+                order.serviceTypeCode,
+                AppColors.primary.withValues(alpha: 0.1),
+                AppColors.primaryDark,
+              ),
+              _pill(
+                order.statusDisplayName ?? order.statusCode,
+                AppColors.success.withValues(alpha: 0.1),
+                AppColors.success,
+              ),
+              _pill(
+                'COD ${order.paymentStatus.toUpperCase()}',
+                AppColors.darkBlue.withValues(alpha: 0.08),
+                AppColors.darkBlue,
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -278,7 +284,10 @@ class _OrderMetaCard extends StatelessWidget {
           width: 58,
           child: Text(
             '$title:',
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+            ),
           ),
         ),
         Expanded(
@@ -292,18 +301,7 @@ class _OrderMetaCard extends StatelessWidget {
   }
 
   String _formatCurrency(int amount) {
-    final raw = amount.toString();
-    final buffer = StringBuffer();
-
-    for (int i = 0; i < raw.length; i++) {
-      final reverseIndex = raw.length - i;
-      buffer.write(raw[i]);
-      if (reverseIndex > 1 && reverseIndex % 3 == 1) {
-        buffer.write('.');
-      }
-    }
-
-    return 'Rp $buffer';
+    return formatRupiah(amount);
   }
 }
 
@@ -326,7 +324,10 @@ class _TimelineCard extends StatelessWidget {
         children: [
           const Text(
             'Timeline Status',
-            style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
           ),
           const SizedBox(height: 8),
           if (timeline.isEmpty)
@@ -339,8 +340,11 @@ class _TimelineCard extends StatelessWidget {
               (item) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
-                  '• ${item.statusDisplayName ?? item.statusCode} ${item.createdAt == null ? '' : '- ${item.createdAt!.hour.toString().padLeft(2, '0')}:${item.createdAt!.minute.toString().padLeft(2, '0')}' }',
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                  '• ${item.statusDisplayName ?? item.statusCode} ${item.createdAt == null ? '' : '- ${item.createdAt!.hour.toString().padLeft(2, '0')}:${item.createdAt!.minute.toString().padLeft(2, '0')}'}',
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                  ),
                 ),
               ),
             ),
@@ -377,7 +381,10 @@ class _ActionCard extends StatelessWidget {
         children: [
           const Text(
             'Aksi Driver',
-            style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
           ),
           const SizedBox(height: 10),
           if (actions.isEmpty)
@@ -413,9 +420,7 @@ class _ActionCard extends StatelessWidget {
             ),
           if (actions.any((action) => action.blocked))
             Text(
-              actions
-                      .firstWhere((action) => action.blocked)
-                      .blockedReason ??
+              actions.firstWhere((action) => action.blocked).blockedReason ??
                   'Aksi masih terkunci.',
               style: const TextStyle(color: AppColors.error, fontSize: 12),
             ),

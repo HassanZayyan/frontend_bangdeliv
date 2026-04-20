@@ -4,12 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/app_colors.dart';
 import '../models/driver_order_model.dart';
 import '../providers/driver_order_providers.dart';
+import '../utils/currency_formatter.dart';
 
 class DriverHistoryScreen extends ConsumerStatefulWidget {
   const DriverHistoryScreen({super.key});
 
   @override
-  ConsumerState<DriverHistoryScreen> createState() => _DriverHistoryScreenState();
+  ConsumerState<DriverHistoryScreen> createState() =>
+      _DriverHistoryScreenState();
 }
 
 class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
@@ -139,15 +141,15 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
         color: selected ? AppColors.primaryDark : AppColors.textSecondary,
         fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
       ),
-      side: BorderSide(
-        color: selected ? AppColors.primary : AppColors.border,
-      ),
+      side: BorderSide(color: selected ? AppColors.primary : AppColors.border),
       showCheckmark: false,
       backgroundColor: AppColors.white,
     );
   }
 
-  List<DriverHistoryOrderModel> _applyFilter(List<DriverHistoryOrderModel> orders) {
+  List<DriverHistoryOrderModel> _applyFilter(
+    List<DriverHistoryOrderModel> orders,
+  ) {
     final now = DateTime.now();
 
     if (_selectedFilter == _todayFilter) {
@@ -178,18 +180,7 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
   }
 
   String _formatCurrency(int amount) {
-    final raw = amount.toString();
-    final buffer = StringBuffer();
-
-    for (int i = 0; i < raw.length; i++) {
-      final reverseIndex = raw.length - i;
-      buffer.write(raw[i]);
-      if (reverseIndex > 1 && reverseIndex % 3 == 1) {
-        buffer.write('.');
-      }
-    }
-
-    return 'Rp $buffer';
+    return formatRupiah(amount);
   }
 }
 
@@ -274,7 +265,10 @@ class _HistoryCard extends StatelessWidget {
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
@@ -310,7 +304,9 @@ class _HistoryCard extends StatelessWidget {
           Text(
             isCompleted ? formatter(order.fee) : 'Tidak ada pendapatan',
             style: TextStyle(
-              color: isCompleted ? AppColors.primaryDark : AppColors.textSecondary,
+              color: isCompleted
+                  ? AppColors.primaryDark
+                  : AppColors.textSecondary,
               fontWeight: FontWeight.bold,
             ),
           ),
