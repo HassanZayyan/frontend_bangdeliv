@@ -6,6 +6,7 @@ import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../models/driver_order_model.dart';
 import '../providers/driver_order_providers.dart';
+import '../utils/currency_formatter.dart';
 
 class DriverOrdersScreen extends ConsumerWidget {
   const DriverOrdersScreen({super.key});
@@ -184,10 +185,7 @@ class _RunningOrdersTab extends ConsumerWidget {
   final List<DriverOrderModel> orders;
   final bool isMockMode;
 
-  const _RunningOrdersTab({
-    required this.orders,
-    this.isMockMode = false,
-  });
+  const _RunningOrdersTab({required this.orders, this.isMockMode = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -291,7 +289,10 @@ class _OrderCard extends StatelessWidget {
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: isIncoming
                       ? AppColors.primary.withValues(alpha: 0.12)
@@ -303,7 +304,9 @@ class _OrderCard extends StatelessWidget {
                       ? 'Accept ${order.etaMinutes} menit'
                       : 'Diterima ${order.acceptedAt ?? '-'}',
                   style: TextStyle(
-                    color: isIncoming ? AppColors.primaryDark : AppColors.success,
+                    color: isIncoming
+                        ? AppColors.primaryDark
+                        : AppColors.success,
                     fontWeight: FontWeight.w700,
                     fontSize: 12,
                   ),
@@ -320,7 +323,8 @@ class _OrderCard extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
-          if (order.serviceTypeCode.isNotEmpty || order.statusCode.isNotEmpty) ...[
+          if (order.serviceTypeCode.isNotEmpty ||
+              order.statusCode.isNotEmpty) ...[
             const SizedBox(height: 8),
             Wrap(
               spacing: 6,
@@ -450,18 +454,7 @@ class _OrderCard extends StatelessWidget {
   }
 
   String _formatCurrency(int amount) {
-    final raw = amount.toString();
-    final buffer = StringBuffer();
-
-    for (int i = 0; i < raw.length; i++) {
-      final reverseIndex = raw.length - i;
-      buffer.write(raw[i]);
-      if (reverseIndex > 1 && reverseIndex % 3 == 1) {
-        buffer.write('.');
-      }
-    }
-
-    return 'Rp $buffer';
+    return formatRupiah(amount);
   }
 }
 

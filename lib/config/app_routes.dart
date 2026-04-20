@@ -20,11 +20,21 @@ class AppRoutes {
   static const String notifications = '/notifications';
   static const String notificationSettings = '/notification-settings';
   static const String track = '/track';
+  static const String menuDetail = '/menu/:menuId';
+  static const String merchantDetail = '/merchant/:merchantId';
   static const String register = '/register';
   static const String registerDriver = '/register-driver';
   static const String registerSuccess = '/register-success';
   static const String forgotPassword = '/forgot-password';
   static const String privacyMapPreview = '/privacy-map-preview';
+
+  static String menuDetailPath(String menuId) {
+    return '/menu/$menuId';
+  }
+
+  static String merchantDetailPath(String merchantId) {
+    return '/merchant/$merchantId';
+  }
 
   static String driverOrderActivePath(String orderId) {
     return '/driver/orders/$orderId/active';

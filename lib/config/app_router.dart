@@ -24,12 +24,16 @@ import '../screens/change_password_screen.dart';
 import '../screens/saved_addresses_screen.dart';
 import '../screens/add_address_screen.dart';
 import '../models/user_profile_model.dart';
+import '../models/food_model.dart';
+import '../models/merchant_model.dart';
 import '../providers/auth_session_provider.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/notification_settings_screen.dart';
 import '../screens/privacy_map_screen.dart';
 import '../screens/main_layout.dart';
 import '../screens/driver_main_layout.dart';
+import '../screens/menu_detail_screen.dart';
+import '../screens/merchant_detail_screen.dart';
 import 'app_routes.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -92,6 +96,31 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.track,
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const TrackOrderScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.menuDetail,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final menuId = state.pathParameters['menuId'] ?? '';
+          final extra = state.extra;
+          final initialMenu = extra is FoodModel ? extra : null;
+
+          return MenuDetailScreen(menuId: menuId, initialMenu: initialMenu);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.merchantDetail,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final merchantId = state.pathParameters['merchantId'] ?? '';
+          final extra = state.extra;
+          final initialMerchant = extra is MerchantModel ? extra : null;
+
+          return MerchantDetailScreen(
+            merchantId: merchantId,
+            initialMerchant: initialMerchant,
+          );
+        },
       ),
       GoRoute(
         path: AppRoutes.editProfile,
@@ -318,7 +347,11 @@ const Set<String> _publicRoutes = {
   AppRoutes.forgotPassword,
 };
 
-const Set<String> _guestAccessibleRoutes = {AppRoutes.home};
+const Set<String> _guestAccessibleRoutes = {
+  AppRoutes.home,
+  AppRoutes.menuDetail,
+  AppRoutes.merchantDetail,
+};
 
 const Set<String> _customerOnlyRoutes = {
   AppRoutes.home,

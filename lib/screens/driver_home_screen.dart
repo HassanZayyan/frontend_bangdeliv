@@ -131,7 +131,7 @@ class DriverHomeScreen extends ConsumerWidget {
               Expanded(
                 child: _SummaryTile(
                   title: 'Pendapatan Hari Ini',
-                  value: 'Rp 146.000',
+                  value: 'Rp146.000',
                   icon: Icons.payments_outlined,
                 ),
               ),
@@ -173,7 +173,9 @@ class DriverHomeScreen extends ConsumerWidget {
                       return;
                     }
 
-                    context.push(AppRoutes.driverOrderActivePath(activeOrder.id));
+                    context.push(
+                      AppRoutes.driverOrderActivePath(activeOrder.id),
+                    );
                   },
           ),
         ],
@@ -233,7 +235,11 @@ class _ActiveOrderCard extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Icon(Icons.assignment_outlined, size: 48, color: AppColors.textSecondary.withAlpha(128)),
+            Icon(
+              Icons.assignment_outlined,
+              size: 48,
+              color: AppColors.textSecondary.withAlpha(128),
+            ),
             const SizedBox(height: 12),
             const Text(
               'Belum Ada Order Aktif',
@@ -266,7 +272,10 @@ class _ActiveOrderCard extends StatelessWidget {
               children: [
                 const Text(
                   'Order Aktif',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
                 ),
                 Text(
                   '#${activeOrder!.id}',
@@ -289,7 +298,11 @@ class _ActiveOrderCard extends StatelessWidget {
             const Divider(height: 24),
             Row(
               children: [
-                const Icon(Icons.location_on, color: AppColors.primary, size: 20),
+                const Icon(
+                  Icons.location_on,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -321,7 +334,9 @@ class _ActiveOrderCard extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 child: const Text('Buka Detail Order'),
               ),
@@ -365,7 +380,10 @@ class _SummaryTile extends StatelessWidget {
           Text(
             title,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 10,
+            ),
           ),
         ],
       ),

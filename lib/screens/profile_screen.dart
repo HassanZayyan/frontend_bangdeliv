@@ -7,6 +7,7 @@ import '../config/app_routes.dart';
 import '../models/user_profile_model.dart';
 import '../providers/auth_session_provider.dart';
 import '../services/auth_service.dart';
+import '../utils/currency_formatter.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -91,9 +92,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                     color: AppColors.darkBlue,
                   ),
-                  child: ClipOval(
-                    child: _buildAvatarImage(profile.avatarUrl),
-                  ),
+                  child: ClipOval(child: _buildAvatarImage(profile.avatarUrl)),
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -435,40 +434,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget _buildAvatarImage(String? avatarUrl) {
     final normalized = avatarUrl?.trim() ?? '';
     if (normalized.isEmpty) {
-      return const Icon(
-        Icons.person,
-        size: 50,
-        color: AppColors.primary,
-      );
+      return const Icon(Icons.person, size: 50, color: AppColors.primary);
     }
 
     return Image.network(
       normalized,
       fit: BoxFit.cover,
       errorBuilder: (context, error, stackTrace) {
-        return const Icon(
-          Icons.person,
-          size: 50,
-          color: AppColors.primary,
-        );
+        return const Icon(Icons.person, size: 50, color: AppColors.primary);
       },
     );
   }
 
   String _formatCurrency(double amount) {
-    final value = amount.round();
-    final raw = value.toString();
-    final buffer = StringBuffer();
-
-    for (int i = 0; i < raw.length; i++) {
-      final reverseIndex = raw.length - i;
-      buffer.write(raw[i]);
-      if (reverseIndex > 1 && reverseIndex % 3 == 1) {
-        buffer.write('.');
-      }
-    }
-
-    return 'Rp $buffer';
+    return formatRupiah(amount);
   }
 }
 
