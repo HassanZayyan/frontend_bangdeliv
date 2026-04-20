@@ -272,10 +272,10 @@ class AuthService {
               'phone': phone,
               'full_address': fullAddress,
               'detail': detail,
-                ...?(latitude == null
+              ...?(latitude == null
                   ? null
                   : <String, dynamic>{'latitude': latitude}),
-                ...?(longitude == null
+              ...?(longitude == null
                   ? null
                   : <String, dynamic>{'longitude': longitude}),
               'is_default': isDefault,
@@ -332,10 +332,10 @@ class AuthService {
               'phone': phone,
               'full_address': fullAddress,
               'detail': detail,
-                ...?(latitude == null
+              ...?(latitude == null
                   ? null
                   : <String, dynamic>{'latitude': latitude}),
-                ...?(longitude == null
+              ...?(longitude == null
                   ? null
                   : <String, dynamic>{'longitude': longitude}),
               'is_default': isDefault,

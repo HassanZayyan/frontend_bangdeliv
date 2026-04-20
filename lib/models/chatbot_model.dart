@@ -117,12 +117,12 @@ class ChatbotResult {
         : _parseValidation(validationRaw);
 
     final actionPayloads = (data['action_payloads'] is Map<String, dynamic>)
-      ? data['action_payloads'] as Map<String, dynamic>
-      : null;
+        ? data['action_payloads'] as Map<String, dynamic>
+        : null;
 
     final serviceContext = (json['service_context'] is Map<String, dynamic>)
-      ? json['service_context'] as Map<String, dynamic>
-      : <String, dynamic>{};
+        ? json['service_context'] as Map<String, dynamic>
+        : <String, dynamic>{};
 
     final orderRaw = (data['order'] is Map<String, dynamic>)
         ? data['order'] as Map<String, dynamic>
@@ -401,7 +401,9 @@ class ChatbotHistoryPage {
           .where((message) => message.id > 0)
           .toList(growable: false),
       hasMore: pagination['has_more'] == true,
-      nextBeforeId: int.tryParse(pagination['next_before_id']?.toString() ?? ''),
+      nextBeforeId: int.tryParse(
+        pagination['next_before_id']?.toString() ?? '',
+      ),
     );
   }
 }
