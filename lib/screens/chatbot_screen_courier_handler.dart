@@ -1,48 +1,86 @@
 part of 'chatbot_screen.dart';
 
 extension _CourierChatHandler on _ChatbotScreenState {
-  String _composeCourierOutboundMessage(String rawMessage) {
-    return rawMessage;
+  bool _hasSavedAddressInProfile() {
+    final authState = ref.read(authSessionProvider);
+    final addresses = authState.profile?.addresses ?? const [];
+
+    return addresses.any((item) => item.fullAddress.trim().isNotEmpty);
   }
 
-  _ChatMessageAction? _buildMessageAction(ChatbotResult result) {
-    if (_serviceContext.serviceType != 'kurir' &&
-        _serviceContext.serviceType != 'antar_jemput') {
-      return null;
+  Future<void> _handleActionHint(ChatbotMessageActionHint actionHint) async {
+    switch (actionHint.type) {
+      case ChatbotMessageActionType.openAddresses:
+        await _handleOpenAddressesAction();
+        return;
+      case ChatbotMessageActionType.openMapPicker:
+        await _handleOpenMapPickerAction(actionHint);
+        return;
+    }
+  }
+
+  Future<void> _handleOpenAddressesAction() async {
+    await context.push(AppRoutes.addresses);
+    if (!mounted) {
+      return;
     }
 
-    if (result.isOrderCreated) {
-      return null;
+    await ref.read(authSessionProvider.notifier).refreshSession();
+
+    ref
+        .read(chatbotConversationProvider.notifier)
+        .onAddressBookUpdated(serviceType: _serviceContext.serviceType);
+
+    await ref
+        .read(chatbotConversationProvider.notifier)
+        .refreshSessions(serviceType: _serviceContext.serviceType);
+
+    _scrollToBottom();
+  }
+
+  Future<void> _handleOpenMapPickerAction(
+    ChatbotMessageActionHint actionHint,
+  ) async {
+    if (_serviceContext.serviceType == 'antar_jemput' &&
+        !_hasSavedAddressInProfile()) {
+      await _handleOpenAddressesAction();
+      return;
     }
 
-    final validation = result.validation;
-    if (validation == null) {
-      return null;
+    final pickerExtra = <String, dynamic>{
+      ...?(actionHint.initialLatitude == null
+          ? null
+          : <String, dynamic>{'latitude': actionHint.initialLatitude}),
+      ...?(actionHint.initialLongitude == null
+          ? null
+          : <String, dynamic>{'longitude': actionHint.initialLongitude}),
+    };
+
+    final result = await context.push(
+      AppRoutes.addressLocationPicker,
+      extra: pickerExtra,
+    );
+
+    if (!mounted || result is! AddressLocationPickerResult) {
+      return;
     }
 
-    final requiresAddressSetup =
-        validation.nextActions
-            .map((action) => action.trim().toUpperCase())
-            .contains('OPEN_ADDRESSES') ||
-        validation.rejectionReasons.any(
-          (reason) =>
-              reason.toLowerCase().contains('alamat saya') ||
-              reason.toLowerCase().contains('alamat jemput'),
+    final target = (actionHint.target ?? '').trim();
+    if (target.isEmpty) {
+      return;
+    }
+
+    await ref
+        .read(chatbotConversationProvider.notifier)
+        .applyMapPinAction(
+          serviceType: _serviceContext.serviceType,
+          target: target,
+          latitude: result.latitude,
+          longitude: result.longitude,
+          address:
+              'Pin ${result.latitude.toStringAsFixed(6)}, ${result.longitude.toStringAsFixed(6)}',
         );
 
-    if (!requiresAddressSetup) {
-      return null;
-    }
-
-    return _ChatMessageAction(
-      label: 'Isi Alamat Saya',
-      onTap: () async {
-        await context.push(AppRoutes.addresses);
-        if (!mounted) {
-          return;
-        }
-        await ref.read(authSessionProvider.notifier).refreshSession();
-      },
-    );
+    _scrollToBottom();
   }
 }

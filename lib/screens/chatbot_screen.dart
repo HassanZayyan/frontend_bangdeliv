@@ -4,11 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
-import '../models/chatbot_model.dart';
-import '../models/user_profile_model.dart';
+import '../models/address_location_picker_result.dart';
 import '../providers/auth_session_provider.dart';
-import '../providers/api_providers.dart';
-import '../services/api_exception.dart';
+import '../providers/chatbot_conversation_provider.dart';
 
 part 'chatbot_screen_courier_handler.dart';
 
@@ -20,38 +18,32 @@ class ChatbotScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
-  final List<_ChatMessage> _messages = <_ChatMessage>[];
-
   late final TextEditingController _inputController;
   late final ScrollController _scrollController;
-  late final String _sessionId;
-  bool _isSending = false;
-  bool _hasInitializedWelcome = false;
+  String? _bootstrappedServiceType;
 
   @override
   void initState() {
     super.initState();
     _inputController = TextEditingController();
     _scrollController = ScrollController();
-    _sessionId =
-        'chat-${DateTime.now().millisecondsSinceEpoch}-${identityHashCode(this)}';
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-
-    if (_hasInitializedWelcome) {
+    final serviceType = _serviceContext.serviceType;
+    if (_bootstrappedServiceType == serviceType) {
       return;
     }
 
-    _messages.add(
-      _ChatMessage.bot(
-        text: _serviceContext.welcomeMessage,
-        timestamp: _nowLabel(),
-      ),
-    );
-    _hasInitializedWelcome = true;
+    _bootstrappedServiceType = serviceType;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _bootstrapConversation();
+    });
   }
 
   @override
@@ -73,7 +65,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           title: 'BangBot AI - Antar Jemput',
           subtitle: 'Mode perjalanan aktif',
           welcomeMessage:
-              'Halo! Saya BangBot 🤖 untuk layanan Antar Jemput. Alamat jemput diambil dari Alamat Saya pada profilmu, jadi tinggal ketik tujuanmu.',
+              'Halo! Saya BangBot untuk layanan Antar Jemput. Kamu bisa kirim tujuan lewat chat. Jika belum punya alamat, isi Alamat Saya dulu.',
           suggestions: [
             'Saya mau pergi ke Jalan Sudirman',
             'Antar ke Stasiun Gambir',
@@ -86,7 +78,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           title: 'BangBot AI - Kurir',
           subtitle: 'Mode pengiriman paket aktif',
           welcomeMessage:
-              'Halo! Saya BangBot 🤖 untuk layanan Kurir. Tulis lokasi ambil, tujuan kirim, dan isi paket.',
+              'Halo! Saya BangBot untuk layanan Kurir. Tulis lokasi ambil, tujuan kirim, isi paket, atau pilih titik langsung di map.',
           suggestions: ['Kirim dokumen', 'Ambil di kantor', 'Kirim ke rumah'],
         );
       default:
@@ -95,90 +87,135 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           title: 'BangBot AI - Nitip',
           subtitle: 'Mode titip belanja aktif',
           welcomeMessage:
-              'Halo! Saya BangBot 🤖 untuk layanan Nitip. Ketik kebutuhanmu secara natural, saya bantu proses.',
+              'Halo! Saya BangBot untuk layanan Nitip. Setelah menu siap, kamu bisa pilih titik antar custom di map.',
           suggestions: ['Mie Ayam', 'Ayam Geprek', 'Minuman dingin'],
         );
     }
   }
 
-  Future<void> _sendMessage([String? presetText]) async {
-    if (_isSending) {
-      return;
-    }
+  Future<void> _bootstrapConversation() async {
+    await ref
+        .read(chatbotConversationProvider.notifier)
+        .bootstrap(
+          serviceType: _serviceContext.serviceType,
+          welcomeMessage: _serviceContext.welcomeMessage,
+        );
+    _scrollToBottom();
+  }
 
+  Future<void> _sendMessage([String? presetText]) async {
     final raw = (presetText ?? _inputController.text).trim();
     if (raw.isEmpty) {
       return;
     }
 
-    final outboundMessage = _composeCourierOutboundMessage(raw);
-
     _inputController.clear();
 
-    setState(() {
-      _messages.add(_ChatMessage.user(text: raw, timestamp: _nowLabel()));
-      _isSending = true;
-    });
+    await ref
+        .read(chatbotConversationProvider.notifier)
+        .sendMessage(raw, serviceType: _serviceContext.serviceType);
+
     _scrollToBottom();
+  }
 
-    try {
-      final chatbotService = ref.read(chatbotApiServiceProvider);
-      final result = await chatbotService.sendMessage(
-        outboundMessage,
-        serviceType: _serviceContext.serviceType,
-        sessionId: _sessionId,
-      );
+  Future<void> _openSessionPicker() async {
+    final notifier = ref.read(chatbotConversationProvider.notifier);
+    await notifier.refreshSessions(serviceType: _serviceContext.serviceType);
 
-      final botMessage = result.toAssistantText();
-      final metaParts = <String>['Layanan: ${_serviceContext.serviceType}'];
-      if (result.modelUsed != null && result.modelUsed!.trim().isNotEmpty) {
-        metaParts.add('Model: ${result.modelUsed}');
-      }
-      if (result.isOrderCreated) {
-        final orderRef = result.createdOrderNumber?.trim();
-        if (orderRef != null && orderRef.isNotEmpty) {
-          metaParts.add('Order: $orderRef');
-        } else if (result.createdOrderId != null) {
-          metaParts.add('Order ID: ${result.createdOrderId}');
-        }
-      }
-
-      setState(() {
-        _messages.add(
-          _ChatMessage.bot(
-            text: botMessage,
-            timestamp: _nowLabel(),
-            meta: metaParts.join(' • '),
-            action: _buildMessageAction(result),
-          ),
-        );
-      });
-    } on ApiException catch (error) {
-      setState(() {
-        _messages.add(
-          _ChatMessage.bot(
-            text: 'Maaf, terjadi kendala: ${error.message}',
-            timestamp: _nowLabel(),
-          ),
-        );
-      });
-    } catch (_) {
-      setState(() {
-        _messages.add(
-          _ChatMessage.bot(
-            text: 'Maaf, layanan chatbot belum bisa digunakan saat ini.',
-            timestamp: _nowLabel(),
-          ),
-        );
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSending = false;
-        });
-        _scrollToBottom();
-      }
+    if (!mounted) {
+      return;
     }
+
+    final state = ref.read(chatbotConversationProvider);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        final sessions = state.sessions;
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Pilih Sesi Chat',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 10),
+                if (sessions.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Text(
+                      'Belum ada sesi tersimpan untuk layanan ini.',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                  )
+                else
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: sessions.length,
+                      separatorBuilder: (_, _) =>
+                          const Divider(height: 1, color: AppColors.border),
+                      itemBuilder: (context, index) {
+                        final session = sessions[index];
+                        final isActive =
+                            session.sessionId == state.sessionId?.trim();
+
+                        return ListTile(
+                          dense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 2,
+                            vertical: 2,
+                          ),
+                          title: Text(
+                            session.lastMessage.isEmpty
+                                ? session.sessionId
+                                : session.lastMessage,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                          subtitle: Text(
+                            'Pesan: ${session.messageCount}',
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          trailing: isActive
+                              ? const Icon(
+                                  Icons.check_circle,
+                                  color: AppColors.success,
+                                  size: 18,
+                                )
+                              : null,
+                          onTap: () async {
+                            Navigator.of(context).pop();
+                            await notifier.selectSession(
+                              session.sessionId,
+                              serviceType: _serviceContext.serviceType,
+                              welcomeMessage: _serviceContext.welcomeMessage,
+                            );
+                            if (!mounted) {
+                              return;
+                            }
+                            _scrollToBottom();
+                          },
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _scrollToBottom() {
@@ -195,15 +232,12 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     });
   }
 
-  static String _nowLabel() {
-    final now = DateTime.now();
-    final hour = now.hour.toString().padLeft(2, '0');
-    final minute = now.minute.toString().padLeft(2, '0');
-    return '$hour:$minute';
-  }
-
   @override
   Widget build(BuildContext context) {
+    final state = ref.watch(chatbotConversationProvider);
+    final isServiceMismatch = state.serviceType != _serviceContext.serviceType;
+    final effectiveBusy = state.isBusy || isServiceMismatch;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -276,23 +310,40 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.more_horiz, color: AppColors.textPrimary),
-            onPressed: () {},
+            icon: const Icon(Icons.history, color: AppColors.textPrimary),
+            onPressed: effectiveBusy ? null : _openSessionPicker,
           ),
         ],
       ),
       body: Column(
         children: [
-          Expanded(
-            child: ListView(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(20),
-              children: _messages
-                  .map(_buildMessageItem)
-                  .toList(growable: false),
+          if ((state.errorMessage ?? '').isNotEmpty)
+            Container(
+              width: double.infinity,
+              color: AppColors.cardYellow,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Text(
+                state.errorMessage!,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
+          Expanded(
+            child:
+                (state.isBootstrapping && state.messages.isEmpty) ||
+                    isServiceMismatch
+                ? const Center(child: CircularProgressIndicator())
+                : ListView(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(20),
+                    children: state.messages
+                        .map(_buildMessageItem)
+                        .toList(growable: false),
+                  ),
           ),
-
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
             decoration: const BoxDecoration(
@@ -310,7 +361,10 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                       children: [
                         for (final suggestion
                             in _serviceContext.suggestions) ...[
-                          _buildSuggestionChip(suggestion),
+                          _buildSuggestionChip(
+                            suggestion,
+                            enabled: !effectiveBusy,
+                          ),
                           const SizedBox(width: 8),
                         ],
                       ],
@@ -329,34 +383,39 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                               fontSize: 14,
                             ),
                             textInputAction: TextInputAction.send,
-                            onSubmitted: (_) => _sendMessage(),
-                            decoration: InputDecoration(
+                            onSubmitted: (_) {
+                              if (effectiveBusy) {
+                                return;
+                              }
+                              _sendMessage();
+                            },
+                            decoration: const InputDecoration(
                               filled: true,
                               fillColor: AppColors.background,
                               hintText: 'Ketik kebutuhan layanan...',
-                              hintStyle: const TextStyle(
+                              hintStyle: TextStyle(
                                 color: AppColors.textSecondary,
                                 fontSize: 14,
                               ),
-                              border: const OutlineInputBorder(
+                              border: OutlineInputBorder(
                                 borderRadius: BorderRadius.all(
                                   Radius.circular(25),
                                 ),
                                 borderSide: BorderSide.none,
                               ),
-                              enabledBorder: const OutlineInputBorder(
+                              enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.all(
                                   Radius.circular(25),
                                 ),
                                 borderSide: BorderSide.none,
                               ),
-                              focusedBorder: const OutlineInputBorder(
+                              focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.all(
                                   Radius.circular(25),
                                 ),
                                 borderSide: BorderSide.none,
                               ),
-                              contentPadding: const EdgeInsets.symmetric(
+                              contentPadding: EdgeInsets.symmetric(
                                 horizontal: 24,
                                 vertical: 0,
                               ),
@@ -367,17 +426,17 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                       const SizedBox(width: 12),
                       InkWell(
                         borderRadius: BorderRadius.circular(25),
-                        onTap: _isSending ? null : _sendMessage,
+                        onTap: effectiveBusy ? null : _sendMessage,
                         child: Container(
                           width: 50,
                           height: 50,
                           decoration: BoxDecoration(
-                            color: _isSending
+                            color: effectiveBusy
                                 ? AppColors.primary.withValues(alpha: 0.7)
                                 : AppColors.primary,
                             shape: BoxShape.circle,
                           ),
-                          child: _isSending
+                          child: effectiveBusy
                               ? const Padding(
                                   padding: EdgeInsets.all(14),
                                   child: CircularProgressIndicator(
@@ -399,10 +458,10 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     );
   }
 
-  Widget _buildSuggestionChip(String label) {
+  Widget _buildSuggestionChip(String label, {required bool enabled}) {
     return InkWell(
       borderRadius: BorderRadius.circular(30),
-      onTap: () => _sendMessage(label),
+      onTap: enabled ? () => _sendMessage(label) : null,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
@@ -422,7 +481,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     );
   }
 
-  Widget _buildMessageItem(_ChatMessage message) {
+  Widget _buildMessageItem(ChatbotConversationMessage message) {
     final isUser = message.isUser;
     final bubbleColor = isUser ? AppColors.primary : AppColors.white;
     final textColor = isUser ? Colors.white : AppColors.textPrimary;
@@ -472,30 +531,43 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                     style: TextStyle(color: metaColor, fontSize: 11),
                   ),
                 ],
-                if (message.action != null) ...[
+                if (message.actionHints.isNotEmpty) ...[
                   const SizedBox(height: 10),
-                  OutlinedButton.icon(
-                    onPressed: message.action!.onTap,
-                    icon: const Icon(Icons.location_on_outlined, size: 16),
-                    label: Text(message.action!.label),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: isUser
-                          ? Colors.white
-                          : AppColors.primaryDark,
-                      side: BorderSide(
-                        color: isUser
-                            ? Colors.white.withValues(alpha: 0.35)
-                            : AppColors.primary,
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      textStyle: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final actionHint in message.actionHints)
+                        OutlinedButton.icon(
+                          onPressed: () => _handleActionHint(actionHint),
+                          icon: Icon(
+                            actionHint.type ==
+                                    ChatbotMessageActionType.openAddresses
+                                ? Icons.home_outlined
+                                : Icons.location_on_outlined,
+                            size: 16,
+                          ),
+                          label: Text(actionHint.label),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: isUser
+                                ? Colors.white
+                                : AppColors.primaryDark,
+                            side: BorderSide(
+                              color: isUser
+                                  ? Colors.white.withValues(alpha: 0.35)
+                                  : AppColors.primary,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            textStyle: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ],
@@ -515,48 +587,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       ),
     );
   }
-}
-
-class _ChatMessage {
-  final String text;
-  final String timestamp;
-  final bool isUser;
-  final String? meta;
-  final _ChatMessageAction? action;
-
-  const _ChatMessage({
-    required this.text,
-    required this.timestamp,
-    required this.isUser,
-    this.meta,
-    this.action,
-  });
-
-  factory _ChatMessage.user({required String text, required String timestamp}) {
-    return _ChatMessage(text: text, timestamp: timestamp, isUser: true);
-  }
-
-  factory _ChatMessage.bot({
-    required String text,
-    required String timestamp,
-    String? meta,
-    _ChatMessageAction? action,
-  }) {
-    return _ChatMessage(
-      text: text,
-      timestamp: timestamp,
-      isUser: false,
-      meta: meta,
-      action: action,
-    );
-  }
-}
-
-class _ChatMessageAction {
-  final String label;
-  final VoidCallback onTap;
-
-  const _ChatMessageAction({required this.label, required this.onTap});
 }
 
 class _ServiceContext {

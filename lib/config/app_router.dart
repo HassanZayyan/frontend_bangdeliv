@@ -23,6 +23,7 @@ import '../screens/edit_profile_screen.dart';
 import '../screens/change_password_screen.dart';
 import '../screens/saved_addresses_screen.dart';
 import '../screens/add_address_screen.dart';
+import '../screens/address_location_picker_screen.dart';
 import '../models/user_profile_model.dart';
 import '../models/food_model.dart';
 import '../models/merchant_model.dart';
@@ -153,6 +154,37 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           }
 
           return AddAddressScreen(initialAddress: initialAddress);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.addressLocationPicker,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          double? initialLatitude;
+          double? initialLongitude;
+
+          final extra = state.extra;
+          if (extra is Map) {
+            final rawLat = extra['latitude'];
+            final rawLng = extra['longitude'];
+
+            if (rawLat is num) {
+              initialLatitude = rawLat.toDouble();
+            } else if (rawLat is String) {
+              initialLatitude = double.tryParse(rawLat);
+            }
+
+            if (rawLng is num) {
+              initialLongitude = rawLng.toDouble();
+            } else if (rawLng is String) {
+              initialLongitude = double.tryParse(rawLng);
+            }
+          }
+
+          return AddressLocationPickerScreen(
+            initialLatitude: initialLatitude,
+            initialLongitude: initialLongitude,
+          );
         },
       ),
       GoRoute(
