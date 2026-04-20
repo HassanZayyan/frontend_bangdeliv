@@ -63,6 +63,33 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> delete(
+    String path, {
+    Map<String, dynamic>? body,
+    Map<String, dynamic>? queryParams,
+    Map<String, String>? headers,
+    Duration? timeout,
+  }) async {
+    final uri = _buildUri(path, queryParams);
+    final requestTimeout = timeout ?? _timeout;
+
+    try {
+      final response = await _httpClient
+          .delete(
+            uri,
+            headers: _defaultHeaders(headers),
+            body: jsonEncode(body ?? <String, dynamic>{}),
+          )
+          .timeout(requestTimeout);
+
+      return _decodeResponse(response);
+    } on TimeoutException {
+      throw const ApiException('Permintaan timeout. Coba lagi.');
+    } on http.ClientException {
+      throw const ApiException('Tidak dapat terhubung ke server API.');
+    }
+  }
+
   Uri _buildUri(String path, Map<String, dynamic>? queryParams) {
     final baseUri = Uri.parse(AppEnv.apiBaseUrl);
 

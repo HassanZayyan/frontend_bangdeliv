@@ -1,0 +1,792 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../models/chatbot_model.dart';
+import 'auth_session_provider.dart';
+import 'api_providers.dart';
+
+enum ChatbotMessageActionType { openAddresses, openMapPicker }
+
+class ChatbotMessageActionHint {
+  const ChatbotMessageActionHint({
+    required this.type,
+    required this.label,
+    this.target,
+    this.initialLatitude,
+    this.initialLongitude,
+  });
+
+  final ChatbotMessageActionType type;
+  final String label;
+  final String? target;
+  final double? initialLatitude;
+  final double? initialLongitude;
+}
+
+class ChatbotConversationMessage {
+  const ChatbotConversationMessage({
+    required this.text,
+    required this.timestamp,
+    required this.isUser,
+    this.meta,
+    this.actionHints = const <ChatbotMessageActionHint>[],
+  });
+
+  final String text;
+  final String timestamp;
+  final bool isUser;
+  final String? meta;
+  final List<ChatbotMessageActionHint> actionHints;
+}
+
+class ChatbotConversationState {
+  const ChatbotConversationState({
+    required this.serviceType,
+    required this.sessionId,
+    required this.messages,
+    required this.sessions,
+    required this.isBootstrapping,
+    required this.isSending,
+    required this.isApplyingAction,
+    required this.hasInitialized,
+    required this.errorMessage,
+  });
+
+  final String serviceType;
+  final String? sessionId;
+  final List<ChatbotConversationMessage> messages;
+  final List<ChatbotSessionSummary> sessions;
+  final bool isBootstrapping;
+  final bool isSending;
+  final bool isApplyingAction;
+  final bool hasInitialized;
+  final String? errorMessage;
+
+  bool get isBusy => isBootstrapping || isSending || isApplyingAction;
+
+  ChatbotConversationState copyWith({
+    String? serviceType,
+    String? sessionId,
+    List<ChatbotConversationMessage>? messages,
+    List<ChatbotSessionSummary>? sessions,
+    bool? isBootstrapping,
+    bool? isSending,
+    bool? isApplyingAction,
+    bool? hasInitialized,
+    String? errorMessage,
+    bool clearErrorMessage = false,
+  }) {
+    return ChatbotConversationState(
+      serviceType: serviceType ?? this.serviceType,
+      sessionId: sessionId ?? this.sessionId,
+      messages: messages ?? this.messages,
+      sessions: sessions ?? this.sessions,
+      isBootstrapping: isBootstrapping ?? this.isBootstrapping,
+      isSending: isSending ?? this.isSending,
+      isApplyingAction: isApplyingAction ?? this.isApplyingAction,
+      hasInitialized: hasInitialized ?? this.hasInitialized,
+      errorMessage: clearErrorMessage
+          ? null
+          : (errorMessage ?? this.errorMessage),
+    );
+  }
+}
+
+class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
+  @override
+  ChatbotConversationState build() {
+    return const ChatbotConversationState(
+      serviceType: 'nitip',
+      sessionId: null,
+      messages: <ChatbotConversationMessage>[],
+      sessions: <ChatbotSessionSummary>[],
+      isBootstrapping: false,
+      isSending: false,
+      isApplyingAction: false,
+      hasInitialized: false,
+      errorMessage: null,
+    );
+  }
+
+  void _ensureService(String serviceType) {
+    if (state.serviceType == serviceType) {
+      return;
+    }
+
+    state = ChatbotConversationState(
+      serviceType: serviceType,
+      sessionId: null,
+      messages: const <ChatbotConversationMessage>[],
+      sessions: const <ChatbotSessionSummary>[],
+      isBootstrapping: false,
+      isSending: false,
+      isApplyingAction: false,
+      hasInitialized: false,
+      errorMessage: null,
+    );
+  }
+
+  Future<void> bootstrap({
+    required String serviceType,
+    required String welcomeMessage,
+  }) async {
+    _ensureService(serviceType);
+
+    if (state.hasInitialized || state.isBootstrapping) {
+      return;
+    }
+
+    state = state.copyWith(
+      isBootstrapping: true,
+      hasInitialized: true,
+      clearErrorMessage: true,
+    );
+
+    final api = ref.read(chatbotApiServiceProvider);
+    final fallbackSessionId = _generateSessionId(serviceType);
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final storageKey = _sessionStorageKey(serviceType);
+      final storedSessionId = prefs.getString(storageKey)?.trim();
+
+      final sessions = await api.fetchSessions(serviceType: serviceType);
+      var sessionId = (storedSessionId == null || storedSessionId.isEmpty)
+          ? (sessions.isNotEmpty ? sessions.first.sessionId : fallbackSessionId)
+          : storedSessionId;
+
+      var messages = <ChatbotConversationMessage>[];
+      if (sessionId.isNotEmpty) {
+        try {
+          final history = await api.fetchSessionHistory(sessionId, limit: 100);
+          if (history.sessionId.isNotEmpty) {
+            sessionId = history.sessionId;
+          }
+
+          messages = history.messages
+              .map((entry) => _messageFromHistoryEntry(entry, serviceType))
+              .toList(growable: false);
+        } catch (_) {
+          sessionId = fallbackSessionId;
+          messages = const <ChatbotConversationMessage>[];
+        }
+      }
+
+      if (messages.isEmpty) {
+        messages = <ChatbotConversationMessage>[
+          _botMessage(
+            text: welcomeMessage,
+            timestamp: _nowLabel(),
+            actionHints: _bootstrapActionHints(serviceType),
+          ),
+        ];
+      }
+
+      await prefs.setString(storageKey, sessionId);
+
+      state = state.copyWith(
+        serviceType: serviceType,
+        sessionId: sessionId,
+        sessions: sessions,
+        messages: messages,
+        isBootstrapping: false,
+        clearErrorMessage: true,
+      );
+    } catch (_) {
+      state = state.copyWith(
+        serviceType: serviceType,
+        sessionId: fallbackSessionId,
+        messages: <ChatbotConversationMessage>[
+          _botMessage(
+            text: welcomeMessage,
+            timestamp: _nowLabel(),
+            actionHints: _bootstrapActionHints(serviceType),
+          ),
+        ],
+        isBootstrapping: false,
+        errorMessage: 'Gagal memuat histori chat. Sesi baru dibuat.',
+      );
+
+      await _persistSessionId(serviceType, fallbackSessionId);
+    }
+  }
+
+  Future<void> refreshSessions({required String serviceType}) async {
+    _ensureService(serviceType);
+
+    final api = ref.read(chatbotApiServiceProvider);
+    try {
+      final sessions = await api.fetchSessions(serviceType: serviceType);
+      state = state.copyWith(sessions: sessions, clearErrorMessage: true);
+    } catch (_) {
+      // Silent refresh failure.
+    }
+  }
+
+  Future<void> selectSession(
+    String sessionId, {
+    required String serviceType,
+    required String welcomeMessage,
+  }) async {
+    _ensureService(serviceType);
+
+    final normalized = sessionId.trim();
+    if (normalized.isEmpty || state.isBootstrapping) {
+      return;
+    }
+
+    state = state.copyWith(isBootstrapping: true, clearErrorMessage: true);
+
+    final api = ref.read(chatbotApiServiceProvider);
+    try {
+      final history = await api.fetchSessionHistory(normalized, limit: 100);
+      final resolvedSessionId = history.sessionId.isNotEmpty
+          ? history.sessionId
+          : normalized;
+
+      var messages = history.messages
+          .map((entry) => _messageFromHistoryEntry(entry, serviceType))
+          .toList(growable: false);
+
+      if (messages.isEmpty) {
+        messages = <ChatbotConversationMessage>[
+          _botMessage(
+            text: welcomeMessage,
+            timestamp: _nowLabel(),
+            actionHints: _bootstrapActionHints(serviceType),
+          ),
+        ];
+      }
+
+      await _persistSessionId(serviceType, resolvedSessionId);
+
+      state = state.copyWith(
+        serviceType: serviceType,
+        sessionId: resolvedSessionId,
+        messages: messages,
+        isBootstrapping: false,
+        clearErrorMessage: true,
+      );
+
+      await refreshSessions(serviceType: serviceType);
+    } catch (_) {
+      state = state.copyWith(
+        isBootstrapping: false,
+        errorMessage: 'Gagal membuka sesi chat terpilih.',
+      );
+    }
+  }
+
+  Future<void> sendMessage(
+    String rawMessage, {
+    required String serviceType,
+  }) async {
+    _ensureService(serviceType);
+
+    final message = rawMessage.trim();
+    if (message.isEmpty || state.isSending || state.isBootstrapping) {
+      return;
+    }
+
+    var sessionId = state.sessionId?.trim();
+    if (sessionId == null || sessionId.isEmpty) {
+      sessionId = _generateSessionId(serviceType);
+      await _persistSessionId(serviceType, sessionId);
+    }
+
+    state = state.copyWith(
+      serviceType: serviceType,
+      sessionId: sessionId,
+      messages: <ChatbotConversationMessage>[
+        ...state.messages,
+        ChatbotConversationMessage(
+          text: message,
+          timestamp: _nowLabel(),
+          isUser: true,
+          actionHints: const <ChatbotMessageActionHint>[],
+        ),
+      ],
+      isSending: true,
+      clearErrorMessage: true,
+    );
+
+    final api = ref.read(chatbotApiServiceProvider);
+    try {
+      final result = await api.sendMessage(
+        message,
+        serviceType: serviceType,
+        sessionId: sessionId,
+      );
+
+      final canonicalSessionId = result.sessionId?.trim();
+      if (canonicalSessionId != null && canonicalSessionId.isNotEmpty) {
+        sessionId = canonicalSessionId;
+      }
+
+      await _persistSessionId(serviceType, sessionId);
+
+      state = state.copyWith(
+        serviceType: serviceType,
+        sessionId: sessionId,
+        isSending: false,
+        messages: <ChatbotConversationMessage>[
+          ...state.messages,
+          _messageFromResult(result, serviceType),
+        ],
+        clearErrorMessage: true,
+      );
+
+      await refreshSessions(serviceType: serviceType);
+    } catch (_) {
+      state = state.copyWith(
+        isSending: false,
+        messages: <ChatbotConversationMessage>[
+          ...state.messages,
+          _botMessage(
+            text: 'Maaf, layanan chatbot belum bisa digunakan saat ini.',
+            timestamp: _nowLabel(),
+          ),
+        ],
+        errorMessage: 'Gagal mengirim pesan.',
+      );
+    }
+  }
+
+  Future<void> applyMapPinAction({
+    required String serviceType,
+    required String target,
+    required double latitude,
+    required double longitude,
+    String? address,
+  }) async {
+    _ensureService(serviceType);
+
+    final sessionId = state.sessionId?.trim();
+    if (sessionId == null || sessionId.isEmpty || state.isApplyingAction) {
+      return;
+    }
+
+    state = state.copyWith(isApplyingAction: true, clearErrorMessage: true);
+
+    final api = ref.read(chatbotApiServiceProvider);
+    try {
+      final result = await api.patchSessionLocation(
+        sessionId,
+        serviceType: serviceType,
+        target: target,
+        latitude: latitude,
+        longitude: longitude,
+        address: address,
+      );
+
+      final canonicalSessionId = result.sessionId?.trim();
+      final resolvedSessionId =
+          canonicalSessionId != null && canonicalSessionId.isNotEmpty
+          ? canonicalSessionId
+          : sessionId;
+
+      await _persistSessionId(serviceType, resolvedSessionId);
+
+      state = state.copyWith(
+        serviceType: serviceType,
+        sessionId: resolvedSessionId,
+        isApplyingAction: false,
+        messages: <ChatbotConversationMessage>[
+          ...state.messages,
+          _messageFromResult(result, serviceType),
+        ],
+        clearErrorMessage: true,
+      );
+
+      await refreshSessions(serviceType: serviceType);
+    } catch (_) {
+      state = state.copyWith(
+        isApplyingAction: false,
+        errorMessage: 'Gagal memperbarui titik lokasi.',
+      );
+    }
+  }
+
+  void onAddressBookUpdated({required String serviceType}) {
+    _ensureService(serviceType);
+
+    if (serviceType != 'antar_jemput') {
+      return;
+    }
+
+    if (!_hasSavedAddressInProfile()) {
+      return;
+    }
+
+    final mapHints = _rideMapActionHints();
+    final lastAssistant = state.messages.isEmpty ? null : state.messages.last;
+    if (lastAssistant != null &&
+        !lastAssistant.isUser &&
+        _isSameActionSet(lastAssistant.actionHints, mapHints)) {
+      return;
+    }
+
+    state = state.copyWith(
+      messages: <ChatbotConversationMessage>[
+        ...state.messages,
+        _botMessage(
+          text:
+              'Alamat jemput kamu sudah tersimpan. Sekarang pilih titik jemput dan tujuan lewat tombol di bawah, atau tetap kirim lewat chat.',
+          timestamp: _nowLabel(),
+          actionHints: mapHints,
+        ),
+      ],
+      clearErrorMessage: true,
+    );
+  }
+
+  ChatbotConversationMessage _messageFromHistoryEntry(
+    ChatbotHistoryMessage entry,
+    String serviceType,
+  ) {
+    if (entry.isUser) {
+      return ChatbotConversationMessage(
+        text: entry.message,
+        timestamp: _labelFromDateTime(entry.createdAt),
+        isUser: true,
+      );
+    }
+
+    final metaParts = <String>[];
+    final effectiveServiceType = entry.serviceType.trim().isEmpty
+        ? serviceType
+        : entry.serviceType;
+    metaParts.add('Layanan: $effectiveServiceType');
+    if (entry.modelUsed != null && entry.modelUsed!.trim().isNotEmpty) {
+      metaParts.add('Model: ${entry.modelUsed}');
+    }
+    if (entry.orderId != null) {
+      metaParts.add('Order ID: ${entry.orderId}');
+    }
+
+    return ChatbotConversationMessage(
+      text: entry.message,
+      timestamp: _labelFromDateTime(entry.createdAt),
+      isUser: false,
+      meta: metaParts.join(' • '),
+      actionHints: entry.aiResponse == null
+          ? const <ChatbotMessageActionHint>[]
+          : _resolveActionHintsFromPayload(entry.aiResponse!),
+    );
+  }
+
+  ChatbotConversationMessage _messageFromResult(
+    ChatbotResult result,
+    String serviceType,
+  ) {
+    final metaParts = <String>['Layanan: $serviceType'];
+    if (result.modelUsed != null && result.modelUsed!.trim().isNotEmpty) {
+      metaParts.add('Model: ${result.modelUsed}');
+    }
+    if (result.isOrderCreated) {
+      final orderRef = result.createdOrderNumber?.trim();
+      if (orderRef != null && orderRef.isNotEmpty) {
+        metaParts.add('Order: $orderRef');
+      } else if (result.createdOrderId != null) {
+        metaParts.add('Order ID: ${result.createdOrderId}');
+      }
+    }
+
+    return ChatbotConversationMessage(
+      text: result.toAssistantText(),
+      timestamp: _nowLabel(),
+      isUser: false,
+      meta: metaParts.join(' • '),
+      actionHints: _resolveActionHintsFromResult(result),
+    );
+  }
+
+  ChatbotConversationMessage _botMessage({
+    required String text,
+    required String timestamp,
+    List<ChatbotMessageActionHint> actionHints =
+        const <ChatbotMessageActionHint>[],
+  }) {
+    return ChatbotConversationMessage(
+      text: text,
+      timestamp: timestamp,
+      isUser: false,
+      actionHints: actionHints,
+    );
+  }
+
+  List<ChatbotMessageActionHint> _resolveActionHintsFromResult(
+    ChatbotResult result,
+  ) {
+    if (result.isOrderCreated) {
+      return const <ChatbotMessageActionHint>[];
+    }
+
+    final validation = result.validation;
+    if (validation == null) {
+      return const <ChatbotMessageActionHint>[];
+    }
+
+    final nextActions = validation.nextActions
+        .map((item) => item.trim().toUpperCase())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+
+    return _resolveActionHints(
+      nextActions: nextActions,
+      actionPayloads: result.actionPayloads,
+    );
+  }
+
+  List<ChatbotMessageActionHint> _resolveActionHintsFromPayload(
+    Map<String, dynamic> payload,
+  ) {
+    final validation = (payload['validation'] is Map<String, dynamic>)
+        ? payload['validation'] as Map<String, dynamic>
+        : null;
+    final nextActionsRaw = (validation?['next_actions'] is List<dynamic>)
+        ? validation!['next_actions'] as List<dynamic>
+        : const <dynamic>[];
+
+    final nextActions = nextActionsRaw
+        .map((item) => item.toString().trim().toUpperCase())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+
+    final actionPayloads = (payload['action_payloads'] is Map<String, dynamic>)
+        ? payload['action_payloads'] as Map<String, dynamic>
+        : null;
+
+    return _resolveActionHints(
+      nextActions: nextActions,
+      actionPayloads: actionPayloads,
+    );
+  }
+
+  List<ChatbotMessageActionHint> _resolveActionHints({
+    required List<String> nextActions,
+    required Map<String, dynamic>? actionPayloads,
+  }) {
+    final hasSavedAddress = _hasSavedAddressInProfile();
+    final requireAddressFirst =
+        nextActions.contains('OPEN_ADDRESSES') && !hasSavedAddress;
+
+    final hints = <ChatbotMessageActionHint>[];
+    final seen = <String>{};
+
+    void add(ChatbotMessageActionHint hint) {
+      final key = '${hint.type.name}:${hint.target ?? '-'}';
+      if (seen.add(key)) {
+        hints.add(hint);
+      }
+    }
+
+    if (nextActions.contains('OPEN_ADDRESSES')) {
+      add(
+        const ChatbotMessageActionHint(
+          type: ChatbotMessageActionType.openAddresses,
+          label: 'Isi Alamat Saya',
+        ),
+      );
+    }
+
+    if (requireAddressFirst) {
+      return hints;
+    }
+
+    if (nextActions.contains('OPEN_MAP_PICKER_PICKUP')) {
+      add(
+        _mapPickerHintFromPayload(
+          actionPayloads,
+          'OPEN_MAP_PICKER_PICKUP',
+          fallbackTarget: 'pickup',
+          fallbackLabel: 'Pilih Titik Jemput',
+        ),
+      );
+    }
+
+    if (nextActions.contains('OPEN_MAP_PICKER_DESTINATION')) {
+      add(
+        _mapPickerHintFromPayload(
+          actionPayloads,
+          'OPEN_MAP_PICKER_DESTINATION',
+          fallbackTarget: 'destination',
+          fallbackLabel: 'Pilih Titik Tujuan',
+        ),
+      );
+    }
+
+    if (nextActions.contains('OPEN_MAP_PICKER_DROPOFF')) {
+      add(
+        _mapPickerHintFromPayload(
+          actionPayloads,
+          'OPEN_MAP_PICKER_DROPOFF',
+          fallbackTarget: 'dropoff',
+          fallbackLabel: 'Pilih Titik Tujuan',
+        ),
+      );
+    }
+
+    if (nextActions.contains('OPEN_MAP_PICKER_DELIVERY')) {
+      add(
+        _mapPickerHintFromPayload(
+          actionPayloads,
+          'OPEN_MAP_PICKER_DELIVERY',
+          fallbackTarget: 'delivery',
+          fallbackLabel: 'Pilih Titik Antar',
+        ),
+      );
+    }
+
+    return hints;
+  }
+
+  ChatbotMessageActionHint _mapPickerHintFromPayload(
+    Map<String, dynamic>? actionPayloads,
+    String actionKey, {
+    required String fallbackTarget,
+    required String fallbackLabel,
+  }) {
+    final payload = actionPayloads?[actionKey];
+    final payloadMap = payload is Map<String, dynamic>
+        ? payload
+        : <String, dynamic>{};
+
+    final initialLatitude = _toDouble(payloadMap['initial_latitude']);
+    final initialLongitude = _toDouble(payloadMap['initial_longitude']);
+
+    return ChatbotMessageActionHint(
+      type: ChatbotMessageActionType.openMapPicker,
+      label: (payloadMap['label']?.toString().trim() ?? '').isEmpty
+          ? fallbackLabel
+          : payloadMap['label'].toString().trim(),
+      target: (payloadMap['target']?.toString().trim() ?? '').isEmpty
+          ? fallbackTarget
+          : payloadMap['target'].toString().trim(),
+      initialLatitude: initialLatitude,
+      initialLongitude: initialLongitude,
+    );
+  }
+
+  double? _toDouble(dynamic raw) {
+    if (raw is num) {
+      return raw.toDouble();
+    }
+    if (raw is String) {
+      return double.tryParse(raw);
+    }
+
+    return null;
+  }
+
+  List<ChatbotMessageActionHint> _bootstrapActionHints(String serviceType) {
+    if (serviceType != 'antar_jemput') {
+      return const <ChatbotMessageActionHint>[];
+    }
+
+    final hasSavedAddress = _hasSavedAddressInProfile();
+
+    final hints = <ChatbotMessageActionHint>[];
+    if (!hasSavedAddress) {
+      hints.add(
+        const ChatbotMessageActionHint(
+          type: ChatbotMessageActionType.openAddresses,
+          label: 'Isi Alamat Saya',
+        ),
+      );
+
+      return hints;
+    }
+
+    hints.addAll(_rideMapActionHints());
+
+    return hints;
+  }
+
+  bool _hasSavedAddressInProfile() {
+    final authState = ref.read(authSessionProvider);
+    final addresses = authState.profile?.addresses ?? const [];
+
+    return addresses.any((item) => item.fullAddress.trim().isNotEmpty);
+  }
+
+  List<ChatbotMessageActionHint> _rideMapActionHints() {
+    return const <ChatbotMessageActionHint>[
+      ChatbotMessageActionHint(
+        type: ChatbotMessageActionType.openMapPicker,
+        label: 'Pilih Titik Jemput',
+        target: 'pickup',
+      ),
+      ChatbotMessageActionHint(
+        type: ChatbotMessageActionType.openMapPicker,
+        label: 'Pilih Titik Tujuan',
+        target: 'destination',
+      ),
+    ];
+  }
+
+  bool _isSameActionSet(
+    List<ChatbotMessageActionHint> current,
+    List<ChatbotMessageActionHint> incoming,
+  ) {
+    if (current.length != incoming.length) {
+      return false;
+    }
+
+    final currentKeys = current
+        .map((item) => '${item.type.name}:${item.target ?? '-'}:${item.label}')
+        .toSet();
+    final incomingKeys = incoming
+        .map((item) => '${item.type.name}:${item.target ?? '-'}:${item.label}')
+        .toSet();
+
+    return currentKeys.length == incomingKeys.length &&
+        currentKeys.containsAll(incomingKeys);
+  }
+
+  String _sessionStorageKey(String serviceType) {
+    return 'chatbot_session_id_$serviceType';
+  }
+
+  Future<void> _persistSessionId(String serviceType, String sessionId) async {
+    final normalized = sessionId.trim();
+    if (normalized.isEmpty) {
+      return;
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_sessionStorageKey(serviceType), normalized);
+    } catch (_) {
+      // Best effort cache write.
+    }
+  }
+
+  String _generateSessionId(String serviceType) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return 'chat-$serviceType-$now-${identityHashCode(this)}';
+  }
+
+  String _nowLabel() {
+    final now = DateTime.now();
+    final hour = now.hour.toString().padLeft(2, '0');
+    final minute = now.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
+  String _labelFromDateTime(DateTime? value) {
+    if (value == null) {
+      return _nowLabel();
+    }
+
+    final local = value.toLocal();
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+}
+
+final chatbotConversationProvider =
+    NotifierProvider<ChatbotConversationNotifier, ChatbotConversationState>(
+      ChatbotConversationNotifier.new,
+    );
