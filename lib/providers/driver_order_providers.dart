@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'auth_session_provider.dart';
 import '../models/driver_order_model.dart';
 import '../services/driver_order_service.dart';
 
@@ -40,6 +41,16 @@ class DriverOrdersState {
 class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
   @override
   Future<DriverOrdersState> build() async {
+    final session = ref.watch(authSessionProvider);
+    if (!session.isAuthenticated ||
+        session.role != SessionUserRole.driver ||
+        session.profile == null) {
+      return const DriverOrdersState(
+        incoming: <DriverOrderModel>[],
+        running: <DriverOrderModel>[],
+      );
+    }
+
     final payload = await ref.read(driverOrderServiceProvider).fetchOrders();
 
     return DriverOrdersState(
@@ -51,6 +62,19 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
   }
 
   Future<void> refresh() async {
+    final session = ref.read(authSessionProvider);
+    if (!session.isAuthenticated ||
+        session.role != SessionUserRole.driver ||
+        session.profile == null) {
+      state = const AsyncData(
+        DriverOrdersState(
+          incoming: <DriverOrderModel>[],
+          running: <DriverOrderModel>[],
+        ),
+      );
+      return;
+    }
+
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final payload = await ref.read(driverOrderServiceProvider).fetchOrders();
@@ -208,6 +232,13 @@ final driverOrdersProvider =
 final driverHistoryProvider = FutureProvider<List<DriverHistoryOrderModel>>((
   ref,
 ) async {
+  final session = ref.watch(authSessionProvider);
+  if (!session.isAuthenticated ||
+      session.role != SessionUserRole.driver ||
+      session.profile == null) {
+    return const <DriverHistoryOrderModel>[];
+  }
+
   return ref.read(driverOrderServiceProvider).fetchHistory();
 });
 
