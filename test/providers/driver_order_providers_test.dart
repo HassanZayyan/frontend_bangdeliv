@@ -169,10 +169,7 @@ class _FakeDriverOrderService extends DriverOrderService {
   @override
   Future<void> acceptOrder(String orderId) async {
     if (failAccept) {
-      throw const DriverOrderApiException(
-        'accept failed',
-        statusCode: 500,
-      );
+      throw const DriverOrderApiException('accept failed', statusCode: 500);
     }
     acceptedOrderIds.add(orderId);
   }
@@ -180,10 +177,7 @@ class _FakeDriverOrderService extends DriverOrderService {
   @override
   Future<void> rejectOrder(String orderId) async {
     if (failReject) {
-      throw const DriverOrderApiException(
-        'reject failed',
-        statusCode: 500,
-      );
+      throw const DriverOrderApiException('reject failed', statusCode: 500);
     }
   }
 
