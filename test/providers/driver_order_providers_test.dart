@@ -105,7 +105,6 @@ void main() {
     expect(state.incoming.first.id, 'ORD-1');
     expect(state.running, isEmpty);
   });
-
 }
 
 class _FakeDriverOrderService extends DriverOrderService {

@@ -39,13 +39,16 @@ class DriverOrderModel {
           .toString(),
       pickupAddress: (json['pickup_address'] ?? json['pickupAddress'] ?? '-')
           .toString(),
-      dropoffAddress:
-          (json['dropoff_address'] ?? json['dropoffAddress'] ?? '-')
-              .toString(),
-      etaMinutes: _asInt(json['eta_minutes'] ?? json['etaMinutes'], fallback: 0),
+      dropoffAddress: (json['dropoff_address'] ?? json['dropoffAddress'] ?? '-')
+          .toString(),
+      etaMinutes: _asInt(
+        json['eta_minutes'] ?? json['etaMinutes'],
+        fallback: 0,
+      ),
       fee: _asInt(json['fee'], fallback: 0),
       itemCount: _asInt(json['item_count'] ?? json['itemCount'], fallback: 0),
-      acceptedAt: json['accepted_at']?.toString() ?? json['acceptedAt']?.toString(),
+      acceptedAt:
+          json['accepted_at']?.toString() ?? json['acceptedAt']?.toString(),
     );
   }
 
@@ -91,8 +94,5 @@ class DriverOrdersPayload {
   final List<DriverOrderModel> incoming;
   final List<DriverOrderModel> running;
 
-  const DriverOrdersPayload({
-    required this.incoming,
-    required this.running,
-  });
+  const DriverOrdersPayload({required this.incoming, required this.running});
 }

@@ -167,10 +167,7 @@ class _ActiveOrderCard extends StatelessWidget {
           if (activeOrder == null) ...[
             const Text(
               'Tidak ada order aktif saat ini.',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 13,
-              ),
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
             ),
             const SizedBox(height: 10),
             SizedBox(

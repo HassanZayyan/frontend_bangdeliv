@@ -42,7 +42,9 @@ class DriverOrderService {
         incoming: incomingRaw
             .map(DriverOrderModel.fromJson)
             .toList(growable: false),
-        running: runningRaw.map(DriverOrderModel.fromJson).toList(growable: false),
+        running: runningRaw
+            .map(DriverOrderModel.fromJson)
+            .toList(growable: false),
       );
     } on AuthException {
       rethrow;
@@ -192,7 +194,6 @@ class DriverOrderService {
 
     return value.whereType<Map<String, dynamic>>().toList(growable: false);
   }
-
 }
 
 class DriverOrderApiException implements Exception {
