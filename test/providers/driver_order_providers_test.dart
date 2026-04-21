@@ -106,47 +106,6 @@ void main() {
     expect(state.running, isEmpty);
   });
 
-  test('acceptOrder in mock mode skips API call and keeps success', () async {
-    final fakeService = _FakeDriverOrderService(
-      payload: const DriverOrdersPayload(
-        incoming: [
-          DriverOrderModel(
-            id: 'ORD-1',
-            customerName: 'Rina',
-            pickupAddress: 'A',
-            dropoffAddress: 'B',
-            etaMinutes: 10,
-            fee: 10000,
-            itemCount: 1,
-          ),
-        ],
-        running: [],
-        isMockData: true,
-      ),
-      failAccept: true,
-    );
-    final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
-    final container = ProviderContainer(
-      overrides: [
-        authSessionProvider.overrideWith(() => fakeAuth),
-        driverOrderServiceProvider.overrideWithValue(fakeService),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    await container.read(driverOrdersProvider.future);
-
-    final error = await container
-        .read(driverOrdersProvider.notifier)
-        .acceptOrder('ORD-1');
-
-    final state = container.read(driverOrdersProvider).asData!.value;
-
-    expect(error, isNull);
-    expect(state.incoming, isEmpty);
-    expect(state.running.length, 1);
-    expect(fakeService.acceptedOrderIds, isEmpty);
-  });
 }
 
 class _FakeDriverOrderService extends DriverOrderService {
@@ -162,7 +121,7 @@ class _FakeDriverOrderService extends DriverOrderService {
   });
 
   @override
-  Future<DriverOrdersPayload> fetchOrders({bool fallbackToMock = true}) async {
+  Future<DriverOrdersPayload> fetchOrders() async {
     return payload;
   }
 
@@ -182,9 +141,7 @@ class _FakeDriverOrderService extends DriverOrderService {
   }
 
   @override
-  Future<List<DriverHistoryOrderModel>> fetchHistory({
-    bool fallbackToMock = true,
-  }) async {
+  Future<List<DriverHistoryOrderModel>> fetchHistory() async {
     return const <DriverHistoryOrderModel>[];
   }
 }

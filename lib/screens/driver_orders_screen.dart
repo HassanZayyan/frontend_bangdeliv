@@ -48,14 +48,12 @@ class DriverOrdersScreen extends ConsumerWidget {
           data: (data) {
             return Column(
               children: [
-                if (data.isMockData) const _MockModeBanner(),
                 Expanded(
                   child: TabBarView(
                     children: [
                       _IncomingOrdersTab(
                         orders: data.incoming,
                         processingOrderIds: data.processingOrderIds,
-                        isMockMode: data.isMockData,
                       ),
                       _RunningOrdersTab(orders: data.running),
                     ],
@@ -73,12 +71,10 @@ class DriverOrdersScreen extends ConsumerWidget {
 class _IncomingOrdersTab extends ConsumerWidget {
   final List<DriverOrderModel> orders;
   final Set<String> processingOrderIds;
-  final bool isMockMode;
 
   const _IncomingOrdersTab({
     required this.orders,
     required this.processingOrderIds,
-    required this.isMockMode,
   });
 
   @override
@@ -119,13 +115,7 @@ class _IncomingOrdersTab extends ConsumerWidget {
 
                     if (error == null) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            isMockMode
-                                ? 'Order diterima (mode demo).'
-                                : 'Order diterima.',
-                          ),
-                        ),
+                        const SnackBar(content: Text('Order diterima.')),
                       );
                       return;
                     }
@@ -150,13 +140,7 @@ class _IncomingOrdersTab extends ConsumerWidget {
 
                     if (error == null) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            isMockMode
-                                ? 'Order ditolak (mode demo).'
-                                : 'Order ditolak.',
-                          ),
-                        ),
+                        const SnackBar(content: Text('Order ditolak.')),
                       );
                       return;
                     }
@@ -475,40 +459,6 @@ class _ErrorState extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _MockModeBanner extends StatelessWidget {
-  const _MockModeBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.amber.shade50,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.amber.shade300),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.info_outline, color: Colors.amber.shade800, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Data order menggunakan mode demo. Aksi Terima/Tolak belum dikirim ke server.',
-              style: TextStyle(
-                color: Colors.amber.shade900,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

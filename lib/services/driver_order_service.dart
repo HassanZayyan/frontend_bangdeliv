@@ -26,7 +26,7 @@ class DriverOrderService {
     ]);
   }
 
-  Future<DriverOrdersPayload> fetchOrders({bool fallbackToMock = true}) async {
+  Future<DriverOrdersPayload> fetchOrders() async {
     try {
       final response = await _get('/v1/driver/orders');
       final data = _extractData(response);
@@ -38,35 +38,25 @@ class DriverOrderService {
         data['running_orders'] ?? data['running'] ?? data['active_orders'],
       );
 
-      if (incomingRaw.isEmpty && runningRaw.isEmpty && fallbackToMock) {
-        return _mockOrdersPayload();
-      }
-
       return DriverOrdersPayload(
-        incoming: incomingRaw.map(DriverOrderModel.fromJson).toList(growable: false),
+        incoming: incomingRaw
+            .map(DriverOrderModel.fromJson)
+            .toList(growable: false),
         running: runningRaw.map(DriverOrderModel.fromJson).toList(growable: false),
-        isMockData: false,
       );
     } on AuthException {
       rethrow;
-    } on DriverOrderApiException catch (error) {
-      if (!fallbackToMock || error.statusCode == 401) {
-        rethrow;
-      }
-
-      return _mockOrdersPayload();
+    } on DriverOrderApiException {
+      rethrow;
     } catch (_) {
-      if (!fallbackToMock) {
-        rethrow;
-      }
-
-      return _mockOrdersPayload();
+      throw const DriverOrderApiException(
+        'Gagal mengambil data order driver.',
+        statusCode: 500,
+      );
     }
   }
 
-  Future<List<DriverHistoryOrderModel>> fetchHistory({
-    bool fallbackToMock = true,
-  }) async {
+  Future<List<DriverHistoryOrderModel>> fetchHistory() async {
     try {
       final response = await _get('/v1/driver/history');
       final data = _extractData(response);
@@ -74,27 +64,18 @@ class DriverOrderService {
         data['history_orders'] ?? data['history'] ?? data['orders'],
       );
 
-      if (historyRaw.isEmpty && fallbackToMock) {
-        return _mockHistory();
-      }
-
       return historyRaw
           .map(DriverHistoryOrderModel.fromJson)
           .toList(growable: false);
     } on AuthException {
       rethrow;
-    } on DriverOrderApiException catch (error) {
-      if (!fallbackToMock || error.statusCode == 401) {
-        rethrow;
-      }
-
-      return _mockHistory();
+    } on DriverOrderApiException {
+      rethrow;
     } catch (_) {
-      if (!fallbackToMock) {
-        rethrow;
-      }
-
-      return _mockHistory();
+      throw const DriverOrderApiException(
+        'Gagal mengambil riwayat driver.',
+        statusCode: 500,
+      );
     }
   }
 
@@ -212,78 +193,6 @@ class DriverOrderService {
     return value.whereType<Map<String, dynamic>>().toList(growable: false);
   }
 
-  DriverOrdersPayload _mockOrdersPayload() {
-    return const DriverOrdersPayload(
-      incoming: [
-        DriverOrderModel(
-          id: 'ORD-DR-1201',
-          customerName: 'Rina',
-          pickupAddress: 'Warung Sate Madura, Jl. Sudirman',
-          dropoffAddress: 'Perum Griya Indah Blok C2',
-          etaMinutes: 18,
-          fee: 18000,
-          itemCount: 3,
-        ),
-        DriverOrderModel(
-          id: 'ORD-DR-1202',
-          customerName: 'Budi',
-          pickupAddress: 'Bakso Pak De, Jl. Imam Bonjol',
-          dropoffAddress: 'Apartemen Mentari Tower B',
-          etaMinutes: 12,
-          fee: 14000,
-          itemCount: 2,
-        ),
-      ],
-      running: [
-        DriverOrderModel(
-          id: 'ORD-DR-1198',
-          customerName: 'Dina',
-          pickupAddress: 'Nasi Goreng Kambing 99',
-          dropoffAddress: 'Kantor Pemda Lt. 4',
-          etaMinutes: 9,
-          fee: 16000,
-          itemCount: 1,
-          acceptedAt: '10:35',
-        ),
-      ],
-      isMockData: true,
-    );
-  }
-
-  List<DriverHistoryOrderModel> _mockHistory() {
-    final now = DateTime.now();
-
-    return <DriverHistoryOrderModel>[
-      DriverHistoryOrderModel(
-        id: 'HST-901',
-        customerName: 'Rian',
-        date: now.subtract(const Duration(hours: 2)),
-        fee: 17000,
-        status: 'Selesai',
-      ),
-      DriverHistoryOrderModel(
-        id: 'HST-900',
-        customerName: 'Siska',
-        date: now.subtract(const Duration(hours: 5)),
-        fee: 13000,
-        status: 'Selesai',
-      ),
-      DriverHistoryOrderModel(
-        id: 'HST-894',
-        customerName: 'Bagas',
-        date: now.subtract(const Duration(days: 2)),
-        fee: 0,
-        status: 'Dibatalkan',
-      ),
-      DriverHistoryOrderModel(
-        id: 'HST-882',
-        customerName: 'Nina',
-        date: now.subtract(const Duration(days: 4)),
-        fee: 16000,
-        status: 'Selesai',
-      ),
-    ];
-  }
 }
 
 class DriverOrderApiException implements Exception {

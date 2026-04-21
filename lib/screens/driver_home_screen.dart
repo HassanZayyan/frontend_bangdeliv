@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../models/driver_order_model.dart';
+import '../providers/auth_session_provider.dart';
 import '../providers/driver_order_providers.dart';
 
 class DriverHomeScreen extends ConsumerStatefulWidget {
@@ -20,6 +21,11 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final DriverOrderModel? activeOrder = ref.watch(driverActiveOrderProvider);
+    final session = ref.watch(authSessionProvider);
+    final stats = session.profile?.stats;
+    final totalPaid = stats?.totalPaid ?? 0;
+    final totalOrders = stats?.totalOrders ?? 0;
+    final rating = stats?.rating ?? 0;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -82,27 +88,27 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
           ),
           const SizedBox(height: 12),
           Row(
-            children: const [
+            children: [
               Expanded(
                 child: _SummaryTile(
-                  title: 'Pendapatan Hari Ini',
-                  value: 'Rp 146.000',
+                  title: 'Total Pendapatan',
+                  value: _formatCurrency(totalPaid),
                   icon: Icons.payments_outlined,
                 ),
               ),
-              SizedBox(width: 10),
+              const SizedBox(width: 10),
               Expanded(
                 child: _SummaryTile(
-                  title: 'Order Selesai',
-                  value: '12',
+                  title: 'Total Order Selesai',
+                  value: totalOrders.toString(),
                   icon: Icons.check_circle_outline,
                 ),
               ),
-              SizedBox(width: 10),
+              const SizedBox(width: 10),
               Expanded(
                 child: _SummaryTile(
                   title: 'Rating',
-                  value: '4.9★',
+                  value: rating <= 0 ? '-' : '${rating.toStringAsFixed(1)}★',
                   icon: Icons.star_border,
                 ),
               ),
@@ -114,6 +120,22 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
       ),
     );
   }
+}
+
+String _formatCurrency(num amount) {
+  final rounded = amount.round();
+  final raw = rounded.toString();
+  final buffer = StringBuffer();
+
+  for (int i = 0; i < raw.length; i++) {
+    final reverseIndex = raw.length - i;
+    buffer.write(raw[i]);
+    if (reverseIndex > 1 && reverseIndex % 3 == 1) {
+      buffer.write('.');
+    }
+  }
+
+  return 'Rp $buffer';
 }
 
 class _ActiveOrderCard extends StatelessWidget {
