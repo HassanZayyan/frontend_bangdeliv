@@ -32,60 +32,66 @@ void main() {
     expect(fakeService.fetchOrdersCalls, 0);
   });
 
-  test('customerOrdersProvider refetches when authenticated user id changes', () async {
-    final fakeAuth = _FakeAuthSessionNotifier(_customerSession(9));
-    final fakeService = _FakeCustomerOrderApiService(
-      queuedResponses: <List<CustomerOrderSummaryModel>>[
-        <CustomerOrderSummaryModel>[_order(id: 9010, number: 'ORD-U9')],
-        <CustomerOrderSummaryModel>[_order(id: 10010, number: 'ORD-U10')],
-      ],
-    );
+  test(
+    'customerOrdersProvider refetches when authenticated user id changes',
+    () async {
+      final fakeAuth = _FakeAuthSessionNotifier(_customerSession(9));
+      final fakeService = _FakeCustomerOrderApiService(
+        queuedResponses: <List<CustomerOrderSummaryModel>>[
+          <CustomerOrderSummaryModel>[_order(id: 9010, number: 'ORD-U9')],
+          <CustomerOrderSummaryModel>[_order(id: 10010, number: 'ORD-U10')],
+        ],
+      );
 
-    final container = ProviderContainer(
-      overrides: [
-        authSessionProvider.overrideWith(() => fakeAuth),
-        customerOrderApiServiceProvider.overrideWithValue(fakeService),
-      ],
-    );
-    addTearDown(container.dispose);
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          customerOrderApiServiceProvider.overrideWithValue(fakeService),
+        ],
+      );
+      addTearDown(container.dispose);
 
-    final firstResult = await container.read(customerOrdersProvider.future);
-    expect(firstResult.map((item) => item.orderNumber), ['ORD-U9']);
-    expect(fakeService.fetchOrdersCalls, 1);
+      final firstResult = await container.read(customerOrdersProvider.future);
+      expect(firstResult.map((item) => item.orderNumber), ['ORD-U9']);
+      expect(fakeService.fetchOrdersCalls, 1);
 
-    fakeAuth.setSession(_customerSession(10));
+      fakeAuth.setSession(_customerSession(10));
 
-    final secondResult = await container.read(customerOrdersProvider.future);
-    expect(secondResult.map((item) => item.orderNumber), ['ORD-U10']);
-    expect(fakeService.fetchOrdersCalls, 2);
-  });
+      final secondResult = await container.read(customerOrdersProvider.future);
+      expect(secondResult.map((item) => item.orderNumber), ['ORD-U10']);
+      expect(fakeService.fetchOrdersCalls, 2);
+    },
+  );
 
-  test('customerOrdersProvider clears data when switching to driver role', () async {
-    final fakeAuth = _FakeAuthSessionNotifier(_customerSession(9));
-    final fakeService = _FakeCustomerOrderApiService(
-      queuedResponses: <List<CustomerOrderSummaryModel>>[
-        <CustomerOrderSummaryModel>[_order(id: 7001, number: 'ORD-CUSTOMER')],
-      ],
-    );
+  test(
+    'customerOrdersProvider clears data when switching to driver role',
+    () async {
+      final fakeAuth = _FakeAuthSessionNotifier(_customerSession(9));
+      final fakeService = _FakeCustomerOrderApiService(
+        queuedResponses: <List<CustomerOrderSummaryModel>>[
+          <CustomerOrderSummaryModel>[_order(id: 7001, number: 'ORD-CUSTOMER')],
+        ],
+      );
 
-    final container = ProviderContainer(
-      overrides: [
-        authSessionProvider.overrideWith(() => fakeAuth),
-        customerOrderApiServiceProvider.overrideWithValue(fakeService),
-      ],
-    );
-    addTearDown(container.dispose);
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          customerOrderApiServiceProvider.overrideWithValue(fakeService),
+        ],
+      );
+      addTearDown(container.dispose);
 
-    final firstResult = await container.read(customerOrdersProvider.future);
-    expect(firstResult.length, 1);
-    expect(fakeService.fetchOrdersCalls, 1);
+      final firstResult = await container.read(customerOrdersProvider.future);
+      expect(firstResult.length, 1);
+      expect(fakeService.fetchOrdersCalls, 1);
 
-    fakeAuth.setSession(_driverSession(88));
+      fakeAuth.setSession(_driverSession(88));
 
-    final secondResult = await container.read(customerOrdersProvider.future);
-    expect(secondResult, isEmpty);
-    expect(fakeService.fetchOrdersCalls, 1);
-  });
+      final secondResult = await container.read(customerOrdersProvider.future);
+      expect(secondResult, isEmpty);
+      expect(fakeService.fetchOrdersCalls, 1);
+    },
+  );
 }
 
 class _FakeAuthSessionNotifier extends AuthSessionNotifier {
@@ -104,7 +110,8 @@ class _FakeAuthSessionNotifier extends AuthSessionNotifier {
 }
 
 class _FakeCustomerOrderApiService extends CustomerOrderApiService {
-  _FakeCustomerOrderApiService({required this.queuedResponses}) : super(ApiClient());
+  _FakeCustomerOrderApiService({required this.queuedResponses})
+    : super(ApiClient());
 
   final List<List<CustomerOrderSummaryModel>> queuedResponses;
   int fetchOrdersCalls = 0;

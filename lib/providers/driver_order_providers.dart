@@ -103,25 +103,17 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     }
 
     final incoming = List<DriverOrderModel>.from(current.incoming);
-    final selected = incoming.removeAt(index).copyWith(
-      acceptedAt: _currentHourMinute(),
-    );
+    final selected = incoming
+        .removeAt(index)
+        .copyWith(acceptedAt: _currentHourMinute());
     final running = <DriverOrderModel>[selected, ...current.running];
 
     if (current.isMockData) {
-      state = AsyncData(
-        current.copyWith(
-          incoming: incoming,
-          running: running,
-        ),
-      );
+      state = AsyncData(current.copyWith(incoming: incoming, running: running));
       return null;
     }
 
-    final processingOrderIds = <String>{
-      ...current.processingOrderIds,
-      id,
-    };
+    final processingOrderIds = <String>{...current.processingOrderIds, id};
 
     state = AsyncData(
       current.copyWith(
@@ -179,10 +171,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       return null;
     }
 
-    final processingOrderIds = <String>{
-      ...current.processingOrderIds,
-      id,
-    };
+    final processingOrderIds = <String>{...current.processingOrderIds, id};
 
     state = AsyncData(
       current.copyWith(
