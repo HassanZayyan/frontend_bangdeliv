@@ -12,26 +12,22 @@ class DriverOrdersState {
   final List<DriverOrderModel> incoming;
   final List<DriverOrderModel> running;
   final Set<String> processingOrderIds;
-  final bool isMockData;
 
   const DriverOrdersState({
     required this.incoming,
     required this.running,
     this.processingOrderIds = const <String>{},
-    this.isMockData = false,
   });
 
   DriverOrdersState copyWith({
     List<DriverOrderModel>? incoming,
     List<DriverOrderModel>? running,
     Set<String>? processingOrderIds,
-    bool? isMockData,
   }) {
     return DriverOrdersState(
       incoming: incoming ?? this.incoming,
       running: running ?? this.running,
       processingOrderIds: processingOrderIds ?? this.processingOrderIds,
-      isMockData: isMockData ?? this.isMockData,
     );
   }
 
@@ -57,7 +53,6 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       incoming: payload.incoming,
       running: payload.running,
       processingOrderIds: const <String>{},
-      isMockData: payload.isMockData,
     );
   }
 
@@ -82,7 +77,6 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         incoming: payload.incoming,
         running: payload.running,
         processingOrderIds: const <String>{},
-        isMockData: payload.isMockData,
       );
     });
   }
@@ -107,11 +101,6 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         .removeAt(index)
         .copyWith(acceptedAt: _currentHourMinute());
     final running = <DriverOrderModel>[selected, ...current.running];
-
-    if (current.isMockData) {
-      state = AsyncData(current.copyWith(incoming: incoming, running: running));
-      return null;
-    }
 
     final processingOrderIds = <String>{...current.processingOrderIds, id};
 
@@ -164,11 +153,6 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
 
     if (incoming.length == current.incoming.length) {
       return 'Order tidak ditemukan.';
-    }
-
-    if (current.isMockData) {
-      state = AsyncData(current.copyWith(incoming: incoming));
-      return null;
     }
 
     final processingOrderIds = <String>{...current.processingOrderIds, id};

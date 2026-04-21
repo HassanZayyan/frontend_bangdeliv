@@ -90,11 +90,9 @@ class DriverHistoryOrderModel {
 class DriverOrdersPayload {
   final List<DriverOrderModel> incoming;
   final List<DriverOrderModel> running;
-  final bool isMockData;
 
   const DriverOrdersPayload({
     required this.incoming,
     required this.running,
-    this.isMockData = false,
   });
 }
