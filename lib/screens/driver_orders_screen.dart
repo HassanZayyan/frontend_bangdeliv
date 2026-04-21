@@ -249,7 +249,10 @@ class _OrderCard extends StatelessWidget {
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: isIncoming
                       ? AppColors.primary.withValues(alpha: 0.12)
@@ -261,7 +264,9 @@ class _OrderCard extends StatelessWidget {
                       ? 'Accept ${order.etaMinutes} menit'
                       : 'Diterima ${order.acceptedAt ?? '-'}',
                   style: TextStyle(
-                    color: isIncoming ? AppColors.primaryDark : AppColors.success,
+                    color: isIncoming
+                        ? AppColors.primaryDark
+                        : AppColors.success,
                     fontWeight: FontWeight.w700,
                     fontSize: 12,
                   ),
