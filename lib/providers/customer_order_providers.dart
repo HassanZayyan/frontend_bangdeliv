@@ -1,11 +1,19 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/customer_order_model.dart';
+import 'auth_session_provider.dart';
 import 'api_providers.dart';
 
 final customerOrdersProvider = FutureProvider<List<CustomerOrderSummaryModel>>((
   ref,
 ) async {
+  final session = ref.watch(authSessionProvider);
+  if (!session.isAuthenticated ||
+      session.role != SessionUserRole.customer ||
+      session.profile == null) {
+    return const <CustomerOrderSummaryModel>[];
+  }
+
   final service = ref.watch(customerOrderApiServiceProvider);
   return service.fetchOrders(page: 1, perPage: 50);
 });
@@ -61,6 +69,13 @@ final customerCancelledOrdersProvider =
 
 final customerOrderDetailProvider =
     FutureProvider.family<CustomerOrderDetailModel, int>((ref, orderId) async {
+      final session = ref.watch(authSessionProvider);
+      if (!session.isAuthenticated ||
+          session.role != SessionUserRole.customer ||
+          session.profile == null) {
+        throw StateError('Sesi customer tidak aktif.');
+      }
+
       final service = ref.watch(customerOrderApiServiceProvider);
       return service.fetchOrderDetail(orderId);
     });

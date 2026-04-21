@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:frontend_bangdeliv/models/driver_order_model.dart';
+import 'package:frontend_bangdeliv/models/user_profile_model.dart';
+import 'package:frontend_bangdeliv/providers/auth_session_provider.dart';
 import 'package:frontend_bangdeliv/providers/driver_order_providers.dart';
 import 'package:frontend_bangdeliv/services/driver_order_service.dart';
 
@@ -25,8 +27,10 @@ void main() {
 
   test('acceptOrder success moves incoming to running', () async {
     final fakeService = _FakeDriverOrderService(payload: seededPayload());
+    final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
     final container = ProviderContainer(
       overrides: [
+        authSessionProvider.overrideWith(() => fakeAuth),
         driverOrderServiceProvider.overrideWithValue(fakeService),
       ],
     );
@@ -52,8 +56,10 @@ void main() {
       payload: seededPayload(),
       failAccept: true,
     );
+    final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
     final container = ProviderContainer(
       overrides: [
+        authSessionProvider.overrideWith(() => fakeAuth),
         driverOrderServiceProvider.overrideWithValue(fakeService),
       ],
     );
@@ -77,8 +83,10 @@ void main() {
       payload: seededPayload(),
       failReject: true,
     );
+    final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
     final container = ProviderContainer(
       overrides: [
+        authSessionProvider.overrideWith(() => fakeAuth),
         driverOrderServiceProvider.overrideWithValue(fakeService),
       ],
     );
@@ -117,8 +125,10 @@ void main() {
       ),
       failAccept: true,
     );
+    final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
     final container = ProviderContainer(
       overrides: [
+        authSessionProvider.overrideWith(() => fakeAuth),
         driverOrderServiceProvider.overrideWithValue(fakeService),
       ],
     );
@@ -183,4 +193,33 @@ class _FakeDriverOrderService extends DriverOrderService {
   }) async {
     return const <DriverHistoryOrderModel>[];
   }
+}
+
+class _FakeAuthSessionNotifier extends AuthSessionNotifier {
+  _FakeAuthSessionNotifier(this._initialState);
+
+  final AuthSessionState _initialState;
+
+  @override
+  AuthSessionState build() {
+    return _initialState;
+  }
+}
+
+AuthSessionState _driverSession(int userId) {
+  return AuthSessionState.fromProfile(
+    UserProfileModel(
+      id: userId,
+      name: 'Driver $userId',
+      phone: '08234$userId',
+      email: 'driver$userId@example.com',
+      role: 'driver',
+      driverProfile: const DriverProfileModel(
+        registrationStatus: 'active',
+        status: 'active',
+      ),
+      stats: const UserStatsModel(totalOrders: 0, totalPaid: 0, rating: 0),
+      addresses: const <SavedAddressModel>[],
+    ),
+  );
 }

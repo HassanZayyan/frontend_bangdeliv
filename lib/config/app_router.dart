@@ -24,7 +24,10 @@ import '../screens/saved_addresses_screen.dart';
 import '../screens/add_address_screen.dart';
 import '../screens/address_location_picker_screen.dart';
 import '../models/user_profile_model.dart';
+import '../providers/api_providers.dart';
 import '../providers/auth_session_provider.dart';
+import '../providers/customer_order_providers.dart';
+import '../providers/driver_order_providers.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/notification_settings_screen.dart';
 import '../screens/privacy_map_screen.dart';
@@ -231,6 +234,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
   ref.onDispose(router.dispose);
   ref.listen<AuthSessionState>(authSessionProvider, (previous, next) {
+    final authChanged = previous?.isAuthenticated != next.isAuthenticated;
+    final roleChanged = previous?.role != next.role;
+    final userIdChanged = previous?.profile?.id != next.profile?.id;
+
+    if (authChanged || roleChanged || userIdChanged) {
+      ref.invalidate(homeDataProvider);
+
+      ref.invalidate(customerOrdersProvider);
+      ref.invalidate(customerOrderDetailProvider);
+      ref.invalidate(customerSortedOrdersProvider);
+      ref.invalidate(customerCompletedOrdersProvider);
+      ref.invalidate(customerActivityOrdersProvider);
+      ref.invalidate(customerOngoingOrdersProvider);
+      ref.invalidate(customerCancelledOrdersProvider);
+      ref.invalidate(customerActiveOrderProvider);
+
+      ref.invalidate(driverOrdersProvider);
+      ref.invalidate(driverHistoryProvider);
+      ref.invalidate(driverActiveOrderProvider);
+    }
+
     router.refresh();
   });
 
