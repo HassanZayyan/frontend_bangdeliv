@@ -26,6 +26,32 @@ class DriverOrderService {
     ]);
   }
 
+  Future<void> transitionOrderStatus(String orderId, String actionCode) async {
+    await _postJson(
+      '/v1/driver/orders/$orderId/status-transition',
+      body: {'action_code': actionCode},
+      fallback: 'Gagal memproses transisi status order.',
+    );
+  }
+
+  Future<void> updateLocation(
+    String orderId,
+    double lat,
+    double lng,
+    double heading,
+  ) async {
+    await _postJson(
+      '/v1/driver/orders/$orderId/location',
+      body: {
+        'latitude': lat,
+        'longitude': lng,
+        'heading': heading,
+      },
+      fallback: 'Gagal memancarkan lokasi.',
+      timeout: const Duration(seconds: 5),
+    );
+  }
+
   Future<DriverOrdersPayload> fetchOrders() async {
     try {
       final response = await _get('/v1/driver/orders');
@@ -145,12 +171,27 @@ class DriverOrderService {
   }
 
   Future<void> _post(String path) async {
+    await _postJson(
+      path,
+      body: const <String, dynamic>{},
+      fallback: 'Gagal memproses aksi order driver.',
+    );
+  }
+
+  Future<void> _postJson(
+    String path, {
+    required Map<String, dynamic> body,
+    required String fallback,
+    Duration timeout = _timeout,
+  }) async {
     final uri = _buildUri(path);
-    final headers = await AuthService.authorizedHeaders();
+    final headers = await AuthService.authorizedHeaders(
+      includeJsonContentType: true,
+    );
 
     final response = await http
-        .post(uri, headers: headers, body: '{}')
-        .timeout(_timeout);
+        .post(uri, headers: headers, body: jsonEncode(body))
+        .timeout(timeout);
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return;
@@ -159,7 +200,7 @@ class DriverOrderService {
     throw DriverOrderApiException(
       AuthService.extractErrorMessage(
         response,
-        fallback: 'Gagal memproses aksi order driver.',
+        fallback: fallback,
       ),
       statusCode: response.statusCode,
     );

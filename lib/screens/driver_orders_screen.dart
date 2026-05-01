@@ -1,15 +1,41 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/app_colors.dart';
 import '../models/driver_order_model.dart';
 import '../providers/driver_order_providers.dart';
+import '../utils/order_formatters.dart';
+import 'driver_order_detail_screen.dart';
 
-class DriverOrdersScreen extends ConsumerWidget {
+class DriverOrdersScreen extends ConsumerStatefulWidget {
   const DriverOrdersScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DriverOrdersScreen> createState() => _DriverOrdersScreenState();
+}
+
+class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen> {
+  Timer? _refreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (!mounted) return;
+      ref.read(driverOrdersProvider.notifier).refresh();
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final ordersState = ref.watch(driverOrdersProvider);
 
     return DefaultTabController(
@@ -183,23 +209,32 @@ class _RunningOrdersTab extends ConsumerWidget {
         separatorBuilder: (context, index) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
           final order = orders[index];
-          return _OrderCard(
-            order: order,
-            isIncoming: false,
-            onNavigate: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Fitur navigasi akan disambungkan ke maps.'),
-                ),
-              );
+          return GestureDetector(
+            onTap: () {
+               Navigator.of(context).push(
+                 MaterialPageRoute(
+                   builder: (_) => DriverOrderDetailScreen(orderId: order.id),
+                 ),
+               );
             },
-            onContact: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Fitur hubungi customer akan disambungkan.'),
-                ),
-              );
-            },
+            child: _OrderCard(
+              order: order,
+              isIncoming: false,
+              onNavigate: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => DriverOrderDetailScreen(orderId: order.id),
+                  ),
+                );
+              },
+              onContact: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Fitur hubungi customer akan disambungkan.'),
+                  ),
+                );
+              },
+            ),
           );
         },
       ),
@@ -289,7 +324,7 @@ class _OrderCard extends StatelessWidget {
           _addressLine(Icons.location_on_outlined, order.dropoffAddress),
           const SizedBox(height: 10),
           Text(
-            'Fee: ${_formatCurrency(order.fee)}',
+            'Fee: ${formatCurrency(order.fee)}',
             style: const TextStyle(
               color: AppColors.primaryDark,
               fontWeight: FontWeight.bold,
@@ -373,20 +408,6 @@ class _OrderCard extends StatelessWidget {
     );
   }
 
-  String _formatCurrency(int amount) {
-    final raw = amount.toString();
-    final buffer = StringBuffer();
-
-    for (int i = 0; i < raw.length; i++) {
-      final reverseIndex = raw.length - i;
-      buffer.write(raw[i]);
-      if (reverseIndex > 1 && reverseIndex % 3 == 1) {
-        buffer.write('.');
-      }
-    }
-
-    return 'Rp $buffer';
-  }
 }
 
 class _EmptyOrderState extends StatelessWidget {

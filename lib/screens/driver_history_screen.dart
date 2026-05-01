@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/app_colors.dart';
 import '../models/driver_order_model.dart';
 import '../providers/driver_order_providers.dart';
+import '../utils/order_formatters.dart';
 
 class DriverHistoryScreen extends ConsumerStatefulWidget {
   const DriverHistoryScreen({super.key});
@@ -81,7 +82,7 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
                     Expanded(
                       child: _SummaryCard(
                         title: 'Pendapatan',
-                        value: _formatCurrency(totalIncome),
+                        value: formatCurrency(totalIncome),
                         icon: Icons.payments_outlined,
                         color: AppColors.primaryDark,
                       ),
@@ -107,7 +108,7 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
                             final order = filteredOrders[index];
                             return _HistoryCard(
                               order: order,
-                              formatter: _formatCurrency,
+                              formatter: formatCurrency,
                             );
                           },
                         ),
@@ -177,20 +178,6 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
     return orders;
   }
 
-  String _formatCurrency(int amount) {
-    final raw = amount.toString();
-    final buffer = StringBuffer();
-
-    for (int i = 0; i < raw.length; i++) {
-      final reverseIndex = raw.length - i;
-      buffer.write(raw[i]);
-      if (reverseIndex > 1 && reverseIndex % 3 == 1) {
-        buffer.write('.');
-      }
-    }
-
-    return 'Rp $buffer';
-  }
 }
 
 class _SummaryCard extends StatelessWidget {
@@ -244,7 +231,7 @@ class _SummaryCard extends StatelessWidget {
 
 class _HistoryCard extends StatelessWidget {
   final DriverHistoryOrderModel order;
-  final String Function(int amount) formatter;
+  final String Function(num amount) formatter;
 
   const _HistoryCard({required this.order, required this.formatter});
 

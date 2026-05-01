@@ -1,12 +1,39 @@
+import '../utils/order_status.dart' as order_status;
+import '../utils/service_type.dart' as service_type;
+
 class OrderStatusSnapshot {
   final String code;
   final String label;
   final DateTime? changedAt;
+  final int historyId;
 
   const OrderStatusSnapshot({
     required this.code,
     required this.label,
     required this.changedAt,
+    required this.historyId,
+  });
+}
+
+class _ParsedServiceType {
+  final String code;
+  final String label;
+
+  const _ParsedServiceType({
+    required this.code,
+    required this.label,
+  });
+}
+
+class _ParsedOrderStatus {
+  final String code;
+  final String label;
+  final bool isTerminal;
+
+  const _ParsedOrderStatus({
+    required this.code,
+    required this.label,
+    required this.isTerminal,
   });
 }
 
@@ -41,15 +68,19 @@ class CustomerOrderSummaryModel {
     required this.deliveryAddress,
   });
 
-  bool get isCompleted => statusCode == 'COMPLETED';
+  bool get isCompleted =>
+      order_status.normalizeOrderStatusCode(statusCode) ==
+      order_status.OrderStatusCodes.completed;
 
-  bool get isCancelled =>
-      statusCode == 'CANCELLED' || statusCode == 'CANCELLED_WITH_FEE';
+  bool get isCancelled => order_status.isCancelledOrderStatus(statusCode);
 
   bool get canTrack => !isTerminalStatus;
 
-  bool get canCancel =>
-      statusCode == 'PENDING' || statusCode == 'DRIVER_ASSIGNED';
+  bool get canCancel {
+    final normalizedStatus = order_status.normalizeOrderStatusCode(statusCode);
+    return normalizedStatus == order_status.OrderStatusCodes.pending ||
+        normalizedStatus == order_status.OrderStatusCodes.driverAssigned;
+  }
 
   factory CustomerOrderSummaryModel.fromJson(Map<String, dynamic> json) {
     final status = _extractStatus(json);
@@ -58,21 +89,21 @@ class CustomerOrderSummaryModel {
     return CustomerOrderSummaryModel(
       id: _asInt(json['id']),
       orderNumber: (json['order_number'] ?? '-').toString(),
-      serviceTypeCode: serviceType['code']!,
-      serviceTypeLabel: serviceType['label']!,
-      restaurantName: _extractRestaurantName(json, serviceType['label']!),
+      serviceTypeCode: serviceType.code,
+      serviceTypeLabel: serviceType.label,
+      restaurantName: _extractRestaurantName(json, serviceType.label),
       itemsSummary: _extractItemsSummary(json),
       totalAmount: _asDouble(json['total_amount'] ?? json['total_price']),
-      statusCode: status['code']!,
-      statusLabel: status['label']!,
-      isTerminalStatus: status['isTerminal'] == 'true',
+      statusCode: status.code,
+      statusLabel: status.label,
+      isTerminalStatus: status.isTerminal,
       createdAt: _asDateTime(json['created_at']),
       estimatedDelivery: _asDateTime(json['estimated_delivery']),
       deliveryAddress: (json['delivery_address'] ?? '-').toString(),
     );
   }
 
-  static Map<String, String> _extractServiceType(Map<String, dynamic> json) {
+  static _ParsedServiceType _extractServiceType(Map<String, dynamic> json) {
     final dynamic rawServiceType = json['service_type'] ?? json['serviceType'];
 
     final rawMap = (rawServiceType is Map<String, dynamic>)
@@ -91,7 +122,7 @@ class CustomerOrderSummaryModel {
 
     final rawString = rawServiceType is String ? rawServiceType.trim() : '';
 
-    final normalizedCode = _normalizeServiceTypeCode(
+    final normalizedCode = service_type.normalizeServiceTypeCode(
       codeFromObject.isNotEmpty
           ? codeFromObject
           : (codeFromPayload.isNotEmpty ? codeFromPayload : rawString),
@@ -101,17 +132,19 @@ class CustomerOrderSummaryModel {
         ? labelFromObject
         : (labelFromPayload.isNotEmpty ? labelFromPayload : rawString);
 
-    final fallbackLabel = _serviceTypeLabelFromCode(normalizedCode);
+    final fallbackLabel = service_type.serviceTypeLabel(normalizedCode);
 
-    return <String, String>{
-      'code': normalizedCode,
-      'label': preferredLabel.isNotEmpty
-          ? _serviceTypeLabelFromCode(_normalizeServiceTypeCode(preferredLabel))
+    return _ParsedServiceType(
+      code: normalizedCode,
+      label: preferredLabel.isNotEmpty
+          ? service_type.serviceTypeLabel(
+              service_type.normalizeServiceTypeCode(preferredLabel),
+            )
           : fallbackLabel,
-    };
+    );
   }
 
-  static Map<String, String> _extractStatus(Map<String, dynamic> json) {
+  static _ParsedOrderStatus _extractStatus(Map<String, dynamic> json) {
     final rawStatus = (json['status_ref'] is Map<String, dynamic>)
         ? json['status_ref'] as Map<String, dynamic>
         : (json['statusRef'] is Map<String, dynamic>)
@@ -126,13 +159,14 @@ class CustomerOrderSummaryModel {
         ? (json['status'] ?? 'PENDING').toString().trim().toUpperCase()
         : code;
 
-    return <String, String>{
-      'code': fallbackCode,
-      'label': displayName.isNotEmpty
+    return _ParsedOrderStatus(
+      code: fallbackCode,
+      label: displayName.isNotEmpty
           ? displayName
-          : _statusLabelFromCode(fallbackCode),
-      'isTerminal': (isTerminal || _isTerminalCode(fallbackCode)).toString(),
-    };
+          : order_status.orderStatusLabel(fallbackCode),
+      isTerminal:
+          isTerminal || order_status.isTerminalOrderStatus(fallbackCode),
+    );
   }
 
   static String _extractRestaurantName(
@@ -173,74 +207,6 @@ class CustomerOrderSummaryModel {
     }
 
     return '${firstQty <= 0 ? 1 : firstQty}x $firstName +${items.length - 1} item';
-  }
-
-  static bool _isTerminalCode(String code) {
-    return code == 'COMPLETED' ||
-        code == 'CANCELLED' ||
-        code == 'CANCELLED_WITH_FEE';
-  }
-
-  static String _normalizeServiceTypeCode(String raw) {
-    final normalized = raw
-        .trim()
-        .toUpperCase()
-        .replaceAll(RegExp(r'[^A-Z0-9]+'), '_')
-        .replaceAll(RegExp(r'_+'), '_')
-        .replaceAll(RegExp(r'^_|_$'), '');
-
-    switch (normalized) {
-      case 'RIDE':
-      case 'ANTAR_JEMPUT':
-      case 'ANTAR_JEMPUT_ORANG':
-        return 'RIDE';
-      case 'COURIER':
-      case 'KURIR':
-      case 'ANTAR_BARANG':
-        return 'COURIER';
-      case 'SHOPPING':
-      case 'NITIP':
-      case 'TITIP_BELANJA':
-        return 'SHOPPING';
-      default:
-        return normalized.isEmpty ? 'UNKNOWN' : normalized;
-    }
-  }
-
-  static String _serviceTypeLabelFromCode(String code) {
-    switch (_normalizeServiceTypeCode(code)) {
-      case 'RIDE':
-        return 'Antar Jemput';
-      case 'COURIER':
-        return 'Kurir';
-      case 'SHOPPING':
-        return 'Titip';
-      default:
-        return 'Layanan Bangdeliv';
-    }
-  }
-
-  static String _statusLabelFromCode(String code) {
-    switch (code) {
-      case 'PENDING':
-        return 'Menunggu Driver';
-      case 'DRIVER_ASSIGNED':
-        return 'Driver Ditugaskan';
-      case 'PICKED_UP':
-        return 'Pesanan Diambil';
-      case 'ON_THE_WAY':
-        return 'Dalam Perjalanan';
-      case 'DELIVERED':
-        return 'Sudah Sampai Tujuan';
-      case 'COMPLETED':
-        return 'Selesai';
-      case 'CANCELLED':
-        return 'Dibatalkan';
-      case 'CANCELLED_WITH_FEE':
-        return 'Dibatalkan Dengan Biaya';
-      default:
-        return code.isEmpty ? 'Status Tidak Diketahui' : code;
-    }
   }
 
   static int _asInt(dynamic value) {
@@ -368,17 +334,23 @@ class CustomerOrderDetailModel {
                 code: code,
                 label: label.isNotEmpty
                     ? label
-                    : CustomerOrderSummaryModel._statusLabelFromCode(code),
+                    : order_status.orderStatusLabel(code),
                 changedAt: CustomerOrderSummaryModel._asDateTime(
                   history['created_at'] ?? history['updated_at'],
                 ),
+                historyId: CustomerOrderSummaryModel._asInt(history['id']),
               );
             })
             .toList(growable: false)
           ..sort((a, b) {
             final aTime = a.changedAt?.millisecondsSinceEpoch ?? 0;
             final bTime = b.changedAt?.millisecondsSinceEpoch ?? 0;
-            return aTime.compareTo(bTime);
+            final compareByTime = aTime.compareTo(bTime);
+            if (compareByTime != 0) {
+              return compareByTime;
+            }
+
+            return a.historyId.compareTo(b.historyId);
           });
 
     return CustomerOrderDetailModel(

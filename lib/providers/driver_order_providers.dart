@@ -70,15 +70,18 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       return;
     }
 
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    try {
       final payload = await ref.read(driverOrderServiceProvider).fetchOrders();
-      return DriverOrdersState(
-        incoming: payload.incoming,
-        running: payload.running,
-        processingOrderIds: const <String>{},
+      state = AsyncData(
+        DriverOrdersState(
+          incoming: payload.incoming,
+          running: payload.running,
+          processingOrderIds: const <String>{},
+        ),
       );
-    });
+    } catch (error, stackTrace) {
+      state = AsyncError(error, stackTrace);
+    }
   }
 
   Future<String?> acceptOrder(String id) async {
