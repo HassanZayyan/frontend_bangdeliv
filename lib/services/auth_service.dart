@@ -145,7 +145,13 @@ class AuthService {
         final Map<String, dynamic> data =
             (payload['data'] as Map<String, dynamic>?) ?? const {};
 
-        return UserProfileModel.fromJson(data);
+        final normalizedData = Map<String, dynamic>.from(data);
+        final avatarUrl = _normalizeAvatarUrl(normalizedData);
+        if (avatarUrl != null) {
+          normalizedData['avatar_url'] = avatarUrl;
+        }
+
+        return UserProfileModel.fromJson(normalizedData);
       }
 
       throw AuthException(
@@ -168,25 +174,58 @@ class AuthService {
     required String name,
     required String phone,
     required String email,
+    String? avatarPath,
+    bool removeAvatar = false,
   }) async {
     final uri = Uri.parse('${AppEnv.apiBaseUrl}/user');
+    final normalizedAvatarPath = avatarPath?.trim();
 
     try {
+      if (normalizedAvatarPath != null && normalizedAvatarPath.isNotEmpty) {
+        final request = http.MultipartRequest('POST', uri);
+        request.headers.addAll(
+          await authorizedHeaders(includeJsonContentType: false),
+        );
+        request.fields['_method'] = 'PUT';
+        request.fields['name'] = name;
+        request.fields['phone'] = phone;
+        request.fields['email'] = email;
+        if (removeAvatar) {
+          request.fields['remove_avatar'] = '1';
+        }
+        request.files.add(
+          await http.MultipartFile.fromPath('avatar', normalizedAvatarPath),
+        );
+
+        final streamedResponse = await request.send().timeout(
+          const Duration(seconds: 30),
+        );
+        final response = await http.Response.fromStream(streamedResponse);
+
+        if (response.statusCode == 200) {
+          return _parseProfileResponse(response);
+        }
+
+        throw AuthException(
+          _extractErrorMessage(response, fallback: 'Gagal memperbarui profil.'),
+        );
+      }
+
       final response = await http
           .put(
             uri,
             headers: await authorizedHeaders(),
-            body: jsonEncode({'name': name, 'phone': phone, 'email': email}),
+            body: jsonEncode({
+              'name': name,
+              'phone': phone,
+              'email': email,
+              if (removeAvatar) 'remove_avatar': true,
+            }),
           )
           .timeout(const Duration(seconds: 20));
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> payload =
-            jsonDecode(response.body) as Map<String, dynamic>;
-        final Map<String, dynamic> data =
-            (payload['data'] as Map<String, dynamic>?) ?? const {};
-
-        return UserProfileModel.fromJson(data);
+        return _parseProfileResponse(response);
       }
 
       throw AuthException(
@@ -510,6 +549,66 @@ class AuthService {
     required String fallback,
   }) {
     return _extractErrorMessage(response, fallback: fallback);
+  }
+
+  static UserProfileModel _parseProfileResponse(http.Response response) {
+    final Map<String, dynamic> payload =
+        jsonDecode(response.body) as Map<String, dynamic>;
+    final Map<String, dynamic> data =
+        (payload['data'] as Map<String, dynamic>?) ?? const {};
+
+    final normalizedData = Map<String, dynamic>.from(data);
+    final avatarUrl = _normalizeAvatarUrl(normalizedData);
+    if (avatarUrl != null) {
+      normalizedData['avatar_url'] = avatarUrl;
+    }
+
+    return UserProfileModel.fromJson(normalizedData);
+  }
+
+  static String? _normalizeAvatarUrl(Map<String, dynamic> profileData) {
+    final rawAvatarUrl = profileData['avatar_url']?.toString().trim() ?? '';
+    final rawAvatarPath = profileData['avatar']?.toString().trim() ?? '';
+
+    String candidate = rawAvatarUrl;
+    if (candidate.isEmpty && rawAvatarPath.isNotEmpty) {
+      candidate = rawAvatarPath.startsWith('http')
+          ? rawAvatarPath
+          : '/storage/$rawAvatarPath';
+    }
+
+    if (candidate.isEmpty) {
+      return null;
+    }
+
+    final apiUri = Uri.parse(AppEnv.apiBaseUrl);
+    final apiOrigin = Uri(
+      scheme: apiUri.scheme,
+      host: apiUri.host,
+      port: apiUri.hasPort ? apiUri.port : null,
+    ).toString();
+
+    final parsedCandidate = Uri.tryParse(candidate);
+    if (parsedCandidate != null && parsedCandidate.hasScheme) {
+      final host = parsedCandidate.host.trim().toLowerCase();
+      final isLoopbackHost =
+          host == 'localhost' || host == '127.0.0.1' || host == '0.0.0.0';
+
+      if (isLoopbackHost && host != apiUri.host.toLowerCase()) {
+        return parsedCandidate
+            .replace(
+              scheme: apiUri.scheme,
+              host: apiUri.host,
+              port: apiUri.hasPort ? apiUri.port : null,
+            )
+            .toString();
+      }
+
+      return candidate;
+    }
+
+    final normalizedPath = candidate.startsWith('/') ? candidate : '/$candidate';
+    return '$apiOrigin$normalizedPath';
   }
 
   static Future<void> _persistAccessToken(http.Response response) async {

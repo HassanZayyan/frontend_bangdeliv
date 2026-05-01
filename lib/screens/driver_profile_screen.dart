@@ -24,10 +24,18 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
     _profileFuture = AuthService.fetchCurrentUserProfile();
   }
 
-  void _reloadProfile() {
+  Future<void> _reloadProfile() async {
+    final nextFuture = AuthService.fetchCurrentUserProfile();
+
     setState(() {
-      _profileFuture = AuthService.fetchCurrentUserProfile();
+      _profileFuture = nextFuture;
     });
+
+    try {
+      await nextFuture;
+    } catch (_) {
+      // Error handling is surfaced via FutureBuilder state.
+    }
   }
 
   @override
@@ -63,7 +71,7 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
                     ),
                     const SizedBox(height: 10),
                     OutlinedButton(
-                      onPressed: _reloadProfile,
+                      onPressed: () => _reloadProfile(),
                       child: const Text('Coba Lagi'),
                     ),
                   ],
@@ -76,11 +84,13 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
           final driverProfile = profile.driverProfile;
 
           return RefreshIndicator(
-            onRefresh: () async => _reloadProfile(),
+            onRefresh: _reloadProfile,
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
                 _buildIdentityCard(profile),
+                const SizedBox(height: 12),
+                _buildOperationalCard(profile.driverProfile),
                 const SizedBox(height: 12),
                 _buildStatusCard(driverProfile),
                 const SizedBox(height: 12),
@@ -113,6 +123,15 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
   }
 
   Widget _buildIdentityCard(UserProfileModel profile) {
+    final driverProfile = profile.driverProfile;
+    final completedOrders = (driverProfile?.totalDeliveries ?? 0) > 0
+        ? driverProfile!.totalDeliveries
+        : profile.stats.totalOrders;
+
+    final resolvedRating = (driverProfile?.avgRating ?? 0) > 0
+        ? driverProfile!.avgRating
+        : profile.stats.rating;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -126,13 +145,15 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
           Row(
             children: [
               Container(
-                width: 52,
-                height: 52,
+                width: 56,
+                height: 56,
                 decoration: BoxDecoration(
                   color: AppColors.primary.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(14),
+                  shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.person, color: AppColors.primaryDark),
+                child: ClipOval(
+                  child: _buildAvatarImage(profile.avatarUrl),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -172,10 +193,65 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
           const SizedBox(height: 6),
           Row(
             children: [
-              Expanded(child: _miniStat('Order Selesai', profile.stats.totalOrders.toString())),
-              Expanded(child: _miniStat('Rating', profile.stats.rating <= 0 ? '-' : '${profile.stats.rating.toStringAsFixed(1)}★')),
+              Expanded(child: _miniStat('Order Selesai', completedOrders.toString())),
+              Expanded(
+                child: _miniStat(
+                  'Rating',
+                  resolvedRating <= 0 ? '-' : '${resolvedRating.toStringAsFixed(1)}★',
+                ),
+              ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOperationalCard(DriverProfileModel? driverProfile) {
+    final operationalStatus = (driverProfile?.status ?? 'offline').trim().toLowerCase();
+    final vehiclePlate = (driverProfile?.vehiclePlate ?? '').trim();
+    final rawLicenseNumber = (driverProfile?.licenseNumber ?? '').trim();
+    final maskedLicenseNumber = rawLicenseNumber.length <= 4
+        ? (rawLicenseNumber.isEmpty ? '-' : rawLicenseNumber)
+        : '${rawLicenseNumber.substring(0, 2)}***${rawLicenseNumber.substring(rawLicenseNumber.length - 2)}';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Data Operasional',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: _operationalColor(operationalStatus).withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text(
+              _operationalLabel(operationalStatus),
+              style: TextStyle(
+                color: _operationalColor(operationalStatus),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _detailRow('Plat Kendaraan', vehiclePlate.isEmpty ? '-' : vehiclePlate.toUpperCase()),
+          const SizedBox(height: 8),
+          _detailRow('Nomor SIM', maskedLicenseNumber),
         ],
       ),
     );
@@ -227,7 +303,12 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
           ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
-            onPressed: () => context.push(AppRoutes.driverVerificationStatus),
+            onPressed: () async {
+              await context.push(AppRoutes.driverVerificationStatus);
+              if (mounted) {
+                await _reloadProfile();
+              }
+            },
             icon: const Icon(Icons.badge_outlined),
             label: const Text('Lihat Status Verifikasi'),
           ),
@@ -248,7 +329,12 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
           _actionTile(
             icon: Icons.person_outline,
             title: 'Edit Profil',
-            onTap: () => context.push(AppRoutes.editProfile),
+            onTap: () async {
+              final updated = await context.push<bool>(AppRoutes.editProfile);
+              if (updated == true && mounted) {
+                await _reloadProfile();
+              }
+            },
           ),
           const Divider(height: 1, indent: 56, color: AppColors.border),
           _actionTile(
@@ -258,16 +344,63 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
           ),
           const Divider(height: 1, indent: 56, color: AppColors.border),
           _actionTile(
+            icon: Icons.notifications_outlined,
+            title: 'Notifikasi',
+            onTap: () => context.push(AppRoutes.notificationSettings),
+          ),
+          const Divider(height: 1, indent: 56, color: AppColors.border),
+          _actionTile(
+            icon: Icons.shield_outlined,
+            title: 'Kebijakan Privasi',
+            onTap: () => context.push(AppRoutes.privacyMapPreview),
+          ),
+          const Divider(height: 1, indent: 56, color: AppColors.border),
+          _actionTile(
+            icon: Icons.badge_outlined,
+            title: 'Status Verifikasi',
+            onTap: () async {
+              await context.push(AppRoutes.driverVerificationStatus);
+              if (mounted) {
+                await _reloadProfile();
+              }
+            },
+          ),
+          const Divider(height: 1, indent: 56, color: AppColors.border),
+          _actionTile(
             icon: Icons.help_outline,
             title: 'Bantuan Driver',
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Fitur bantuan akan segera tersedia.')),
-              );
-            },
+            onTap: _showHelpCenter,
           ),
         ],
       ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 120,
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -341,6 +474,74 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
       default:
         return 'Belum tersedia';
     }
+  }
+
+  Widget _buildAvatarImage(String? avatarUrl) {
+    final normalized = avatarUrl?.trim() ?? '';
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Container(
+          color: AppColors.primary.withValues(alpha: 0.12),
+          alignment: Alignment.center,
+          child: const Icon(Icons.person, color: AppColors.primaryDark),
+        ),
+        if (normalized.isNotEmpty)
+          Image.network(
+            normalized,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return const SizedBox.shrink();
+            },
+          ),
+      ],
+    );
+  }
+
+  Color _operationalColor(String status) {
+    switch (status) {
+      case 'available':
+      case 'online':
+        return AppColors.success;
+      case 'busy':
+        return AppColors.primaryDark;
+      default:
+        return AppColors.textSecondary;
+    }
+  }
+
+  String _operationalLabel(String status) {
+    switch (status) {
+      case 'available':
+      case 'online':
+        return 'Online - Siap Terima Order';
+      case 'busy':
+        return 'Sedang Mengantar';
+      default:
+        return 'Offline';
+    }
+  }
+
+  void _showHelpCenter() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Bantuan Driver'),
+          content: const Text(
+            'Hubungi tim operasional driver jika butuh bantuan cepat:\n\n'
+            'WhatsApp: 0812-0000-1234\n'
+            'Email: driver.support@bangdeliv.id',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => dialogContext.pop(),
+              child: const Text('Tutup'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _handleLogout() async {

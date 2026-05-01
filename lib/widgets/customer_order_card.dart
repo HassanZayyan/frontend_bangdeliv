@@ -143,68 +143,123 @@ class CustomerOrderCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    alignment: WrapAlignment.end,
-                    children: [
-                      if (showTrackAction && onTrack != null)
-                        OutlinedButton.icon(
-                          onPressed: onTrack,
-                          icon: const Icon(Icons.location_on, size: 16),
-                          label: const Text('Lacak'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.primary,
-                            side: const BorderSide(color: AppColors.primary),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                      if (showCancelAction && onCancel != null)
-                        ElevatedButton.icon(
-                          onPressed: isCancelling ? null : onCancel,
-                          icon: isCancelling
-                              ? const SizedBox(
-                                  width: 14,
-                                  height: 14,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.white,
-                                  ),
-                                )
-                              : const Icon(Icons.close, size: 16),
-                          label: Text(isCancelling ? 'Proses' : 'Batalkan'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.error,
-                            foregroundColor: AppColors.white,
-                          ),
-                        ),
-                      if (showReorderAction && onReorder != null)
-                        OutlinedButton.icon(
-                          onPressed: onReorder,
-                          icon: const Icon(Icons.refresh, size: 16),
-                          label: const Text('Pesan Lagi'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.textSecondary,
-                            side: const BorderSide(
-                              color: AppColors.textSecondary,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
+              if (_hasAnyAction) ...[
+                const SizedBox(width: 12),
+                _buildActionButtons(),
+              ],
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  bool get _hasAnyAction {
+    return (showTrackAction && onTrack != null) ||
+        (showCancelAction && onCancel != null) ||
+        (showReorderAction && onReorder != null);
+  }
+
+  Widget _buildActionButtons() {
+    final buttons = <Widget>[];
+
+    if (showTrackAction && onTrack != null) {
+      buttons.add(
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: onTrack,
+            icon: const Icon(Icons.location_on, size: 16),
+            label: const Text(
+              'Lacak',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.primary,
+              side: const BorderSide(color: AppColors.primary),
+              minimumSize: const Size(0, 44),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (showCancelAction && onCancel != null) {
+      buttons.add(
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: isCancelling ? null : onCancel,
+            icon: isCancelling
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.white,
+                    ),
+                  )
+                : const Icon(Icons.close, size: 16),
+            label: Text(
+              isCancelling ? 'Proses' : 'Batalkan',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: AppColors.white,
+              minimumSize: const Size(0, 44),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (showReorderAction && onReorder != null) {
+      buttons.add(
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: onReorder,
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text(
+              'Pesan Lagi',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.textSecondary,
+              side: const BorderSide(color: AppColors.textSecondary),
+              minimumSize: const Size(0, 44),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 150, maxWidth: 190),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (int i = 0; i < buttons.length; i++) ...[
+            if (i > 0) const SizedBox(height: 8),
+            buttons[i],
+          ],
         ],
       ),
     );

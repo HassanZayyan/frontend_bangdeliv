@@ -149,6 +149,8 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
         'phone': address.phone,
         'full_address': address.fullAddress,
         'detail': address.detail,
+        'latitude': address.latitude,
+        'longitude': address.longitude,
         'is_default': address.isDefault,
       },
     );

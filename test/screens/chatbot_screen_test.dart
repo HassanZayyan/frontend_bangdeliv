@@ -111,6 +111,8 @@ AuthSessionState _buildAuthenticatedSession() {
     name: 'Hassan',
     phone: '081234567890',
     email: 'hassan@example.com',
+    avatar: null,
+    avatarUrl: null,
     role: 'customer',
     driverProfile: null,
     stats: UserStatsModel(totalOrders: 3, totalPaid: 100000, rating: 4.8),

@@ -10,7 +10,8 @@ class DriverHistoryScreen extends ConsumerStatefulWidget {
   const DriverHistoryScreen({super.key});
 
   @override
-  ConsumerState<DriverHistoryScreen> createState() => _DriverHistoryScreenState();
+  ConsumerState<DriverHistoryScreen> createState() =>
+      _DriverHistoryScreenState();
 }
 
 class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
@@ -140,15 +141,15 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
         color: selected ? AppColors.primaryDark : AppColors.textSecondary,
         fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
       ),
-      side: BorderSide(
-        color: selected ? AppColors.primary : AppColors.border,
-      ),
+      side: BorderSide(color: selected ? AppColors.primary : AppColors.border),
       showCheckmark: false,
       backgroundColor: AppColors.white,
     );
   }
 
-  List<DriverHistoryOrderModel> _applyFilter(List<DriverHistoryOrderModel> orders) {
+  List<DriverHistoryOrderModel> _applyFilter(
+    List<DriverHistoryOrderModel> orders,
+  ) {
     final now = DateTime.now();
 
     if (_selectedFilter == _todayFilter) {
@@ -261,7 +262,10 @@ class _HistoryCard extends StatelessWidget {
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
@@ -297,7 +301,9 @@ class _HistoryCard extends StatelessWidget {
           Text(
             isCompleted ? formatter(order.fee) : 'Tidak ada pendapatan',
             style: TextStyle(
-              color: isCompleted ? AppColors.primaryDark : AppColors.textSecondary,
+              color: isCompleted
+                  ? AppColors.primaryDark
+                  : AppColors.textSecondary,
               fontWeight: FontWeight.bold,
             ),
           ),

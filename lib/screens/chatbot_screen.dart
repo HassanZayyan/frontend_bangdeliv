@@ -34,6 +34,11 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     super.didChangeDependencies();
     final serviceType = _serviceContext.serviceType;
     if (_bootstrappedServiceType == serviceType) {
+      // Already bootstrapped for this service type — just scroll to the
+      // bottom so the user lands at the latest message on re-entry.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _scrollToBottom();
+      });
       return;
     }
 
@@ -238,6 +243,15 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     final isServiceMismatch = state.serviceType != _serviceContext.serviceType;
     final effectiveBusy = state.isBusy || isServiceMismatch;
 
+    // Auto-scroll whenever the message list grows (new send / map-pin response)
+    ref.listen<ChatbotConversationState>(chatbotConversationProvider, (
+      previous,
+      next,
+    ) {
+      if ((previous?.messages.length ?? 0) < next.messages.length) {
+        _scrollToBottom();
+      }
+    });
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -520,9 +534,9 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  message.text,
-                  style: TextStyle(color: textColor, height: 1.5),
+                _buildMessageTextContent(
+                  message: message,
+                  textColor: textColor,
                 ),
                 if (message.meta != null) ...[
                   const SizedBox(height: 8),
@@ -541,10 +555,18 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                         OutlinedButton.icon(
                           onPressed: () => _handleActionHint(actionHint),
                           icon: Icon(
-                            actionHint.type ==
-                                    ChatbotMessageActionType.openAddresses
-                                ? Icons.home_outlined
-                                : Icons.location_on_outlined,
+                            switch (actionHint.type) {
+                              ChatbotMessageActionType.openAddresses =>
+                                Icons.home_outlined,
+                              ChatbotMessageActionType.openMapPicker =>
+                                Icons.location_on_outlined,
+                              ChatbotMessageActionType.sendPresetMessage =>
+                                Icons.bolt_rounded,
+                              ChatbotMessageActionType.openTrackOrder =>
+                                Icons.map_outlined,
+                              ChatbotMessageActionType.openActivity =>
+                                Icons.receipt_long_outlined,
+                            },
                             size: 16,
                           ),
                           label: Text(actionHint.label),
@@ -587,6 +609,217 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       ),
     );
   }
+
+  Widget _buildMessageTextContent({
+    required ChatbotConversationMessage message,
+    required Color textColor,
+  }) {
+    if (message.isUser) {
+      return Text(
+        message.text,
+        style: TextStyle(color: textColor, height: 1.5),
+      );
+    }
+
+    final parts = _tryParseDraftMessage(message.text);
+    if (parts == null) {
+      return Text(
+        message.text,
+        style: TextStyle(color: textColor, height: 1.5),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          parts.headline,
+          style: TextStyle(
+            color: textColor,
+            height: 1.45,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 10),
+        _buildDraftField(
+          label: parts.pickupLabel,
+          value: parts.pickupAddress,
+          textColor: textColor,
+        ),
+        const SizedBox(height: 8),
+        _buildDraftField(
+          label: 'Tujuan',
+          value: parts.destinationAddress,
+          textColor: textColor,
+        ),
+        if (parts.packageDescription != null && parts.packageDescription!.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _buildDraftField(
+            label: 'Barang',
+            value: parts.packageDescription!,
+            textColor: textColor,
+          ),
+        ],
+        if (parts.feeLine.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.cardYellow.withValues(alpha: 0.45),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Text(
+              parts.feeLine,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+        if (parts.instructionLine.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text(
+            parts.instructionLine,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildDraftField({
+    required String label,
+    required String value,
+    required Color textColor,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.2,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: TextStyle(
+            color: textColor,
+            fontSize: 14,
+            height: 1.45,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  _DraftMessageParts? _tryParseDraftMessage(String raw) {
+    final normalized = raw.replaceAll('\r\n', '\n').trim();
+    if (normalized.isEmpty) {
+      return null;
+    }
+
+    final lines = normalized
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
+
+    if (lines.length < 4) {
+      return null;
+    }
+
+    final pickupIndex = lines.indexWhere(
+      (line) => line.toLowerCase().startsWith('jemput:') || line.toLowerCase().startsWith('ambil:'),
+    );
+    final destinationIndex = lines.indexWhere(
+      (line) => line.toLowerCase().startsWith('tujuan:'),
+    );
+    final packageIndex = lines.indexWhere(
+      (line) => line.toLowerCase().startsWith('barang:'),
+    );
+    final feeIndex = lines.indexWhere((line) {
+      final lower = line.toLowerCase();
+      return lower.startsWith('estimasi ongkir sementara:') ||
+          lower.startsWith('ongkir:');
+    });
+
+    if (pickupIndex < 0 || destinationIndex < 0 || feeIndex < 0) {
+      return null;
+    }
+
+    final introText = lines.take(pickupIndex).join('\n').trim();
+    if (introText.isEmpty ||
+        (!introText.toLowerCase().contains('antar jemput') && !introText.toLowerCase().contains('kurir'))) {
+      return null;
+    }
+
+    final pickupAddress = lines[pickupIndex].replaceFirst(
+      RegExp(r'^(Jemput|Ambil):\s*', caseSensitive: false),
+      '',
+    );
+    final destinationAddress = lines[destinationIndex].replaceFirst(
+      RegExp(r'^Tujuan:\s*', caseSensitive: false),
+      '',
+    );
+
+    final packageDescription = packageIndex >= 0 ? lines[packageIndex].replaceFirst(
+      RegExp(r'^Barang:\s*', caseSensitive: false),
+      '',
+    ) : null;
+
+    if (pickupAddress.isEmpty || destinationAddress.isEmpty) {
+      return null;
+    }
+
+    final instructionLine = feeIndex + 1 < lines.length
+        ? lines.skip(feeIndex + 1).join(' ').trim()
+        : '';
+
+    return _DraftMessageParts(
+      headline: introText,
+      pickupLabel: lines[pickupIndex].toLowerCase().startsWith('ambil:') ? 'Ambil' : 'Jemput',
+      pickupAddress: pickupAddress,
+      destinationAddress: destinationAddress,
+      packageDescription: packageDescription,
+      feeLine: lines[feeIndex],
+      instructionLine: instructionLine,
+    );
+  }
+}
+
+class _DraftMessageParts {
+  const _DraftMessageParts({
+    required this.headline,
+    required this.pickupLabel,
+    required this.pickupAddress,
+    required this.destinationAddress,
+    this.packageDescription,
+    required this.feeLine,
+    required this.instructionLine,
+  });
+
+  final String headline;
+  final String pickupLabel;
+  final String pickupAddress;
+  final String destinationAddress;
+  final String? packageDescription;
+  final String feeLine;
+  final String instructionLine;
 }
 
 class _ServiceContext {

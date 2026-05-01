@@ -6,7 +6,17 @@ class AppEnv {
     defaultValue: 'http://192.168.1.88:8000/api',
   );
 
-  /// Laravel Reverb WebSocket — same host, different port
+  static const bool enableDriverMockFallback = bool.fromEnvironment(
+    'ENABLE_DRIVER_MOCK_FALLBACK',
+    defaultValue: true,
+  );
+
+  static const String googleMapsApiKey = String.fromEnvironment(
+    'GOOGLE_MAPS_API_KEY',
+    defaultValue: 'AIzaSyCcFZrTPyomCmsGh8OOKF3Osle7blJlT88',
+  );
+
+  /// Laravel Reverb WebSocket - same host, different port.
   static String get wsHost {
     final uri = Uri.parse(apiBaseUrl);
     return uri.host;
@@ -19,5 +29,5 @@ class AppEnv {
     defaultValue: '190veldvcv1mttbfvv4w',
   );
 
-  static const String pusherCluster = 'mt1'; // unused by Reverb but required by SDK
+  static const String pusherCluster = 'mt1';
 }
