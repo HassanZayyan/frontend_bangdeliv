@@ -18,46 +18,11 @@ class ActivityScreen extends ConsumerStatefulWidget {
 
 class _ActivityScreenState extends ConsumerState<ActivityScreen> {
   final Set<int> _cancellingOrderIds = <int>{};
-  bool _isOpeningRefresh = true;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _refreshOnOpen();
-    });
-  }
 
   bool _isCancelling(int orderId) => _cancellingOrderIds.contains(orderId);
 
-  Future<void> _refreshOnOpen() async {
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _isOpeningRefresh = true;
-    });
-
-    await _refreshOrders();
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _isOpeningRefresh = false;
-    });
-  }
-
   Future<void> _refreshOrders() async {
-    ref.invalidate(customerOrdersProvider);
-
-    try {
-      await ref.read(customerOrdersProvider.future);
-    } catch (_) {
-      // Errors are surfaced by the provider state in UI.
-    }
+    await ref.read(customerOrdersProvider.notifier).refresh();
   }
 
   Future<void> _cancelOrder(CustomerOrderSummaryModel order) async {
@@ -146,9 +111,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
             ],
           ),
         ),
-        body: _isOpeningRefresh
-            ? const Center(child: CircularProgressIndicator())
-            : ordersAsync.when(
+        body: ordersAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, stackTrace) => Center(
             child: Padding(
@@ -163,7 +126,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton(
-                    onPressed: _refreshOnOpen,
+                    onPressed: _refreshOrders,
                     child: const Text('Coba Lagi'),
                   ),
                 ],

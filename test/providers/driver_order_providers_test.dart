@@ -175,12 +175,20 @@ AuthSessionState _driverSession(int userId) {
       avatar: null,
       avatarUrl: null,
       role: 'driver',
-      driverProfile: const DriverProfileModel(
-        registrationStatus: 'active',
-        status: 'active',
-      ),
+      driverProfile: _activeDriverProfile(),
       stats: const UserStatsModel(totalOrders: 0, totalPaid: 0, rating: 0),
       addresses: const <SavedAddressModel>[],
     ),
+  );
+}
+
+DriverProfileModel _activeDriverProfile() {
+  return const DriverProfileModel(
+    registrationStatus: 'active',
+    status: 'active',
+    vehiclePlate: 'BG 1234 DL',
+    licenseNumber: 'SIM-DRIVER-001',
+    avgRating: 5,
+    totalDeliveries: 12,
   );
 }

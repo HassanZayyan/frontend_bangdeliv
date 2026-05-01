@@ -1,3 +1,5 @@
+import '../utils/order_formatters.dart';
+
 enum ChatbotIntent {
   pesanMakanan,
   courierOrder,
@@ -418,5 +420,5 @@ DateTime? _parseIsoDateTime(dynamic raw) {
     return null;
   }
 
-  return DateTime.tryParse(value);
+  return parseBackendDateTime(value);
 }

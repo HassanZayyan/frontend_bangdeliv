@@ -73,8 +73,8 @@ class DriverOrderService {
           'target_status_code': normalizedTargetStatusCode,
         if (normalizedNote != null && normalizedNote.isNotEmpty)
           'note': normalizedNote,
-        if (latitude != null) 'latitude': latitude,
-        if (longitude != null) 'longitude': longitude,
+        'latitude': ?latitude,
+        'longitude': ?longitude,
       },
       fallback: 'Gagal memproses transisi status order.',
     );

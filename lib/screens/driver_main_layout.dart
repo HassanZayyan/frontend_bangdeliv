@@ -1,14 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
+import '../providers/driver_location_tracking_provider.dart';
+import '../providers/driver_order_providers.dart';
 
-class DriverMainLayout extends StatelessWidget {
+class DriverMainLayout extends ConsumerStatefulWidget {
   final Widget child;
 
   const DriverMainLayout({super.key, required this.child});
 
+  @override
+  ConsumerState<DriverMainLayout> createState() => _DriverMainLayoutState();
+}
+
+class _DriverMainLayoutState extends ConsumerState<DriverMainLayout> {
   int _calculateSelectedIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.path;
 
@@ -47,8 +55,17 @@ class DriverMainLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final activeOrder = ref.watch(driverActiveOrderProvider);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(driverLocationTrackingProvider.notifier).syncForOrder(
+            orderId: activeOrder?.id,
+            statusCode: activeOrder?.statusCode,
+          );
+    });
+
     return Scaffold(
-      body: child,
+      body: widget.child,
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         backgroundColor: AppColors.white,

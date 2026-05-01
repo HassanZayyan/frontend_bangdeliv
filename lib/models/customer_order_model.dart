@@ -1,4 +1,5 @@
 import '../utils/order_status.dart' as order_status;
+import '../utils/order_formatters.dart';
 import '../utils/service_type.dart' as service_type;
 
 class OrderStatusSnapshot {
@@ -80,6 +81,38 @@ class CustomerOrderSummaryModel {
     final normalizedStatus = order_status.normalizeOrderStatusCode(statusCode);
     return normalizedStatus == order_status.OrderStatusCodes.pending ||
         normalizedStatus == order_status.OrderStatusCodes.driverAssigned;
+  }
+
+  CustomerOrderSummaryModel copyWith({
+    int? id,
+    String? orderNumber,
+    String? serviceTypeCode,
+    String? serviceTypeLabel,
+    String? restaurantName,
+    String? itemsSummary,
+    double? totalAmount,
+    String? statusCode,
+    String? statusLabel,
+    bool? isTerminalStatus,
+    DateTime? createdAt,
+    DateTime? estimatedDelivery,
+    String? deliveryAddress,
+  }) {
+    return CustomerOrderSummaryModel(
+      id: id ?? this.id,
+      orderNumber: orderNumber ?? this.orderNumber,
+      serviceTypeCode: serviceTypeCode ?? this.serviceTypeCode,
+      serviceTypeLabel: serviceTypeLabel ?? this.serviceTypeLabel,
+      restaurantName: restaurantName ?? this.restaurantName,
+      itemsSummary: itemsSummary ?? this.itemsSummary,
+      totalAmount: totalAmount ?? this.totalAmount,
+      statusCode: statusCode ?? this.statusCode,
+      statusLabel: statusLabel ?? this.statusLabel,
+      isTerminalStatus: isTerminalStatus ?? this.isTerminalStatus,
+      createdAt: createdAt ?? this.createdAt,
+      estimatedDelivery: estimatedDelivery ?? this.estimatedDelivery,
+      deliveryAddress: deliveryAddress ?? this.deliveryAddress,
+    );
   }
 
   factory CustomerOrderSummaryModel.fromJson(Map<String, dynamic> json) {
@@ -231,7 +264,7 @@ class CustomerOrderSummaryModel {
       return null;
     }
 
-    return DateTime.tryParse(raw);
+    return parseBackendDateTime(raw);
   }
 }
 
@@ -268,6 +301,41 @@ class CustomerOrderDetailModel {
     required this.timeline,
   });
 
+  CustomerOrderDetailModel copyWith({
+    CustomerOrderSummaryModel? summary,
+    String? paymentStatus,
+    String? paymentMethod,
+    String? notes,
+    String? driverName,
+    double? pickupLatitude,
+    double? pickupLongitude,
+    double? dropoffLatitude,
+    double? dropoffLongitude,
+    double? driverLatitude,
+    double? driverLongitude,
+    DateTime? driverLocationUpdatedAt,
+    String? deliveryDistanceText,
+    List<OrderStatusSnapshot>? timeline,
+  }) {
+    return CustomerOrderDetailModel(
+      summary: summary ?? this.summary,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      notes: notes ?? this.notes,
+      driverName: driverName ?? this.driverName,
+      pickupLatitude: pickupLatitude ?? this.pickupLatitude,
+      pickupLongitude: pickupLongitude ?? this.pickupLongitude,
+      dropoffLatitude: dropoffLatitude ?? this.dropoffLatitude,
+      dropoffLongitude: dropoffLongitude ?? this.dropoffLongitude,
+      driverLatitude: driverLatitude ?? this.driverLatitude,
+      driverLongitude: driverLongitude ?? this.driverLongitude,
+      driverLocationUpdatedAt:
+          driverLocationUpdatedAt ?? this.driverLocationUpdatedAt,
+      deliveryDistanceText: deliveryDistanceText ?? this.deliveryDistanceText,
+      timeline: timeline ?? this.timeline,
+    );
+  }
+
   factory CustomerOrderDetailModel.fromJson(Map<String, dynamic> json) {
     final summary = CustomerOrderSummaryModel.fromJson(json);
 
@@ -276,6 +344,11 @@ class CustomerOrderDetailModel {
         : const <String, dynamic>{};
     final driverUser = (driver['user'] is Map<String, dynamic>)
         ? driver['user'] as Map<String, dynamic>
+        : const <String, dynamic>{};
+    final driverLocation = (json['driver_location'] is Map<String, dynamic>)
+        ? json['driver_location'] as Map<String, dynamic>
+        : (driver['location'] is Map<String, dynamic>)
+        ? driver['location'] as Map<String, dynamic>
         : const <String, dynamic>{};
 
     final locations = _extractOrderLocations(json);
@@ -300,9 +373,17 @@ class CustomerOrderDetailModel {
       pickupLocation?['longitude'] ?? pickupSource['longitude'],
     );
 
-    final parsedDriverLatitude = _asNullableDouble(driver['current_latitude']);
+    final parsedDriverLatitude = _asNullableDouble(
+      driver['current_latitude'] ??
+          driver['latitude'] ??
+          driverLocation['latitude'] ??
+          json['driver_latitude'],
+    );
     final parsedDriverLongitude = _asNullableDouble(
-      driver['current_longitude'],
+      driver['current_longitude'] ??
+          driver['longitude'] ??
+          driverLocation['longitude'] ??
+          json['driver_longitude'],
     );
 
     final histories = (json['status_histories'] is List)
@@ -384,7 +465,9 @@ class CustomerOrderDetailModel {
           ? parsedDriverLongitude
           : null,
       driverLocationUpdatedAt: CustomerOrderSummaryModel._asDateTime(
-        driver['updated_at'],
+        driver['location_updated_at'] ??
+            driverLocation['updated_at'] ??
+            driver['updated_at'],
       ),
       deliveryDistanceText: json['delivery_distance_text']?.toString(),
       timeline: timeline,

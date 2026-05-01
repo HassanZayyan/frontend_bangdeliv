@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/driver_order_model.dart';
+import '../utils/order_formatters.dart';
+import '../utils/order_status.dart';
 import 'auth_session_provider.dart';
 import '../services/driver_order_service.dart';
 
@@ -106,9 +108,11 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     }
 
     final incoming = List<DriverOrderModel>.from(current.incoming);
-    final selected = incoming
-        .removeAt(index)
-        .copyWith(acceptedAt: _currentHourMinute());
+    final selected = incoming.removeAt(index).copyWith(
+          acceptedAt: _currentHourMinute(),
+          statusCode: OrderStatusCodes.driverAssigned,
+          statusDisplayName: orderStatusLabel(OrderStatusCodes.driverAssigned),
+        );
     final running = <DriverOrderModel>[selected, ...current.running];
 
     final processingOrderIds = <String>{...current.processingOrderIds, id};
@@ -379,10 +383,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
   }
 
   String _currentHourMinute() {
-    final now = DateTime.now();
-    final hour = now.hour.toString().padLeft(2, '0');
-    final minute = now.minute.toString().padLeft(2, '0');
-    return '$hour:$minute';
+    return currentWibHourMinute();
   }
 }
 
