@@ -7,6 +7,7 @@ import '../config/app_routes.dart';
 import '../models/driver_order_model.dart';
 import '../providers/auth_session_provider.dart';
 import '../providers/driver_order_providers.dart';
+import '../utils/order_formatters.dart';
 
 class DriverHomeScreen extends ConsumerStatefulWidget {
   const DriverHomeScreen({super.key});
@@ -92,7 +93,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
               Expanded(
                 child: _SummaryTile(
                   title: 'Total Pendapatan',
-                  value: _formatCurrency(totalPaid),
+                  value: formatCurrency(totalPaid),
                   icon: Icons.payments_outlined,
                 ),
               ),
@@ -120,22 +121,6 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
       ),
     );
   }
-}
-
-String _formatCurrency(num amount) {
-  final rounded = amount.round();
-  final raw = rounded.toString();
-  final buffer = StringBuffer();
-
-  for (int i = 0; i < raw.length; i++) {
-    final reverseIndex = raw.length - i;
-    buffer.write(raw[i]);
-    if (reverseIndex > 1 && reverseIndex % 3 == 1) {
-      buffer.write('.');
-    }
-  }
-
-  return 'Rp $buffer';
 }
 
 class _ActiveOrderCard extends StatelessWidget {
@@ -188,7 +173,7 @@ class _ActiveOrderCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Estimasi ${activeOrder!.etaMinutes} menit lagi • Fee ${_formatCurrency(activeOrder!.fee)}',
+              'Estimasi ${activeOrder!.etaMinutes} menit lagi • Fee ${formatCurrency(activeOrder!.fee)}',
               style: const TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 13,
@@ -209,20 +194,6 @@ class _ActiveOrderCard extends StatelessWidget {
     );
   }
 
-  String _formatCurrency(int amount) {
-    final raw = amount.toString();
-    final buffer = StringBuffer();
-
-    for (int i = 0; i < raw.length; i++) {
-      final reverseIndex = raw.length - i;
-      buffer.write(raw[i]);
-      if (reverseIndex > 1 && reverseIndex % 3 == 1) {
-        buffer.write('.');
-      }
-    }
-
-    return 'Rp $buffer';
-  }
 }
 
 class _SummaryTile extends StatelessWidget {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,20 +8,136 @@ import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../models/customer_order_model.dart';
 import '../providers/customer_order_providers.dart';
+import '../services/pusher_service.dart';
+import '../utils/order_formatters.dart';
+import '../utils/order_status.dart';
+import '../utils/order_ui_helpers.dart';
+import '../utils/service_type.dart';
 import '../widgets/tracking_map_section.dart';
 
-class TrackOrderScreen extends ConsumerWidget {
+class TrackOrderScreen extends ConsumerStatefulWidget {
   const TrackOrderScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TrackOrderScreen> createState() => _TrackOrderScreenState();
+}
+
+class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
+  // ── Real-time driver location (updated by Pusher) ─────────────────────────
+  double? _driverLat;
+  double? _driverLng;
+  DateTime? _driverUpdatedAt;
+
+  // ── Pusher subscription ───────────────────────────────────────────────────
+  StreamSubscription<Map<String, dynamic>>? _trackingSub;
+  int? _subscribedOrderId;
+  int? _lastAppliedHistoryId;
+  Timer? _statusRefreshDebounce;
+  bool _allowDriverLocationUpdates = false;
+
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+  @override
+  void dispose() {
+    _cancelPusher();
+    _statusRefreshDebounce?.cancel();
+    super.dispose();
+  }
+
+  void _cancelPusher() {
+    _trackingSub?.cancel();
+    _trackingSub = null;
+    _subscribedOrderId = null;
+  }
+
+  void _scheduleOrderRefresh(int orderId, {int? historyId}) {
+    if (historyId != null) {
+      final lastApplied = _lastAppliedHistoryId;
+      if (lastApplied != null && historyId <= lastApplied) {
+        return;
+      }
+      _lastAppliedHistoryId = historyId;
+    }
+
+    _statusRefreshDebounce?.cancel();
+    _statusRefreshDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      ref.invalidate(customerOrderDetailProvider(orderId));
+      ref.invalidate(customerOrdersProvider);
+    });
+  }
+
+  /// Subscribe to Pusher when the order is still active and we haven't
+  /// subscribed to this orderId.
+  Future<void> _maybeSubscribePusher(
+    CustomerOrderDetailModel detail,
+  ) async {
+    final orderId = detail.summary.id;
+
+    final shouldTrack = !detail.summary.isTerminalStatus;
+    _allowDriverLocationUpdates = _shouldShowTrackingMap(detail.summary);
+
+    if (!shouldTrack) {
+      if (_trackingSub != null) _cancelPusher();
+      return;
+    }
+
+    if (_subscribedOrderId == orderId && _trackingSub != null) return;
+
+    _cancelPusher();
+    _subscribedOrderId = orderId;
+    _lastAppliedHistoryId = null;
+
+    try {
+      await PusherService.instance.connect();
+
+      _trackingSub = PusherService.instance.subscribeOrderTracking(
+        orderId,
+        onLocation: (lat, lng, heading, updatedAt) {
+          if (!mounted) return;
+          if (!_allowDriverLocationUpdates) return;
+          setState(() {
+            _driverLat = lat;
+            _driverLng = lng;
+            _driverUpdatedAt = updatedAt;
+          });
+        },
+        onStatusChanged: (statusCode, previousStatusCode, historyId, changedAt) {
+          _scheduleOrderRefresh(orderId, historyId: historyId);
+        },
+      );
+    } catch (_) {
+      // Pusher connection failed — silently degrade
+    }
+  }
+
+  bool _shouldShowTrackingMap(CustomerOrderSummaryModel order) {
+    if (normalizeServiceTypeCode(order.serviceTypeCode) != ServiceTypeCodes.ride) {
+      return true;
+    }
+
+    final statusCode = normalizeOrderStatusCode(order.statusCode);
+    return statusCode == OrderStatusCodes.driverAssigned;
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
     final orderId = _extractOrderId(GoRouterState.of(context).extra);
 
     if (orderId != null) {
-      final detailAsync = ref.watch(customerOrderDetailProvider(orderId));
+      final detailProvider = customerOrderDetailProvider(orderId);
+      ref.listen<AsyncValue<CustomerOrderDetailModel>>(detailProvider, (
+        previous,
+        next,
+      ) {
+        next.whenData(_maybeSubscribePusher);
+      });
+
+      final detailAsync = ref.watch(detailProvider);
       return _buildScaffold(
         context,
-        ref,
         detailAsync,
         showEmptyForNoActiveOrder: false,
         orderId: orderId,
@@ -31,33 +149,36 @@ class TrackOrderScreen extends ConsumerWidget {
     return ordersAsync.when(
       loading: () => _buildScaffold(
         context,
-        ref,
         const AsyncLoading<CustomerOrderDetailModel>(),
         showEmptyForNoActiveOrder: false,
       ),
       error: (error, stackTrace) => _buildScaffold(
         context,
-        ref,
         AsyncError<CustomerOrderDetailModel>(error, stackTrace),
         showEmptyForNoActiveOrder: false,
       ),
       data: (_) {
         final activeOrder = ref.watch(customerActiveOrderProvider);
         if (activeOrder == null) {
+          _cancelPusher();
           return _buildScaffold(
             context,
-            ref,
             const AsyncLoading<CustomerOrderDetailModel>(),
             showEmptyForNoActiveOrder: true,
           );
         }
 
-        final detailAsync = ref.watch(
-          customerOrderDetailProvider(activeOrder.id),
-        );
+        final detailProvider = customerOrderDetailProvider(activeOrder.id);
+        ref.listen<AsyncValue<CustomerOrderDetailModel>>(detailProvider, (
+          previous,
+          next,
+        ) {
+          next.whenData(_maybeSubscribePusher);
+        });
+
+        final detailAsync = ref.watch(detailProvider);
         return _buildScaffold(
           context,
-          ref,
           detailAsync,
           showEmptyForNoActiveOrder: false,
           orderId: activeOrder.id,
@@ -68,7 +189,6 @@ class TrackOrderScreen extends ConsumerWidget {
 
   Widget _buildScaffold(
     BuildContext context,
-    WidgetRef ref,
     AsyncValue<CustomerOrderDetailModel> detailAsync, {
     required bool showEmptyForNoActiveOrder,
     int? orderId,
@@ -107,7 +227,8 @@ class TrackOrderScreen extends ConsumerWidget {
       body: showEmptyForNoActiveOrder
           ? _buildEmptyState(context)
           : detailAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () =>
+                  const Center(child: CircularProgressIndicator()),
               error: (error, stackTrace) => Center(
                 child: Padding(
                   padding: const EdgeInsets.all(20),
@@ -117,7 +238,8 @@ class TrackOrderScreen extends ConsumerWidget {
                       Text(
                         error.toString(),
                         textAlign: TextAlign.center,
-                        style: const TextStyle(color: AppColors.textSecondary),
+                        style:
+                            const TextStyle(color: AppColors.textSecondary),
                       ),
                       const SizedBox(height: 12),
                       OutlinedButton(
@@ -135,20 +257,14 @@ class TrackOrderScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-              data: (detail) => _buildDetailView(detail),
+              data: _buildDetailView,
             ),
     );
   }
 
   int? _extractOrderId(dynamic extra) {
-    if (extra is int) {
-      return extra;
-    }
-
-    if (extra is String) {
-      return int.tryParse(extra);
-    }
-
+    if (extra is int) return extra;
+    if (extra is String) return int.tryParse(extra);
     return null;
   }
 
@@ -213,25 +329,35 @@ class TrackOrderScreen extends ConsumerWidget {
 
   Widget _buildDetailView(CustomerOrderDetailModel detail) {
     final order = detail.summary;
+    final shouldShowTrackingMap = _shouldShowTrackingMap(order);
+    final isRide =
+        normalizeServiceTypeCode(order.serviceTypeCode) == ServiceTypeCodes.ride;
+
+    // Prefer real-time coordinates when available; fallback to API snapshot.
+    final driverLat = _driverLat ?? detail.driverLatitude;
+    final driverLng = _driverLng ?? detail.driverLongitude;
+    final driverUpdatedAt = _driverUpdatedAt ?? detail.driverLocationUpdatedAt;
 
     return LayoutBuilder(
       builder: (context, constraints) {
         return Stack(
           children: [
             Positioned.fill(
-              child: TrackingMapSection(
-                dropoffAddress: order.deliveryAddress,
-                pickupLatitude: detail.pickupLatitude,
-                pickupLongitude: detail.pickupLongitude,
-                dropoffLatitude: detail.dropoffLatitude,
-                dropoffLongitude: detail.dropoffLongitude,
-                driverLatitude: detail.driverLatitude,
-                driverLongitude: detail.driverLongitude,
-                driverLocationUpdatedAt: detail.driverLocationUpdatedAt,
-                height: constraints.maxHeight,
-                borderRadius: 0,
-                showLegend: true,
-              ),
+              child: shouldShowTrackingMap
+                  ? TrackingMapSection(
+                      dropoffAddress: order.deliveryAddress,
+                      pickupLatitude: detail.pickupLatitude,
+                      pickupLongitude: detail.pickupLongitude,
+                      dropoffLatitude: detail.dropoffLatitude,
+                      dropoffLongitude: detail.dropoffLongitude,
+                      driverLatitude: driverLat,
+                      driverLongitude: driverLng,
+                      driverLocationUpdatedAt: driverUpdatedAt,
+                      height: constraints.maxHeight,
+                      borderRadius: 0,
+                      showLegend: true,
+                    )
+                  : const ColoredBox(color: AppColors.background),
             ),
             DraggableScrollableSheet(
               initialChildSize: 0.35,
@@ -261,10 +387,45 @@ class TrackOrderScreen extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: 10),
+                      // Live indicator badge
+                      if (shouldShowTrackingMap && _driverLat != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: Colors.green.withValues(alpha: 0.4),
+                              ),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.circle,
+                                    size: 8, color: Colors.green),
+                                SizedBox(width: 6),
+                                Text(
+                                  'LIVE: posisi driver diperbarui',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.green,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       Expanded(
                         child: ListView(
                           controller: scrollController,
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                          padding:
+                              const EdgeInsets.fromLTRB(16, 0, 16, 32),
                           children: [
                             _buildHeaderCard(order),
                             const SizedBox(height: 12),
@@ -276,11 +437,12 @@ class TrackOrderScreen extends ConsumerWidget {
                                 _infoRow('Status', order.statusLabel),
                                 _infoRow(
                                   'Total',
-                                  _formatCurrency(order.totalAmount),
+                                  formatCurrency(order.totalAmount),
                                 ),
                                 _infoRow(
                                   'ETA',
-                                  _estimateArrivalText(order.estimatedDelivery),
+                                  _estimateArrivalText(
+                                      order.estimatedDelivery),
                                 ),
                                 if ((detail.deliveryDistanceText ?? '')
                                     .trim()
@@ -308,6 +470,30 @@ class TrackOrderScreen extends ConsumerWidget {
                             _buildInfoCard(
                               title: 'Timeline Status',
                               children: [
+                                if (isRide && !shouldShowTrackingMap)
+                                  Container(
+                                    width: double.infinity,
+                                    margin: const EdgeInsets.only(bottom: 10),
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary.withValues(
+                                        alpha: 0.08,
+                                      ),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: AppColors.primary.withValues(
+                                          alpha: 0.2,
+                                        ),
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Tracking peta hanya tersedia saat driver ditugaskan.',
+                                      style: TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
                                 if (detail.timeline.isEmpty)
                                   const Text(
                                     'Belum ada update status.',
@@ -318,21 +504,19 @@ class TrackOrderScreen extends ConsumerWidget {
                                 else
                                   for (final item in detail.timeline)
                                     Padding(
-                                      padding: const EdgeInsets.only(
-                                        bottom: 10,
-                                      ),
+                                      padding:
+                                          const EdgeInsets.only(bottom: 10),
                                       child: Row(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
                                           Container(
                                             margin: const EdgeInsets.only(
-                                              top: 4,
-                                            ),
+                                                top: 4),
                                             width: 10,
                                             height: 10,
                                             decoration: BoxDecoration(
-                                              color: _statusColor(item.code),
+                                              color: orderStatusColor(item.code),
                                               shape: BoxShape.circle,
                                             ),
                                           ),
@@ -347,16 +531,16 @@ class TrackOrderScreen extends ConsumerWidget {
                                                   style: const TextStyle(
                                                     color:
                                                         AppColors.textPrimary,
-                                                    fontWeight: FontWeight.w700,
+                                                    fontWeight:
+                                                        FontWeight.w700,
                                                   ),
                                                 ),
                                                 Text(
-                                                  _formatDateTime(
-                                                    item.changedAt,
-                                                  ),
+                                                  formatDateTime(
+                                                      item.changedAt),
                                                   style: const TextStyle(
-                                                    color:
-                                                        AppColors.textSecondary,
+                                                    color: AppColors
+                                                        .textSecondary,
                                                     fontSize: 12,
                                                   ),
                                                 ),
@@ -368,9 +552,7 @@ class TrackOrderScreen extends ConsumerWidget {
                                     ),
                               ],
                             ),
-                            if ((detail.driverName ?? '')
-                                .trim()
-                                .isNotEmpty) ...[
+                            if ((detail.driverName ?? '').trim().isNotEmpty) ...[
                               const SizedBox(height: 12),
                               _buildInfoCard(
                                 title: 'Driver',
@@ -427,12 +609,13 @@ class TrackOrderScreen extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: _statusColor(order.statusCode).withValues(alpha: 0.12),
+              color:
+                  orderStatusColor(order.statusCode).withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
-              _serviceTypeIcon(order.serviceTypeCode),
-              color: _statusColor(order.statusCode),
+              serviceTypeLeadingIcon(order.serviceTypeCode),
+              color: orderStatusColor(order.statusCode),
             ),
           ),
           const SizedBox(width: 12),
@@ -452,7 +635,7 @@ class TrackOrderScreen extends ConsumerWidget {
                 Text(
                   order.statusLabel,
                   style: TextStyle(
-                    color: _statusColor(order.statusCode),
+                    color: orderStatusColor(order.statusCode),
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -525,77 +708,16 @@ class TrackOrderScreen extends ConsumerWidget {
   }
 
   String _estimateArrivalText(DateTime? estimatedDelivery) {
-    if (estimatedDelivery == null) {
-      return '-';
-    }
+    if (estimatedDelivery == null) return '-';
 
     final diff = estimatedDelivery.toLocal().difference(DateTime.now());
-    if (diff.inMinutes <= 0) {
-      return 'Segera tiba';
-    }
-
-    if (diff.inMinutes < 60) {
-      return '${diff.inMinutes} menit lagi';
-    }
+    if (diff.inMinutes <= 0) return 'Segera tiba';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} menit lagi';
 
     final hours = diff.inHours;
     final minutes = diff.inMinutes % 60;
-
-    if (minutes == 0) {
-      return '$hours jam lagi';
-    }
-
+    if (minutes == 0) return '$hours jam lagi';
     return '$hours jam $minutes menit lagi';
   }
 
-  Color _statusColor(String code) {
-    switch (code.toUpperCase()) {
-      case 'COMPLETED':
-      case 'DELIVERED':
-        return AppColors.success;
-      case 'CANCELLED':
-      case 'CANCELLED_WITH_FEE':
-        return AppColors.error;
-      default:
-        return AppColors.primary;
-    }
-  }
-
-  IconData _serviceTypeIcon(String code) {
-    switch (code.toUpperCase()) {
-      case 'RIDE':
-        return Icons.directions_bike_outlined;
-      case 'COURIER':
-        return Icons.local_shipping_outlined;
-      case 'SHOPPING':
-        return Icons.shopping_bag_outlined;
-      default:
-        return Icons.local_shipping_outlined;
-    }
-  }
-
-  String _formatCurrency(double value) {
-    final whole = value.round().toString();
-    final withDots = whole.replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-      (match) => '.',
-    );
-
-    return 'Rp $withDots';
-  }
-
-  String _formatDateTime(DateTime? value) {
-    if (value == null) {
-      return '-';
-    }
-
-    final local = value.toLocal();
-    final day = local.day.toString().padLeft(2, '0');
-    final month = local.month.toString().padLeft(2, '0');
-    final year = local.year.toString();
-    final hour = local.hour.toString().padLeft(2, '0');
-    final minute = local.minute.toString().padLeft(2, '0');
-
-    return '$day/$month/$year $hour:$minute';
-  }
 }

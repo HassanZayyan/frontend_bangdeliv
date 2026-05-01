@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../config/app_colors.dart';
 import '../models/customer_order_model.dart';
+import '../utils/order_formatters.dart';
+import '../utils/order_ui_helpers.dart';
+import '../utils/service_type.dart';
 
 class CustomerOrderCard extends StatelessWidget {
   const CustomerOrderCard({
@@ -27,8 +30,8 @@ class CustomerOrderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = _statusColor(order);
-    final serviceCode = order.serviceTypeCode.toUpperCase();
+    final statusColor = orderStatusColor(order.statusCode);
+    final serviceCode = normalizeServiceTypeCode(order.serviceTypeCode);
     final hideItemsSummary =
         serviceCode == 'RIDE' &&
         order.itemsSummary.trim().toLowerCase() == 'tanpa item';
@@ -73,7 +76,7 @@ class CustomerOrderCard extends StatelessWidget {
                   border: Border.all(color: AppColors.border),
                 ),
                 child: Icon(
-                  _serviceTypeLeadingIcon(serviceCode),
+                  serviceTypeLeadingIcon(serviceCode),
                   size: 18,
                   color: AppColors.primary,
                 ),
@@ -122,7 +125,7 @@ class CustomerOrderCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _formatCurrency(order.totalAmount),
+                      formatCurrency(order.totalAmount),
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -131,7 +134,7 @@ class CustomerOrderCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      _formatDateTime(order.createdAt),
+                      formatDateTime(order.createdAt),
                       style: const TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 12,
@@ -217,7 +220,7 @@ class CustomerOrderCard extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(_statusIcon(order), size: 12, color: statusColor),
+          Icon(orderStatusIcon(order.statusCode), size: 12, color: statusColor),
           const SizedBox(width: 4),
           Text(
             order.statusLabel,
@@ -243,7 +246,7 @@ class CustomerOrderCard extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(_serviceTypeIcon(order.serviceTypeCode), size: 14),
+          Icon(serviceTypeIcon(order.serviceTypeCode), size: 14),
           const SizedBox(width: 6),
           Text(
             order.serviceTypeLabel,
@@ -258,78 +261,4 @@ class CustomerOrderCard extends StatelessWidget {
     );
   }
 
-  Color _statusColor(CustomerOrderSummaryModel order) {
-    if (order.isCompleted) {
-      return AppColors.success;
-    }
-
-    if (order.isCancelled) {
-      return AppColors.error;
-    }
-
-    return AppColors.primary;
-  }
-
-  IconData _statusIcon(CustomerOrderSummaryModel order) {
-    if (order.isCompleted) {
-      return Icons.check;
-    }
-
-    if (order.isCancelled) {
-      return Icons.close;
-    }
-
-    return Icons.delivery_dining;
-  }
-
-  IconData _serviceTypeIcon(String code) {
-    switch (code.toUpperCase()) {
-      case 'RIDE':
-        return Icons.route;
-      case 'COURIER':
-        return Icons.local_shipping_outlined;
-      case 'SHOPPING':
-        return Icons.shopping_bag_outlined;
-      default:
-        return Icons.widgets_outlined;
-    }
-  }
-
-  IconData _serviceTypeLeadingIcon(String code) {
-    switch (code) {
-      case 'RIDE':
-        return Icons.directions_bike_outlined;
-      case 'COURIER':
-        return Icons.local_shipping_outlined;
-      case 'SHOPPING':
-        return Icons.shopping_bag_outlined;
-      default:
-        return Icons.widgets_outlined;
-    }
-  }
-
-  String _formatCurrency(double value) {
-    final whole = value.round().toString();
-    final withDots = whole.replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-      (match) => '.',
-    );
-
-    return 'Rp $withDots';
-  }
-
-  String _formatDateTime(DateTime? value) {
-    if (value == null) {
-      return '-';
-    }
-
-    final local = value.toLocal();
-    final day = local.day.toString().padLeft(2, '0');
-    final month = local.month.toString().padLeft(2, '0');
-    final year = local.year.toString();
-    final hour = local.hour.toString().padLeft(2, '0');
-    final minute = local.minute.toString().padLeft(2, '0');
-
-    return '$day/$month/$year $hour:$minute';
-  }
 }

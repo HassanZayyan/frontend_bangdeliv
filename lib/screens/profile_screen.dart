@@ -7,6 +7,7 @@ import '../config/app_routes.dart';
 import '../models/user_profile_model.dart';
 import '../providers/auth_session_provider.dart';
 import '../services/auth_service.dart';
+import '../utils/order_formatters.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -131,7 +132,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           thickness: 1,
                         ),
                         _buildStatItem(
-                          _formatCurrency(profile.stats.totalPaid),
+                          formatCurrency(profile.stats.totalPaid),
                           'Total Bayar',
                         ),
                         VerticalDivider(
@@ -434,21 +435,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  String _formatCurrency(double amount) {
-    final value = amount.round();
-    final raw = value.toString();
-    final buffer = StringBuffer();
-
-    for (int i = 0; i < raw.length; i++) {
-      final reverseIndex = raw.length - i;
-      buffer.write(raw[i]);
-      if (reverseIndex > 1 && reverseIndex % 3 == 1) {
-        buffer.write('.');
-      }
-    }
-
-    return 'Rp $buffer';
-  }
 }
 
 class _ProfileErrorView extends StatelessWidget {
