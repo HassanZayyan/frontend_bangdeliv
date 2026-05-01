@@ -120,8 +120,15 @@ class _FakeDriverOrderService extends DriverOrderService {
   });
 
   @override
-  Future<DriverOrdersPayload> fetchOrders() async {
+  Future<DriverOrdersPayload> fetchOrders({bool fallbackToMock = true}) async {
     return payload;
+  }
+
+  @override
+  Future<DriverOrderModel> fetchOrderDetail(String orderId) async {
+    return payload.incoming
+        .followedBy(payload.running)
+        .firstWhere((order) => order.id == orderId);
   }
 
   @override
@@ -140,7 +147,9 @@ class _FakeDriverOrderService extends DriverOrderService {
   }
 
   @override
-  Future<List<DriverHistoryOrderModel>> fetchHistory() async {
+  Future<List<DriverHistoryOrderModel>> fetchHistory({
+    bool fallbackToMock = true,
+  }) async {
     return const <DriverHistoryOrderModel>[];
   }
 }
@@ -163,6 +172,8 @@ AuthSessionState _driverSession(int userId) {
       name: 'Driver $userId',
       phone: '08234$userId',
       email: 'driver$userId@example.com',
+      avatar: null,
+      avatarUrl: null,
       role: 'driver',
       driverProfile: const DriverProfileModel(
         registrationStatus: 'active',

@@ -5,13 +5,21 @@ import '../models/chatbot_model.dart';
 import 'auth_session_provider.dart';
 import 'api_providers.dart';
 
-enum ChatbotMessageActionType { openAddresses, openMapPicker }
+enum ChatbotMessageActionType {
+  openAddresses,
+  openMapPicker,
+  sendPresetMessage,
+  openTrackOrder,
+  openActivity,
+}
 
 class ChatbotMessageActionHint {
   const ChatbotMessageActionHint({
     required this.type,
     required this.label,
     this.target,
+    this.presetMessage,
+    this.orderId,
     this.initialLatitude,
     this.initialLongitude,
   });
@@ -19,6 +27,8 @@ class ChatbotMessageActionHint {
   final ChatbotMessageActionType type;
   final String label;
   final String? target;
+  final String? presetMessage;
+  final int? orderId;
   final double? initialLatitude;
   final double? initialLongitude;
 }
@@ -410,7 +420,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
   void onAddressBookUpdated({required String serviceType}) {
     _ensureService(serviceType);
 
-    if (serviceType != 'antar_jemput') {
+    if (serviceType != 'antar_jemput' && serviceType != 'kurir') {
       return;
     }
 
@@ -418,7 +428,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       return;
     }
 
-    final mapHints = _rideMapActionHints();
+    final mapHints = _serviceMapActionHints(serviceType);
     final lastAssistant = state.messages.isEmpty ? null : state.messages.last;
     if (lastAssistant != null &&
         !lastAssistant.isUser &&
@@ -430,8 +440,9 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       messages: <ChatbotConversationMessage>[
         ...state.messages,
         _botMessage(
-          text:
-              'Alamat jemput kamu sudah tersimpan. Sekarang pilih titik jemput dan tujuan lewat tombol di bawah, atau tetap kirim lewat chat.',
+          text: serviceType == 'kurir'
+              ? 'Alamat ambil kamu sudah tersimpan. Sekarang pilih titik ambil dan tujuan lewat tombol di bawah, atau tetap kirim lewat chat.'
+              : 'Alamat jemput kamu sudah tersimpan. Sekarang pilih titik jemput dan tujuan lewat tombol di bawah, atau tetap kirim lewat chat.',
           timestamp: _nowLabel(),
           actionHints: mapHints,
         ),
@@ -519,7 +530,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     ChatbotResult result,
   ) {
     if (result.isOrderCreated) {
-      return const <ChatbotMessageActionHint>[];
+      return _orderCreatedActionHints(result);
     }
 
     final validation = result.validation;
@@ -575,7 +586,16 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     final seen = <String>{};
 
     void add(ChatbotMessageActionHint hint) {
-      final key = '${hint.type.name}:${hint.target ?? '-'}';
+      final key = switch (hint.type) {
+        ChatbotMessageActionType.openMapPicker =>
+          '${hint.type.name}:${hint.target ?? '-'}',
+        ChatbotMessageActionType.sendPresetMessage =>
+          '${hint.type.name}:${hint.presetMessage ?? hint.label}',
+        ChatbotMessageActionType.openAddresses => '${hint.type.name}:${hint.label}',
+        ChatbotMessageActionType.openTrackOrder =>
+          '${hint.type.name}:${hint.orderId ?? '-'}',
+        ChatbotMessageActionType.openActivity => '${hint.type.name}:${hint.label}',
+      };
       if (seen.add(key)) {
         hints.add(hint);
       }
@@ -638,7 +658,83 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       );
     }
 
+    if (nextActions.contains('CONFIRM_DRAFT')) {
+      add(
+        _presetMessageHintFromPayload(
+          actionPayloads,
+          'CONFIRM_DRAFT',
+          fallbackLabel: 'Konfirmasi',
+          fallbackMessage: 'Konfirmasi',
+        ),
+      );
+    }
+
+    if (nextActions.contains('RESET_DESTINATION')) {
+      add(
+        _presetMessageHintFromPayload(
+          actionPayloads,
+          'RESET_DESTINATION',
+          fallbackLabel: 'Ubah Tujuan',
+          fallbackMessage: 'Ubah Tujuan',
+        ),
+      );
+    }
+
+    // Optional — shown on completed draft so user can swap pickup without
+    // being forced to; backend sends this when pickup is already set.
+    if (nextActions.contains('CHANGE_PICKUP')) {
+      add(
+        _mapPickerHintFromPayload(
+          actionPayloads,
+          'CHANGE_PICKUP',
+          fallbackTarget: 'pickup',
+          fallbackLabel: 'Ubah Titik Jemput',
+        ),
+      );
+    }
+
     return hints;
+  }
+
+  List<ChatbotMessageActionHint> _orderCreatedActionHints(ChatbotResult result) {
+    final hints = <ChatbotMessageActionHint>[
+      ChatbotMessageActionHint(
+        type: ChatbotMessageActionType.openTrackOrder,
+        label: 'Lacak Pesanan',
+        orderId: result.createdOrderId,
+      ),
+      const ChatbotMessageActionHint(
+        type: ChatbotMessageActionType.openActivity,
+        label: 'Lihat Aktivitas',
+      ),
+    ];
+
+    return hints;
+  }
+
+  ChatbotMessageActionHint _presetMessageHintFromPayload(
+    Map<String, dynamic>? actionPayloads,
+    String actionKey, {
+    required String fallbackLabel,
+    required String fallbackMessage,
+  }) {
+    final payload = actionPayloads?[actionKey];
+    final payloadMap = payload is Map<String, dynamic>
+        ? payload
+        : <String, dynamic>{};
+
+    final label = (payloadMap['label']?.toString().trim() ?? '').isEmpty
+        ? fallbackLabel
+        : payloadMap['label'].toString().trim();
+    final message = (payloadMap['message']?.toString().trim() ?? '').isEmpty
+        ? fallbackMessage
+        : payloadMap['message'].toString().trim();
+
+    return ChatbotMessageActionHint(
+      type: ChatbotMessageActionType.sendPresetMessage,
+      label: label,
+      presetMessage: message,
+    );
   }
 
   ChatbotMessageActionHint _mapPickerHintFromPayload(
@@ -680,7 +776,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
   }
 
   List<ChatbotMessageActionHint> _bootstrapActionHints(String serviceType) {
-    if (serviceType != 'antar_jemput') {
+    if (serviceType != 'antar_jemput' && serviceType != 'kurir') {
       return const <ChatbotMessageActionHint>[];
     }
 
@@ -698,7 +794,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       return hints;
     }
 
-    hints.addAll(_rideMapActionHints());
+    hints.addAll(_serviceMapActionHints(serviceType));
 
     return hints;
   }
@@ -710,7 +806,22 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     return addresses.any((item) => item.fullAddress.trim().isNotEmpty);
   }
 
-  List<ChatbotMessageActionHint> _rideMapActionHints() {
+  List<ChatbotMessageActionHint> _serviceMapActionHints(String serviceType) {
+    if (serviceType == 'kurir') {
+      return const <ChatbotMessageActionHint>[
+        ChatbotMessageActionHint(
+          type: ChatbotMessageActionType.openMapPicker,
+          label: 'Pilih Titik Ambil',
+          target: 'pickup',
+        ),
+        ChatbotMessageActionHint(
+          type: ChatbotMessageActionType.openMapPicker,
+          label: 'Pilih Titik Tujuan',
+          target: 'dropoff',
+        ),
+      ];
+    }
+
     return const <ChatbotMessageActionHint>[
       ChatbotMessageActionHint(
         type: ChatbotMessageActionType.openMapPicker,
@@ -734,10 +845,16 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     }
 
     final currentKeys = current
-        .map((item) => '${item.type.name}:${item.target ?? '-'}:${item.label}')
+      .map(
+        (item) =>
+          '${item.type.name}:${item.target ?? '-'}:${item.presetMessage ?? '-'}:${item.orderId ?? '-'}:${item.label}',
+      )
         .toSet();
     final incomingKeys = incoming
-        .map((item) => '${item.type.name}:${item.target ?? '-'}:${item.label}')
+      .map(
+        (item) =>
+          '${item.type.name}:${item.target ?? '-'}:${item.presetMessage ?? '-'}:${item.orderId ?? '-'}:${item.label}',
+      )
         .toSet();
 
     return currentKeys.length == incomingKeys.length &&

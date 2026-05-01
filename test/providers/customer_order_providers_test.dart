@@ -144,6 +144,8 @@ AuthSessionState _customerSession(int userId) {
       name: 'Customer $userId',
       phone: '08123$userId',
       email: 'customer$userId@example.com',
+      avatar: null,
+      avatarUrl: null,
       role: 'customer',
       driverProfile: null,
       stats: const UserStatsModel(totalOrders: 0, totalPaid: 0, rating: 0),
@@ -159,6 +161,8 @@ AuthSessionState _driverSession(int userId) {
       name: 'Driver $userId',
       phone: '08234$userId',
       email: 'driver$userId@example.com',
+      avatar: null,
+      avatarUrl: null,
       role: 'driver',
       driverProfile: const DriverProfileModel(
         registrationStatus: 'active',

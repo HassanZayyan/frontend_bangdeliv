@@ -115,6 +115,10 @@ class AuthSessionNotifier extends Notifier<AuthSessionState> {
     await refreshSession();
   }
 
+  void syncProfile(UserProfileModel profile) {
+    state = AuthSessionState.fromProfile(profile);
+  }
+
   Future<void> refreshSession() async {
     bool hasToken = false;
     try {

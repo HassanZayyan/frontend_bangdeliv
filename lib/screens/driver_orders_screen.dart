@@ -2,12 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../config/app_colors.dart';
+import '../config/app_routes.dart';
 import '../models/driver_order_model.dart';
 import '../providers/driver_order_providers.dart';
 import '../utils/order_formatters.dart';
-import 'driver_order_detail_screen.dart';
 
 class DriverOrdersScreen extends ConsumerStatefulWidget {
   const DriverOrdersScreen({super.key});
@@ -81,7 +82,10 @@ class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen> {
                         orders: data.incoming,
                         processingOrderIds: data.processingOrderIds,
                       ),
-                      _RunningOrdersTab(orders: data.running),
+                      _RunningOrdersTab(
+                        orders: data.running,
+                        isMockMode: data.isMockData,
+                      ),
                     ],
                   ),
                 ),
@@ -187,8 +191,9 @@ class _IncomingOrdersTab extends ConsumerWidget {
 
 class _RunningOrdersTab extends ConsumerWidget {
   final List<DriverOrderModel> orders;
+  final bool isMockMode;
 
-  const _RunningOrdersTab({required this.orders});
+  const _RunningOrdersTab({required this.orders, this.isMockMode = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -209,36 +214,44 @@ class _RunningOrdersTab extends ConsumerWidget {
         separatorBuilder: (context, index) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
           final order = orders[index];
-          return GestureDetector(
-            onTap: () {
-               Navigator.of(context).push(
-                 MaterialPageRoute(
-                   builder: (_) => DriverOrderDetailScreen(orderId: order.id),
-                 ),
-               );
-            },
-            child: _OrderCard(
-              order: order,
-              isIncoming: false,
-              onNavigate: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => DriverOrderDetailScreen(orderId: order.id),
-                  ),
-                );
-              },
-              onContact: () {
+          return _OrderCard(
+            order: order,
+            isIncoming: false,
+            onNavigate: () {
+              if (isMockMode || !_isServerOrderId(order.id)) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Fitur hubungi customer akan disambungkan.'),
+                    content: Text(
+                      'Detail order tidak tersedia karena data masih mode demo.',
+                    ),
+                    backgroundColor: AppColors.primaryDark,
                   ),
                 );
-              },
-            ),
+                return;
+              }
+
+              context.go(AppRoutes.driverOrderActivePath(order.id));
+            },
+            onContact: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    order.customerPhone == null ||
+                            order.customerPhone!.trim().isEmpty
+                        ? 'Nomor customer belum tersedia.'
+                        : 'Hubungi customer: ${order.customerPhone}',
+                  ),
+                ),
+              );
+            },
           );
         },
       ),
     );
+  }
+
+  bool _isServerOrderId(String orderId) {
+    return RegExp(r'^\d+$').hasMatch(orderId.trim());
   }
 }
 
@@ -318,6 +331,28 @@ class _OrderCard extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
+          if (order.serviceTypeCode.isNotEmpty ||
+              order.statusCode.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                if (order.serviceTypeCode.isNotEmpty)
+                  _metaChip(
+                    order.serviceTypeCode.toUpperCase(),
+                    AppColors.primary.withValues(alpha: 0.1),
+                    AppColors.primaryDark,
+                  ),
+                if (order.statusCode.isNotEmpty)
+                  _metaChip(
+                    order.statusDisplayName ?? order.statusCode,
+                    AppColors.success.withValues(alpha: 0.12),
+                    AppColors.success,
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 8),
           _addressLine(Icons.storefront_outlined, order.pickupAddress),
           const SizedBox(height: 6),
@@ -370,7 +405,7 @@ class _OrderCard extends StatelessWidget {
                   child: OutlinedButton.icon(
                     onPressed: onNavigate,
                     icon: const Icon(Icons.navigation_outlined, size: 18),
-                    label: const Text('Navigasi'),
+                    label: const Text('Detail Proses'),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -408,6 +443,23 @@ class _OrderCard extends StatelessWidget {
     );
   }
 
+  Widget _metaChip(String text, Color background, Color foreground) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(100),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: foreground,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
 }
 
 class _EmptyOrderState extends StatelessWidget {

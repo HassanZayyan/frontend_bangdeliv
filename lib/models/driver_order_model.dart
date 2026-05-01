@@ -1,15 +1,191 @@
 import '../utils/order_status.dart';
 import '../utils/service_type.dart';
 
-/// Represents a single action available to the driver, as returned by the backend.
-class DriverOrderAction {
+typedef DriverOrderAction = DriverOrderActionModel;
+
+class DriverOrderModel {
+  final String id;
+  final String orderNumber;
+  final String customerName;
+  final String? customerPhone;
+  final String serviceTypeCode;
+  final String? serviceTypeName;
+  final String pickupAddress;
+  final double? pickupLatitude;
+  final double? pickupLongitude;
+  final String dropoffAddress;
+  final double? dropoffLatitude;
+  final double? dropoffLongitude;
+  final int etaMinutes;
+  final int fee;
+  final double totalPrice;
+  final int itemCount;
+  final String statusCode;
+  final String? statusDisplayName;
+  final String paymentStatus;
+  final String paymentMethod;
+  final String? notes;
+  final String? acceptedAt;
+  final List<DriverOrderActionModel> availableActions;
+  final List<DriverOrderTimelineItemModel> statusTimeline;
+
+  const DriverOrderModel({
+    required this.id,
+    this.orderNumber = '',
+    required this.customerName,
+    this.customerPhone,
+    this.serviceTypeCode = ServiceTypeCodes.unknown,
+    this.serviceTypeName,
+    required this.pickupAddress,
+    this.pickupLatitude,
+    this.pickupLongitude,
+    required this.dropoffAddress,
+    this.dropoffLatitude,
+    this.dropoffLongitude,
+    required this.etaMinutes,
+    required this.fee,
+    this.totalPrice = 0,
+    required this.itemCount,
+    this.statusCode = OrderStatusCodes.pending,
+    this.statusDisplayName,
+    this.paymentStatus = 'unpaid',
+    this.paymentMethod = 'COD',
+    this.notes,
+    this.acceptedAt,
+    this.availableActions = const <DriverOrderActionModel>[],
+    this.statusTimeline = const <DriverOrderTimelineItemModel>[],
+  });
+
+  DriverOrderModel copyWith({
+    String? acceptedAt,
+    String? statusCode,
+    String? statusDisplayName,
+    String? paymentStatus,
+    List<DriverOrderActionModel>? availableActions,
+    List<DriverOrderTimelineItemModel>? statusTimeline,
+  }) {
+    return DriverOrderModel(
+      id: id,
+      orderNumber: orderNumber,
+      customerName: customerName,
+      customerPhone: customerPhone,
+      serviceTypeCode: serviceTypeCode,
+      serviceTypeName: serviceTypeName,
+      pickupAddress: pickupAddress,
+      pickupLatitude: pickupLatitude,
+      pickupLongitude: pickupLongitude,
+      dropoffAddress: dropoffAddress,
+      dropoffLatitude: dropoffLatitude,
+      dropoffLongitude: dropoffLongitude,
+      etaMinutes: etaMinutes,
+      fee: fee,
+      totalPrice: totalPrice,
+      itemCount: itemCount,
+      statusCode: statusCode ?? this.statusCode,
+      statusDisplayName: statusDisplayName ?? this.statusDisplayName,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
+      paymentMethod: paymentMethod,
+      notes: notes,
+      acceptedAt: acceptedAt ?? this.acceptedAt,
+      availableActions: availableActions ?? this.availableActions,
+      statusTimeline: statusTimeline ?? this.statusTimeline,
+    );
+  }
+
+  factory DriverOrderModel.fromJson(Map<String, dynamic> json) {
+    final actions = (json['available_actions'] is List)
+        ? (json['available_actions'] as List<dynamic>)
+            .whereType<Map<String, dynamic>>()
+            .map(DriverOrderActionModel.fromJson)
+            .toList(growable: false)
+        : const <DriverOrderActionModel>[];
+
+    final timeline = (json['status_timeline'] is List)
+        ? (json['status_timeline'] as List<dynamic>)
+            .whereType<Map<String, dynamic>>()
+            .map(DriverOrderTimelineItemModel.fromJson)
+            .toList(growable: false)
+        : const <DriverOrderTimelineItemModel>[];
+
+    return DriverOrderModel(
+      id: (json['id'] ?? '').toString(),
+      orderNumber: (json['order_number'] ?? json['orderNumber'] ?? '')
+          .toString(),
+      customerName: (json['customer_name'] ?? json['customerName'] ?? '-')
+          .toString(),
+      customerPhone:
+          (json['customer_phone'] ?? json['customerPhone'])?.toString(),
+      serviceTypeCode: normalizeServiceTypeCode(
+        (json['service_type_code'] ?? json['serviceTypeCode'] ?? '').toString(),
+      ),
+      serviceTypeName:
+          (json['service_type_name'] ?? json['serviceTypeName'])?.toString(),
+      pickupAddress: (json['pickup_address'] ?? json['pickupAddress'] ?? '-')
+          .toString(),
+      pickupLatitude: _asDoubleOrNull(
+        json['pickup_latitude'] ?? json['pickupLatitude'],
+      ),
+      pickupLongitude: _asDoubleOrNull(
+        json['pickup_longitude'] ?? json['pickupLongitude'],
+      ),
+      dropoffAddress: (json['dropoff_address'] ?? json['dropoffAddress'] ?? '-')
+          .toString(),
+      dropoffLatitude: _asDoubleOrNull(
+        json['dropoff_latitude'] ?? json['dropoffLatitude'],
+      ),
+      dropoffLongitude: _asDoubleOrNull(
+        json['dropoff_longitude'] ?? json['dropoffLongitude'],
+      ),
+      etaMinutes: _asInt(json['eta_minutes'] ?? json['etaMinutes'], fallback: 0),
+      fee: _asInt(json['fee'], fallback: 0),
+      totalPrice: _asDouble(json['total_price'] ?? json['totalPrice']),
+      itemCount: _asInt(json['item_count'] ?? json['itemCount'], fallback: 0),
+      statusCode: normalizeOrderStatusCode(
+        (json['status_code'] ?? json['statusCode'] ?? json['status'] ?? '')
+            .toString(),
+      ),
+      statusDisplayName:
+          (json['status_display_name'] ?? json['statusDisplayName'])
+              ?.toString(),
+      paymentStatus:
+          (json['payment_status'] ?? json['paymentStatus'] ?? 'unpaid')
+              .toString(),
+      paymentMethod:
+          (json['payment_method'] ?? json['paymentMethod'] ?? 'COD').toString(),
+      notes: json['notes']?.toString(),
+      acceptedAt:
+          json['accepted_at']?.toString() ?? json['acceptedAt']?.toString(),
+      availableActions: actions,
+      statusTimeline: timeline,
+    );
+  }
+
+  static int _asInt(dynamic value, {required int fallback}) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
+  static double _asDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static double? _asDoubleOrNull(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
+  }
+}
+
+class DriverOrderActionModel {
   final String actionCode;
   final String label;
   final String? targetStatusCode;
   final bool blocked;
   final String? blockedReason;
 
-  const DriverOrderAction({
+  const DriverOrderActionModel({
     required this.actionCode,
     required this.label,
     this.targetStatusCode,
@@ -17,127 +193,55 @@ class DriverOrderAction {
     this.blockedReason,
   });
 
-  factory DriverOrderAction.fromJson(Map<String, dynamic> json) {
-    return DriverOrderAction(
-      actionCode: normalizeOrderStatusCode(json['action_code']?.toString()),
-      label: (json['label'] ?? json['action_code'] ?? '-').toString(),
-      targetStatusCode: json['target_status_code']?.toString(),
+  bool get isCodCollection => actionCode.toUpperCase() == 'COLLECT_COD';
+
+  factory DriverOrderActionModel.fromJson(Map<String, dynamic> json) {
+    return DriverOrderActionModel(
+      actionCode: (json['action_code'] ?? json['actionCode'] ?? '').toString(),
+      label: (json['label'] ?? json['action_code'] ?? 'Aksi').toString(),
+      targetStatusCode:
+          (json['target_status_code'] ?? json['targetStatusCode'])
+              ?.toString(),
       blocked: json['blocked'] == true,
-      blockedReason: json['blocked_reason']?.toString(),
+      blockedReason:
+          (json['blocked_reason'] ?? json['blockedReason'])?.toString(),
     );
   }
 }
 
-class DriverOrderModel {
-  final String id;
-  final String customerName;
-  final String pickupAddress;
-  final String dropoffAddress;
-  final double? dropoffLatitude;
-  final double? dropoffLongitude;
-  final int etaMinutes;
-  final int fee;
-  final int itemCount;
-  final String? acceptedAt;
+class DriverOrderTimelineItemModel {
   final String statusCode;
-  final String serviceTypeCode;
-  final List<DriverOrderAction> availableActions;
+  final String? statusDisplayName;
+  final String eventType;
+  final String? note;
+  final DateTime? createdAt;
 
-  const DriverOrderModel({
-    required this.id,
-    required this.customerName,
-    required this.pickupAddress,
-    required this.dropoffAddress,
-    this.dropoffLatitude,
-    this.dropoffLongitude,
-    required this.etaMinutes,
-    required this.fee,
-    required this.itemCount,
-    this.acceptedAt,
-    this.statusCode = 'UNKNOWN',
-    this.serviceTypeCode = '',
-    this.availableActions = const [],
+  const DriverOrderTimelineItemModel({
+    required this.statusCode,
+    required this.statusDisplayName,
+    required this.eventType,
+    required this.note,
+    required this.createdAt,
   });
 
-  DriverOrderModel copyWith({
-    String? acceptedAt,
-    String? statusCode,
-    List<DriverOrderAction>? availableActions,
-  }) {
-    return DriverOrderModel(
-      id: id,
-      customerName: customerName,
-      pickupAddress: pickupAddress,
-      dropoffAddress: dropoffAddress,
-      dropoffLatitude: dropoffLatitude,
-      dropoffLongitude: dropoffLongitude,
-      etaMinutes: etaMinutes,
-      fee: fee,
-      itemCount: itemCount,
-      acceptedAt: acceptedAt ?? this.acceptedAt,
-      statusCode: statusCode ?? this.statusCode,
-      serviceTypeCode: serviceTypeCode,
-      availableActions: availableActions ?? this.availableActions,
-    );
-  }
+  factory DriverOrderTimelineItemModel.fromJson(Map<String, dynamic> json) {
+    final createdAtRaw =
+        (json['created_at'] ?? json['createdAt'])?.toString();
 
-  factory DriverOrderModel.fromJson(Map<String, dynamic> json) {
-    final rawActions = json['available_actions'];
-    final actions = <DriverOrderAction>[];
-    if (rawActions is List) {
-      for (final item in rawActions) {
-        if (item is Map<String, dynamic>) {
-          actions.add(DriverOrderAction.fromJson(item));
-        }
-      }
-    }
-
-    return DriverOrderModel(
-      id: (json['id'] ?? '').toString(),
-      customerName: (json['customer_name'] ?? json['customerName'] ?? '-')
-          .toString(),
-      pickupAddress: (json['pickup_address'] ?? json['pickupAddress'] ?? '-')
-          .toString(),
-      dropoffAddress: (json['dropoff_address'] ?? json['dropoffAddress'] ?? '-')
-          .toString(),
-      dropoffLatitude: _asDouble(
-        json['dropoff_latitude'] ?? json['dropoffLatitude'],
-      ),
-      dropoffLongitude: _asDouble(
-        json['dropoff_longitude'] ?? json['dropoffLongitude'],
-      ),
-      etaMinutes: _asInt(
-        json['eta_minutes'] ?? json['etaMinutes'],
-        fallback: 0,
-      ),
-      fee: _asInt(json['fee'], fallback: 0),
-      itemCount: _asInt(json['item_count'] ?? json['itemCount'], fallback: 0),
-      acceptedAt:
-          json['accepted_at']?.toString() ?? json['acceptedAt']?.toString(),
+    return DriverOrderTimelineItemModel(
       statusCode: normalizeOrderStatusCode(
-        (json['status_code'] ?? json['status'] ?? 'UNKNOWN').toString(),
+        (json['status_code'] ?? json['statusCode'] ?? '').toString(),
       ),
-      serviceTypeCode: normalizeServiceTypeCode(
-        (json['service_type_code'] ?? '').toString(),
-      ),
-      availableActions: actions,
+      statusDisplayName:
+          (json['status_display_name'] ?? json['statusDisplayName'])
+              ?.toString(),
+      eventType: (json['event_type'] ?? json['eventType'] ?? 'STATUS_CHANGE')
+          .toString(),
+      note: json['note']?.toString(),
+      createdAt: createdAtRaw == null ? null : DateTime.tryParse(createdAtRaw),
     );
-  }
-
-  static int _asInt(dynamic value, {required int fallback}) {
-    if (value is int) return value;
-    return int.tryParse(value?.toString() ?? '') ?? fallback;
-  }
-
-  static double? _asDouble(dynamic value) {
-    if (value == null) return null;
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    return double.tryParse(value.toString());
   }
 }
-
-
 
 class DriverHistoryOrderModel {
   final String id;
@@ -171,6 +275,11 @@ class DriverHistoryOrderModel {
 class DriverOrdersPayload {
   final List<DriverOrderModel> incoming;
   final List<DriverOrderModel> running;
+  final bool isMockData;
 
-  const DriverOrdersPayload({required this.incoming, required this.running});
+  const DriverOrdersPayload({
+    required this.incoming,
+    required this.running,
+    this.isMockData = false,
+  });
 }

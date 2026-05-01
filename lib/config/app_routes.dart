@@ -4,6 +4,7 @@ class AppRoutes {
   static const String home = '/home';
   static const String driverHome = '/driver/home';
   static const String driverOrders = '/driver/orders';
+  static const String driverOrderActive = '/driver/orders/:orderId/active';
   static const String driverHistory = '/driver/history';
   static const String driverProfile = '/driver/profile';
   static const String driverVerificationStatus = '/driver/verification-status';
@@ -20,9 +21,23 @@ class AppRoutes {
   static const String notifications = '/notifications';
   static const String notificationSettings = '/notification-settings';
   static const String track = '/track';
+  static const String menuDetail = '/menu/:menuId';
+  static const String merchantDetail = '/merchant/:merchantId';
   static const String register = '/register';
   static const String registerDriver = '/register-driver';
   static const String registerSuccess = '/register-success';
   static const String forgotPassword = '/forgot-password';
   static const String privacyMapPreview = '/privacy-map-preview';
+
+  static String menuDetailPath(String menuId) {
+    return '/menu/$menuId';
+  }
+
+  static String merchantDetailPath(String merchantId) {
+    return '/merchant/$merchantId';
+  }
+
+  static String driverOrderActivePath(String orderId) {
+    return '/driver/orders/$orderId/active';
+  }
 }

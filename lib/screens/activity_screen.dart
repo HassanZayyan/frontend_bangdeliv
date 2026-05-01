@@ -18,8 +18,47 @@ class ActivityScreen extends ConsumerStatefulWidget {
 
 class _ActivityScreenState extends ConsumerState<ActivityScreen> {
   final Set<int> _cancellingOrderIds = <int>{};
+  bool _isOpeningRefresh = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _refreshOnOpen();
+    });
+  }
 
   bool _isCancelling(int orderId) => _cancellingOrderIds.contains(orderId);
+
+  Future<void> _refreshOnOpen() async {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isOpeningRefresh = true;
+    });
+
+    await _refreshOrders();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isOpeningRefresh = false;
+    });
+  }
+
+  Future<void> _refreshOrders() async {
+    ref.invalidate(customerOrdersProvider);
+
+    try {
+      await ref.read(customerOrdersProvider.future);
+    } catch (_) {
+      // Errors are surfaced by the provider state in UI.
+    }
+  }
 
   Future<void> _cancelOrder(CustomerOrderSummaryModel order) async {
     final reason = await _askCancelReason();
@@ -36,7 +75,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
           .read(customerOrderApiServiceProvider)
           .cancelOrder(order.id, reason: reason);
 
-      ref.invalidate(customerOrdersProvider);
+      await _refreshOrders();
       ref.invalidate(customerOrderDetailProvider(order.id));
 
       if (!mounted) {
@@ -67,37 +106,12 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
   }
 
   Future<String?> _askCancelReason() async {
-    final controller = TextEditingController(text: 'Perubahan rencana.');
-
-    final result = await showDialog<String>(
+    return showDialog<String>(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Batalkan Order'),
-          content: TextField(
-            controller: controller,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              hintText: 'Tulis alasan pembatalan',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Batal'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(dialogContext).pop(controller.text),
-              child: const Text('Konfirmasi'),
-            ),
-          ],
-        );
+        return const _CancelOrderDialog();
       },
     );
-
-    controller.dispose();
-    return result;
   }
 
   @override
@@ -132,7 +146,9 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
             ],
           ),
         ),
-        body: ordersAsync.when(
+        body: _isOpeningRefresh
+            ? const Center(child: CircularProgressIndicator())
+            : ordersAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, stackTrace) => Center(
             child: Padding(
@@ -147,7 +163,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton(
-                    onPressed: () => ref.invalidate(customerOrdersProvider),
+                    onPressed: _refreshOnOpen,
                     child: const Text('Coba Lagi'),
                   ),
                 ],
@@ -160,14 +176,17 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                 _buildOrderList(
                   allActivityOrders,
                   emptyMessage: 'Belum ada aktivitas order.',
+                  onRefresh: _refreshOrders,
                 ),
                 _buildOrderList(
                   ongoingOrders,
                   emptyMessage: 'Belum ada order yang sedang berjalan.',
+                  onRefresh: _refreshOrders,
                 ),
                 _buildOrderList(
                   cancelledOrders,
                   emptyMessage: 'Belum ada order dibatalkan.',
+                  onRefresh: _refreshOrders,
                 ),
               ],
             );
@@ -180,34 +199,100 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
   Widget _buildOrderList(
     List<CustomerOrderSummaryModel> orders, {
     required String emptyMessage,
+    required Future<void> Function() onRefresh,
   }) {
     if (orders.isEmpty) {
-      return Center(
-        child: Text(
-          emptyMessage,
-          style: const TextStyle(color: AppColors.textSecondary),
+      return RefreshIndicator(
+        onRefresh: onRefresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+          children: [
+            SizedBox(
+              height: 220,
+              child: Center(
+                child: Text(
+                  emptyMessage,
+                  style: const TextStyle(color: AppColors.textSecondary),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(20),
-      itemCount: orders.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 16),
-      itemBuilder: (context, index) {
-        final order = orders[index];
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(20),
+        itemCount: orders.length,
+        separatorBuilder: (context, index) => const SizedBox(height: 16),
+        itemBuilder: (context, index) {
+          final order = orders[index];
 
-        return CustomerOrderCard(
-          order: order,
-          showTrackAction: order.canTrack,
-          showCancelAction: order.canCancel,
-          isCancelling: _isCancelling(order.id),
-          onTrack: order.canTrack
-              ? () => context.push(AppRoutes.track, extra: order.id)
-              : null,
-          onCancel: order.canCancel ? () => _cancelOrder(order) : null,
-        );
-      },
+          return CustomerOrderCard(
+            order: order,
+            showTrackAction: order.canTrack,
+            showCancelAction: order.canCancel,
+            isCancelling: _isCancelling(order.id),
+            onTrack: order.canTrack
+                ? () => context.push(AppRoutes.track, extra: order.id)
+                : null,
+            onCancel: order.canCancel ? () => _cancelOrder(order) : null,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _CancelOrderDialog extends StatefulWidget {
+  const _CancelOrderDialog();
+
+  @override
+  State<_CancelOrderDialog> createState() => _CancelOrderDialogState();
+}
+
+class _CancelOrderDialogState extends State<_CancelOrderDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: 'Perubahan rencana.');
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Batalkan Order'),
+      content: TextField(
+        controller: _controller,
+        maxLines: 3,
+        decoration: const InputDecoration(
+          hintText: 'Tulis alasan pembatalan',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Batal'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text),
+          child: const Text('Konfirmasi'),
+        ),
+      ],
     );
   }
 }

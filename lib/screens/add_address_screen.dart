@@ -19,6 +19,318 @@ class AddAddressScreen extends ConsumerStatefulWidget {
 }
 
 class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
+  static const String _fixedProvince = 'Jawa Tengah';
+  static const Map<String, Map<String, Map<String, List<String>>>>
+  _coverageData = {
+    'Kota Salatiga': {
+      'Argomulyo': {
+        'Cebongan': ['50736'],
+        'Kumpulrejo': ['50734'],
+        'Ledok': ['50732'],
+        'Noborejo': ['50736'],
+        'Randuacir': ['50735'],
+        'Tegalrejo': ['50733'],
+      },
+      'Sidomukti': {
+        'Dukuh': ['50722'],
+        'Kalicacing': ['50724'],
+        'Kecandran': ['50723'],
+        'Mangunsari': ['50721'],
+      },
+      'Sidorejo': {
+        'Blotongan': ['50715'],
+        'Bugel': ['50713'],
+        'Kauman Kidul': ['50712'],
+        'Pulutan': ['50716'],
+        'Salatiga': ['50711'],
+        'Sidorejo Lor': ['50714'],
+      },
+      'Tingkir': {
+        'Gendongan': ['50743'],
+        'Kalibening': ['50744'],
+        'Kutowinangun Kidul': ['50742'],
+        'Kutowinangun Lor': ['50742'],
+        'Sidorejo Kidul': ['50741'],
+        'Tingkir Lor': ['50746'],
+        'Tingkir Tengah': ['50745'],
+      },
+    },
+    'Kabupaten Semarang': {
+      'Ambarawa': {
+        'Bejalen': ['50611'],
+        'Pasekan': ['50611'],
+        'Baran': ['50611'],
+        'Kranggan': ['50611'],
+        'Kupang': ['50611'],
+        'Lodoyong': ['50611'],
+        'Ngampin': ['50611'],
+        'Panjang': ['50611'],
+        'Pojoksari': ['50611'],
+        'Tambakboyo': ['50611'],
+      },
+      'Bancak': {
+        'Bancak': ['50182'],
+        'Bata': ['50182'],
+        'Jlumpang': ['50182'],
+        'Lembu': ['50182'],
+        'Plumutan': ['50182'],
+        'Pucung': ['50182'],
+        'Rejosari': ['50182'],
+        'Wonokerto': ['50182'],
+      },
+      'Bandungan': {
+        'Banyukuning': ['50614'],
+        'Candi': ['50614'],
+        'Duren': ['50614'],
+        'Jetis': ['50614'],
+        'Jimbaran': ['50614'],
+        'Kenteng': ['50614'],
+        'Mlilir': ['50614'],
+        'Pakopen': ['50614'],
+        'Sidomukti': ['50614'],
+        'Bandungan': ['50614'],
+      },
+      'Banyubiru': {
+        'Banyubiru': ['50664'],
+        'Gedong': ['50664'],
+        'Kebondowo': ['50664'],
+        'Kebumen': ['50664'],
+        'Kemambang': ['50664'],
+        'Ngrapah': ['50664'],
+        'Rowoboni': ['50664'],
+        'Sepakung': ['50664'],
+        'Tegaron': ['50664'],
+        'Wirogomo': ['50664'],
+      },
+      'Bawen': {
+        'Asinan': ['50661'],
+        'Doplang': ['50661'],
+        'Kandangan': ['50661'],
+        'Lemahireng': ['50661'],
+        'Polosiri': ['50661'],
+        'Poncoruso': ['50661'],
+        'Samban': ['50661'],
+        'Bawen': ['50661'],
+        'Harjosari': ['50661'],
+      },
+      'Bergas': {
+        'Bergas Kidul': ['50552'],
+        'Diwak': ['50552'],
+        'Gebugan': ['50552'],
+        'Gondoriyo': ['50552'],
+        'Jatijajar': ['50552'],
+        'Munding': ['50552'],
+        'Pagersari': ['50552'],
+        'Randugunting': ['50552'],
+        'Wringin Putih': ['50552'],
+        'Bergas Lor': ['50552'],
+        'Karangjati': ['50552'],
+        'Ngempon': ['50552'],
+        'Wujil': ['50552'],
+      },
+      'Bringin': {
+        'Banding': ['50772'],
+        'Bringin': ['50772'],
+        'Gogodalem': ['50772'],
+        'Kalijambe': ['50772'],
+        'Kalikurmo': ['50772'],
+        'Lebak': ['50772'],
+        'Nyemoh': ['50772'],
+        'Pakis': ['50772'],
+        'Popongan': ['50772'],
+        'Rembes': ['50772'],
+        'Sambirejo': ['50772'],
+        'Sendang': ['50772'],
+        'Tanjung': ['50772'],
+        'Tempuran': ['50772'],
+        'Truko': ['50772'],
+        'Wiru': ['50772'],
+      },
+      'Getasan': {
+        'Batur': ['50774'],
+        'Getasan': ['50774'],
+        'Jetak': ['50774'],
+        'Kopeng': ['50774'],
+        'Manggihan': ['50774'],
+        'Ngrawan': ['50774'],
+        'Nogosaren': ['50774'],
+        'Polobogo': ['50774'],
+        'Samirono': ['50774'],
+        'Sumogawe': ['50774'],
+        'Tajuk': ['50774'],
+        'Tolokan': ['50774'],
+        'Wates': ['50774'],
+      },
+      'Jambu': {
+        'Bedono': ['50663'],
+        'Brongkol': ['50663'],
+        'Gemawang': ['50663'],
+        'Genting': ['50663'],
+        'Jambu': ['50663'],
+        'Kebondalem': ['50663'],
+        'Kelurahan': ['50663'],
+        'Kuwarasan': ['50663'],
+        'Rejosari': ['50663'],
+        'Gondoriyo': ['50663'],
+      },
+      'Kaliwungu': {
+        'Jetis': ['50778'],
+        'Kaliwungu': ['50778'],
+        'Kener': ['50778'],
+        'Kradenan': ['50778'],
+        'Mukiran': ['50778'],
+        'Pager': ['50778'],
+        'Papringan': ['50778'],
+        'Payungan': ['50778'],
+        'Rogomulyo': ['50778'],
+        'Siwal': ['50778'],
+        'Udanwuh': ['50778'],
+      },
+      'Pabelan': {
+        'Bejaten': ['50771'],
+        'Bendungan': ['50771'],
+        'Giling': ['50771'],
+        'Glawan': ['50771'],
+        'Jembrak': ['50771'],
+        'Kadirejo': ['50771'],
+        'Karanggondang': ['50771'],
+        'Kauman Lor': ['50771'],
+        'Pabelan': ['50771'],
+        'Padaan': ['50771'],
+        'Segiri': ['50771'],
+        'Semowo': ['50771'],
+        'Sukoharjo': ['50771'],
+        'Sumberejo': ['50771'],
+        'Terban': ['50771'],
+        'Tukang': ['50771'],
+        'Ujung-Ujung': ['50771'],
+      },
+      'Pringapus': {
+        'Candirejo': ['50553'],
+        'Derekan': ['50553'],
+        'Jatirunggo': ['50553'],
+        'Klepu': ['50553'],
+        'Penawangan': ['50553'],
+        'Pringsari': ['50553'],
+        'Wonorejo': ['50553'],
+        'Wonoyoso': ['50553'],
+        'Pringapus': ['50553'],
+      },
+      'Suruh': {
+        'Beji Lor': ['50776'],
+        'Bonomerto': ['50776'],
+        'Cukilan': ['50776'],
+        'Dadapayam': ['50776'],
+        'Dersansari': ['50776'],
+        'Gunung Tumpeng': ['50776'],
+        'Jatirejo': ['50776'],
+        'Kebowan': ['50776'],
+        'Kedungringin': ['50776'],
+        'Ketanggi': ['50776'],
+        'Krandon Lor': ['50776'],
+        'Medayu': ['50776'],
+        'Plumbon': ['50776'],
+        'Purworejo': ['50776'],
+        'Reksosari': ['50776'],
+        'Sukorejo': ['50776'],
+        'Suruh': ['50776'],
+      },
+      'Susukan': {
+        'Badran': ['50777'],
+        'Bakalrejo': ['50777'],
+        'Gentan': ['50777'],
+        'Kemetul': ['50777'],
+        'Kenteng': ['50777'],
+        'Ketapang': ['50777'],
+        'Koripan': ['50777'],
+        'Muncar': ['50777'],
+        'Ngasinan': ['50777'],
+        'Sidoharjo': ['50777'],
+        'Susukan': ['50777'],
+        'Tawang': ['50777'],
+        'Timpik': ['50777'],
+      },
+      'Sumowono': {
+        'Bumen': ['50662'],
+        'Candigaron': ['50662'],
+        'Duren': ['50662'],
+        'Jubelan': ['50662'],
+        'Kebonagung': ['50662'],
+        'Kemawi': ['50662'],
+        'Kemitir': ['50662'],
+        'Keseneng': ['50662'],
+        'Lanjan': ['50662'],
+        'Losari': ['50662'],
+        'Mendongan': ['50662'],
+        'Ngadikerso': ['50662'],
+        'Piyanggang': ['50662'],
+        'Pledokan': ['50662'],
+        'Sumowono': ['50662'],
+        'Trayu': ['50662'],
+      },
+      'Tengaran': {
+        'Barukan': ['50775'],
+        'Bener': ['50775'],
+        'Butuh': ['50775'],
+        'Cukil': ['50775'],
+        'Duren': ['50775'],
+        'Karangduren': ['50775'],
+        'Klero': ['50775'],
+        'Nyamat': ['50775'],
+        'Patemon': ['50775'],
+        'Regunung': ['50775'],
+        'Sruwen': ['50775'],
+        'Sugihan': ['50775'],
+        'Tegalrejo': ['50775'],
+        'Tegalwaton': ['50775'],
+        'Tengaran': ['50775'],
+      },
+      'Tuntang': {
+        'Candirejo': ['50773'],
+        'Delik': ['50773'],
+        'Gedangan': ['50773'],
+        'Jombor': ['50773'],
+        'Kalibeji': ['50773'],
+        'Karanganyar': ['50773'],
+        'Karang Tengah': ['50773'],
+        'Kesongo': ['50773'],
+        'Lopait': ['50773'],
+        'Ngajaran': ['50773'],
+        'Rowosari': ['50773'],
+        'Sraten': ['50773'],
+        'Tlogo': ['50773'],
+        'Tlompakan': ['50773'],
+        'Tuntang': ['50773'],
+        'Watuagung': ['50773'],
+      },
+      'Ungaran Barat': {
+        'Branjang': ['50511'],
+        'Gogik': ['50511'],
+        'Kalisidi': ['50511'],
+        'Keji': ['50511'],
+        'Lerep': ['50511'],
+        'Nyatnyono': ['50511'],
+        'Bandarjo': ['50511'],
+        'Candirejo': ['50511'],
+        'Genuk': ['50511'],
+        'Langensari': ['50511'],
+        'Ungaran': ['50511'],
+      },
+      'Ungaran Timur': {
+        'Kalikayen': ['50512'],
+        'Kalongan': ['50512'],
+        'Kawengen': ['50512'],
+        'Leyangan': ['50512'],
+        'Mluweh': ['50512'],
+        'Beji': ['50512'],
+        'Gedanganak': ['50512'],
+        'Kalirejo': ['50512'],
+        'Sidomulyo': ['50512'],
+        'Susukan': ['50512'],
+      },
+    },
+  };
+
   final _formKey = GlobalKey<FormState>();
   final _recipientController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -26,7 +338,14 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
   final _detailController = TextEditingController();
 
   String? _selectedLabel;
+  String _selectedProvince = _fixedProvince;
+  String? _selectedCityRegency;
+  String? _selectedDistrict;
+  String? _selectedSubDistrict;
+  String? _selectedPostalCode;
   String? _labelErrorText;
+  String? _coverageErrorText;
+  String? _locationErrorText;
   double? _selectedLatitude;
   double? _selectedLongitude;
   String _selectedLocationSource = 'Belum dipilih';
@@ -37,6 +356,56 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
   bool _isDeleting = false;
 
   bool get _isEditMode => widget.initialAddress != null;
+  List<String> get _cityRegencyOptions {
+    const preferredOrder = <String>['Kabupaten Semarang', 'Kota Salatiga'];
+    final options = _coverageData.keys.toList();
+    options.sort((a, b) {
+      final aIndex = preferredOrder.indexOf(a);
+      final bIndex = preferredOrder.indexOf(b);
+
+      if (aIndex == -1 && bIndex == -1) {
+        return a.compareTo(b);
+      }
+      if (aIndex == -1) {
+        return 1;
+      }
+      if (bIndex == -1) {
+        return -1;
+      }
+      return aIndex.compareTo(bIndex);
+    });
+    return options;
+  }
+
+  List<String> get _districtOptions {
+    final cityRegency = _selectedCityRegency;
+    if (cityRegency == null) {
+      return const [];
+    }
+    return (_coverageData[cityRegency] ?? const {}).keys.toList();
+  }
+
+  List<String> get _subDistrictOptions {
+    final cityRegency = _selectedCityRegency;
+    final district = _selectedDistrict;
+    if (cityRegency == null || district == null) {
+      return const [];
+    }
+
+    return (_coverageData[cityRegency]?[district] ?? const {}).keys.toList();
+  }
+
+  List<String> get _postalCodeOptions {
+    final cityRegency = _selectedCityRegency;
+    final district = _selectedDistrict;
+    final subDistrict = _selectedSubDistrict;
+    if (cityRegency == null || district == null || subDistrict == null) {
+      return const [];
+    }
+
+    return (_coverageData[cityRegency]?[district]?[subDistrict] ?? const [])
+        .toList();
+  }
 
   String _normalizeAddressLabel(String rawLabel) {
     final normalized = rawLabel.trim().toLowerCase();
@@ -49,15 +418,23 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
   void _fillFormFromAddress(SavedAddressModel address) {
     _selectedLabel = _normalizeAddressLabel(address.label);
     _labelErrorText = null;
+    _locationErrorText = null;
     _recipientController.text = address.recipientName;
     _phoneController.text = address.phone;
 
     final rawFullAddress = address.fullAddress.trim();
     if (rawFullAddress.isNotEmpty) {
-      _fullAddressController.text = rawFullAddress;
+      _hydrateCoverageSelection(rawFullAddress);
+      _fullAddressController.text = _extractManualDetailFromFullAddress(
+        rawFullAddress,
+      );
     } else {
       // Fallback for legacy/partial payloads so edit form is never blank.
-      _fullAddressController.text = address.displayAddress.trim();
+      final fallbackAddress = address.displayAddress.trim();
+      _hydrateCoverageSelection(fallbackAddress);
+      _fullAddressController.text = _extractManualDetailFromFullAddress(
+        fallbackAddress,
+      );
     }
 
     _detailController.text = address.detail;
@@ -74,12 +451,79 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
     _isLoadingProfile = false;
   }
 
+  void _hydrateCoverageSelection(String fullAddress) {
+    final normalized = fullAddress.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return;
+    }
+
+    for (final cityRegency in _coverageData.keys) {
+      final cityNeedle = cityRegency.toLowerCase();
+      if (!normalized.contains(cityNeedle)) {
+        continue;
+      }
+
+      _selectedCityRegency = cityRegency;
+      final districts = _coverageData[cityRegency] ?? const {};
+
+      for (final district in districts.keys) {
+        if (normalized.contains(district.toLowerCase())) {
+          _selectedDistrict = district;
+          break;
+        }
+      }
+
+      if (_selectedDistrict != null) {
+        final subDistricts = districts[_selectedDistrict!] ?? const {};
+        for (final subDistrict in subDistricts.keys) {
+          if (normalized.contains(subDistrict.toLowerCase())) {
+            _selectedSubDistrict = subDistrict;
+            break;
+          }
+        }
+
+        _selectedSubDistrict ??= subDistricts.keys.isNotEmpty
+            ? subDistricts.keys.first
+            : null;
+      }
+
+      final postalMatch = RegExp(r'\b\d{5}\b').firstMatch(normalized);
+      if (postalMatch != null) {
+        final found = postalMatch.group(0);
+        if (found != null) {
+          if (_selectedDistrict != null && _selectedSubDistrict != null) {
+            final options =
+                districts[_selectedDistrict!]?[_selectedSubDistrict!] ??
+                const [];
+            _selectedPostalCode = options.contains(found)
+                ? found
+                : (options.isNotEmpty ? options.first : null);
+          } else {
+            _selectedPostalCode = found;
+          }
+        }
+      }
+
+      if (_selectedDistrict != null &&
+          _selectedSubDistrict != null &&
+          _selectedPostalCode == null) {
+        final options =
+            districts[_selectedDistrict!]?[_selectedSubDistrict!] ?? const [];
+        if (options.isNotEmpty) {
+          _selectedPostalCode = options.first;
+        }
+      }
+      return;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     if (_isEditMode) {
       _fillFormFromAddress(widget.initialAddress!);
     } else {
+      _selectedLabel = 'Rumah';
       _prefillUserData();
     }
   }
@@ -200,18 +644,20 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
                             ),
                             SizedBox(height: fieldSpacing),
                             _buildTextField(
-                              label: 'Alamat Lengkap',
+                              label: 'Detail Alamat',
                               controller: _fullAddressController,
-                              hintText: 'Masukkan alamat lengkap',
+                              hintText: 'Jalan, nomor rumah, RT/RW, patokan',
                               maxLines: isCompact ? 2 : 3,
                               validator: (value) {
                                 final text = value?.trim() ?? '';
                                 if (text.isEmpty) {
-                                  return 'Alamat lengkap wajib diisi';
+                                  return 'Detail alamat wajib diisi';
                                 }
                                 return null;
                               },
                             ),
+                            SizedBox(height: fieldSpacing),
+                            _buildCoverageSelectorCard(),
                             SizedBox(height: fieldSpacing),
                             _buildLocationPickerCard(),
                             SizedBox(height: fieldSpacing),
@@ -285,6 +731,10 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
                                               12,
                                             ),
                                           ),
+                                          padding: EdgeInsets.zero,
+                                          minimumSize: Size.zero,
+                                          tapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
                                         ),
                                         child: _isSubmitting
                                             ? const SizedBox(
@@ -296,7 +746,13 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
                                                       color: AppColors.white,
                                                     ),
                                               )
-                                            : const Text('Simpan'),
+                                            : const Text(
+                                                'Simpan',
+                                                style: TextStyle(
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
                                       ),
                                     ),
                                   ),
@@ -314,6 +770,10 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
+                                    padding: EdgeInsets.zero,
+                                    minimumSize: Size.zero,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
                                   ),
                                   child: _isSubmitting
                                       ? const SizedBox(
@@ -324,7 +784,13 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
                                             color: AppColors.white,
                                           ),
                                         )
-                                      : const Text('Simpan Alamat'),
+                                      : const Text(
+                                          'Simpan Alamat',
+                                          style: TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
                                 ),
                               ),
                           ],
@@ -350,6 +816,11 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
 
     final isFormValid = currentState.validate();
     final hasSelectedLabel = (_selectedLabel ?? '').trim().isNotEmpty;
+    final hasCoverageSelection = _hasCompleteCoverageSelection();
+    final hasPinnedLocation = _isCoordinatePairValid(
+      _selectedLatitude,
+      _selectedLongitude,
+    );
 
     if (!hasSelectedLabel) {
       setState(() {
@@ -357,7 +828,23 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
       });
     }
 
-    if (!isFormValid || !hasSelectedLabel) {
+    if (!hasPinnedLocation) {
+      setState(() {
+        _locationErrorText = 'Lokasi di peta wajib dipilih';
+      });
+    }
+
+    if (!hasCoverageSelection) {
+      setState(() {
+        _coverageErrorText =
+            'Pilih Kabupaten/Kota, Kecamatan, Kelurahan/Desa, dan Kode Pos terlebih dahulu';
+      });
+    }
+
+    if (!isFormValid ||
+        !hasSelectedLabel ||
+        !hasCoverageSelection ||
+        !hasPinnedLocation) {
       return;
     }
 
@@ -366,42 +853,19 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
     });
 
     try {
-      final rawFullAddress = _fullAddressController.text.trim();
-      final hasPinnedLocation = _isCoordinatePairValid(
-        _selectedLatitude,
-        _selectedLongitude,
-      );
+      final rawFullAddress = _composeFullAddress();
 
-      String normalizedFullAddress = rawFullAddress;
+      final normalizedFullAddress = rawFullAddress;
       double? latitudeToSave;
       double? longitudeToSave;
 
-      if (hasPinnedLocation) {
-        latitudeToSave = _selectedLatitude;
-        longitudeToSave = _selectedLongitude;
+      latitudeToSave = _selectedLatitude;
+      longitudeToSave = _selectedLongitude;
 
-        try {
-          final validatedAddress = await AuthService.validateSavedAddress(
-            fullAddress: rawFullAddress,
-          );
-          final formattedAddress = validatedAddress.formattedAddress.trim();
-          if (formattedAddress.isNotEmpty) {
-            normalizedFullAddress = formattedAddress;
-          }
-        } on AuthException {
-          // Keep raw address text when geocoding is unavailable.
-        }
-      } else {
-        final validatedAddress = await AuthService.validateSavedAddress(
-          fullAddress: rawFullAddress,
-        );
-
-        final formattedAddress = validatedAddress.formattedAddress.trim();
-        normalizedFullAddress = formattedAddress.isEmpty
-            ? rawFullAddress
-            : formattedAddress;
-        latitudeToSave = validatedAddress.latitude;
-        longitudeToSave = validatedAddress.longitude;
+      try {
+        await AuthService.validateSavedAddress(fullAddress: rawFullAddress);
+      } on AuthException {
+        // Keep raw address text when geocoding is unavailable.
       }
 
       if (!_isCoordinatePairValid(latitudeToSave, longitudeToSave)) {
@@ -493,6 +957,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
       _selectedLocationSource = result.source == 'gps'
           ? 'Lokasi saat ini'
           : 'Dipilih di peta';
+      _locationErrorText = null;
     });
   }
 
@@ -617,6 +1082,217 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
     );
   }
 
+  Widget _buildCoverageSelectorCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _coverageErrorText == null
+              ? AppColors.border
+              : AppColors.error,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Wilayah Pengantaran *',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildReadOnlyAreaField(label: 'Provinsi', value: _selectedProvince),
+          const SizedBox(height: 8),
+          _buildAreaDropdownField(
+            label: 'Kabupaten/Kota',
+            value: _selectedCityRegency,
+            hintText: 'Pilih kabupaten/kota',
+            items: _cityRegencyOptions,
+            onChanged: (value) {
+              if (_isSubmitting || _isDeleting) {
+                return;
+              }
+              setState(() {
+                _selectedCityRegency = value;
+                _selectedDistrict = null;
+                _selectedSubDistrict = null;
+                _selectedPostalCode = null;
+                _coverageErrorText = null;
+              });
+            },
+          ),
+          const SizedBox(height: 8),
+          _buildAreaDropdownField(
+            label: 'Kecamatan',
+            value: _selectedDistrict,
+            hintText: _selectedCityRegency == null
+                ? 'Pilih kabupaten/kota dulu'
+                : 'Pilih kecamatan',
+            items: _districtOptions,
+            onChanged: _selectedCityRegency == null
+                ? null
+                : (value) {
+                    if (_isSubmitting || _isDeleting) {
+                      return;
+                    }
+                    setState(() {
+                      _selectedDistrict = value;
+                      _selectedSubDistrict = null;
+                      _selectedPostalCode = null;
+                      _coverageErrorText = null;
+                    });
+                  },
+          ),
+          const SizedBox(height: 8),
+          _buildAreaDropdownField(
+            label: 'Kelurahan/Desa',
+            value: _selectedSubDistrict,
+            hintText: _selectedDistrict == null
+                ? 'Pilih kecamatan dulu'
+                : 'Pilih kelurahan/desa',
+            items: _subDistrictOptions,
+            onChanged: _selectedDistrict == null
+                ? null
+                : (value) {
+                    if (_isSubmitting || _isDeleting) {
+                      return;
+                    }
+                    setState(() {
+                      _selectedSubDistrict = value;
+                      final postalOptions = _postalCodeOptions;
+                      _selectedPostalCode = postalOptions.isNotEmpty
+                          ? postalOptions.first
+                          : null;
+                      _coverageErrorText = null;
+                    });
+                  },
+          ),
+          const SizedBox(height: 8),
+          _buildAreaDropdownField(
+            label: 'Kode Pos',
+            value: _selectedPostalCode,
+            hintText: _selectedSubDistrict == null
+                ? 'Pilih kelurahan/desa dulu'
+                : 'Pilih kode pos',
+            items: _postalCodeOptions,
+            onChanged: _selectedSubDistrict == null
+                ? null
+                : (value) {
+                    if (_isSubmitting || _isDeleting) {
+                      return;
+                    }
+                    setState(() {
+                      _selectedPostalCode = value;
+                      _coverageErrorText = null;
+                    });
+                  },
+          ),
+          if (_coverageErrorText != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              _coverageErrorText!,
+              style: const TextStyle(color: AppColors.error, fontSize: 12),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReadOnlyAreaField({
+    required String label,
+    required String value,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAreaDropdownField({
+    required String label,
+    required String? value,
+    required String hintText,
+    required List<String> items,
+    required ValueChanged<String?>? onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 4),
+        DropdownButtonFormField<String>(
+          value: items.contains(value) ? value : null,
+          hint: Text(hintText),
+          items: items
+              .map(
+                (item) =>
+                    DropdownMenuItem<String>(value: item, child: Text(item)),
+              )
+              .toList(),
+          onChanged: onChanged,
+          isExpanded: true,
+          decoration: InputDecoration(
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 12,
+            ),
+            filled: true,
+            fillColor: AppColors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildLocationPickerCard() {
     final hasPinnedLocation = _isCoordinatePairValid(
       _selectedLatitude,
@@ -629,18 +1305,22 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(
+          color: _locationErrorText == null
+              ? AppColors.border
+              : AppColors.error,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.place_outlined, color: AppColors.textSecondary),
-              SizedBox(width: 8),
+              const Icon(Icons.place_outlined, color: AppColors.textSecondary),
+              const SizedBox(width: 8),
               Text(
-                'Lokasi di Peta',
-                style: TextStyle(
+                'Lokasi di Peta *',
+                style: const TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 13,
                   color: AppColors.textSecondary,
@@ -652,7 +1332,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
           Text(
             hasPinnedLocation
                 ? 'Titik: ${_selectedLatitude!.toStringAsFixed(6)}, ${_selectedLongitude!.toStringAsFixed(6)}'
-                : 'Belum ada titik terpilih. Disarankan pilih titik agar alamat lebih akurat.',
+                : 'Belum ada titik terpilih. Pilih titik di peta untuk lanjut simpan alamat.',
             style: TextStyle(
               color: hasPinnedLocation
                   ? AppColors.textPrimary
@@ -662,6 +1342,13 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
               height: 1.4,
             ),
           ),
+          if (_locationErrorText != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              _locationErrorText!,
+              style: const TextStyle(color: AppColors.error, fontSize: 12),
+            ),
+          ],
           if (hasPinnedLocation) ...[
             const SizedBox(height: 4),
             Text(
@@ -792,6 +1479,70 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
     }
 
     return true;
+  }
+
+  bool _hasCompleteCoverageSelection() {
+    return _selectedCityRegency != null &&
+        _selectedDistrict != null &&
+        _selectedSubDistrict != null &&
+        _selectedPostalCode != null;
+  }
+
+  String _composeFullAddress() {
+    final detailText = _fullAddressController.text.trim();
+    final segments = <String>[
+      detailText,
+      _selectedSubDistrict ?? '',
+      _selectedDistrict ?? '',
+      _selectedCityRegency ?? '',
+      _selectedProvince,
+      _selectedPostalCode ?? '',
+    ];
+
+    return segments.where((segment) => segment.trim().isNotEmpty).join(', ');
+  }
+
+  String _extractManualDetailFromFullAddress(String fullAddress) {
+    final text = fullAddress.trim();
+    if (text.isEmpty) {
+      return '';
+    }
+
+    final fullParts = text
+        .split(',')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+    if (fullParts.isEmpty) {
+      return text;
+    }
+
+    final areaParts = <String>[
+      _selectedSubDistrict ?? '',
+      _selectedDistrict ?? '',
+      _selectedCityRegency ?? '',
+      _selectedProvince,
+      _selectedPostalCode ?? '',
+    ].where((part) => part.trim().isNotEmpty).toList();
+
+    if (areaParts.isNotEmpty && fullParts.length > areaParts.length) {
+      var isSuffixMatch = true;
+      for (var i = 0; i < areaParts.length; i++) {
+        final fromFull = fullParts[fullParts.length - areaParts.length + i]
+            .toLowerCase();
+        final fromArea = areaParts[i].toLowerCase();
+        if (fromFull != fromArea) {
+          isSuffixMatch = false;
+          break;
+        }
+      }
+
+      if (isSuffixMatch) {
+        return fullParts.take(fullParts.length - areaParts.length).join(', ');
+      }
+    }
+
+    return fullParts.first;
   }
 
   @override
