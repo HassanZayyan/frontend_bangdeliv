@@ -36,6 +36,17 @@ bool isCancelledOrderStatus(String code) {
   }
 }
 
+bool isDriverLocationTrackable(String? code) {
+  switch (normalizeOrderStatusCode(code)) {
+    case OrderStatusCodes.driverAssigned:
+    case OrderStatusCodes.pickedUp:
+    case OrderStatusCodes.onTheWay:
+      return true;
+    default:
+      return false;
+  }
+}
+
 String orderStatusLabel(String code) {
   switch (normalizeOrderStatusCode(code)) {
     case OrderStatusCodes.pending:
@@ -58,4 +69,3 @@ String orderStatusLabel(String code) {
       return code.trim().isEmpty ? 'Status Tidak Diketahui' : code;
   }
 }
-

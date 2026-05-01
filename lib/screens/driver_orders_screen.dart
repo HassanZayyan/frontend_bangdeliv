@@ -310,7 +310,7 @@ class _OrderCard extends StatelessWidget {
                 child: Text(
                   isIncoming
                       ? 'Accept ${order.etaMinutes} menit'
-                      : 'Diterima ${order.acceptedAt ?? '-'}',
+                      : 'Diterima ${formatBackendTimeText(order.acceptedAt)}',
                   style: TextStyle(
                     color: isIncoming
                         ? AppColors.primaryDark

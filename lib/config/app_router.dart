@@ -30,6 +30,8 @@ import '../models/merchant_model.dart';
 import '../providers/api_providers.dart';
 import '../providers/auth_session_provider.dart';
 import '../providers/customer_order_providers.dart';
+import '../providers/customer_order_realtime_provider.dart';
+import '../providers/customer_order_tracking_provider.dart';
 import '../providers/driver_order_providers.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/notification_settings_screen.dart';
@@ -286,6 +288,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ref.invalidate(customerOngoingOrdersProvider);
       ref.invalidate(customerCancelledOrdersProvider);
       ref.invalidate(customerActiveOrderProvider);
+      ref.invalidate(customerOrderRealtimeHubProvider);
+      ref.invalidate(customerOrderTrackingProvider);
 
       ref.invalidate(driverOrdersProvider);
       ref.invalidate(driverHistoryProvider);

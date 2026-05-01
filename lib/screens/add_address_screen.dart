@@ -338,7 +338,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
   final _detailController = TextEditingController();
 
   String? _selectedLabel;
-  String _selectedProvince = _fixedProvince;
+  final String _selectedProvince = _fixedProvince;
   String? _selectedCityRegency;
   String? _selectedDistrict;
   String? _selectedSubDistrict;
@@ -1261,7 +1261,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
         ),
         const SizedBox(height: 4),
         DropdownButtonFormField<String>(
-          value: items.contains(value) ? value : null,
+          initialValue: items.contains(value) ? value : null,
           hint: Text(hintText),
           items: items
               .map(

@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,139 +6,37 @@ import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../models/customer_order_model.dart';
 import '../providers/customer_order_providers.dart';
-import '../services/pusher_service.dart';
+import '../providers/customer_order_tracking_provider.dart';
 import '../utils/order_formatters.dart';
 import '../utils/order_status.dart';
 import '../utils/order_ui_helpers.dart';
 import '../utils/service_type.dart';
 import '../widgets/tracking_map_section.dart';
 
-class TrackOrderScreen extends ConsumerStatefulWidget {
+class TrackOrderScreen extends ConsumerWidget {
   const TrackOrderScreen({super.key});
 
-  @override
-  ConsumerState<TrackOrderScreen> createState() => _TrackOrderScreenState();
-}
-
-class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
-  // ── Real-time driver location (updated by Pusher) ─────────────────────────
-  double? _driverLat;
-  double? _driverLng;
-  DateTime? _driverUpdatedAt;
-
-  // ── Pusher subscription ───────────────────────────────────────────────────
-  StreamSubscription<Map<String, dynamic>>? _trackingSub;
-  int? _subscribedOrderId;
-  int? _lastAppliedHistoryId;
-  Timer? _statusRefreshDebounce;
-  bool _allowDriverLocationUpdates = false;
-
-  // ── Lifecycle ─────────────────────────────────────────────────────────────
-
-  @override
-  void dispose() {
-    _cancelPusher();
-    _statusRefreshDebounce?.cancel();
-    super.dispose();
-  }
-
-  void _cancelPusher() {
-    _trackingSub?.cancel();
-    _trackingSub = null;
-    _subscribedOrderId = null;
-  }
-
-  void _scheduleOrderRefresh(int orderId, {int? historyId}) {
-    if (historyId != null) {
-      final lastApplied = _lastAppliedHistoryId;
-      if (lastApplied != null && historyId <= lastApplied) {
-        return;
-      }
-      _lastAppliedHistoryId = historyId;
-    }
-
-    _statusRefreshDebounce?.cancel();
-    _statusRefreshDebounce = Timer(const Duration(milliseconds: 350), () {
-      if (!mounted) return;
-      ref.invalidate(customerOrderDetailProvider(orderId));
-      ref.invalidate(customerOrdersProvider);
-    });
-  }
-
-  /// Subscribe to Pusher when the order is still active and we haven't
-  /// subscribed to this orderId.
-  Future<void> _maybeSubscribePusher(
-    CustomerOrderDetailModel detail,
-  ) async {
-    final orderId = detail.summary.id;
-
-    final shouldTrack = !detail.summary.isTerminalStatus;
-    _allowDriverLocationUpdates = _shouldShowTrackingMap(detail.summary);
-
-    if (!shouldTrack) {
-      if (_trackingSub != null) _cancelPusher();
-      return;
-    }
-
-    if (_subscribedOrderId == orderId && _trackingSub != null) return;
-
-    _cancelPusher();
-    _subscribedOrderId = orderId;
-    _lastAppliedHistoryId = null;
-
-    try {
-      await PusherService.instance.connect();
-
-      _trackingSub = PusherService.instance.subscribeOrderTracking(
-        orderId,
-        onLocation: (lat, lng, heading, updatedAt) {
-          if (!mounted) return;
-          if (!_allowDriverLocationUpdates) return;
-          setState(() {
-            _driverLat = lat;
-            _driverLng = lng;
-            _driverUpdatedAt = updatedAt;
-          });
-        },
-        onStatusChanged: (statusCode, previousStatusCode, historyId, changedAt) {
-          _scheduleOrderRefresh(orderId, historyId: historyId);
-        },
-      );
-    } catch (_) {
-      // Pusher connection failed — silently degrade
-    }
-  }
-
   bool _shouldShowTrackingMap(CustomerOrderSummaryModel order) {
-    if (normalizeServiceTypeCode(order.serviceTypeCode) != ServiceTypeCodes.ride) {
-      return true;
+    if (order.isTerminalStatus) {
+      return false;
     }
 
-    final statusCode = normalizeOrderStatusCode(order.statusCode);
-    return statusCode == OrderStatusCodes.driverAssigned;
+    return isDriverLocationTrackable(order.statusCode) ||
+        normalizeServiceTypeCode(order.serviceTypeCode) != ServiceTypeCodes.ride;
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
-
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final orderId = _extractOrderId(GoRouterState.of(context).extra);
 
     if (orderId != null) {
-      final detailProvider = customerOrderDetailProvider(orderId);
-      ref.listen<AsyncValue<CustomerOrderDetailModel>>(detailProvider, (
-        previous,
-        next,
-      ) {
-        next.whenData(_maybeSubscribePusher);
-      });
-
-      final detailAsync = ref.watch(detailProvider);
+      final trackingProvider = customerOrderTrackingProvider(orderId);
+      final trackingAsync = ref.watch(trackingProvider);
       return _buildScaffold(
         context,
-        detailAsync,
+        trackingAsync,
         showEmptyForNoActiveOrder: false,
-        orderId: orderId,
+        onRetry: () => ref.invalidate(trackingProvider),
       );
     }
 
@@ -149,39 +45,34 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     return ordersAsync.when(
       loading: () => _buildScaffold(
         context,
-        const AsyncLoading<CustomerOrderDetailModel>(),
+        const AsyncLoading<CustomerOrderTrackingState>(),
         showEmptyForNoActiveOrder: false,
+        onRetry: () => ref.invalidate(customerOrdersProvider),
       ),
       error: (error, stackTrace) => _buildScaffold(
         context,
-        AsyncError<CustomerOrderDetailModel>(error, stackTrace),
+        AsyncError<CustomerOrderTrackingState>(error, stackTrace),
         showEmptyForNoActiveOrder: false,
+        onRetry: () => ref.invalidate(customerOrdersProvider),
       ),
       data: (_) {
         final activeOrder = ref.watch(customerActiveOrderProvider);
         if (activeOrder == null) {
-          _cancelPusher();
           return _buildScaffold(
             context,
-            const AsyncLoading<CustomerOrderDetailModel>(),
+            const AsyncLoading<CustomerOrderTrackingState>(),
             showEmptyForNoActiveOrder: true,
+            onRetry: () => ref.invalidate(customerOrdersProvider),
           );
         }
 
-        final detailProvider = customerOrderDetailProvider(activeOrder.id);
-        ref.listen<AsyncValue<CustomerOrderDetailModel>>(detailProvider, (
-          previous,
-          next,
-        ) {
-          next.whenData(_maybeSubscribePusher);
-        });
-
-        final detailAsync = ref.watch(detailProvider);
+        final trackingProvider = customerOrderTrackingProvider(activeOrder.id);
+        final trackingAsync = ref.watch(trackingProvider);
         return _buildScaffold(
           context,
-          detailAsync,
+          trackingAsync,
           showEmptyForNoActiveOrder: false,
-          orderId: activeOrder.id,
+          onRetry: () => ref.invalidate(trackingProvider),
         );
       },
     );
@@ -189,9 +80,9 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
 
   Widget _buildScaffold(
     BuildContext context,
-    AsyncValue<CustomerOrderDetailModel> detailAsync, {
+    AsyncValue<CustomerOrderTrackingState> trackingAsync, {
     required bool showEmptyForNoActiveOrder,
-    int? orderId,
+    required VoidCallback onRetry,
   }) {
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -212,21 +103,10 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
             }
           },
         ),
-        actions: [
-          IconButton(
-            onPressed: () {
-              ref.invalidate(customerOrdersProvider);
-              if (orderId != null) {
-                ref.invalidate(customerOrderDetailProvider(orderId));
-              }
-            },
-            icon: const Icon(Icons.refresh, color: AppColors.textPrimary),
-          ),
-        ],
       ),
       body: showEmptyForNoActiveOrder
           ? _buildEmptyState(context)
-          : detailAsync.when(
+          : trackingAsync.when(
               loading: () =>
                   const Center(child: CircularProgressIndicator()),
               error: (error, stackTrace) => Center(
@@ -243,14 +123,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                       ),
                       const SizedBox(height: 12),
                       OutlinedButton(
-                        onPressed: () {
-                          ref.invalidate(customerOrdersProvider);
-                          if (orderId != null) {
-                            ref.invalidate(
-                              customerOrderDetailProvider(orderId),
-                            );
-                          }
-                        },
+                        onPressed: onRetry,
                         child: const Text('Coba Lagi'),
                       ),
                     ],
@@ -327,16 +200,16 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     );
   }
 
-  Widget _buildDetailView(CustomerOrderDetailModel detail) {
+  Widget _buildDetailView(CustomerOrderTrackingState tracking) {
+    final detail = tracking.detail;
     final order = detail.summary;
     final shouldShowTrackingMap = _shouldShowTrackingMap(order);
     final isRide =
         normalizeServiceTypeCode(order.serviceTypeCode) == ServiceTypeCodes.ride;
 
-    // Prefer real-time coordinates when available; fallback to API snapshot.
-    final driverLat = _driverLat ?? detail.driverLatitude;
-    final driverLng = _driverLng ?? detail.driverLongitude;
-    final driverUpdatedAt = _driverUpdatedAt ?? detail.driverLocationUpdatedAt;
+    final driverLat = detail.driverLatitude;
+    final driverLng = detail.driverLongitude;
+    final driverUpdatedAt = detail.driverLocationUpdatedAt;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -387,8 +260,8 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                         ),
                       ),
                       const SizedBox(height: 10),
-                      // Live indicator badge
-                      if (shouldShowTrackingMap && _driverLat != null)
+                      if (shouldShowTrackingMap &&
+                          tracking.hasLiveDriverLocation)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8),
                           child: Container(
@@ -487,7 +360,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                                       ),
                                     ),
                                     child: const Text(
-                                      'Tracking peta hanya tersedia saat driver ditugaskan.',
+                                      'Tracking peta tersedia saat driver aktif dalam perjalanan.',
                                       style: TextStyle(
                                         color: AppColors.textPrimary,
                                         fontSize: 12,
@@ -710,7 +583,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
   String _estimateArrivalText(DateTime? estimatedDelivery) {
     if (estimatedDelivery == null) return '-';
 
-    final diff = estimatedDelivery.toLocal().difference(DateTime.now());
+    final diff = estimatedDelivery.toUtc().difference(DateTime.now().toUtc());
     if (diff.inMinutes <= 0) return 'Segera tiba';
     if (diff.inMinutes < 60) return '${diff.inMinutes} menit lagi';
 

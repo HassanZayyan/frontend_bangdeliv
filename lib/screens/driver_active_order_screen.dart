@@ -4,9 +4,11 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../config/app_colors.dart';
 import '../models/driver_order_model.dart';
+import '../providers/driver_location_tracking_provider.dart';
 import '../providers/driver_order_providers.dart';
 import '../services/driver_order_service.dart';
 import '../utils/currency_formatter.dart';
+import '../utils/order_formatters.dart' hide formatCurrency;
 
 class DriverActiveOrderScreen extends ConsumerWidget {
   final String orderId;
@@ -23,6 +25,7 @@ class DriverActiveOrderScreen extends ConsumerWidget {
 
     final detailState = ref.watch(driverOrderDetailProvider(orderId));
     final ordersState = ref.watch(driverOrdersProvider);
+    final trackingState = ref.watch(driverLocationTrackingProvider);
 
     final isProcessing = ordersState.maybeWhen(
       data: (value) => value.isProcessing(orderId),
@@ -50,6 +53,14 @@ class DriverActiveOrderScreen extends ConsumerWidget {
           );
         },
         data: (order) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!context.mounted) return;
+            ref.read(driverLocationTrackingProvider.notifier).syncForOrder(
+                  orderId: order.id,
+                  statusCode: order.statusCode,
+                );
+          });
+
           return RefreshIndicator(
             onRefresh: () async {
               ref.invalidate(driverOrderDetailProvider(orderId));
@@ -59,9 +70,9 @@ class DriverActiveOrderScreen extends ConsumerWidget {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
               children: [
-                _MapCard(order: order),
+                _MapCard(order: order, trackingState: trackingState),
                 const SizedBox(height: 12),
-                _OrderMetaCard(order: order),
+                _OrderMetaCard(order: order, trackingState: trackingState),
                 const SizedBox(height: 12),
                 _TimelineCard(timeline: order.statusTimeline),
                 const SizedBox(height: 12),
@@ -83,6 +94,8 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                         orderId: order.id,
                         actionCode: action.actionCode,
                         targetStatusCode: action.targetStatusCode,
+                        latitude: trackingState.latitude,
+                        longitude: trackingState.longitude,
                       );
                     }
 
@@ -133,15 +146,20 @@ class DriverActiveOrderScreen extends ConsumerWidget {
 
 class _MapCard extends StatelessWidget {
   final DriverOrderModel order;
+  final DriverLocationTrackingState trackingState;
 
-  const _MapCard({required this.order});
+  const _MapCard({
+    required this.order,
+    required this.trackingState,
+  });
 
   @override
   Widget build(BuildContext context) {
     final pickup = _latLng(order.pickupLatitude, order.pickupLongitude);
     final dropoff = _latLng(order.dropoffLatitude, order.dropoffLongitude);
+    final driver = _latLng(trackingState.latitude, trackingState.longitude);
 
-    if (pickup == null && dropoff == null) {
+    if (pickup == null && dropoff == null && driver == null) {
       return Container(
         height: 220,
         decoration: BoxDecoration(
@@ -158,8 +176,17 @@ class _MapCard extends StatelessWidget {
       );
     }
 
-    final initial = pickup ?? dropoff!;
+    final initial = driver ?? pickup ?? dropoff!;
     final markers = <Marker>{
+      if (driver != null)
+        Marker(
+          markerId: const MarkerId('driver'),
+          position: driver,
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueOrange,
+          ),
+          infoWindow: const InfoWindow(title: 'Posisi Anda'),
+        ),
       if (pickup != null)
         Marker(
           markerId: const MarkerId('pickup'),
@@ -178,13 +205,23 @@ class _MapCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(14),
       child: SizedBox(
         height: 230,
-        child: GoogleMap(
-          initialCameraPosition: CameraPosition(target: initial, zoom: 13.2),
-          markers: markers,
-          myLocationButtonEnabled: false,
-          mapToolbarEnabled: true,
-          zoomControlsEnabled: false,
-          compassEnabled: true,
+        child: Stack(
+          children: [
+            GoogleMap(
+              initialCameraPosition: CameraPosition(target: initial, zoom: 14),
+              markers: markers,
+              myLocationButtonEnabled: false,
+              mapToolbarEnabled: true,
+              zoomControlsEnabled: false,
+              compassEnabled: true,
+            ),
+            Positioned(
+              top: 10,
+              left: 10,
+              right: 10,
+              child: _TrackingBadge(state: trackingState),
+            ),
+          ],
         ),
       ),
     );
@@ -198,10 +235,60 @@ class _MapCard extends StatelessWidget {
   }
 }
 
+class _TrackingBadge extends StatelessWidget {
+  final DriverLocationTrackingState state;
+
+  const _TrackingBadge({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasPosition = state.latitude != null && state.longitude != null;
+    final text = state.isTracking
+        ? hasPosition
+            ? 'GPS aktif - lokasi dikirim realtime'
+            : 'GPS aktif - menunggu titik lokasi'
+        : state.isStarting
+            ? 'Mengaktifkan GPS driver...'
+            : 'GPS driver belum aktif';
+    final color = state.isTracking ? AppColors.success : AppColors.textSecondary;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: AppColors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.my_location, size: 14, color: color),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              text,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _OrderMetaCard extends StatelessWidget {
   final DriverOrderModel order;
+  final DriverLocationTrackingState trackingState;
 
-  const _OrderMetaCard({required this.order});
+  const _OrderMetaCard({
+    required this.order,
+    required this.trackingState,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -249,6 +336,13 @@ class _OrderMetaCard extends StatelessWidget {
           _row('Pickup', order.pickupAddress),
           const SizedBox(height: 6),
           _row('Dropoff', order.dropoffAddress),
+          if ((trackingState.message ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              trackingState.message!.trim(),
+              style: const TextStyle(color: AppColors.error, fontSize: 12),
+            ),
+          ],
           const SizedBox(height: 8),
           Text(
             'Fee ${_formatCurrency(order.fee)} • Total ${_formatCurrency(order.totalPrice.round())}',
@@ -340,7 +434,7 @@ class _TimelineCard extends StatelessWidget {
               (item) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
-                  '• ${item.statusDisplayName ?? item.statusCode} ${item.createdAt == null ? '' : '- ${item.createdAt!.hour.toString().padLeft(2, '0')}:${item.createdAt!.minute.toString().padLeft(2, '0')}'}',
+                  '- ${item.statusDisplayName ?? item.statusCode} ${item.createdAt == null ? '' : '- ${formatTime(item.createdAt)}'}',
                   style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 13,

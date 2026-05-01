@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../config/app_colors.dart';
+import '../utils/order_formatters.dart';
 
 class TrackingMapSection extends StatefulWidget {
   const TrackingMapSection({
@@ -330,10 +331,6 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
       return 'Lokasi driver tersedia';
     }
 
-    final local = updatedAt.toLocal();
-    final hour = local.hour.toString().padLeft(2, '0');
-    final minute = local.minute.toString().padLeft(2, '0');
-
-    return 'Update lokasi driver terakhir $hour:$minute';
+    return 'Update lokasi driver terakhir ${formatTime(updatedAt)}';
   }
 }

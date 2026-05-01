@@ -150,29 +150,29 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
   List<DriverHistoryOrderModel> _applyFilter(
     List<DriverHistoryOrderModel> orders,
   ) {
-    final now = DateTime.now();
+    final now = wibNow();
 
     if (_selectedFilter == _todayFilter) {
       return orders
-          .where(
-            (order) =>
-                order.date.year == now.year &&
-                order.date.month == now.month &&
-                order.date.day == now.day,
-          )
+          .where((order) {
+            final orderDate = toWib(order.date);
+            return orderDate.year == now.year &&
+                orderDate.month == now.month &&
+                orderDate.day == now.day;
+          })
           .toList(growable: false);
     }
 
     if (_selectedFilter == _weekFilter) {
       final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
-      final normalizedStart = DateTime(
+      final normalizedStart = DateTime.utc(
         startOfWeek.year,
         startOfWeek.month,
         startOfWeek.day,
       );
 
       return orders
-          .where((order) => order.date.isAfter(normalizedStart))
+          .where((order) => toWib(order.date).isAfter(normalizedStart))
           .toList(growable: false);
     }
 
@@ -313,12 +313,7 @@ class _HistoryCard extends StatelessWidget {
   }
 
   String _formatDate(DateTime date) {
-    final day = date.day.toString().padLeft(2, '0');
-    final month = date.month.toString().padLeft(2, '0');
-    final year = date.year;
-    final hour = date.hour.toString().padLeft(2, '0');
-    final minute = date.minute.toString().padLeft(2, '0');
-    return '$day/$month/$year • $hour:$minute';
+    return formatDateTime(date);
   }
 }
 

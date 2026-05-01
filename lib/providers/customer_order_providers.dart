@@ -1,22 +1,199 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/customer_order_model.dart';
-import 'auth_session_provider.dart';
+import '../utils/order_status.dart';
 import 'api_providers.dart';
+import 'auth_session_provider.dart';
+import 'customer_order_realtime_provider.dart';
 
-final customerOrdersProvider = FutureProvider<List<CustomerOrderSummaryModel>>((
-  ref,
-) async {
-  final session = ref.watch(authSessionProvider);
-  if (!session.isAuthenticated ||
-      session.role != SessionUserRole.customer ||
-      session.profile == null) {
-    return const <CustomerOrderSummaryModel>[];
+final customerOrdersProvider =
+    AsyncNotifierProvider<CustomerOrdersNotifier, List<CustomerOrderSummaryModel>>(
+      CustomerOrdersNotifier.new,
+    );
+
+class CustomerOrdersNotifier
+    extends AsyncNotifier<List<CustomerOrderSummaryModel>> {
+  StreamSubscription<CustomerOrderRealtimeEvent>? _realtimeSub;
+  final Set<int> _retainedOrderIds = <int>{};
+  Timer? _reconcileDebounce;
+  CustomerOrderRealtimeHub? _hub;
+  bool _disposeRegistered = false;
+
+  @override
+  Future<List<CustomerOrderSummaryModel>> build() async {
+    if (!_disposeRegistered) {
+      ref.onDispose(_disposeRealtime);
+      _disposeRegistered = true;
+    }
+
+    final session = ref.watch(authSessionProvider);
+    if (!session.isAuthenticated ||
+        session.role != SessionUserRole.customer ||
+        session.profile == null) {
+      _releaseAllOrders();
+      return const <CustomerOrderSummaryModel>[];
+    }
+
+    _ensureRealtimeListener();
+
+    final orders = await _fetchOrders();
+    _syncRealtimeSubscriptions(orders);
+    return orders;
   }
 
-  final service = ref.watch(customerOrderApiServiceProvider);
-  return service.fetchOrders(page: 1, perPage: 50);
-});
+  Future<void> refresh() async {
+    final session = ref.read(authSessionProvider);
+    if (!session.isAuthenticated ||
+        session.role != SessionUserRole.customer ||
+        session.profile == null) {
+      _releaseAllOrders();
+      state = const AsyncData(<CustomerOrderSummaryModel>[]);
+      return;
+    }
+
+    state = const AsyncLoading<List<CustomerOrderSummaryModel>>();
+
+    try {
+      final orders = await _fetchOrders();
+      _syncRealtimeSubscriptions(orders);
+      state = AsyncData(orders);
+    } catch (error, stackTrace) {
+      state = AsyncError<List<CustomerOrderSummaryModel>>(error, stackTrace);
+    }
+  }
+
+  Future<List<CustomerOrderSummaryModel>> _fetchOrders() {
+    final service = ref.read(customerOrderApiServiceProvider);
+    return service.fetchOrders(page: 1, perPage: 50);
+  }
+
+  CustomerOrderRealtimeHub _readRealtimeHub() {
+    final existingHub = _hub;
+    if (existingHub != null) {
+      return existingHub;
+    }
+
+    final hub = ref.read(customerOrderRealtimeHubProvider);
+    _hub = hub;
+    return hub;
+  }
+
+  void _ensureRealtimeListener() {
+    final hub = _readRealtimeHub();
+    _realtimeSub ??= hub.events.listen(_handleRealtimeEvent);
+  }
+
+  void _handleRealtimeEvent(CustomerOrderRealtimeEvent event) {
+    if (event.type != CustomerOrderRealtimeEventType.status) {
+      return;
+    }
+
+    final status = event.status;
+    if (status == null) {
+      return;
+    }
+
+    final current = state.asData?.value;
+    if (current == null) {
+      return;
+    }
+
+    final index = current.indexWhere((order) => order.id == event.orderId);
+    if (index < 0) {
+      _scheduleListReconciliation();
+      return;
+    }
+
+    final statusCode = normalizeOrderStatusCode(status.statusCode);
+    if (statusCode.isEmpty) {
+      return;
+    }
+
+    final statusLabel = (status.statusLabel ?? '').trim().isNotEmpty
+        ? status.statusLabel!.trim()
+        : orderStatusLabel(statusCode);
+    final isTerminal = status.isTerminal ?? isTerminalOrderStatus(statusCode);
+
+    final patchedOrder = current[index].copyWith(
+      statusCode: statusCode,
+      statusLabel: statusLabel,
+      isTerminalStatus: isTerminal,
+    );
+
+    final mutable = current.toList(growable: true);
+    mutable[index] = patchedOrder;
+    state = AsyncData(mutable.toList(growable: false));
+
+    _syncRealtimeSubscriptions(mutable);
+    _scheduleListReconciliation();
+  }
+
+  void _scheduleListReconciliation() {
+    _reconcileDebounce?.cancel();
+    _reconcileDebounce = Timer(const Duration(milliseconds: 800), () {
+      unawaited(_reconcileList());
+    });
+  }
+
+  Future<void> _reconcileList() async {
+    try {
+      final orders = await _fetchOrders();
+      _syncRealtimeSubscriptions(orders);
+      state = AsyncData(orders);
+    } catch (_) {
+      // Realtime already patched the visible state. Keep it if reconciliation
+      // fails because of a temporary network issue.
+    }
+  }
+
+  void _syncRealtimeSubscriptions(
+    List<CustomerOrderSummaryModel> orders,
+  ) {
+    final activeOrderIds = orders
+        .where((order) => !order.isTerminalStatus)
+        .map((order) => order.id)
+        .where((id) => id > 0)
+        .toSet();
+
+    final hub = _readRealtimeHub();
+
+    final orderIdsToRetain =
+        activeOrderIds.difference(_retainedOrderIds).toList(growable: false);
+    final orderIdsToRelease =
+        _retainedOrderIds.difference(activeOrderIds).toList(growable: false);
+
+    for (final orderId in orderIdsToRetain) {
+      _retainedOrderIds.add(orderId);
+      unawaited(hub.retainOrder(orderId));
+    }
+
+    for (final orderId in orderIdsToRelease) {
+      hub.releaseOrder(orderId);
+      _retainedOrderIds.remove(orderId);
+    }
+  }
+
+  void _releaseAllOrders() {
+    final hub = _hub;
+    if (hub == null) {
+      _retainedOrderIds.clear();
+      return;
+    }
+    for (final orderId in _retainedOrderIds) {
+      hub.releaseOrder(orderId);
+    }
+    _retainedOrderIds.clear();
+  }
+
+  void _disposeRealtime() {
+    _reconcileDebounce?.cancel();
+    _realtimeSub?.cancel();
+    _realtimeSub = null;
+    _releaseAllOrders();
+  }
+}
 
 final customerSortedOrdersProvider = Provider<List<CustomerOrderSummaryModel>>((
   ref,

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/chatbot_model.dart';
+import '../utils/order_formatters.dart';
 import 'auth_session_provider.dart';
 import 'api_providers.dart';
 
@@ -885,10 +886,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
   }
 
   String _nowLabel() {
-    final now = DateTime.now();
-    final hour = now.hour.toString().padLeft(2, '0');
-    final minute = now.minute.toString().padLeft(2, '0');
-    return '$hour:$minute';
+    return currentWibHourMinute();
   }
 
   String _labelFromDateTime(DateTime? value) {
@@ -896,10 +894,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       return _nowLabel();
     }
 
-    final local = value.toLocal();
-    final hour = local.hour.toString().padLeft(2, '0');
-    final minute = local.minute.toString().padLeft(2, '0');
-    return '$hour:$minute';
+    return formatTime(value, includeZone: false);
   }
 }
 

@@ -1,4 +1,5 @@
 import '../utils/order_status.dart';
+import '../utils/order_formatters.dart';
 import '../utils/service_type.dart';
 
 typedef DriverOrderAction = DriverOrderActionModel;
@@ -238,7 +239,7 @@ class DriverOrderTimelineItemModel {
       eventType: (json['event_type'] ?? json['eventType'] ?? 'STATUS_CHANGE')
           .toString(),
       note: json['note']?.toString(),
-      createdAt: createdAtRaw == null ? null : DateTime.tryParse(createdAtRaw),
+      createdAt: parseBackendDateTime(createdAtRaw),
     );
   }
 }
@@ -265,7 +266,7 @@ class DriverHistoryOrderModel {
       id: (json['id'] ?? '').toString(),
       customerName: (json['customer_name'] ?? json['customerName'] ?? '-')
           .toString(),
-      date: DateTime.tryParse(rawDate) ?? DateTime.now(),
+      date: parseBackendDateTime(rawDate) ?? DateTime.now().toUtc(),
       fee: DriverOrderModel._asInt(json['fee'], fallback: 0),
       status: (json['status'] ?? 'Selesai').toString(),
     );
