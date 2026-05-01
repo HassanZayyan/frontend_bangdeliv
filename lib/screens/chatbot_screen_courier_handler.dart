@@ -16,7 +16,27 @@ extension _CourierChatHandler on _ChatbotScreenState {
       case ChatbotMessageActionType.openMapPicker:
         await _handleOpenMapPickerAction(actionHint);
         return;
+      case ChatbotMessageActionType.sendPresetMessage:
+        await _handleSendPresetMessageAction(actionHint);
+        return;
+      case ChatbotMessageActionType.openTrackOrder:
+        await _handleOpenTrackOrderAction(actionHint);
+        return;
+      case ChatbotMessageActionType.openActivity:
+        _handleOpenActivityAction();
+        return;
     }
+  }
+
+  Future<void> _handleSendPresetMessageAction(
+    ChatbotMessageActionHint actionHint,
+  ) async {
+    final presetMessage = (actionHint.presetMessage ?? actionHint.label).trim();
+    if (presetMessage.isEmpty) {
+      return;
+    }
+
+    await _sendMessage(presetMessage);
   }
 
   Future<void> _handleOpenAddressesAction() async {
@@ -82,5 +102,21 @@ extension _CourierChatHandler on _ChatbotScreenState {
         );
 
     _scrollToBottom();
+  }
+
+  Future<void> _handleOpenTrackOrderAction(
+    ChatbotMessageActionHint actionHint,
+  ) async {
+    final orderId = actionHint.orderId;
+    if (orderId != null && orderId > 0) {
+      await context.push(AppRoutes.track, extra: orderId);
+      return;
+    }
+
+    await context.push(AppRoutes.track);
+  }
+
+  void _handleOpenActivityAction() {
+    context.go(AppRoutes.activity);
   }
 }

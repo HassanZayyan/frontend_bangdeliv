@@ -268,7 +268,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
   ref.onDispose(router.dispose);
   ref.listen<AuthSessionState>(authSessionProvider, (previous, next) {
-    router.refresh();
+    if (_shouldRefreshRouter(previous, next)) {
+      router.refresh();
+    }
   });
 
   return router;
@@ -405,4 +407,15 @@ bool _isDriverRoute(String location) {
   final normalized = location.trim();
   return normalized == AppRoutes.driverVerificationStatus ||
       normalized.startsWith('/driver/');
+}
+
+bool _shouldRefreshRouter(AuthSessionState? previous, AuthSessionState next) {
+  if (previous == null) {
+    return true;
+  }
+
+  return previous.initialized != next.initialized ||
+      previous.isAuthenticated != next.isAuthenticated ||
+      previous.role != next.role ||
+      previous.driverAccessState != next.driverAccessState;
 }

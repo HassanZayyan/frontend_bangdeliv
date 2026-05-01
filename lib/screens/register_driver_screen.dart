@@ -79,6 +79,7 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
         const SizedBox(height: 8),
         Text(
           'Akun customer Anda akan diaktifkan sebagai driver',
+          textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: AppColors.white.withValues(alpha: 0.8),
           ),

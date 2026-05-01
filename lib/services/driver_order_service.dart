@@ -65,8 +65,8 @@ class DriverOrderService {
           'target_status_code': normalizedTargetStatusCode,
         if (normalizedNote != null && normalizedNote.isNotEmpty)
           'note': normalizedNote,
-        if (latitude != null) 'latitude': latitude,
-        if (longitude != null) 'longitude': longitude,
+        'latitude': ?latitude,
+        'longitude': ?longitude,
       },
     );
 
@@ -104,20 +104,24 @@ class DriverOrderService {
       timeout: _listTimeout,
     );
     final data = _extractData(response);
-    final status = (data['status'] ?? 'offline').toString().trim().toLowerCase();
+    final status = (data['status'] ?? 'offline')
+        .toString()
+        .trim()
+        .toLowerCase();
     return status.isEmpty ? 'offline' : status;
   }
 
   Future<String> updateAvailability({required bool isOnline}) async {
     final response = await _patch(
       '/v1/driver/availability',
-      body: <String, dynamic>{
-        'is_online': isOnline,
-      },
+      body: <String, dynamic>{'is_online': isOnline},
     );
 
     final data = _extractData(response);
-    final status = (data['status'] ?? 'offline').toString().trim().toLowerCase();
+    final status = (data['status'] ?? 'offline')
+        .toString()
+        .trim()
+        .toLowerCase();
     return status.isEmpty ? 'offline' : status;
   }
 
@@ -144,8 +148,12 @@ class DriverOrderService {
       }
 
       return DriverOrdersPayload(
-        incoming: incomingRaw.map(DriverOrderModel.fromJson).toList(growable: false),
-        running: runningRaw.map(DriverOrderModel.fromJson).toList(growable: false),
+        incoming: incomingRaw
+            .map(DriverOrderModel.fromJson)
+            .toList(growable: false),
+        running: runningRaw
+            .map(DriverOrderModel.fromJson)
+            .toList(growable: false),
         isMockData: false,
       );
     } on AuthException {

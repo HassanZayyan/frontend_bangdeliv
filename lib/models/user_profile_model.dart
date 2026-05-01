@@ -171,10 +171,12 @@ class SavedAddressModel {
   });
 
   String get displayAddress {
+    String cleanedAddress = fullAddress.replaceAll(RegExp(r'(,\s*)?Indonesia\s*$', caseSensitive: false), '').trim();
+    
     if (detail.trim().isEmpty) {
-      return fullAddress;
+      return cleanedAddress;
     }
-    return '$fullAddress, $detail';
+    return '$cleanedAddress, $detail';
   }
 
   factory SavedAddressModel.fromJson(Map<String, dynamic> json) {
