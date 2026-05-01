@@ -1,9 +1,12 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:http/http.dart' as http;
 
 import '../config/app_colors.dart';
+import '../config/app_env.dart';
 import '../models/address_location_picker_result.dart';
 
 class AddressLocationPickerScreen extends StatefulWidget {
@@ -23,13 +26,15 @@ class AddressLocationPickerScreen extends StatefulWidget {
 
 class _AddressLocationPickerScreenState
     extends State<AddressLocationPickerScreen> {
-  static const LatLng _fallbackCenter = LatLng(-7.0503, 110.4370);
+  static const LatLng _fallbackCenter = LatLng(-7.3294948, 110.5080427);
 
   GoogleMapController? _mapController;
   late LatLng _cameraTarget;
+  late double _initialZoom;
   bool _isResolvingCurrentLocation = false;
   String? _locationHint;
   String _selectedSource = 'map_pin';
+  bool _isLocationPermissionGranted = false;
 
   @override
   void initState() {
@@ -46,6 +51,30 @@ class _AddressLocationPickerScreenState
     _cameraTarget = hasInitialCoordinate
         ? LatLng(widget.initialLatitude!, widget.initialLongitude!)
         : _fallbackCenter;
+
+    _initialZoom = hasInitialCoordinate ? 17.0 : 13.0;
+
+    if (!hasInitialCoordinate) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _moveToCurrentLocation();
+      });
+    }
+
+    _checkLocationPermission();
+  }
+
+  Future<void> _checkLocationPermission() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return;
+
+    final permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
+      if (mounted) {
+        setState(() {
+          _isLocationPermissionGranted = true;
+        });
+      }
+    }
   }
 
   @override
@@ -79,8 +108,9 @@ class _AddressLocationPickerScreenState
                       GoogleMap(
                         initialCameraPosition: CameraPosition(
                           target: _cameraTarget,
-                          zoom: 17,
+                          zoom: _initialZoom,
                         ),
+                        myLocationEnabled: _isLocationPermissionGranted,
                         myLocationButtonEnabled: false,
                         mapToolbarEnabled: false,
                         zoomControlsEnabled: false,
@@ -103,10 +133,13 @@ class _AddressLocationPickerScreenState
                       ),
                       const IgnorePointer(
                         child: Center(
-                          child: Icon(
-                            Icons.location_pin,
-                            color: AppColors.error,
-                            size: 44,
+                          child: Padding(
+                            padding: EdgeInsets.only(bottom: 44.0),
+                            child: Icon(
+                              Icons.location_pin,
+                              color: AppColors.error,
+                              size: 44,
+                            ),
                           ),
                         ),
                       ),
@@ -114,24 +147,44 @@ class _AddressLocationPickerScreenState
                         left: 12,
                         right: 12,
                         top: 12,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.white.withValues(alpha: 0.95),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: const Text(
-                            'Geser peta sampai pin merah tepat di lokasi rumahmu.',
-                            style: TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                        child: SearchAnchor(
+                          builder: (BuildContext context, SearchController controller) {
+                            return SearchBar(
+                              controller: controller,
+                              padding: const WidgetStatePropertyAll<EdgeInsets>(
+                                  EdgeInsets.symmetric(horizontal: 16.0)),
+                              onTap: () {
+                                controller.openView();
+                              },
+                              onChanged: (_) {
+                                controller.openView();
+                              },
+                              leading: const Icon(Icons.search),
+                              hintText: 'Cari alamat / lokasi...',
+                              backgroundColor: WidgetStatePropertyAll(
+                                  AppColors.white.withValues(alpha: 0.95)),
+                              elevation: const WidgetStatePropertyAll(2),
+                            );
+                          },
+                          suggestionsBuilder:
+                              (BuildContext context, SearchController controller) async {
+                            final query = controller.text;
+                            if (query.isEmpty) {
+                              return const Iterable<Widget>.empty();
+                            }
+                            final results = await _searchPlaces(query);
+                            return results.map((prediction) {
+                              return ListTile(
+                                leading: const Icon(Icons.location_on,
+                                    color: AppColors.primary),
+                                title: Text(prediction['description']),
+                                onTap: () {
+                                  controller.closeView(prediction['description']);
+                                  _goToPlace(prediction['place_id']);
+                                },
+                              );
+                            });
+                          },
                         ),
                       ),
                     ],
@@ -167,27 +220,57 @@ class _AddressLocationPickerScreenState
                   Row(
                     children: [
                       Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _isResolvingCurrentLocation
-                              ? null
-                              : _moveToCurrentLocation,
-                          icon: _isResolvingCurrentLocation
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.my_location),
-                          label: const Text('Pakai Lokasi Saya'),
+                        child: SizedBox(
+                          height: 50,
+                          child: OutlinedButton.icon(
+                            onPressed: _isResolvingCurrentLocation
+                                ? null
+                                : _moveToCurrentLocation,
+                            style: OutlinedButton.styleFrom(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              side: const BorderSide(color: AppColors.border),
+                              foregroundColor: AppColors.textPrimary,
+                            ),
+                            icon: _isResolvingCurrentLocation
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.my_location, size: 18),
+                            label: const Text('Pakai Lokasi Saat Ini'),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: ElevatedButton(
-                          onPressed: _confirmSelection,
-                          child: const Text('Konfirmasi Titik'),
+                        child: SizedBox(
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed: _confirmSelection,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: AppColors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 0,
+                              padding: EdgeInsets.zero,
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text(
+                              'Konfirmasi',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -244,6 +327,12 @@ class _AddressLocationPickerScreenState
               'Izin lokasi ditolak permanen, kamu bisa lanjut pilih titik manual.';
         });
         return;
+      }
+
+      if (!_isLocationPermissionGranted && mounted) {
+        setState(() {
+          _isLocationPermissionGranted = true;
+        });
       }
 
       final position = await Geolocator.getCurrentPosition(
@@ -304,5 +393,62 @@ class _AddressLocationPickerScreenState
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.black87),
     );
+  }
+
+  Future<List<Map<String, dynamic>>> _searchPlaces(String query) async {
+    if (query.isEmpty) return [];
+
+    final url = Uri.parse(
+      'https://maps.googleapis.com/maps/api/place/autocomplete/json'
+      '?input=$query'
+      '&key=${AppEnv.googleMapsApiKey}'
+      '&components=country:id'
+      '&language=id',
+    );
+
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == 'OK') {
+          return List<Map<String, dynamic>>.from(data['predictions']);
+        }
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  Future<void> _goToPlace(String placeId) async {
+    final url = Uri.parse(
+      'https://maps.googleapis.com/maps/api/place/details/json'
+      '?place_id=$placeId'
+      '&key=${AppEnv.googleMapsApiKey}'
+      '&language=id',
+    );
+
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == 'OK') {
+          final location = data['result']['geometry']['location'];
+          final target = LatLng(location['lat'], location['lng']);
+          _cameraTarget = target;
+
+          final controller = _mapController;
+          if (controller != null) {
+            await controller.animateCamera(CameraUpdate.newLatLngZoom(target, 18));
+          }
+
+          if (!mounted) return;
+          setState(() {
+            _selectedSource = 'search';
+            _locationHint = data['result']['formatted_address'] ?? 'Lokasi ditemukan.';
+          });
+        }
+      }
+    } catch (_) {
+      _showMessage('Gagal mengambil detail lokasi.');
+    }
   }
 }
