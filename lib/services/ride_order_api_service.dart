@@ -103,7 +103,6 @@ class RideOrderApiService {
   Future<RideOrderSubmissionResult> createRideOrder({
     required int addressId,
     required String destinationAddress,
-    String? notes,
   }) async {
     Map<String, dynamic> response;
     try {
@@ -112,7 +111,6 @@ class RideOrderApiService {
         body: <String, dynamic>{
           'address_id': addressId,
           'destination_address': destinationAddress,
-          if ((notes ?? '').trim().isNotEmpty) 'notes': notes!.trim(),
         },
         headers: await AuthService.authorizedHeaders(),
       );

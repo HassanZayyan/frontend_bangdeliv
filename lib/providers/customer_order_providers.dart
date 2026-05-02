@@ -13,6 +13,26 @@ final customerOrdersProvider =
       CustomerOrdersNotifier.new,
     );
 
+final customerOrdersAutoRefreshProvider = Provider.autoDispose<void>((ref) {
+  final orders = ref.watch(customerOrdersProvider).asData?.value;
+  final hasActiveOrder =
+      orders?.any((order) => !order.isTerminalStatus) ?? false;
+  if (!hasActiveOrder) {
+    return;
+  }
+
+  final timer = Timer.periodic(const Duration(seconds: 8), (_) {
+    if (!ref.mounted) {
+      return;
+    }
+    unawaited(
+      ref.read(customerOrdersProvider.notifier).refresh(showLoading: false),
+    );
+  });
+
+  ref.onDispose(timer.cancel);
+});
+
 class CustomerOrdersNotifier
     extends AsyncNotifier<List<CustomerOrderSummaryModel>> {
   StreamSubscription<CustomerOrderRealtimeEvent>? _realtimeSub;
@@ -20,9 +40,15 @@ class CustomerOrdersNotifier
   Timer? _reconcileDebounce;
   CustomerOrderRealtimeHub? _hub;
   bool _disposeRegistered = false;
+  bool _disposed = false;
+  bool _silentRefreshInFlight = false;
+
+  bool get _isMounted => !_disposed && ref.mounted;
 
   @override
   Future<List<CustomerOrderSummaryModel>> build() async {
+    _disposed = false;
+
     if (!_disposeRegistered) {
       ref.onDispose(_disposeRealtime);
       _disposeRegistered = true;
@@ -39,28 +65,64 @@ class CustomerOrdersNotifier
     _ensureRealtimeListener();
 
     final orders = await _fetchOrders();
+    if (!_isMounted) {
+      return orders;
+    }
+
     _syncRealtimeSubscriptions(orders);
     return orders;
   }
 
-  Future<void> refresh() async {
+  Future<void> refresh({bool showLoading = true}) async {
+    if (!_isMounted) {
+      return;
+    }
+
+    if (!showLoading && _silentRefreshInFlight) {
+      return;
+    }
+
     final session = ref.read(authSessionProvider);
     if (!session.isAuthenticated ||
         session.role != SessionUserRole.customer ||
         session.profile == null) {
       _releaseAllOrders();
-      state = const AsyncData(<CustomerOrderSummaryModel>[]);
+      if (_isMounted) {
+        state = const AsyncData(<CustomerOrderSummaryModel>[]);
+      }
       return;
     }
 
-    state = const AsyncLoading<List<CustomerOrderSummaryModel>>();
+    if (showLoading) {
+      state = const AsyncLoading<List<CustomerOrderSummaryModel>>();
+    }
 
     try {
+      if (!showLoading) {
+        _silentRefreshInFlight = true;
+      }
+
       final orders = await _fetchOrders();
+      if (!_isMounted) {
+        return;
+      }
+
       _syncRealtimeSubscriptions(orders);
       state = AsyncData(orders);
     } catch (error, stackTrace) {
+      if (!_isMounted) {
+        return;
+      }
+
+      if (!showLoading && state.asData != null) {
+        return;
+      }
+
       state = AsyncError<List<CustomerOrderSummaryModel>>(error, stackTrace);
+    } finally {
+      if (!showLoading) {
+        _silentRefreshInFlight = false;
+      }
     }
   }
 
@@ -86,6 +148,10 @@ class CustomerOrdersNotifier
   }
 
   void _handleRealtimeEvent(CustomerOrderRealtimeEvent event) {
+    if (!_isMounted) {
+      return;
+    }
+
     if (event.type != CustomerOrderRealtimeEventType.status) {
       return;
     }
@@ -131,6 +197,10 @@ class CustomerOrdersNotifier
   }
 
   void _scheduleListReconciliation() {
+    if (!_isMounted) {
+      return;
+    }
+
     _reconcileDebounce?.cancel();
     _reconcileDebounce = Timer(const Duration(milliseconds: 800), () {
       unawaited(_reconcileList());
@@ -138,8 +208,16 @@ class CustomerOrdersNotifier
   }
 
   Future<void> _reconcileList() async {
+    if (!_isMounted) {
+      return;
+    }
+
     try {
       final orders = await _fetchOrders();
+      if (!_isMounted) {
+        return;
+      }
+
       _syncRealtimeSubscriptions(orders);
       state = AsyncData(orders);
     } catch (_) {
@@ -188,6 +266,7 @@ class CustomerOrdersNotifier
   }
 
   void _disposeRealtime() {
+    _disposed = true;
     _reconcileDebounce?.cancel();
     _realtimeSub?.cancel();
     _realtimeSub = null;

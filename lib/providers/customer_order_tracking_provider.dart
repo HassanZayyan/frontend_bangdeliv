@@ -74,9 +74,13 @@ class CustomerOrderTrackingNotifier
 
   StreamSubscription<CustomerOrderRealtimeEvent>? _realtimeSub;
   Timer? _reconcileDebounce;
+  Timer? _autoRefreshTimer;
   CustomerOrderRealtimeHub? _hub;
   bool _disposed = false;
   bool _retainedOrder = false;
+  bool _autoRefreshInFlight = false;
+
+  bool get _isMounted => !_disposed && ref.mounted;
 
   @override
   Future<CustomerOrderTrackingState> build() async {
@@ -104,15 +108,20 @@ class CustomerOrderTrackingNotifier
 
     final service = ref.watch(customerOrderApiServiceProvider);
     final detail = await service.fetchOrderDetail(orderId);
-
-    if (detail.summary.isTerminalStatus) {
-      _releaseRetainedOrder();
+    if (!_isMounted) {
+      return CustomerOrderTrackingState(detail: detail);
     }
+
+    _syncAutoRefresh(detail);
 
     return CustomerOrderTrackingState(detail: detail);
   }
 
   void _handleRealtimeEvent(CustomerOrderRealtimeEvent event) {
+    if (!_isMounted) {
+      return;
+    }
+
     switch (event.type) {
       case CustomerOrderRealtimeEventType.status:
         final status = event.status;
@@ -133,7 +142,7 @@ class CustomerOrderTrackingNotifier
   }
 
   void _applyLocationEvent(CustomerOrderRealtimeEvent event) {
-    if (_disposed) {
+    if (!_isMounted) {
       return;
     }
 
@@ -172,7 +181,7 @@ class CustomerOrderTrackingNotifier
   }
 
   void _applyStatusEvent(OrderStatusRealtimeEvent event) {
-    if (_disposed) {
+    if (!_isMounted) {
       return;
     }
 
@@ -213,11 +222,8 @@ class CustomerOrderTrackingNotifier
       ),
     );
 
+    _syncAutoRefresh(patchedDetail);
     _scheduleDetailReconciliation();
-
-    if (isTerminal) {
-      _releaseRetainedOrder();
-    }
   }
 
   List<OrderStatusSnapshot> _upsertTimeline(
@@ -277,6 +283,10 @@ class CustomerOrderTrackingNotifier
   }
 
   void _scheduleDetailReconciliation() {
+    if (!_isMounted) {
+      return;
+    }
+
     _reconcileDebounce?.cancel();
     _reconcileDebounce = Timer(const Duration(milliseconds: 700), () {
       unawaited(_reconcileDetail());
@@ -284,15 +294,19 @@ class CustomerOrderTrackingNotifier
   }
 
   Future<void> _reconcileDetail() async {
+    if (!_isMounted) {
+      return;
+    }
+
     final current = state.asData?.value;
-    if (_disposed || current == null) {
+    if (current == null) {
       return;
     }
 
     try {
       final service = ref.read(customerOrderApiServiceProvider);
       final fetched = await service.fetchOrderDetail(orderId);
-      if (_disposed) {
+      if (!_isMounted) {
         return;
       }
 
@@ -303,10 +317,7 @@ class CustomerOrderTrackingNotifier
 
       final merged = _mergeReconciledDetail(fetched, latest);
       state = AsyncData(latest.copyWith(detail: merged));
-
-      if (merged.summary.isTerminalStatus) {
-        _releaseRetainedOrder();
-      }
+      _syncAutoRefresh(merged);
     } catch (_) {
       // Reconciliation is a safety sync after realtime events. The realtime
       // snapshot remains the source shown to the customer if this fetch fails.
@@ -385,8 +396,12 @@ class CustomerOrderTrackingNotifier
   }
 
   void _markRealtimeUnavailable(String message) {
+    if (!_isMounted) {
+      return;
+    }
+
     final current = state.asData?.value;
-    if (_disposed || current == null) {
+    if (current == null) {
       return;
     }
 
@@ -407,6 +422,35 @@ class CustomerOrderTrackingNotifier
   void _cancelTimers() {
     _reconcileDebounce?.cancel();
     _reconcileDebounce = null;
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = null;
+    _autoRefreshInFlight = false;
+  }
+
+  void _syncAutoRefresh(CustomerOrderDetailModel detail) {
+    if (detail.summary.isTerminalStatus) {
+      _autoRefreshTimer?.cancel();
+      _autoRefreshTimer = null;
+      _releaseRetainedOrder();
+      return;
+    }
+
+    if (_autoRefreshTimer != null || !_isMounted) {
+      return;
+    }
+
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!_isMounted || _autoRefreshInFlight) {
+        return;
+      }
+
+      _autoRefreshInFlight = true;
+      unawaited(
+        _reconcileDetail().whenComplete(() {
+          _autoRefreshInFlight = false;
+        }),
+      );
+    });
   }
 
   void _releaseRetainedOrder() {

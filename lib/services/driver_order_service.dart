@@ -96,7 +96,7 @@ class DriverOrderService {
     double lng,
     double heading,
   ) async {
-    await _post(
+    final response = await _post(
       '/v1/driver/orders/$orderId/location',
       body: <String, dynamic>{
         'latitude': lat,
@@ -106,6 +106,14 @@ class DriverOrderService {
       fallback: 'Gagal memancarkan lokasi.',
       timeout: const Duration(seconds: 5),
     );
+
+    final data = _extractData(response);
+    if (data.containsKey('location_saved') && data['location_saved'] != true) {
+      throw const DriverOrderApiException(
+        'Lokasi driver belum berhasil dikirim ke server.',
+        statusCode: 500,
+      );
+    }
   }
 
   Future<void> collectCod({

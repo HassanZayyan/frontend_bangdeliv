@@ -21,6 +21,7 @@ class AppRoutes {
   static const String notifications = '/notifications';
   static const String notificationSettings = '/notification-settings';
   static const String track = '/track';
+  static const String orderChat = '/orders/:orderId/chat';
   static const String menuDetail = '/menu/:menuId';
   static const String merchantDetail = '/merchant/:merchantId';
   static const String register = '/register';
@@ -39,5 +40,9 @@ class AppRoutes {
 
   static String driverOrderActivePath(String orderId) {
     return '/driver/orders/$orderId/active';
+  }
+
+  static String orderChatPath(Object orderId) {
+    return '/orders/$orderId/chat';
   }
 }

@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../config/app_env.dart';
+import '../models/order_chat_model.dart';
 import '../utils/order_formatters.dart';
 import 'auth_service.dart';
 
@@ -59,6 +60,9 @@ class PusherService {
   static const _driverLocationUpdatedEvent =
       'App\\Events\\DriverLocationUpdated';
   static const _orderStatusChangedEvent = 'App\\Events\\OrderStatusChanged';
+  static const _orderChatMessageSentEvent =
+      'App\\Events\\OrderChatMessageSent';
+  static const _orderChatMessageSentAlias = 'order.chat.message.sent';
   static const _protocolVersion = '7';
 
   WebSocketChannel? _socket;
@@ -179,6 +183,7 @@ class PusherService {
     void Function(double lat, double lng, double heading, DateTime updatedAt)?
     onLocation,
     void Function(OrderStatusRealtimeEvent event)? onStatusChanged,
+    void Function(OrderChatMessageModel message)? onChatMessage,
   }) {
     final channelName = 'private-order.tracking.$orderId';
     final controller = _retainChannel(channelName);
@@ -197,6 +202,12 @@ class PusherService {
 
       if (_isOrderStatusEvent(rawEvent.eventName) && onStatusChanged != null) {
         _handleStatusPayload(rawEvent.payload, onStatusChanged);
+        return;
+      }
+
+      if (_isOrderChatMessageEvent(rawEvent.eventName) &&
+          onChatMessage != null) {
+        _handleChatPayload(rawEvent.payload, onChatMessage);
       }
     });
 
@@ -351,7 +362,8 @@ class PusherService {
     if (channelName == null ||
         !_channelControllers.containsKey(channelName) ||
         (!_isDriverLocationEvent(eventName) &&
-            !_isOrderStatusEvent(eventName))) {
+            !_isOrderStatusEvent(eventName) &&
+            !_isOrderChatMessageEvent(eventName))) {
       return;
     }
 
@@ -469,6 +481,11 @@ class PusherService {
         _matchesEvent(eventName, 'order.status.changed');
   }
 
+  bool _isOrderChatMessageEvent(String eventName) {
+    return _matchesEvent(eventName, _orderChatMessageSentEvent) ||
+        _matchesEvent(eventName, _orderChatMessageSentAlias);
+  }
+
   bool _matchesEvent(String rawEventName, String expectedEventName) {
     final eventName = rawEventName.trim().replaceFirst(RegExp(r'^\.'), '');
     final expected = expectedEventName.trim().replaceFirst(RegExp(r'^\.'), '');
@@ -583,6 +600,21 @@ class PusherService {
         isTerminal: isTerminal,
       ),
     );
+  }
+
+  void _handleChatPayload(
+    Map<String, dynamic> payload,
+    void Function(OrderChatMessageModel message) onChatMessage,
+  ) {
+    final message = (payload['message'] is Map<String, dynamic>)
+        ? payload['message'] as Map<String, dynamic>
+        : payload;
+
+    try {
+      onChatMessage(OrderChatMessageModel.fromJson(message));
+    } catch (error) {
+      _log('chat payload decode failed: $error');
+    }
   }
 
   double? _asDouble(dynamic value) {

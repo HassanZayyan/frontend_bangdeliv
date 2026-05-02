@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../config/app_colors.dart';
+import '../config/app_routes.dart';
 import '../models/driver_order_model.dart';
 import '../providers/driver_location_tracking_provider.dart';
 import '../providers/driver_order_providers.dart';
@@ -41,6 +43,16 @@ class DriverActiveOrderScreen extends ConsumerWidget {
         ),
         backgroundColor: AppColors.white,
         elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Chat customer',
+            icon: const Icon(
+              Icons.chat_bubble_outline,
+              color: AppColors.textPrimary,
+            ),
+            onPressed: () => context.push(AppRoutes.orderChatPath(orderId)),
+          ),
+        ],
       ),
       body: detailState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
