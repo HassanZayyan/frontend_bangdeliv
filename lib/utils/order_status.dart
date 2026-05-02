@@ -39,14 +39,24 @@ bool isCancelledOrderStatus(String code) {
   }
 }
 
-bool isDriverLocationTrackable(String? code) {
+bool isDriverLocationTrackable(String? code, {String? statusLabel}) {
   switch (normalizeOrderStatusCode(code)) {
     case OrderStatusCodes.driverAssigned:
+    case OrderStatusCodes.arrivedMerchant:
     case OrderStatusCodes.arrivedPickup:
     case OrderStatusCodes.pickedUp:
     case OrderStatusCodes.onTheWay:
+    case OrderStatusCodes.arrivedDropoff:
       return true;
     default:
+      final compactCode = _compactStatusToken(code);
+      final compactLabel = _compactStatusToken(statusLabel);
+
+      if (_isDropoffArrivalStatus(compactCode, compactLabel) ||
+          _isPickupArrivalStatus(compactCode, compactLabel)) {
+        return true;
+      }
+
       return false;
   }
 }
@@ -78,4 +88,85 @@ String orderStatusLabel(String code) {
     default:
       return code.trim().isEmpty ? 'Status Tidak Diketahui' : code;
   }
+}
+
+int resolveTrackingStepIndex({
+  required String? statusCode,
+  String? statusLabel,
+}) {
+  final normalizedCode = normalizeOrderStatusCode(statusCode);
+  final compactCode = _compactStatusToken(statusCode);
+  final compactLabel = _compactStatusToken(statusLabel);
+
+  switch (normalizedCode) {
+    case OrderStatusCodes.pending:
+      return 0;
+    case OrderStatusCodes.driverAssigned:
+      return 1;
+    case OrderStatusCodes.arrivedMerchant:
+    case OrderStatusCodes.arrivedPickup:
+    case OrderStatusCodes.pickedUp:
+      return 2;
+    case OrderStatusCodes.onTheWay:
+      return 3;
+    case OrderStatusCodes.arrivedDropoff:
+    case OrderStatusCodes.delivered:
+    case OrderStatusCodes.completed:
+      return 4;
+    default:
+      break;
+  }
+
+  if (_isDropoffArrivalStatus(compactCode, compactLabel)) {
+    return 4;
+  }
+
+  if (_containsAny(compactCode, compactLabel, const ['ON_THE_WAY']) ||
+      _containsAny(compactCode, compactLabel, const ['DALAM_PERJALANAN']) ||
+      _containsAny(compactCode, compactLabel, const ['PERJALANAN'])) {
+    return 3;
+  }
+
+  if (_isPickupArrivalStatus(compactCode, compactLabel) ||
+      _containsAny(compactCode, compactLabel, const ['PICKED_UP']) ||
+      _containsAny(compactCode, compactLabel, const ['PICKUP'])) {
+    return 2;
+  }
+
+  if (_containsAny(compactCode, compactLabel, const ['DRIVER_ASSIGNED']) ||
+      _containsAny(compactCode, compactLabel, const ['DITUGASKAN'])) {
+    return 1;
+  }
+
+  return 0;
+}
+
+bool _isDropoffArrivalStatus(String compactCode, String compactLabel) {
+  return _containsAny(compactCode, compactLabel, const ['ARRIVED_DROPOFF']) ||
+      _containsAny(compactCode, compactLabel, const ['DRIVER_TIBA_DI_TUJUAN']);
+}
+
+bool _isPickupArrivalStatus(String compactCode, String compactLabel) {
+  return _containsAny(compactCode, compactLabel, const ['ARRIVED_PICKUP']) ||
+      _containsAny(compactCode, compactLabel, const ['ARRIVED_MERCHANT']) ||
+      _containsAny(compactCode, compactLabel, const ['TIBA_DI_TITIK_JEMPUT']) ||
+      _containsAny(compactCode, compactLabel, const ['TIBA_DI_JEMPUT']) ||
+      _containsAny(compactCode, compactLabel, const ['TIBA_DI_MERCHANT']);
+}
+
+bool _containsAny(String compactCode, String compactLabel, List<String> keys) {
+  for (final key in keys) {
+    if (compactCode.contains(key) || compactLabel.contains(key)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+String _compactStatusToken(String? value) {
+  final normalized = normalizeOrderStatusCode(value);
+  return normalized
+      .replaceAll(RegExp(r'[^A-Z0-9]+'), '_')
+      .replaceAll(RegExp(r'_+'), '_')
+      .replaceAll(RegExp(r'^_|_$'), '');
 }
