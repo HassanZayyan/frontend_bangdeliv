@@ -18,11 +18,49 @@ class ActivityScreen extends ConsumerStatefulWidget {
 
 class _ActivityScreenState extends ConsumerState<ActivityScreen> {
   final Set<int> _cancellingOrderIds = <int>{};
+  bool _isOpeningRefresh = true;
+  bool _openingRefreshInFlight = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _refreshOnOpen();
+    });
+  }
 
   bool _isCancelling(int orderId) => _cancellingOrderIds.contains(orderId);
 
   Future<void> _refreshOrders() async {
-    await ref.read(customerOrdersProvider.notifier).refresh();
+    ref.invalidate(customerOrdersProvider);
+
+    try {
+      await ref.read(customerOrdersProvider.future);
+    } catch (_) {
+      // Errors are surfaced by the provider state in UI.
+    }
+  }
+
+  Future<void> _refreshOnOpen() async {
+    if (!mounted || _openingRefreshInFlight) {
+      return;
+    }
+    _openingRefreshInFlight = true;
+
+    setState(() {
+      _isOpeningRefresh = true;
+    });
+
+    try {
+      await _refreshOrders();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isOpeningRefresh = false;
+        });
+      }
+      _openingRefreshInFlight = false;
+    }
   }
 
   Future<void> _cancelOrder(CustomerOrderSummaryModel order) async {
@@ -111,50 +149,53 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
             ],
           ),
         ),
-        body: ordersAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stackTrace) => Center(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    error.toString(),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: AppColors.textSecondary),
+        body: _isOpeningRefresh
+            ? const Center(child: CircularProgressIndicator())
+            : ordersAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, stackTrace) => Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          error.toString(),
+                          textAlign: TextAlign.center,
+                          style:
+                              const TextStyle(color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(height: 12),
+                        OutlinedButton(
+                          onPressed: _refreshOnOpen,
+                          child: const Text('Coba Lagi'),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  OutlinedButton(
-                    onPressed: _refreshOrders,
-                    child: const Text('Coba Lagi'),
-                  ),
-                ],
+                ),
+                data: (_) {
+                  return TabBarView(
+                    children: [
+                      _buildOrderList(
+                        allActivityOrders,
+                        emptyMessage: 'Belum ada aktivitas order.',
+                        onRefresh: _refreshOrders,
+                      ),
+                      _buildOrderList(
+                        ongoingOrders,
+                        emptyMessage: 'Belum ada order yang sedang berjalan.',
+                        onRefresh: _refreshOrders,
+                      ),
+                      _buildOrderList(
+                        cancelledOrders,
+                        emptyMessage: 'Belum ada order dibatalkan.',
+                        onRefresh: _refreshOrders,
+                      ),
+                    ],
+                  );
+                },
               ),
-            ),
-          ),
-          data: (_) {
-            return TabBarView(
-              children: [
-                _buildOrderList(
-                  allActivityOrders,
-                  emptyMessage: 'Belum ada aktivitas order.',
-                  onRefresh: _refreshOrders,
-                ),
-                _buildOrderList(
-                  ongoingOrders,
-                  emptyMessage: 'Belum ada order yang sedang berjalan.',
-                  onRefresh: _refreshOrders,
-                ),
-                _buildOrderList(
-                  cancelledOrders,
-                  emptyMessage: 'Belum ada order dibatalkan.',
-                  onRefresh: _refreshOrders,
-                ),
-              ],
-            );
-          },
-        ),
       ),
     );
   }
