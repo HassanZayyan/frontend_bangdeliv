@@ -24,6 +24,16 @@ class AppEnv {
 
   static const int wsPort = int.fromEnvironment('WS_PORT', defaultValue: 8080);
 
+  static const String wsScheme = String.fromEnvironment(
+    'WS_SCHEME',
+    defaultValue: 'ws',
+  );
+
+  static String get normalizedWsScheme {
+    final normalized = wsScheme.trim().toLowerCase();
+    return normalized == 'https' || normalized == 'wss' ? 'wss' : 'ws';
+  }
+
   static const String pusherAppKey = String.fromEnvironment(
     'PUSHER_APP_KEY',
     defaultValue: 'REVERB_APP_KEY_DIHAPUS_DARI_RIWAYAT',

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:frontend_bangdeliv/models/chatbot_model.dart';
 import 'package:frontend_bangdeliv/models/user_profile_model.dart';
@@ -56,7 +57,7 @@ void main() {
 
     await _sendMessage(tester, 'trigger error');
 
-    expect(find.textContaining('terjadi kendala'), findsOneWidget);
+    expect(find.textContaining('belum bisa digunakan'), findsOneWidget);
   });
 }
 
@@ -65,6 +66,8 @@ Future<void> _pumpChatbot(
   required String serviceType,
   required ChatbotApiService chatbotApiService,
 }) async {
+  SharedPreferences.setMockInitialValues(<String, Object>{});
+
   final router = GoRouter(
     initialLocation: '/chatbot?service_type=$serviceType',
     routes: <RouteBase>[
@@ -96,13 +99,18 @@ Future<void> _pumpChatbot(
     ),
   );
 
-  await tester.pumpAndSettle();
+  await _pumpChatbotFrame(tester);
 }
 
 Future<void> _sendMessage(WidgetTester tester, String message) async {
   await tester.enterText(find.byType(TextField), message);
   await tester.tap(find.byIcon(Icons.send));
-  await tester.pumpAndSettle();
+  await _pumpChatbotFrame(tester);
+}
+
+Future<void> _pumpChatbotFrame(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 350));
 }
 
 AuthSessionState _buildAuthenticatedSession() {
@@ -161,6 +169,28 @@ class _FakeChatbotApiService extends ChatbotApiService {
 
   int callCount = 0;
   String? lastServiceType;
+
+  @override
+  Future<List<ChatbotSessionSummary>> fetchSessions({
+    String? serviceType,
+    int limit = 20,
+  }) async {
+    return const <ChatbotSessionSummary>[];
+  }
+
+  @override
+  Future<ChatbotHistoryPage> fetchSessionHistory(
+    String sessionId, {
+    int limit = 50,
+    int? beforeId,
+  }) async {
+    return ChatbotHistoryPage(
+      sessionId: sessionId,
+      messages: const <ChatbotHistoryMessage>[],
+      hasMore: false,
+      nextBeforeId: null,
+    );
+  }
 
   @override
   Future<ChatbotResult> sendMessage(
