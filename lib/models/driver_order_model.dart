@@ -96,16 +96,16 @@ class DriverOrderModel {
   factory DriverOrderModel.fromJson(Map<String, dynamic> json) {
     final actions = (json['available_actions'] is List)
         ? (json['available_actions'] as List<dynamic>)
-            .whereType<Map<String, dynamic>>()
-            .map(DriverOrderActionModel.fromJson)
-            .toList(growable: false)
+              .whereType<Map<String, dynamic>>()
+              .map(DriverOrderActionModel.fromJson)
+              .toList(growable: false)
         : const <DriverOrderActionModel>[];
 
     final timeline = (json['status_timeline'] is List)
         ? (json['status_timeline'] as List<dynamic>)
-            .whereType<Map<String, dynamic>>()
-            .map(DriverOrderTimelineItemModel.fromJson)
-            .toList(growable: false)
+              .whereType<Map<String, dynamic>>()
+              .map(DriverOrderTimelineItemModel.fromJson)
+              .toList(growable: false)
         : const <DriverOrderTimelineItemModel>[];
 
     return DriverOrderModel(
@@ -114,13 +114,13 @@ class DriverOrderModel {
           .toString(),
       customerName: (json['customer_name'] ?? json['customerName'] ?? '-')
           .toString(),
-      customerPhone:
-          (json['customer_phone'] ?? json['customerPhone'])?.toString(),
+      customerPhone: (json['customer_phone'] ?? json['customerPhone'])
+          ?.toString(),
       serviceTypeCode: normalizeServiceTypeCode(
         (json['service_type_code'] ?? json['serviceTypeCode'] ?? '').toString(),
       ),
-      serviceTypeName:
-          (json['service_type_name'] ?? json['serviceTypeName'])?.toString(),
+      serviceTypeName: (json['service_type_name'] ?? json['serviceTypeName'])
+          ?.toString(),
       pickupAddress: (json['pickup_address'] ?? json['pickupAddress'] ?? '-')
           .toString(),
       pickupLatitude: _asDoubleOrNull(
@@ -137,7 +137,10 @@ class DriverOrderModel {
       dropoffLongitude: _asDoubleOrNull(
         json['dropoff_longitude'] ?? json['dropoffLongitude'],
       ),
-      etaMinutes: _asInt(json['eta_minutes'] ?? json['etaMinutes'], fallback: 0),
+      etaMinutes: _asInt(
+        json['eta_minutes'] ?? json['etaMinutes'],
+        fallback: 0,
+      ),
       fee: _asInt(json['fee'], fallback: 0),
       totalPrice: _asDouble(json['total_price'] ?? json['totalPrice']),
       itemCount: _asInt(json['item_count'] ?? json['itemCount'], fallback: 0),
@@ -151,8 +154,8 @@ class DriverOrderModel {
       paymentStatus:
           (json['payment_status'] ?? json['paymentStatus'] ?? 'unpaid')
               .toString(),
-      paymentMethod:
-          (json['payment_method'] ?? json['paymentMethod'] ?? 'COD').toString(),
+      paymentMethod: (json['payment_method'] ?? json['paymentMethod'] ?? 'COD')
+          .toString(),
       notes: json['notes']?.toString(),
       acceptedAt:
           json['accepted_at']?.toString() ?? json['acceptedAt']?.toString(),
@@ -200,12 +203,11 @@ class DriverOrderActionModel {
     return DriverOrderActionModel(
       actionCode: (json['action_code'] ?? json['actionCode'] ?? '').toString(),
       label: (json['label'] ?? json['action_code'] ?? 'Aksi').toString(),
-      targetStatusCode:
-          (json['target_status_code'] ?? json['targetStatusCode'])
-              ?.toString(),
+      targetStatusCode: (json['target_status_code'] ?? json['targetStatusCode'])
+          ?.toString(),
       blocked: json['blocked'] == true,
-      blockedReason:
-          (json['blocked_reason'] ?? json['blockedReason'])?.toString(),
+      blockedReason: (json['blocked_reason'] ?? json['blockedReason'])
+          ?.toString(),
     );
   }
 }
@@ -226,8 +228,7 @@ class DriverOrderTimelineItemModel {
   });
 
   factory DriverOrderTimelineItemModel.fromJson(Map<String, dynamic> json) {
-    final createdAtRaw =
-        (json['created_at'] ?? json['createdAt'])?.toString();
+    final createdAtRaw = (json['created_at'] ?? json['createdAt'])?.toString();
 
     return DriverOrderTimelineItemModel(
       statusCode: normalizeOrderStatusCode(
@@ -276,11 +277,6 @@ class DriverHistoryOrderModel {
 class DriverOrdersPayload {
   final List<DriverOrderModel> incoming;
   final List<DriverOrderModel> running;
-  final bool isMockData;
 
-  const DriverOrdersPayload({
-    required this.incoming,
-    required this.running,
-    this.isMockData = false,
-  });
+  const DriverOrdersPayload({required this.incoming, required this.running});
 }

@@ -82,10 +82,7 @@ class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen> {
                         orders: data.incoming,
                         processingOrderIds: data.processingOrderIds,
                       ),
-                      _RunningOrdersTab(
-                        orders: data.running,
-                        isMockMode: data.isMockData,
-                      ),
+                      _RunningOrdersTab(orders: data.running),
                     ],
                   ),
                 ),
@@ -191,9 +188,8 @@ class _IncomingOrdersTab extends ConsumerWidget {
 
 class _RunningOrdersTab extends ConsumerWidget {
   final List<DriverOrderModel> orders;
-  final bool isMockMode;
 
-  const _RunningOrdersTab({required this.orders, this.isMockMode = false});
+  const _RunningOrdersTab({required this.orders});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -218,11 +214,11 @@ class _RunningOrdersTab extends ConsumerWidget {
             order: order,
             isIncoming: false,
             onNavigate: () {
-              if (isMockMode || !_isServerOrderId(order.id)) {
+              if (!_isServerOrderId(order.id)) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text(
-                      'Detail order tidak tersedia karena data masih mode demo.',
+                      'ID order dari server tidak valid. Refresh daftar order dan coba lagi.',
                     ),
                     backgroundColor: AppColors.primaryDark,
                   ),

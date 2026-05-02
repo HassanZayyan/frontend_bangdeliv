@@ -120,7 +120,7 @@ class _FakeDriverOrderService extends DriverOrderService {
   });
 
   @override
-  Future<DriverOrdersPayload> fetchOrders({bool fallbackToMock = true}) async {
+  Future<DriverOrdersPayload> fetchOrders() async {
     return payload;
   }
 
@@ -147,9 +147,7 @@ class _FakeDriverOrderService extends DriverOrderService {
   }
 
   @override
-  Future<List<DriverHistoryOrderModel>> fetchHistory({
-    bool fallbackToMock = true,
-  }) async {
+  Future<List<DriverHistoryOrderModel>> fetchHistory() async {
     return const <DriverHistoryOrderModel>[];
   }
 }

@@ -1,3 +1,5 @@
+import java.util.Base64
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -28,10 +30,30 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        manifestPlaceholders["MAPS_API_KEY"] =
+        fun dartDefineValue(name: String): String? {
+            val encodedDefines = project.findProperty("dart-defines") as String?
+                ?: return null
+
+            return encodedDefines
+                .split(",")
+                .mapNotNull { encoded ->
+                    runCatching {
+                        String(Base64.getDecoder().decode(encoded))
+                    }.getOrNull()
+                }
+                .firstOrNull { decoded -> decoded.startsWith("$name=") }
+                ?.substringAfter("=")
+                ?.takeIf { it.isNotBlank() }
+        }
+
+        val configuredMapsApiKey =
             (project.findProperty("MAPS_API_KEY") as String?)
-                ?: System.getenv("MAPS_API_KEY")
+                ?.takeIf { it.isNotBlank() }
+                ?: dartDefineValue("GOOGLE_MAPS_API_KEY")
+                ?: System.getenv("GOOGLE_MAPS_API_KEY")?.takeIf { it.isNotBlank() }
+                ?: System.getenv("MAPS_API_KEY")?.takeIf { it.isNotBlank() }
                 ?: ""
+        manifestPlaceholders["MAPS_API_KEY"] = configuredMapsApiKey
     }
 
     buildTypes {

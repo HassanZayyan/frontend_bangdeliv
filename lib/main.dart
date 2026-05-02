@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'config/app_env.dart';
 import 'config/app_theme.dart';
 import 'config/app_router.dart';
 import 'providers/auth_session_provider.dart';
 
 void main() {
+  AppEnv.logDebugSummary();
+
   runApp(
     // Membungkus aplikasi dengan ProviderScope untuk Riverpod
     const ProviderScope(child: MyApp()),

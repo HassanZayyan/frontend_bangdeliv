@@ -68,7 +68,8 @@ class _AddressLocationPickerScreenState
     if (!serviceEnabled) return;
 
     final permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
+    if (permission == LocationPermission.always ||
+        permission == LocationPermission.whileInUse) {
       if (mounted) {
         setState(() {
           _isLocationPermissionGranted = true;
@@ -148,43 +149,57 @@ class _AddressLocationPickerScreenState
                         right: 12,
                         top: 12,
                         child: SearchAnchor(
-                          builder: (BuildContext context, SearchController controller) {
-                            return SearchBar(
-                              controller: controller,
-                              padding: const WidgetStatePropertyAll<EdgeInsets>(
-                                  EdgeInsets.symmetric(horizontal: 16.0)),
-                              onTap: () {
-                                controller.openView();
+                          builder:
+                              (
+                                BuildContext context,
+                                SearchController controller,
+                              ) {
+                                return SearchBar(
+                                  controller: controller,
+                                  padding:
+                                      const WidgetStatePropertyAll<EdgeInsets>(
+                                        EdgeInsets.symmetric(horizontal: 16.0),
+                                      ),
+                                  onTap: () {
+                                    controller.openView();
+                                  },
+                                  onChanged: (_) {
+                                    controller.openView();
+                                  },
+                                  leading: const Icon(Icons.search),
+                                  hintText: 'Cari alamat / lokasi...',
+                                  backgroundColor: WidgetStatePropertyAll(
+                                    AppColors.white.withValues(alpha: 0.95),
+                                  ),
+                                  elevation: const WidgetStatePropertyAll(2),
+                                );
                               },
-                              onChanged: (_) {
-                                controller.openView();
-                              },
-                              leading: const Icon(Icons.search),
-                              hintText: 'Cari alamat / lokasi...',
-                              backgroundColor: WidgetStatePropertyAll(
-                                  AppColors.white.withValues(alpha: 0.95)),
-                              elevation: const WidgetStatePropertyAll(2),
-                            );
-                          },
                           suggestionsBuilder:
-                              (BuildContext context, SearchController controller) async {
-                            final query = controller.text;
-                            if (query.isEmpty) {
-                              return const Iterable<Widget>.empty();
-                            }
-                            final results = await _searchPlaces(query);
-                            return results.map((prediction) {
-                              return ListTile(
-                                leading: const Icon(Icons.location_on,
-                                    color: AppColors.primary),
-                                title: Text(prediction['description']),
-                                onTap: () {
-                                  controller.closeView(prediction['description']);
-                                  _goToPlace(prediction['place_id']);
-                                },
-                              );
-                            });
-                          },
+                              (
+                                BuildContext context,
+                                SearchController controller,
+                              ) async {
+                                final query = controller.text;
+                                if (query.isEmpty) {
+                                  return const Iterable<Widget>.empty();
+                                }
+                                final results = await _searchPlaces(query);
+                                return results.map((prediction) {
+                                  return ListTile(
+                                    leading: const Icon(
+                                      Icons.location_on,
+                                      color: AppColors.primary,
+                                    ),
+                                    title: Text(prediction['description']),
+                                    onTap: () {
+                                      controller.closeView(
+                                        prediction['description'],
+                                      );
+                                      _goToPlace(prediction['place_id']);
+                                    },
+                                  );
+                                });
+                              },
                         ),
                       ),
                     ],
@@ -397,13 +412,18 @@ class _AddressLocationPickerScreenState
 
   Future<List<Map<String, dynamic>>> _searchPlaces(String query) async {
     if (query.isEmpty) return [];
+    final apiKey = AppEnv.googleMapsApiKey.trim();
+    if (apiKey.isEmpty) return [];
 
-    final url = Uri.parse(
-      'https://maps.googleapis.com/maps/api/place/autocomplete/json'
-      '?input=$query'
-      '&key=${AppEnv.googleMapsApiKey}'
-      '&components=country:id'
-      '&language=id',
+    final url = Uri.https(
+      'maps.googleapis.com',
+      '/maps/api/place/autocomplete/json',
+      <String, String>{
+        'input': query,
+        'key': apiKey,
+        'components': 'country:id',
+        'language': 'id',
+      },
     );
 
     try {
@@ -419,11 +439,16 @@ class _AddressLocationPickerScreenState
   }
 
   Future<void> _goToPlace(String placeId) async {
-    final url = Uri.parse(
-      'https://maps.googleapis.com/maps/api/place/details/json'
-      '?place_id=$placeId'
-      '&key=${AppEnv.googleMapsApiKey}'
-      '&language=id',
+    final apiKey = AppEnv.googleMapsApiKey.trim();
+    if (apiKey.isEmpty) {
+      _showMessage('Google Maps API key belum dikonfigurasi.');
+      return;
+    }
+
+    final url = Uri.https(
+      'maps.googleapis.com',
+      '/maps/api/place/details/json',
+      <String, String>{'place_id': placeId, 'key': apiKey, 'language': 'id'},
     );
 
     try {
@@ -437,13 +462,16 @@ class _AddressLocationPickerScreenState
 
           final controller = _mapController;
           if (controller != null) {
-            await controller.animateCamera(CameraUpdate.newLatLngZoom(target, 18));
+            await controller.animateCamera(
+              CameraUpdate.newLatLngZoom(target, 18),
+            );
           }
 
           if (!mounted) return;
           setState(() {
             _selectedSource = 'search';
-            _locationHint = data['result']['formatted_address'] ?? 'Lokasi ditemukan.';
+            _locationHint =
+                data['result']['formatted_address'] ?? 'Lokasi ditemukan.';
           });
         }
       }

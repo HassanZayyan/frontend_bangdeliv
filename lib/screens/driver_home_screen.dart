@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -14,17 +14,12 @@ class DriverHomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final ordersState = ref.watch(driverOrdersProvider);
     final DriverOrderModel? activeOrder = ref.watch(driverActiveOrderProvider);
     final session = ref.watch(authSessionProvider);
     final stats = session.profile?.stats;
     final totalPaid = stats?.totalPaid ?? 0;
     final totalOrders = stats?.totalOrders ?? 0;
     final rating = stats?.rating ?? 0;
-    final isMockOrderData = ordersState.maybeWhen(
-      data: (value) => value.isMockData,
-      orElse: () => false,
-    );
     final availabilityAsync = ref.watch(driverAvailabilityProvider);
     final availability = availabilityAsync.asData?.value;
     final availabilityStatus = availability?.status ?? 'offline';
@@ -163,15 +158,14 @@ class DriverHomeScreen extends ConsumerWidget {
           const SizedBox(height: 12),
           _ActiveOrderCard(
             activeOrder: activeOrder,
-            isMockData: isMockOrderData,
             onOpenDetail: activeOrder == null
                 ? null
                 : () {
-                    if (isMockOrderData || !_isServerOrderId(activeOrder.id)) {
+                    if (!_isServerOrderId(activeOrder.id)) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text(
-                            'Order ini berasal dari mode demo atau ID belum valid di server.',
+                            'ID order dari server tidak valid. Refresh daftar order dan coba lagi.',
                           ),
                           backgroundColor: AppColors.primaryDark,
                         ),
@@ -221,14 +215,9 @@ class DriverHomeScreen extends ConsumerWidget {
 
 class _ActiveOrderCard extends StatelessWidget {
   final DriverOrderModel? activeOrder;
-  final bool isMockData;
   final VoidCallback? onOpenDetail;
 
-  const _ActiveOrderCard({
-    this.activeOrder,
-    required this.isMockData,
-    this.onOpenDetail,
-  });
+  const _ActiveOrderCard({this.activeOrder, this.onOpenDetail});
 
   @override
   Widget build(BuildContext context) {
@@ -299,18 +288,6 @@ class _ActiveOrderCard extends StatelessWidget {
                 ),
               ],
             ),
-            if (isMockData)
-              const Padding(
-                padding: EdgeInsets.only(top: 6),
-                child: Text(
-                  'Data order sedang memakai mode demo.',
-                  style: TextStyle(
-                    color: AppColors.primaryDark,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
             const Divider(height: 24),
             Row(
               children: [

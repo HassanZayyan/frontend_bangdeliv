@@ -46,14 +46,12 @@ bool isDriverLocationTrackable(String? code, {String? statusLabel}) {
     case OrderStatusCodes.arrivedPickup:
     case OrderStatusCodes.pickedUp:
     case OrderStatusCodes.onTheWay:
-    case OrderStatusCodes.arrivedDropoff:
       return true;
     default:
       final compactCode = _compactStatusToken(code);
       final compactLabel = _compactStatusToken(statusLabel);
 
-      if (_isDropoffArrivalStatus(compactCode, compactLabel) ||
-          _isPickupArrivalStatus(compactCode, compactLabel)) {
+      if (_isPickupArrivalStatus(compactCode, compactLabel)) {
         return true;
       }
 

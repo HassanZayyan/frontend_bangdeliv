@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../config/app_env.dart';
@@ -29,9 +30,11 @@ class ApiClient {
           .timeout(requestTimeout);
 
       return _decodeResponse(response);
-    } on TimeoutException {
+    } on TimeoutException catch (error) {
+      _logNetworkFailure('GET', uri, error);
       throw const ApiException('Permintaan timeout. Coba lagi.');
-    } on http.ClientException {
+    } on http.ClientException catch (error) {
+      _logNetworkFailure('GET', uri, error);
       throw const ApiException('Tidak dapat terhubung ke server API.');
     }
   }
@@ -56,9 +59,11 @@ class ApiClient {
           .timeout(requestTimeout);
 
       return _decodeResponse(response);
-    } on TimeoutException {
+    } on TimeoutException catch (error) {
+      _logNetworkFailure('POST', uri, error);
       throw const ApiException('Permintaan timeout. Coba lagi.');
-    } on http.ClientException {
+    } on http.ClientException catch (error) {
+      _logNetworkFailure('POST', uri, error);
       throw const ApiException('Tidak dapat terhubung ke server API.');
     }
   }
@@ -83,9 +88,11 @@ class ApiClient {
           .timeout(requestTimeout);
 
       return _decodeResponse(response);
-    } on TimeoutException {
+    } on TimeoutException catch (error) {
+      _logNetworkFailure('DELETE', uri, error);
       throw const ApiException('Permintaan timeout. Coba lagi.');
-    } on http.ClientException {
+    } on http.ClientException catch (error) {
+      _logNetworkFailure('DELETE', uri, error);
       throw const ApiException('Tidak dapat terhubung ke server API.');
     }
   }
@@ -112,6 +119,14 @@ class ApiClient {
       'Content-Type': 'application/json',
       ...?headers,
     };
+  }
+
+  void _logNetworkFailure(String method, Uri uri, Object error) {
+    if (!kDebugMode) {
+      return;
+    }
+
+    debugPrint('[ApiClient] $method $uri failed: $error');
   }
 
   Map<String, dynamic> _decodeResponse(http.Response response) {
