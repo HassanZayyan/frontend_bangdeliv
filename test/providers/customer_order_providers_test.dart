@@ -186,6 +186,8 @@ CustomerOrderSummaryModel _order({required int id, required String number}) {
     createdAt: DateTime(2026, 4, 21),
     estimatedDelivery: null,
     deliveryAddress: 'Alamat Tujuan',
+    paymentStatus: 'unpaid',
+    paymentMethod: 'COD',
   );
 }
 
