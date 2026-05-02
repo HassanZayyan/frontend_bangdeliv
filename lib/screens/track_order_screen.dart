@@ -45,6 +45,14 @@ class TrackOrderScreen extends ConsumerWidget {
         trackingAsync,
         showEmptyForNoActiveOrder: false,
         onRetry: () => ref.invalidate(trackingProvider),
+        onRefresh: () async {
+          ref.invalidate(trackingProvider);
+          try {
+            await ref.read(trackingProvider.future);
+          } catch (_) {
+            // Errors are rendered by the provider state.
+          }
+        },
       );
     }
 
@@ -80,6 +88,14 @@ class TrackOrderScreen extends ConsumerWidget {
           trackingAsync,
           showEmptyForNoActiveOrder: false,
           onRetry: () => ref.invalidate(trackingProvider),
+          onRefresh: () async {
+            ref.invalidate(trackingProvider);
+            try {
+              await ref.read(trackingProvider.future);
+            } catch (_) {
+              // Errors are rendered by the provider state.
+            }
+          },
         );
       },
     );
@@ -90,6 +106,7 @@ class TrackOrderScreen extends ConsumerWidget {
     AsyncValue<CustomerOrderTrackingState> trackingAsync, {
     required bool showEmptyForNoActiveOrder,
     required VoidCallback onRetry,
+    Future<void> Function()? onRefresh,
   }) {
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -135,7 +152,11 @@ class TrackOrderScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-              data: _buildDetailView,
+              data: (tracking) => _buildDetailView(
+                context,
+                tracking,
+                onRefresh: onRefresh,
+              ),
             ),
     );
   }
@@ -205,7 +226,11 @@ class TrackOrderScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildDetailView(CustomerOrderTrackingState tracking) {
+  Widget _buildDetailView(
+    BuildContext context,
+    CustomerOrderTrackingState tracking, {
+    Future<void> Function()? onRefresh,
+  }) {
     final detail = tracking.detail;
     final order = detail.summary;
     final shouldShowMap = _shouldShowTrackingMap(order);
@@ -218,10 +243,12 @@ class TrackOrderScreen extends ConsumerWidget {
 
     if ((isWaitingDriver || isPassengerDropoff) && !order.isTerminalStatus) {
       return _buildFixedStatusLayout(
+        context: context,
         order: order,
         detail: detail,
         hasLiveDriver: hasLiveDriver,
         infoMessage: _fixedStatusInfoMessage(order),
+        onRefresh: onRefresh,
       );
     }
 
@@ -243,6 +270,7 @@ class TrackOrderScreen extends ConsumerWidget {
                       height: constraints.maxHeight,
                       borderRadius: 0,
                       showLegend: true,
+                      followDriver: true,
                     )
                   : const ColoredBox(color: AppColors.background),
             ),
@@ -280,39 +308,49 @@ class TrackOrderScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 16),
                       Expanded(
-                        child: ListView(
-                          controller: scrollController,
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
-                          children: [
-                            _buildStatusProgress(
-                              order.statusCode,
-                              statusLabel: order.statusLabel,
-                              isTerminalStatus: order.isTerminalStatus,
-                            ),
-                            const SizedBox(height: 12),
-                            _buildStatusHeader(
-                              order: order,
-                              hasLiveDriver: hasLiveDriver,
-                            ),
-                            if (driverName.isNotEmpty) ...[
+                        child: RefreshIndicator(
+                          onRefresh: onRefresh ?? () async {},
+                          child: ListView(
+                            controller: scrollController,
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
+                            children: [
+                              _buildStatusProgress(
+                                order.statusCode,
+                                statusLabel: order.statusLabel,
+                                isTerminalStatus: order.isTerminalStatus,
+                              ),
                               const SizedBox(height: 12),
-                              _buildDriverCard(driverName),
-                            ],
-                            const SizedBox(height: 12),
-                            _buildSummaryCard(order, detail),
-                            const SizedBox(height: 12),
-                            _buildAddressCard(order.deliveryAddress),
-                            const SizedBox(height: 12),
-                            _buildTimelineCard(
-                              detail.timeline,
-                              isRide: isRide,
-                              shouldShowMap: shouldShowMap,
-                            ),
-                            if ((detail.notes ?? '').trim().isNotEmpty) ...[
+                              _buildStatusHeader(
+                                order: order,
+                                hasLiveDriver: hasLiveDriver,
+                                showEta: _shouldShowEta(order),
+                              ),
+                              if (driverName.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                _buildDriverCard(
+                                  driverName,
+                                  onChat: () => context.push(
+                                    AppRoutes.orderChatPath(order.id),
+                                  ),
+                                ),
+                              ],
                               const SizedBox(height: 12),
-                              _buildNotesCard(detail.notes!.trim()),
+                              _buildSummaryCard(
+                                order,
+                                detail,
+                                showEta: _shouldShowEta(order),
+                              ),
+                              const SizedBox(height: 12),
+                              _buildAddressCard(order.deliveryAddress),
+                              const SizedBox(height: 12),
+                              _buildTimelineCard(
+                                detail.timeline,
+                                isRide: isRide,
+                                shouldShowMap: shouldShowMap,
+                              ),
                             ],
-                          ],
+                          ),
                         ),
                       ),
                     ],
@@ -327,19 +365,24 @@ class TrackOrderScreen extends ConsumerWidget {
   }
 
   Widget _buildFixedStatusLayout({
+    required BuildContext context,
     required CustomerOrderSummaryModel order,
     required CustomerOrderDetailModel detail,
     required bool hasLiveDriver,
     required String infoMessage,
+    Future<void> Function()? onRefresh,
   }) {
+    final driverName = (detail.driverName ?? '').trim();
+
     return ColoredBox(
       color: AppColors.background,
       child: SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: RefreshIndicator(
+          onRefresh: onRefresh ?? () async {},
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
             children: [
               _buildStatusProgress(
                 order.statusCode,
@@ -347,10 +390,25 @@ class TrackOrderScreen extends ConsumerWidget {
                 isTerminalStatus: order.isTerminalStatus,
               ),
               const SizedBox(height: 12),
-              _buildStatusHeader(order: order, hasLiveDriver: hasLiveDriver),
+              _buildStatusHeader(
+                order: order,
+                hasLiveDriver: hasLiveDriver,
+                showEta: _shouldShowEta(order),
+              ),
+              if (driverName.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _buildDriverCard(
+                  driverName,
+                  onChat: () => context.push(AppRoutes.orderChatPath(order.id)),
+                ),
+              ],
               const SizedBox(height: 12),
-              _buildSummaryCard(order, detail),
-              const Spacer(),
+              _buildSummaryCard(
+                order,
+                detail,
+                showEta: _shouldShowEta(order),
+              ),
+              const SizedBox(height: 12),
               _buildCard(
                 title: 'Info Tracking',
                 icon: Icons.info_outline,
@@ -400,6 +458,14 @@ class TrackOrderScreen extends ConsumerWidget {
     }
 
     return 'Peta tracking akan muncul otomatis setelah driver mulai menuju titik jemput.';
+  }
+
+  bool _shouldShowEta(CustomerOrderSummaryModel order) {
+    if (order.isTerminalStatus || _isPassengerDropoffStatus(order)) {
+      return false;
+    }
+
+    return order.estimatedDelivery != null;
   }
 
   // ---------------------------------------------------------------------------
@@ -540,9 +606,10 @@ class TrackOrderScreen extends ConsumerWidget {
   Widget _buildStatusHeader({
     required CustomerOrderSummaryModel order,
     required bool hasLiveDriver,
+    bool showEta = true,
   }) {
     final statusColor = orderStatusColor(order.statusCode);
-    final hasEta = order.estimatedDelivery != null;
+    final hasEta = showEta && order.estimatedDelivery != null;
 
     return Container(
       decoration: BoxDecoration(
@@ -684,12 +751,14 @@ class TrackOrderScreen extends ConsumerWidget {
                     color: AppColors.primary,
                   ),
                   const SizedBox(width: 6),
-                  Text(
-                    'Estimasi tiba: ${_estimateArrivalText(order.estimatedDelivery)}',
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
+                  Expanded(
+                    child: Text(
+                      'Estimasi tiba: ${_estimateArrivalText(order.estimatedDelivery)}',
+                      style: const TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                 ],
@@ -704,7 +773,7 @@ class TrackOrderScreen extends ConsumerWidget {
   // Driver card — avatar inisial + nama driver
   // ---------------------------------------------------------------------------
 
-  Widget _buildDriverCard(String driverName) {
+  Widget _buildDriverCard(String driverName, {VoidCallback? onChat}) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -763,6 +832,15 @@ class TrackOrderScreen extends ConsumerWidget {
               ],
             ),
           ),
+          if (onChat != null) ...[
+            const SizedBox(width: 10),
+            IconButton(
+              onPressed: onChat,
+              tooltip: 'Chat driver',
+              icon: const Icon(Icons.chat_bubble_outline),
+              color: AppColors.primary,
+            ),
+          ],
         ],
       ),
     );
@@ -774,13 +852,14 @@ class TrackOrderScreen extends ConsumerWidget {
 
   Widget _buildSummaryCard(
     CustomerOrderSummaryModel order,
-    CustomerOrderDetailModel detail,
-  ) {
+    CustomerOrderDetailModel detail, {
+    bool showEta = true,
+  }) {
     final rows = <_InfoRow>[
       _InfoRow('No. Order', order.orderNumber),
       _InfoRow('Layanan', order.serviceTypeLabel),
       _InfoRow('Total', formatCurrency(order.totalAmount)),
-      if (order.estimatedDelivery != null)
+      if (showEta && order.estimatedDelivery != null)
         _InfoRow('ETA', _estimateArrivalText(order.estimatedDelivery)),
       if ((detail.deliveryDistanceText ?? '').trim().isNotEmpty)
         _InfoRow('Jarak', detail.deliveryDistanceText!.trim()),
@@ -984,25 +1063,6 @@ class TrackOrderScreen extends ConsumerWidget {
               );
             }),
         ],
-      ),
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Notes card
-  // ---------------------------------------------------------------------------
-
-  Widget _buildNotesCard(String notes) {
-    return _buildCard(
-      title: 'Catatan',
-      icon: Icons.notes_outlined,
-      child: Text(
-        notes,
-        style: const TextStyle(
-          color: AppColors.textSecondary,
-          height: 1.5,
-          fontSize: 13,
-        ),
       ),
     );
   }

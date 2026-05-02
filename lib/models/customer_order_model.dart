@@ -272,7 +272,6 @@ class CustomerOrderDetailModel {
   final CustomerOrderSummaryModel summary;
   final String? paymentStatus;
   final String? paymentMethod;
-  final String? notes;
   final String? driverName;
   final double? pickupLatitude;
   final double? pickupLongitude;
@@ -288,7 +287,6 @@ class CustomerOrderDetailModel {
     required this.summary,
     required this.paymentStatus,
     required this.paymentMethod,
-    required this.notes,
     required this.driverName,
     required this.pickupLatitude,
     required this.pickupLongitude,
@@ -305,7 +303,6 @@ class CustomerOrderDetailModel {
     CustomerOrderSummaryModel? summary,
     String? paymentStatus,
     String? paymentMethod,
-    String? notes,
     String? driverName,
     double? pickupLatitude,
     double? pickupLongitude,
@@ -321,7 +318,6 @@ class CustomerOrderDetailModel {
       summary: summary ?? this.summary,
       paymentStatus: paymentStatus ?? this.paymentStatus,
       paymentMethod: paymentMethod ?? this.paymentMethod,
-      notes: notes ?? this.notes,
       driverName: driverName ?? this.driverName,
       pickupLatitude: pickupLatitude ?? this.pickupLatitude,
       pickupLongitude: pickupLongitude ?? this.pickupLongitude,
@@ -438,7 +434,6 @@ class CustomerOrderDetailModel {
       summary: summary,
       paymentStatus: json['payment_status']?.toString(),
       paymentMethod: json['payment_method']?.toString(),
-      notes: json['notes']?.toString(),
       driverName: driverUser['name']?.toString(),
       pickupLatitude: pickupLatitude != null && _isValidLatitude(pickupLatitude)
           ? pickupLatitude

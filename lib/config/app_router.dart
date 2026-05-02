@@ -17,6 +17,7 @@ import '../screens/activity_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/chatbot_screen.dart';
 import '../screens/order_history_screen.dart';
+import '../screens/order_chat_screen.dart';
 import '../screens/track_order_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/edit_profile_screen.dart';
@@ -33,6 +34,7 @@ import '../providers/customer_order_providers.dart';
 import '../providers/customer_order_realtime_provider.dart';
 import '../providers/customer_order_tracking_provider.dart';
 import '../providers/driver_order_providers.dart';
+import '../providers/order_chat_provider.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/notification_settings_screen.dart';
 import '../screens/privacy_map_screen.dart';
@@ -102,6 +104,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.track,
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const TrackOrderScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.orderChat,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final orderId = int.tryParse(state.pathParameters['orderId'] ?? '');
+          if (orderId == null || orderId <= 0) {
+            return const Scaffold(
+              body: Center(child: Text('Order chat tidak valid.')),
+            );
+          }
+
+          return OrderChatScreen(orderId: orderId);
+        },
       ),
       GoRoute(
         path: AppRoutes.menuDetail,
@@ -290,6 +306,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ref.invalidate(customerActiveOrderProvider);
       ref.invalidate(customerOrderRealtimeHubProvider);
       ref.invalidate(customerOrderTrackingProvider);
+      ref.invalidate(orderChatProvider);
 
       ref.invalidate(driverOrdersProvider);
       ref.invalidate(driverHistoryProvider);

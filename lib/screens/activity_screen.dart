@@ -120,6 +120,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
   @override
   Widget build(BuildContext context) {
     final ordersAsync = ref.watch(customerOrdersProvider);
+    ref.watch(customerOrdersAutoRefreshProvider);
     final allActivityOrders = ref.watch(customerActivityOrdersProvider);
     final ongoingOrders = ref.watch(customerOngoingOrdersProvider);
     final cancelledOrders = ref.watch(customerCancelledOrdersProvider);

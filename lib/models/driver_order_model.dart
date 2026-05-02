@@ -25,7 +25,6 @@ class DriverOrderModel {
   final String? statusDisplayName;
   final String paymentStatus;
   final String paymentMethod;
-  final String? notes;
   final String? acceptedAt;
   final List<DriverOrderActionModel> availableActions;
   final List<DriverOrderTimelineItemModel> statusTimeline;
@@ -51,7 +50,6 @@ class DriverOrderModel {
     this.statusDisplayName,
     this.paymentStatus = 'unpaid',
     this.paymentMethod = 'COD',
-    this.notes,
     this.acceptedAt,
     this.availableActions = const <DriverOrderActionModel>[],
     this.statusTimeline = const <DriverOrderTimelineItemModel>[],
@@ -86,7 +84,6 @@ class DriverOrderModel {
       statusDisplayName: statusDisplayName ?? this.statusDisplayName,
       paymentStatus: paymentStatus ?? this.paymentStatus,
       paymentMethod: paymentMethod,
-      notes: notes,
       acceptedAt: acceptedAt ?? this.acceptedAt,
       availableActions: availableActions ?? this.availableActions,
       statusTimeline: statusTimeline ?? this.statusTimeline,
@@ -156,7 +153,6 @@ class DriverOrderModel {
               .toString(),
       paymentMethod: (json['payment_method'] ?? json['paymentMethod'] ?? 'COD')
           .toString(),
-      notes: json['notes']?.toString(),
       acceptedAt:
           json['accepted_at']?.toString() ?? json['acceptedAt']?.toString(),
       availableActions: actions,

@@ -20,6 +20,7 @@ class TrackingMapSection extends StatefulWidget {
     this.height = 260,
     this.borderRadius = 16,
     this.showLegend = true,
+    this.followDriver = false,
   });
 
   final String dropoffAddress;
@@ -33,6 +34,7 @@ class TrackingMapSection extends StatefulWidget {
   final double height;
   final double borderRadius;
   final bool showLegend;
+  final bool followDriver;
 
   @override
   State<TrackingMapSection> createState() => _TrackingMapSectionState();
@@ -40,19 +42,215 @@ class TrackingMapSection extends StatefulWidget {
 
 class _TrackingMapSectionState extends State<TrackingMapSection> {
   GoogleMapController? _mapController;
+  bool _isFollowingDriver = false;
+  bool _isProgrammaticCameraMove = false;
+  LatLng? _lastFocusedDriverPosition;
+  DateTime? _lastFocusedDriverUpdatedAt;
 
   static const LatLng _fallbackCenter = LatLng(-7.0503, 110.4370);
+  static const double _driverFollowZoom = 16;
+
+  @override
+  void initState() {
+    super.initState();
+    _isFollowingDriver = widget.followDriver;
+  }
 
   @override
   void didUpdateWidget(covariant TrackingMapSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _fitCameraToMarkers();
+
+    if (!widget.followDriver) {
+      _isFollowingDriver = false;
+      _fitCameraToMarkers();
+      return;
+    }
+
+    if (!_hasDriverCoordinates) {
+      _lastFocusedDriverPosition = null;
+      _lastFocusedDriverUpdatedAt = null;
+      _fitCameraToMarkers();
+      return;
+    }
+
+    if (!oldWidget.followDriver && widget.followDriver) {
+      _isFollowingDriver = true;
+    }
+
+    if (_isFollowingDriver) {
+      _focusCameraOnDriver();
+    }
   }
 
   @override
   void dispose() {
     _mapController?.dispose();
     super.dispose();
+  }
+
+  bool get _hasDriverCoordinates =>
+      widget.driverLatitude != null && widget.driverLongitude != null;
+
+  LatLng? get _driverPosition {
+    if (!_hasDriverCoordinates) {
+      return null;
+    }
+
+    return LatLng(widget.driverLatitude!, widget.driverLongitude!);
+  }
+
+  LatLng _initialCameraTarget(Set<Marker> markers) {
+    final driverPosition = _driverPosition;
+    if (widget.followDriver && driverPosition != null) {
+      return driverPosition;
+    }
+
+    return markers.first.position;
+  }
+
+  double _initialZoom() {
+    if (widget.followDriver && _hasDriverCoordinates) {
+      return _driverFollowZoom;
+    }
+
+    return 14;
+  }
+
+  void _handleCameraMoveStarted() {
+    if (!widget.followDriver ||
+        !_hasDriverCoordinates ||
+        !_isFollowingDriver ||
+        _isProgrammaticCameraMove) {
+      return;
+    }
+
+    setState(() {
+      _isFollowingDriver = false;
+    });
+  }
+
+  void _resumeDriverFollow() {
+    if (!_hasDriverCoordinates) {
+      return;
+    }
+
+    setState(() {
+      _isFollowingDriver = true;
+    });
+
+    _focusCameraOnDriver(force: true);
+  }
+
+  Future<void> _focusCameraOnDriver({bool force = false}) async {
+    final driverPosition = _driverPosition;
+    if (_mapController == null || !mounted || driverPosition == null) {
+      return;
+    }
+
+    if (!force && !_shouldMoveToDriver(driverPosition)) {
+      return;
+    }
+
+    _lastFocusedDriverPosition = driverPosition;
+    _lastFocusedDriverUpdatedAt = widget.driverLocationUpdatedAt;
+
+    await _animateCamera(
+      CameraUpdate.newLatLngZoom(driverPosition, _driverFollowZoom),
+    );
+  }
+
+  bool _shouldMoveToDriver(LatLng driverPosition) {
+    final lastPosition = _lastFocusedDriverPosition;
+    final lastUpdatedAt = _lastFocusedDriverUpdatedAt;
+    final updatedAt = widget.driverLocationUpdatedAt;
+
+    if (lastPosition == null) {
+      return true;
+    }
+
+    final movedEnough =
+        (lastPosition.latitude - driverPosition.latitude).abs() > 0.00001 ||
+        (lastPosition.longitude - driverPosition.longitude).abs() > 0.00001;
+    if (movedEnough) {
+      return true;
+    }
+
+    if (updatedAt == null) {
+      return false;
+    }
+
+    return lastUpdatedAt == null || !lastUpdatedAt.isAtSameMomentAs(updatedAt);
+  }
+
+  Future<void> _animateCamera(CameraUpdate update) async {
+    final controller = _mapController;
+    if (controller == null || !mounted) {
+      return;
+    }
+
+    _isProgrammaticCameraMove = true;
+    try {
+      await controller.animateCamera(update);
+    } finally {
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      _isProgrammaticCameraMove = false;
+    }
+  }
+
+  Future<void> _fitCameraToMarkers() async {
+    final controller = _mapController;
+    if (controller == null || !mounted) {
+      return;
+    }
+
+    final points = <LatLng>[];
+
+    if (widget.pickupLatitude != null && widget.pickupLongitude != null) {
+      points.add(LatLng(widget.pickupLatitude!, widget.pickupLongitude!));
+    }
+    if (widget.dropoffLatitude != null && widget.dropoffLongitude != null) {
+      points.add(LatLng(widget.dropoffLatitude!, widget.dropoffLongitude!));
+    }
+    if (widget.driverLatitude != null && widget.driverLongitude != null) {
+      points.add(LatLng(widget.driverLatitude!, widget.driverLongitude!));
+    }
+
+    if (points.isEmpty) {
+      await _animateCamera(CameraUpdate.newLatLngZoom(_fallbackCenter, 12));
+      return;
+    }
+
+    if (points.length == 1) {
+      await _animateCamera(CameraUpdate.newLatLngZoom(points.first, 15));
+      return;
+    }
+
+    double minLat = points.first.latitude;
+    double maxLat = points.first.latitude;
+    double minLng = points.first.longitude;
+    double maxLng = points.first.longitude;
+
+    for (final point in points.skip(1)) {
+      if (point.latitude < minLat) {
+        minLat = point.latitude;
+      }
+      if (point.latitude > maxLat) {
+        maxLat = point.latitude;
+      }
+      if (point.longitude < minLng) {
+        minLng = point.longitude;
+      }
+      if (point.longitude > maxLng) {
+        maxLng = point.longitude;
+      }
+    }
+
+    final bounds = LatLngBounds(
+      southwest: LatLng(minLat, minLng),
+      northeast: LatLng(maxLat, maxLng),
+    );
+
+    await _animateCamera(CameraUpdate.newLatLngBounds(bounds, 64));
   }
 
   @override
@@ -72,8 +270,8 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
           children: [
             GoogleMap(
               initialCameraPosition: CameraPosition(
-                target: markers.first.position,
-                zoom: 14,
+                target: _initialCameraTarget(markers),
+                zoom: _initialZoom(),
               ),
               markers: markers,
               scrollGesturesEnabled: true,
@@ -89,12 +287,26 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
               mapToolbarEnabled: false,
               zoomControlsEnabled: false,
               compassEnabled: true,
+              onCameraMoveStarted: _handleCameraMoveStarted,
               onMapCreated: (controller) {
                 _mapController = controller;
-                _fitCameraToMarkers();
+                if (widget.followDriver && _hasDriverCoordinates) {
+                  _isFollowingDriver = true;
+                  _focusCameraOnDriver(force: true);
+                } else {
+                  _fitCameraToMarkers();
+                }
               },
             ),
             Positioned(top: 10, left: 10, right: 10, child: _buildTopHint()),
+            if (widget.followDriver &&
+                _hasDriverCoordinates &&
+                !_isFollowingDriver)
+              Positioned(
+                top: 52,
+                right: 10,
+                child: _buildResumeFollowButton(),
+              ),
             if (widget.showLegend)
               Positioned(
                 left: 10,
@@ -104,6 +316,20 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildResumeFollowButton() {
+    return Material(
+      color: AppColors.white.withValues(alpha: 0.95),
+      shape: const CircleBorder(),
+      elevation: 2,
+      child: IconButton(
+        onPressed: _resumeDriverFollow,
+        tooltip: 'Ikuti driver',
+        icon: const Icon(Icons.my_location_rounded),
+        color: AppColors.primary,
       ),
     );
   }
@@ -256,66 +482,6 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
     }
 
     return markers;
-  }
-
-  Future<void> _fitCameraToMarkers() async {
-    final controller = _mapController;
-    if (controller == null || !mounted) {
-      return;
-    }
-
-    final points = <LatLng>[];
-
-    if (widget.pickupLatitude != null && widget.pickupLongitude != null) {
-      points.add(LatLng(widget.pickupLatitude!, widget.pickupLongitude!));
-    }
-    if (widget.dropoffLatitude != null && widget.dropoffLongitude != null) {
-      points.add(LatLng(widget.dropoffLatitude!, widget.dropoffLongitude!));
-    }
-    if (widget.driverLatitude != null && widget.driverLongitude != null) {
-      points.add(LatLng(widget.driverLatitude!, widget.driverLongitude!));
-    }
-
-    if (points.isEmpty) {
-      await controller.animateCamera(
-        CameraUpdate.newLatLngZoom(_fallbackCenter, 12),
-      );
-      return;
-    }
-
-    if (points.length == 1) {
-      await controller.animateCamera(
-        CameraUpdate.newLatLngZoom(points.first, 15),
-      );
-      return;
-    }
-
-    double minLat = points.first.latitude;
-    double maxLat = points.first.latitude;
-    double minLng = points.first.longitude;
-    double maxLng = points.first.longitude;
-
-    for (final point in points.skip(1)) {
-      if (point.latitude < minLat) {
-        minLat = point.latitude;
-      }
-      if (point.latitude > maxLat) {
-        maxLat = point.latitude;
-      }
-      if (point.longitude < minLng) {
-        minLng = point.longitude;
-      }
-      if (point.longitude > maxLng) {
-        maxLng = point.longitude;
-      }
-    }
-
-    final bounds = LatLngBounds(
-      southwest: LatLng(minLat, minLng),
-      northeast: LatLng(maxLat, maxLng),
-    );
-
-    await controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 64));
   }
 
   String _driverUpdateText() {
