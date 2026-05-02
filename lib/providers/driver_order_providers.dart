@@ -1,10 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/driver_order_model.dart';
+import '../services/driver_order_service.dart';
 import '../utils/order_formatters.dart';
 import '../utils/order_status.dart';
 import 'auth_session_provider.dart';
-import '../services/driver_order_service.dart';
 
 final driverOrderServiceProvider = Provider<DriverOrderService>((ref) {
   return DriverOrderService();
@@ -14,26 +14,22 @@ class DriverOrdersState {
   final List<DriverOrderModel> incoming;
   final List<DriverOrderModel> running;
   final Set<String> processingOrderIds;
-  final bool isMockData;
 
   const DriverOrdersState({
     required this.incoming,
     required this.running,
     this.processingOrderIds = const <String>{},
-    this.isMockData = false,
   });
 
   DriverOrdersState copyWith({
     List<DriverOrderModel>? incoming,
     List<DriverOrderModel>? running,
     Set<String>? processingOrderIds,
-    bool? isMockData,
   }) {
     return DriverOrdersState(
       incoming: incoming ?? this.incoming,
       running: running ?? this.running,
       processingOrderIds: processingOrderIds ?? this.processingOrderIds,
-      isMockData: isMockData ?? this.isMockData,
     );
   }
 
@@ -59,7 +55,6 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       incoming: payload.incoming,
       running: payload.running,
       processingOrderIds: const <String>{},
-      isMockData: payload.isMockData,
     );
   }
 
@@ -84,7 +79,6 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
           incoming: payload.incoming,
           running: payload.running,
           processingOrderIds: const <String>{},
-          isMockData: payload.isMockData,
         ),
       );
     } catch (error, stackTrace) {
@@ -108,7 +102,9 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     }
 
     final incoming = List<DriverOrderModel>.from(current.incoming);
-    final selected = incoming.removeAt(index).copyWith(
+    final selected = incoming
+        .removeAt(index)
+        .copyWith(
           acceptedAt: _currentHourMinute(),
           statusCode: OrderStatusCodes.driverAssigned,
           statusDisplayName: orderStatusLabel(OrderStatusCodes.driverAssigned),
@@ -129,9 +125,9 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       await ref.read(driverOrderServiceProvider).acceptOrder(id);
       DriverOrderModel? syncedOrder;
       try {
-        syncedOrder = await ref.read(driverOrderServiceProvider).fetchOrderDetail(
-          id,
-        );
+        syncedOrder = await ref
+            .read(driverOrderServiceProvider)
+            .fetchOrderDetail(id);
       } catch (_) {
         syncedOrder = null;
       }
@@ -235,22 +231,21 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       return null;
     }
 
-    final processingOrderIds = <String>{
-      ...current.processingOrderIds,
-      orderId,
-    };
+    final processingOrderIds = <String>{...current.processingOrderIds, orderId};
 
     state = AsyncData(current.copyWith(processingOrderIds: processingOrderIds));
 
     try {
-      final updated = await ref.read(driverOrderServiceProvider).transitionStatus(
-        orderId: orderId,
-        actionCode: actionCode,
-        targetStatusCode: targetStatusCode,
-        note: note,
-        latitude: latitude,
-        longitude: longitude,
-      );
+      final updated = await ref
+          .read(driverOrderServiceProvider)
+          .transitionStatus(
+            orderId: orderId,
+            actionCode: actionCode,
+            targetStatusCode: targetStatusCode,
+            note: note,
+            latitude: latitude,
+            longitude: longitude,
+          );
 
       final latest = state.asData?.value;
       if (latest == null) {
@@ -301,23 +296,18 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       return null;
     }
 
-    final processingOrderIds = <String>{
-      ...current.processingOrderIds,
-      orderId,
-    };
+    final processingOrderIds = <String>{...current.processingOrderIds, orderId};
 
     state = AsyncData(current.copyWith(processingOrderIds: processingOrderIds));
 
     try {
-      await ref.read(driverOrderServiceProvider).collectCod(
-        orderId: orderId,
-        amount: amount,
-        note: note,
-      );
+      await ref
+          .read(driverOrderServiceProvider)
+          .collectCod(orderId: orderId, amount: amount, note: note);
 
-      final refreshed = await ref.read(driverOrderServiceProvider).fetchOrderDetail(
-        orderId,
-      );
+      final refreshed = await ref
+          .read(driverOrderServiceProvider)
+          .fetchOrderDetail(orderId);
 
       final latest = state.asData?.value;
       if (latest == null) {
@@ -421,11 +411,14 @@ class DriverAvailabilityState {
   }
 }
 
-class DriverAvailabilityNotifier extends AsyncNotifier<DriverAvailabilityState> {
+class DriverAvailabilityNotifier
+    extends AsyncNotifier<DriverAvailabilityState> {
   @override
   Future<DriverAvailabilityState> build() async {
     try {
-      final status = await ref.read(driverOrderServiceProvider).fetchAvailabilityStatus();
+      final status = await ref
+          .read(driverOrderServiceProvider)
+          .fetchAvailabilityStatus();
       return DriverAvailabilityState(status: _normalizeStatus(status));
     } on DriverOrderApiException catch (error) {
       return DriverAvailabilityState(
@@ -460,9 +453,9 @@ class DriverAvailabilityNotifier extends AsyncNotifier<DriverAvailabilityState> 
     );
 
     try {
-      final status = await ref.read(driverOrderServiceProvider).updateAvailability(
-            isOnline: value,
-          );
+      final status = await ref
+          .read(driverOrderServiceProvider)
+          .updateAvailability(isOnline: value);
 
       await ref.read(authSessionProvider.notifier).refreshSession();
 
@@ -505,7 +498,9 @@ class DriverAvailabilityNotifier extends AsyncNotifier<DriverAvailabilityState> 
 
   String _normalizeStatus(String rawStatus) {
     final normalized = rawStatus.trim().toLowerCase();
-    if (normalized == 'available' || normalized == 'busy' || normalized == 'offline') {
+    if (normalized == 'available' ||
+        normalized == 'busy' ||
+        normalized == 'offline') {
       return normalized;
     }
 

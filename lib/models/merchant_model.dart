@@ -1,3 +1,5 @@
+import '../config/app_env.dart';
+
 class MerchantModel {
   final String id;
   final String name;
@@ -19,7 +21,7 @@ class MerchantModel {
       name: json['name']?.toString() ?? '-',
       distance: _distanceLabel(json['distance_km']),
       rating: _toDouble(json['avg_rating']),
-      imageUrl: json['banner_image']?.toString() ?? '',
+      imageUrl: AppEnv.resolveBackendAssetUrl(json['banner_image']?.toString()),
     );
   }
 

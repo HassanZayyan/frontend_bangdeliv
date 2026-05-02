@@ -1,3 +1,4 @@
+import '../config/app_env.dart';
 import '../utils/currency_formatter.dart';
 
 class FoodModel {
@@ -31,7 +32,7 @@ class FoodModel {
       restaurantName: restaurantName,
       price: _toDouble(json['price']),
       rating: restaurantRating,
-      imageUrl: json['image']?.toString() ?? '',
+      imageUrl: AppEnv.resolveBackendAssetUrl(json['image']?.toString()),
     );
   }
 

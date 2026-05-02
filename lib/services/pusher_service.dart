@@ -92,7 +92,7 @@ class PusherService {
   }
 
   static String get _broadcastAuthEndpoint {
-    return '${AppEnv.apiBaseUrl.replaceFirst('/api', '')}/broadcasting/auth';
+    return '${AppEnv.backendOrigin}/broadcasting/auth';
   }
 
   Future<void> connect() {
@@ -116,6 +116,10 @@ class PusherService {
   }
 
   Future<void> _connect() async {
+    if (!AppEnv.hasPusherAppKey) {
+      throw StateError('PUSHER_APP_KEY belum dikonfigurasi.');
+    }
+
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
 

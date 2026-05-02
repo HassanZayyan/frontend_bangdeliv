@@ -24,18 +24,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _prefillLastLoginCredentials();
+    _prefillLastLoginEmail();
   }
 
-  Future<void> _prefillLastLoginCredentials() async {
-    final credentials = await AuthService.getLastLoginCredentials();
+  Future<void> _prefillLastLoginEmail() async {
+    final email = await AuthService.getLastLoginEmail();
 
-    if (!mounted || credentials == null) {
+    if (!mounted || email == null) {
       return;
     }
 
-    _emailController.text = credentials.email;
-    _passwordController.text = credentials.password;
+    _emailController.text = email;
   }
 
   @override

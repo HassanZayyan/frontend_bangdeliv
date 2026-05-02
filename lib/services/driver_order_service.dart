@@ -153,90 +153,40 @@ class DriverOrderService {
     return status.isEmpty ? 'offline' : status;
   }
 
-  Future<DriverOrdersPayload> fetchOrders({bool fallbackToMock = true}) async {
-    final allowMockFallback = fallbackToMock && AppEnv.enableDriverMockFallback;
+  Future<DriverOrdersPayload> fetchOrders() async {
+    final response = await _safeGet('/v1/driver/orders', timeout: _listTimeout);
+    final data = _extractData(response);
 
-    try {
-      final response = await _safeGet(
-        '/v1/driver/orders',
-        timeout: _listTimeout,
-      );
-      final data = _extractData(response);
+    final incomingRaw = _extractList(
+      data['incoming_orders'] ?? data['incoming'] ?? data['new_orders'],
+    );
+    final runningRaw = _extractList(
+      data['running_orders'] ?? data['running'] ?? data['active_orders'],
+    );
 
-      final incomingRaw = _extractList(
-        data['incoming_orders'] ?? data['incoming'] ?? data['new_orders'],
-      );
-      final runningRaw = _extractList(
-        data['running_orders'] ?? data['running'] ?? data['active_orders'],
-      );
-
-      if (incomingRaw.isEmpty && runningRaw.isEmpty && allowMockFallback) {
-        return _mockOrdersPayload();
-      }
-
-      return DriverOrdersPayload(
-        incoming: incomingRaw
-            .map(DriverOrderModel.fromJson)
-            .toList(growable: false),
-        running: runningRaw
-            .map(DriverOrderModel.fromJson)
-            .toList(growable: false),
-        isMockData: false,
-      );
-    } on AuthException {
-      rethrow;
-    } on DriverOrderApiException catch (error) {
-      if (!allowMockFallback || error.statusCode == 401) {
-        rethrow;
-      }
-
-      return _mockOrdersPayload();
-    } catch (_) {
-      if (!allowMockFallback) {
-        rethrow;
-      }
-
-      return _mockOrdersPayload();
-    }
+    return DriverOrdersPayload(
+      incoming: incomingRaw
+          .map(DriverOrderModel.fromJson)
+          .toList(growable: false),
+      running: runningRaw
+          .map(DriverOrderModel.fromJson)
+          .toList(growable: false),
+    );
   }
 
-  Future<List<DriverHistoryOrderModel>> fetchHistory({
-    bool fallbackToMock = true,
-  }) async {
-    final allowMockFallback = fallbackToMock && AppEnv.enableDriverMockFallback;
+  Future<List<DriverHistoryOrderModel>> fetchHistory() async {
+    final response = await _safeGet(
+      '/v1/driver/history',
+      timeout: _listTimeout,
+    );
+    final data = _extractData(response);
+    final historyRaw = _extractList(
+      data['history_orders'] ?? data['history'] ?? data['orders'],
+    );
 
-    try {
-      final response = await _safeGet(
-        '/v1/driver/history',
-        timeout: _listTimeout,
-      );
-      final data = _extractData(response);
-      final historyRaw = _extractList(
-        data['history_orders'] ?? data['history'] ?? data['orders'],
-      );
-
-      if (historyRaw.isEmpty && allowMockFallback) {
-        return _mockHistory();
-      }
-
-      return historyRaw
-          .map(DriverHistoryOrderModel.fromJson)
-          .toList(growable: false);
-    } on AuthException {
-      rethrow;
-    } on DriverOrderApiException catch (error) {
-      if (!allowMockFallback || error.statusCode == 401) {
-        rethrow;
-      }
-
-      return _mockHistory();
-    } catch (_) {
-      if (!allowMockFallback) {
-        rethrow;
-      }
-
-      return _mockHistory();
-    }
+    return historyRaw
+        .map(DriverHistoryOrderModel.fromJson)
+        .toList(growable: false);
   }
 
   Future<Map<String, dynamic>> _get(
@@ -461,97 +411,6 @@ class DriverOrderService {
     }
 
     return value.whereType<Map<String, dynamic>>().toList(growable: false);
-  }
-
-  DriverOrdersPayload _mockOrdersPayload() {
-    return const DriverOrdersPayload(
-      incoming: [
-        DriverOrderModel(
-          id: 'ORD-DR-1201',
-          orderNumber: 'ORD-DR-1201',
-          customerName: 'Rina',
-          customerPhone: '081234567890',
-          serviceTypeCode: 'COURIER',
-          serviceTypeName: 'Kurir',
-          pickupAddress: 'Warung Sate Madura, Jl. Sudirman',
-          dropoffAddress: 'Perum Griya Indah Blok C2',
-          etaMinutes: 18,
-          fee: 18000,
-          totalPrice: 58000,
-          itemCount: 3,
-          statusCode: 'PENDING',
-        ),
-        DriverOrderModel(
-          id: 'ORD-DR-1202',
-          orderNumber: 'ORD-DR-1202',
-          customerName: 'Budi',
-          customerPhone: '089876543210',
-          serviceTypeCode: 'RIDE',
-          serviceTypeName: 'Antar Jemput',
-          pickupAddress: 'Bakso Pak De, Jl. Imam Bonjol',
-          dropoffAddress: 'Apartemen Mentari Tower B',
-          etaMinutes: 12,
-          fee: 14000,
-          totalPrice: 14000,
-          itemCount: 1,
-          statusCode: 'PENDING',
-        ),
-      ],
-      running: [
-        DriverOrderModel(
-          id: 'ORD-DR-1198',
-          orderNumber: 'ORD-DR-1198',
-          customerName: 'Dina',
-          customerPhone: '087711223344',
-          serviceTypeCode: 'SHOPPING',
-          serviceTypeName: 'Titip Belanja',
-          pickupAddress: 'Nasi Goreng Kambing 99',
-          dropoffAddress: 'Kantor Pemda Lt. 4',
-          etaMinutes: 9,
-          fee: 16000,
-          totalPrice: 76000,
-          itemCount: 1,
-          statusCode: 'DRIVER_ASSIGNED',
-          acceptedAt: '10:35',
-        ),
-      ],
-      isMockData: true,
-    );
-  }
-
-  List<DriverHistoryOrderModel> _mockHistory() {
-    final now = DateTime.now();
-
-    return <DriverHistoryOrderModel>[
-      DriverHistoryOrderModel(
-        id: 'HST-901',
-        customerName: 'Rian',
-        date: now.subtract(const Duration(hours: 2)),
-        fee: 17000,
-        status: 'Selesai',
-      ),
-      DriverHistoryOrderModel(
-        id: 'HST-900',
-        customerName: 'Siska',
-        date: now.subtract(const Duration(hours: 5)),
-        fee: 13000,
-        status: 'Selesai',
-      ),
-      DriverHistoryOrderModel(
-        id: 'HST-894',
-        customerName: 'Bagas',
-        date: now.subtract(const Duration(days: 2)),
-        fee: 0,
-        status: 'Dibatalkan',
-      ),
-      DriverHistoryOrderModel(
-        id: 'HST-882',
-        customerName: 'Nina',
-        date: now.subtract(const Duration(days: 4)),
-        fee: 16000,
-        status: 'Selesai',
-      ),
-    ];
   }
 }
 

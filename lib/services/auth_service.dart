@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -10,7 +12,8 @@ import '../models/user_profile_model.dart';
 class AuthService {
   static const String _tokenStorageKey = 'access_token';
   static const String _lastEmailStorageKey = 'last_login_email';
-  static const String _lastPasswordStorageKey = 'last_login_password';
+  static const String _legacyLastPasswordStorageKey = 'last_login_password';
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
 
   static Future<void> registerCustomer({
     required String name,
@@ -41,13 +44,15 @@ class AuthService {
       throw AuthException(
         _extractErrorMessage(response, fallback: 'Pendaftaran gagal.'),
       );
-    } on TimeoutException {
+    } on TimeoutException catch (error) {
+      _logNetworkFailure('POST', uri, error);
       throw const AuthException(
         'Koneksi ke server timeout. Coba cek backend kamu berjalan.',
       );
     } on AuthException {
       rethrow;
-    } catch (_) {
+    } catch (error) {
+      _logNetworkFailure('POST', uri, error);
       throw const AuthException(
         'Gagal terhubung ke server. Periksa API_BASE_URL dan koneksi jaringan.',
       );
@@ -82,13 +87,15 @@ class AuthService {
           fallback: 'Upgrade akun ke driver gagal.',
         ),
       );
-    } on TimeoutException {
+    } on TimeoutException catch (error) {
+      _logNetworkFailure('POST', uri, error);
       throw const AuthException(
         'Koneksi ke server timeout. Coba cek backend kamu berjalan.',
       );
     } on AuthException {
       rethrow;
-    } catch (_) {
+    } catch (error) {
+      _logNetworkFailure('POST', uri, error);
       throw const AuthException(
         'Gagal terhubung ke server. Periksa API_BASE_URL dan koneksi jaringan.',
       );
@@ -112,19 +119,21 @@ class AuthService {
 
       if (response.statusCode == 200) {
         await _persistAccessToken(response);
-        await _persistLastLoginCredentials(email: email, password: password);
+        await _persistLastLoginEmail(email);
         return;
       }
 
       final message = _extractErrorMessage(response, fallback: 'Login gagal.');
       throw AuthException(_normalizeLoginErrorMessage(message));
-    } on TimeoutException {
+    } on TimeoutException catch (error) {
+      _logNetworkFailure('POST', uri, error);
       throw const AuthException(
         'Koneksi ke server timeout. Coba cek backend kamu berjalan.',
       );
     } on AuthException {
       rethrow;
-    } catch (_) {
+    } catch (error) {
+      _logNetworkFailure('POST', uri, error);
       throw const AuthException(
         'Gagal terhubung ke server. Periksa API_BASE_URL dan koneksi jaringan.',
       );
@@ -457,7 +466,6 @@ class AuthService {
 
       if (response.statusCode == 200) {
         await _persistAccessToken(response);
-        await _persistLastLoginPassword(newPassword);
         return;
       }
 
@@ -492,8 +500,7 @@ class AuthService {
   }
 
   static Future<bool> hasAccessToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString(_tokenStorageKey)?.trim() ?? '';
+    final token = (await _readAccessToken())?.trim() ?? '';
 
     return token.isNotEmpty;
   }
@@ -502,21 +509,20 @@ class AuthService {
     await _clearAccessToken();
   }
 
-  static Future<LoginCredentials?> getLastLoginCredentials() async {
+  static Future<String?> getLastLoginEmail() async {
     final prefs = await SharedPreferences.getInstance();
     final email = (prefs.getString(_lastEmailStorageKey) ?? '').trim();
-    final password = prefs.getString(_lastPasswordStorageKey) ?? '';
+    await prefs.remove(_legacyLastPasswordStorageKey);
 
-    if (email.isEmpty || password.isEmpty) {
+    if (email.isEmpty) {
       return null;
     }
 
-    return LoginCredentials(email: email, password: password);
+    return email;
   }
 
   static Future<String> requireAccessToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString(_tokenStorageKey);
+    final token = await _readAccessToken();
 
     if (token == null || token.trim().isEmpty) {
       throw const AuthException(
@@ -607,7 +613,9 @@ class AuthService {
       return candidate;
     }
 
-    final normalizedPath = candidate.startsWith('/') ? candidate : '/$candidate';
+    final normalizedPath = candidate.startsWith('/')
+        ? candidate
+        : '/$candidate';
     return '$apiOrigin$normalizedPath';
   }
 
@@ -623,26 +631,42 @@ class AuthService {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_tokenStorageKey, token);
+    await _secureStorage.write(key: _tokenStorageKey, value: token);
+    await prefs.remove(_tokenStorageKey);
+    await prefs.remove(_legacyLastPasswordStorageKey);
   }
 
   static Future<void> _clearAccessToken() async {
     final prefs = await SharedPreferences.getInstance();
+    await _secureStorage.delete(key: _tokenStorageKey);
     await prefs.remove(_tokenStorageKey);
+    await prefs.remove(_legacyLastPasswordStorageKey);
   }
 
-  static Future<void> _persistLastLoginCredentials({
-    required String email,
-    required String password,
-  }) async {
+  static Future<String?> _readAccessToken() async {
+    final secureToken = await _secureStorage.read(key: _tokenStorageKey);
+    if (secureToken != null && secureToken.trim().isNotEmpty) {
+      return secureToken;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final legacyToken = prefs.getString(_tokenStorageKey);
+    await prefs.remove(_legacyLastPasswordStorageKey);
+
+    if (legacyToken == null || legacyToken.trim().isEmpty) {
+      return null;
+    }
+
+    await _secureStorage.write(key: _tokenStorageKey, value: legacyToken);
+    await prefs.remove(_tokenStorageKey);
+
+    return legacyToken;
+  }
+
+  static Future<void> _persistLastLoginEmail(String email) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_lastEmailStorageKey, email.trim());
-    await prefs.setString(_lastPasswordStorageKey, password);
-  }
-
-  static Future<void> _persistLastLoginPassword(String password) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_lastPasswordStorageKey, password);
+    await prefs.remove(_legacyLastPasswordStorageKey);
   }
 
   static String _normalizeLoginErrorMessage(String message) {
@@ -655,6 +679,14 @@ class AuthService {
     }
 
     return message;
+  }
+
+  static void _logNetworkFailure(String method, Uri uri, Object error) {
+    if (!kDebugMode) {
+      return;
+    }
+
+    debugPrint('[AuthService] $method $uri failed: $error');
   }
 
   static String _extractErrorMessage(
@@ -731,11 +763,4 @@ class AddressValidationResult {
 
     return double.tryParse(value?.toString() ?? '') ?? 0;
   }
-}
-
-class LoginCredentials {
-  final String email;
-  final String password;
-
-  const LoginCredentials({required this.email, required this.password});
 }

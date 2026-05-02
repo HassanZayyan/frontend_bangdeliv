@@ -27,6 +27,11 @@ migrate_working_dir/
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
+.env
+.env.*
+!.env.example
+dart_defines*.json
+!dart_defines.example.json
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
