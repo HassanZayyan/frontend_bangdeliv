@@ -29,7 +29,7 @@ IconData orderStatusIcon(String code) {
     return Icons.close;
   }
 
-  return Icons.delivery_dining;
+  return Icons.two_wheeler_outlined;
 }
 
 IconData serviceTypeIcon(String code) {
@@ -48,7 +48,7 @@ IconData serviceTypeIcon(String code) {
 IconData serviceTypeLeadingIcon(String code) {
   switch (normalizeServiceTypeCode(code)) {
     case ServiceTypeCodes.ride:
-      return Icons.directions_bike_outlined;
+      return Icons.two_wheeler_outlined;
     case ServiceTypeCodes.courier:
       return Icons.local_shipping_outlined;
     case ServiceTypeCodes.shopping:

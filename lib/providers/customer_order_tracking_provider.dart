@@ -139,7 +139,10 @@ class CustomerOrderTrackingNotifier
 
     final current = state.asData?.value;
     if (current == null ||
-        !isDriverLocationTrackable(current.detail.summary.statusCode)) {
+        !isDriverLocationTrackable(
+          current.detail.summary.statusCode,
+          statusLabel: current.detail.summary.statusLabel,
+        )) {
       return;
     }
 
