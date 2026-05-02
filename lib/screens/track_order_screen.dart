@@ -342,6 +342,8 @@ class TrackOrderScreen extends ConsumerWidget {
                                 showEta: _shouldShowEta(order),
                               ),
                               const SizedBox(height: 12),
+                              _buildPaymentCard(order, detail),
+                              const SizedBox(height: 12),
                               _buildAddressCard(order.deliveryAddress),
                               const SizedBox(height: 12),
                               _buildTimelineCard(
@@ -408,6 +410,8 @@ class TrackOrderScreen extends ConsumerWidget {
                 detail,
                 showEta: _shouldShowEta(order),
               ),
+              const SizedBox(height: 12),
+              _buildPaymentCard(order, detail),
               const SizedBox(height: 12),
               _buildCard(
                 title: 'Info Tracking',
@@ -855,6 +859,8 @@ class TrackOrderScreen extends ConsumerWidget {
     CustomerOrderDetailModel detail, {
     bool showEta = true,
   }) {
+    final paymentMethod = _paymentMethodLabel(detail.paymentMethod);
+    final paymentStatus = _paymentStatusLabel(detail.paymentStatus);
     final rows = <_InfoRow>[
       _InfoRow('No. Order', order.orderNumber),
       _InfoRow('Layanan', order.serviceTypeLabel),
@@ -863,8 +869,7 @@ class TrackOrderScreen extends ConsumerWidget {
         _InfoRow('ETA', _estimateArrivalText(order.estimatedDelivery)),
       if ((detail.deliveryDistanceText ?? '').trim().isNotEmpty)
         _InfoRow('Jarak', detail.deliveryDistanceText!.trim()),
-      if ((detail.paymentMethod ?? '').trim().isNotEmpty)
-        _InfoRow('Pembayaran', detail.paymentMethod!.trim()),
+      _InfoRow('Pembayaran', '$paymentMethod - $paymentStatus'),
     ];
 
     return _buildCard(
@@ -906,6 +911,91 @@ class TrackOrderScreen extends ConsumerWidget {
         }),
       ),
     );
+  }
+
+  Widget _buildPaymentCard(
+    CustomerOrderSummaryModel order,
+    CustomerOrderDetailModel detail,
+  ) {
+    final isPaid = _isPaymentPaid(detail.paymentStatus);
+    final statusColor = isPaid ? AppColors.success : AppColors.primary;
+
+    return _buildCard(
+      title: 'Pembayaran COD',
+      icon: Icons.payments_outlined,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _paymentChip(
+                _paymentMethodLabel(detail.paymentMethod),
+                statusColor,
+              ),
+              _paymentChip(
+                _paymentStatusLabel(detail.paymentStatus),
+                statusColor,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            isPaid
+                ? 'Pembayaran tunai sudah tercatat.'
+                : 'Bayar tunai ke driver saat pesanan sampai.',
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              height: 1.45,
+            ),
+          ),
+          if (!isPaid) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Nominal: ${formatCurrency(order.totalAmount)}',
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12.5,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _paymentChip(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+
+  bool _isPaymentPaid(String? status) {
+    return (status ?? '').trim().toLowerCase() == 'paid';
+  }
+
+  String _paymentStatusLabel(String? status) {
+    return _isPaymentPaid(status) ? 'Sudah dibayar' : 'Belum dibayar';
+  }
+
+  String _paymentMethodLabel(String? method) {
+    final normalized = (method ?? 'COD').trim().toUpperCase();
+    return normalized.isEmpty ? 'COD' : normalized;
   }
 
   // ---------------------------------------------------------------------------

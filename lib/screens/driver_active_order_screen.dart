@@ -474,6 +474,7 @@ class _ActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final actions = order.availableActions;
+    final hasCodCollection = actions.any((action) => action.isCodCollection);
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -493,6 +494,29 @@ class _ActionCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
+          if (hasCodCollection) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.primary.withValues(alpha: 0.16),
+                ),
+              ),
+              child: Text(
+                'Tagih COD sebesar ${formatRupiah(order.totalPrice)} sebelum menyelesaikan order.',
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  height: 1.4,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
           if (actions.isEmpty)
             const Text(
               'Tidak ada aksi yang tersedia pada status ini.',

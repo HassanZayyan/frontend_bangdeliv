@@ -52,6 +52,8 @@ class CustomerOrderSummaryModel {
   final DateTime? createdAt;
   final DateTime? estimatedDelivery;
   final String deliveryAddress;
+  final String? paymentStatus;
+  final String? paymentMethod;
 
   const CustomerOrderSummaryModel({
     required this.id,
@@ -67,6 +69,8 @@ class CustomerOrderSummaryModel {
     required this.createdAt,
     required this.estimatedDelivery,
     required this.deliveryAddress,
+    required this.paymentStatus,
+    required this.paymentMethod,
   });
 
   bool get isCompleted =>
@@ -97,6 +101,8 @@ class CustomerOrderSummaryModel {
     DateTime? createdAt,
     DateTime? estimatedDelivery,
     String? deliveryAddress,
+    String? paymentStatus,
+    String? paymentMethod,
   }) {
     return CustomerOrderSummaryModel(
       id: id ?? this.id,
@@ -112,6 +118,8 @@ class CustomerOrderSummaryModel {
       createdAt: createdAt ?? this.createdAt,
       estimatedDelivery: estimatedDelivery ?? this.estimatedDelivery,
       deliveryAddress: deliveryAddress ?? this.deliveryAddress,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
     );
   }
 
@@ -133,6 +141,8 @@ class CustomerOrderSummaryModel {
       createdAt: _asDateTime(json['created_at']),
       estimatedDelivery: _asDateTime(json['estimated_delivery']),
       deliveryAddress: (json['delivery_address'] ?? '-').toString(),
+      paymentStatus: json['payment_status']?.toString(),
+      paymentMethod: json['payment_method']?.toString(),
     );
   }
 

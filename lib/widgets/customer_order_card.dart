@@ -140,6 +140,15 @@ class CustomerOrderCard extends StatelessWidget {
                         fontSize: 12,
                       ),
                     ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${_paymentMethodLabel(order.paymentMethod)} - ${_paymentStatusLabel(order.paymentStatus)}',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -316,4 +325,16 @@ class CustomerOrderCard extends StatelessWidget {
     );
   }
 
+  bool _isPaymentPaid(String? status) {
+    return (status ?? '').trim().toLowerCase() == 'paid';
+  }
+
+  String _paymentStatusLabel(String? status) {
+    return _isPaymentPaid(status) ? 'Sudah dibayar' : 'Belum dibayar';
+  }
+
+  String _paymentMethodLabel(String? method) {
+    final normalized = (method ?? 'COD').trim().toUpperCase();
+    return normalized.isEmpty ? 'COD' : normalized;
+  }
 }
