@@ -209,6 +209,9 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
 
   Widget _buildOperationalCard(DriverProfileModel? driverProfile) {
     final operationalStatus = (driverProfile?.status ?? 'offline').trim().toLowerCase();
+    final vehicleType = (driverProfile?.vehicleType ?? '').trim();
+    final vehicleBrand = (driverProfile?.vehicleBrand ?? '').trim();
+    final vehicleModel = (driverProfile?.vehicleModel ?? '').trim();
     final vehiclePlate = (driverProfile?.vehiclePlate ?? '').trim();
     final rawLicenseNumber = (driverProfile?.licenseNumber ?? '').trim();
     final maskedLicenseNumber = rawLicenseNumber.length <= 4
@@ -249,6 +252,12 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
             ),
           ),
           const SizedBox(height: 10),
+          _detailRow('Jenis Motor', vehicleType.isEmpty ? '-' : vehicleType),
+          const SizedBox(height: 8),
+          _detailRow('Merk Motor', vehicleBrand.isEmpty ? '-' : vehicleBrand),
+          const SizedBox(height: 8),
+          _detailRow('Tipe Motor', vehicleModel.isEmpty ? '-' : vehicleModel),
+          const SizedBox(height: 8),
           _detailRow('Plat Kendaraan', vehiclePlate.isEmpty ? '-' : vehiclePlate.toUpperCase()),
           const SizedBox(height: 8),
           _detailRow('Nomor SIM', maskedLicenseNumber),

@@ -121,9 +121,6 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
   Widget build(BuildContext context) {
     final ordersAsync = ref.watch(customerOrdersProvider);
     ref.watch(customerOrdersAutoRefreshProvider);
-    final allActivityOrders = ref.watch(customerActivityOrdersProvider);
-    final ongoingOrders = ref.watch(customerOngoingOrdersProvider);
-    final cancelledOrders = ref.watch(customerCancelledOrdersProvider);
 
     return DefaultTabController(
       length: 3,
@@ -175,7 +172,18 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                     ),
                   ),
                 ),
-                data: (_) {
+                data: (orders) {
+                  final sortedOrders = _sortByNewest(orders);
+                  final allActivityOrders = sortedOrders
+                      .where((order) => !order.isCompleted)
+                      .toList(growable: false);
+                  final ongoingOrders = allActivityOrders
+                      .where((order) => !order.isTerminalStatus)
+                      .toList(growable: false);
+                  final cancelledOrders = allActivityOrders
+                      .where((order) => order.isCancelled)
+                      .toList(growable: false);
+
                   return TabBarView(
                     children: [
                       _buildOrderList(
@@ -199,6 +207,18 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
               ),
       ),
     );
+  }
+
+  List<CustomerOrderSummaryModel> _sortByNewest(
+    List<CustomerOrderSummaryModel> orders,
+  ) {
+    final sorted = orders.toList(growable: false)
+      ..sort((a, b) {
+        final aTime = a.createdAt?.millisecondsSinceEpoch ?? 0;
+        final bTime = b.createdAt?.millisecondsSinceEpoch ?? 0;
+        return bTime.compareTo(aTime);
+      });
+    return sorted;
   }
 
   Widget _buildOrderList(

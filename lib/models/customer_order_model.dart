@@ -283,6 +283,10 @@ class CustomerOrderDetailModel {
   final String? paymentStatus;
   final String? paymentMethod;
   final String? driverName;
+  final String? driverVehicleType;
+  final String? driverVehicleBrand;
+  final String? driverVehicleModel;
+  final String? driverVehiclePlate;
   final double? pickupLatitude;
   final double? pickupLongitude;
   final double? dropoffLatitude;
@@ -298,6 +302,10 @@ class CustomerOrderDetailModel {
     required this.paymentStatus,
     required this.paymentMethod,
     required this.driverName,
+    required this.driverVehicleType,
+    required this.driverVehicleBrand,
+    required this.driverVehicleModel,
+    required this.driverVehiclePlate,
     required this.pickupLatitude,
     required this.pickupLongitude,
     required this.dropoffLatitude,
@@ -314,6 +322,10 @@ class CustomerOrderDetailModel {
     String? paymentStatus,
     String? paymentMethod,
     String? driverName,
+    String? driverVehicleType,
+    String? driverVehicleBrand,
+    String? driverVehicleModel,
+    String? driverVehiclePlate,
     double? pickupLatitude,
     double? pickupLongitude,
     double? dropoffLatitude,
@@ -329,6 +341,10 @@ class CustomerOrderDetailModel {
       paymentStatus: paymentStatus ?? this.paymentStatus,
       paymentMethod: paymentMethod ?? this.paymentMethod,
       driverName: driverName ?? this.driverName,
+      driverVehicleType: driverVehicleType ?? this.driverVehicleType,
+      driverVehicleBrand: driverVehicleBrand ?? this.driverVehicleBrand,
+      driverVehicleModel: driverVehicleModel ?? this.driverVehicleModel,
+      driverVehiclePlate: driverVehiclePlate ?? this.driverVehiclePlate,
       pickupLatitude: pickupLatitude ?? this.pickupLatitude,
       pickupLongitude: pickupLongitude ?? this.pickupLongitude,
       dropoffLatitude: dropoffLatitude ?? this.dropoffLatitude,
@@ -445,6 +461,10 @@ class CustomerOrderDetailModel {
       paymentStatus: json['payment_status']?.toString(),
       paymentMethod: json['payment_method']?.toString(),
       driverName: driverUser['name']?.toString(),
+      driverVehicleType: driver['vehicle_type']?.toString(),
+      driverVehicleBrand: driver['vehicle_brand']?.toString(),
+      driverVehicleModel: driver['vehicle_model']?.toString(),
+      driverVehiclePlate: driver['vehicle_plate']?.toString(),
       pickupLatitude: pickupLatitude != null && _isValidLatitude(pickupLatitude)
           ? pickupLatitude
           : null,
