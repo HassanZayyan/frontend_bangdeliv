@@ -71,6 +71,9 @@ class UserProfileModel {
 class DriverProfileModel {
   final String registrationStatus;
   final String status;
+  final String vehicleType;
+  final String vehicleBrand;
+  final String vehicleModel;
   final String vehiclePlate;
   final String licenseNumber;
   final double avgRating;
@@ -79,6 +82,9 @@ class DriverProfileModel {
   const DriverProfileModel({
     required this.registrationStatus,
     required this.status,
+    required this.vehicleType,
+    required this.vehicleBrand,
+    required this.vehicleModel,
     required this.vehiclePlate,
     required this.licenseNumber,
     required this.avgRating,
@@ -89,6 +95,9 @@ class DriverProfileModel {
     return DriverProfileModel(
       registrationStatus: (json['registration_status'] ?? '').toString(),
       status: (json['status'] ?? '').toString(),
+      vehicleType: (json['vehicle_type'] ?? '').toString(),
+      vehicleBrand: (json['vehicle_brand'] ?? '').toString(),
+      vehicleModel: (json['vehicle_model'] ?? '').toString(),
       vehiclePlate: (json['vehicle_plate'] ?? '').toString(),
       licenseNumber: (json['license_number'] ?? '').toString(),
       avgRating: _asDouble(json['avg_rating']),

@@ -139,7 +139,15 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
 
           return CustomerOrderCard(
             order: order,
+            onTap: () => context.push(
+              AppRoutes.track,
+              extra: <String, dynamic>{
+                'orderId': order.id,
+                'fromHistory': true,
+              },
+            ),
             showReorderAction: true,
+            showDetailHint: true,
             onReorder: () => context.go(AppRoutes.home),
           );
         },

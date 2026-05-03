@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +8,7 @@ import '../config/app_colors.dart';
 import '../models/order_chat_model.dart';
 import '../providers/auth_session_provider.dart';
 import '../providers/order_chat_provider.dart';
+import '../providers/order_chat_unread_provider.dart';
 import '../utils/order_formatters.dart';
 
 class OrderChatScreen extends ConsumerStatefulWidget {
@@ -26,6 +29,11 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
     super.initState();
     _inputController = TextEditingController();
     _scrollController = ScrollController();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(
+        ref.read(orderChatUnreadCountProvider(widget.orderId).notifier).markRead(),
+      );
+    });
   }
 
   @override
@@ -76,6 +84,11 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
         final previousLength = previous?.asData?.value.messages.length ?? 0;
         final nextLength = next.asData?.value.messages.length ?? 0;
         if (nextLength > previousLength) {
+          unawaited(
+            ref
+                .read(orderChatUnreadCountProvider(widget.orderId).notifier)
+                .markRead(),
+          );
           _scrollToBottom();
         }
       },
@@ -119,6 +132,9 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
                 onRefresh: () async {
                   ref.invalidate(orderChatProvider(widget.orderId));
                   await ref.read(orderChatProvider(widget.orderId).future);
+                  await ref
+                      .read(orderChatUnreadCountProvider(widget.orderId).notifier)
+                      .markRead();
                 },
                 child: ListView(
                   controller: _scrollController,
@@ -167,7 +183,7 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
             ),
             _Composer(
               controller: _inputController,
-              enabled: chat.canSend && !chat.isSending,
+              enabled: chat.canSend,
               isSending: chat.isSending,
               onSend: _sendMessage,
             ),
@@ -274,6 +290,37 @@ class _Composer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final canSendAction = enabled;
+
+    if (!enabled) {
+      return Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        decoration: const BoxDecoration(
+          color: AppColors.white,
+          border: Border(top: BorderSide(color: AppColors.border)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: const Text(
+              'Sesi chat dengan driver berakhir',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
       decoration: const BoxDecoration(
@@ -291,13 +338,11 @@ class _Composer extends StatelessWidget {
                 minLines: 1,
                 maxLines: 4,
                 textInputAction: TextInputAction.send,
-                onSubmitted: enabled ? (_) => onSend() : null,
+                onSubmitted: canSendAction ? (_) => onSend() : null,
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: AppColors.background,
-                  hintText: enabled
-                      ? 'Ketik pesan...'
-                      : 'Chat tidak aktif untuk status order ini',
+                  hintText: 'Ketik pesan...',
                   hintStyle: const TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 13,
@@ -315,7 +360,7 @@ class _Composer extends StatelessWidget {
             ),
             const SizedBox(width: 10),
             IconButton.filled(
-              onPressed: enabled ? onSend : null,
+              onPressed: canSendAction ? onSend : null,
               icon: isSending
                   ? const SizedBox(
                       width: 18,
