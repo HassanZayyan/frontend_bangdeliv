@@ -30,7 +30,8 @@ class TrackOrderScreen extends ConsumerWidget {
           order.statusCode,
           statusLabel: order.statusLabel,
         ) ||
-        normalizeServiceTypeCode(order.serviceTypeCode) != ServiceTypeCodes.ride;
+        normalizeServiceTypeCode(order.serviceTypeCode) !=
+            ServiceTypeCodes.ride;
   }
 
   @override
@@ -152,11 +153,8 @@ class TrackOrderScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-              data: (tracking) => _buildDetailView(
-                context,
-                tracking,
-                onRefresh: onRefresh,
-              ),
+              data: (tracking) =>
+                  _buildDetailView(context, tracking, onRefresh: onRefresh),
             ),
     );
   }
@@ -237,7 +235,8 @@ class TrackOrderScreen extends ConsumerWidget {
     final isWaitingDriver = _isWaitingDriverStatus(order);
     final isPassengerDropoff = _isPassengerDropoffStatus(order);
     final isRide =
-        normalizeServiceTypeCode(order.serviceTypeCode) == ServiceTypeCodes.ride;
+        normalizeServiceTypeCode(order.serviceTypeCode) ==
+        ServiceTypeCodes.ride;
     final hasLiveDriver = tracking.hasLiveDriverLocation;
     final driverName = (detail.driverName ?? '').trim();
 
@@ -405,11 +404,7 @@ class TrackOrderScreen extends ConsumerWidget {
                 ),
               ],
               const SizedBox(height: 12),
-              _buildSummaryCard(
-                order,
-                detail,
-                showEta: _shouldShowEta(order),
-              ),
+              _buildSummaryCard(order, detail, showEta: _shouldShowEta(order)),
               const SizedBox(height: 12),
               _buildPaymentCard(order, detail),
               const SizedBox(height: 12),
@@ -515,7 +510,9 @@ class TrackOrderScreen extends ConsumerWidget {
                 child: Container(
                   height: 2,
                   decoration: BoxDecoration(
-                    color: isPastConnector ? AppColors.primary : AppColors.border,
+                    color: isPastConnector
+                        ? AppColors.primary
+                        : AppColors.border,
                     borderRadius: BorderRadius.circular(1),
                   ),
                 ),
@@ -525,7 +522,8 @@ class TrackOrderScreen extends ConsumerWidget {
 
           final stepIndex = i ~/ 2;
           final isCurrentStep = stepIndex == currentIndex;
-          final isPast = stepIndex < currentIndex ||
+          final isPast =
+              stepIndex < currentIndex ||
               (shouldCheckFinalStep && isCurrentStep);
           final isCurrent = isCurrentStep && !shouldCheckFinalStep;
 
@@ -537,7 +535,9 @@ class TrackOrderScreen extends ConsumerWidget {
                 width: isCurrent ? 22 : 18,
                 height: isCurrent ? 22 : 18,
                 decoration: BoxDecoration(
-                  color: (isPast || isCurrent) ? AppColors.primary : AppColors.border,
+                  color: (isPast || isCurrent)
+                      ? AppColors.primary
+                      : AppColors.border,
                   shape: BoxShape.circle,
                   border: isCurrent
                       ? Border.all(
@@ -550,15 +550,15 @@ class TrackOrderScreen extends ConsumerWidget {
                   child: isPast
                       ? const Icon(Icons.check, color: Colors.white, size: 10)
                       : isCurrent
-                          ? Container(
-                              width: 6,
-                              height: 6,
-                              decoration: const BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                              ),
-                            )
-                          : null,
+                      ? Container(
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                        )
+                      : null,
                 ),
               ),
               const SizedBox(height: 5),
@@ -570,8 +570,8 @@ class TrackOrderScreen extends ConsumerWidget {
                   color: isCurrent
                       ? AppColors.primary
                       : isPast
-                          ? AppColors.textPrimary
-                          : AppColors.textSecondary,
+                      ? AppColors.textPrimary
+                      : AppColors.textSecondary,
                 ),
               ),
             ],
@@ -716,7 +716,10 @@ class TrackOrderScreen extends ConsumerWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.background,
                     borderRadius: BorderRadius.circular(8),
@@ -743,9 +746,7 @@ class TrackOrderScreen extends ConsumerWidget {
                 borderRadius: const BorderRadius.vertical(
                   bottom: Radius.circular(16),
                 ),
-                border: const Border(
-                  top: BorderSide(color: AppColors.border),
-                ),
+                border: const Border(top: BorderSide(color: AppColors.border)),
               ),
               child: Row(
                 children: [
@@ -864,6 +865,11 @@ class TrackOrderScreen extends ConsumerWidget {
     final rows = <_InfoRow>[
       _InfoRow('No. Order', order.orderNumber),
       _InfoRow('Layanan', order.serviceTypeLabel),
+      if (normalizeServiceTypeCode(order.serviceTypeCode) ==
+              ServiceTypeCodes.courier &&
+          order.itemsSummary.trim().isNotEmpty &&
+          order.itemsSummary.trim().toLowerCase() != 'tanpa item')
+        _InfoRow('Barang', order.itemsSummary.trim()),
       _InfoRow('Total', formatCurrency(order.totalAmount)),
       if (showEta && order.estimatedDelivery != null)
         _InfoRow('ETA', _estimateArrivalText(order.estimatedDelivery)),
@@ -919,6 +925,16 @@ class TrackOrderScreen extends ConsumerWidget {
   ) {
     final isPaid = _isPaymentPaid(detail.paymentStatus);
     final statusColor = isPaid ? AppColors.success : AppColors.primary;
+    final isCourier =
+        normalizeServiceTypeCode(order.serviceTypeCode) ==
+        ServiceTypeCodes.courier;
+    final paymentMessage = isCourier
+        ? (isPaid
+              ? 'Pembayaran pickup sudah tercatat.'
+              : 'Bayar tunai ke driver saat menyerahkan barang di titik ambil.')
+        : (isPaid
+              ? 'Pembayaran tunai sudah tercatat.'
+              : 'Bayar tunai ke driver saat pesanan sampai.');
 
     return _buildCard(
       title: 'Pembayaran COD',
@@ -942,9 +958,7 @@ class TrackOrderScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            isPaid
-                ? 'Pembayaran tunai sudah tercatat.'
-                : 'Bayar tunai ke driver saat pesanan sampai.',
+            paymentMessage,
             style: const TextStyle(
               color: AppColors.textPrimary,
               fontWeight: FontWeight.w600,
@@ -1016,7 +1030,11 @@ class TrackOrderScreen extends ConsumerWidget {
               color: AppColors.error.withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.place_rounded, color: AppColors.error, size: 16),
+            child: const Icon(
+              Icons.place_rounded,
+              color: AppColors.error,
+              size: 16,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1106,7 +1124,11 @@ class TrackOrderScreen extends ConsumerWidget {
                                 : null,
                           ),
                           child: !isLast
-                              ? const Icon(Icons.check, color: Colors.white, size: 8)
+                              ? const Icon(
+                                  Icons.check,
+                                  color: Colors.white,
+                                  size: 8,
+                                )
                               : null,
                         ),
                         if (!isLast)
@@ -1133,7 +1155,9 @@ class TrackOrderScreen extends ConsumerWidget {
                             item.label,
                             style: TextStyle(
                               color: isLast ? dotColor : AppColors.textPrimary,
-                              fontWeight: isLast ? FontWeight.w800 : FontWeight.w600,
+                              fontWeight: isLast
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
                               fontSize: 13,
                             ),
                           ),
