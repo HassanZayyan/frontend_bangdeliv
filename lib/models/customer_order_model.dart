@@ -20,10 +20,7 @@ class _ParsedServiceType {
   final String code;
   final String label;
 
-  const _ParsedServiceType({
-    required this.code,
-    required this.label,
-  });
+  const _ParsedServiceType({required this.code, required this.label});
 }
 
 class _ParsedOrderStatus {
@@ -231,6 +228,11 @@ class CustomerOrderSummaryModel {
   }
 
   static String _extractItemsSummary(Map<String, dynamic> json) {
+    final courierPackage = _extractCourierPackageSummary(json);
+    if (courierPackage.isNotEmpty) {
+      return courierPackage;
+    }
+
     final items = (json['items'] is List)
         ? (json['items'] as List).whereType<Map<String, dynamic>>().toList(
             growable: false,
@@ -250,6 +252,21 @@ class CustomerOrderSummaryModel {
     }
 
     return '${firstQty <= 0 ? 1 : firstQty}x $firstName +${items.length - 1} item';
+  }
+
+  static String _extractCourierPackageSummary(Map<String, dynamic> json) {
+    final courier = (json['courier_order'] is Map<String, dynamic>)
+        ? json['courier_order'] as Map<String, dynamic>
+        : (json['courierOrder'] is Map<String, dynamic>)
+        ? json['courierOrder'] as Map<String, dynamic>
+        : const <String, dynamic>{};
+
+    final packageDescription =
+        (courier['package_description'] ?? courier['packageDescription'] ?? '')
+            .toString()
+            .trim();
+
+    return packageDescription;
   }
 
   static int _asInt(dynamic value) {

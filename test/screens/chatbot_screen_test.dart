@@ -59,6 +59,37 @@ void main() {
 
     expect(find.textContaining('belum bisa digunakan'), findsOneWidget);
   });
+
+  testWidgets('show courier map picker action when backend asks for pin', (
+    WidgetTester tester,
+  ) async {
+    await _pumpChatbot(
+      tester,
+      serviceType: 'kurir',
+      chatbotApiService: _FakeChatbotApiService(),
+    );
+
+    await _sendMessage(tester, 'butuh map tujuan');
+
+    expect(find.textContaining('belum pas di peta'), findsOneWidget);
+    expect(find.text('Pilih Titik Tujuan di Map'), findsOneWidget);
+  });
+
+  testWidgets('show small courier draft size line without fake numbers', (
+    WidgetTester tester,
+  ) async {
+    await _pumpChatbot(
+      tester,
+      serviceType: 'kurir',
+      chatbotApiService: _FakeChatbotApiService(),
+    );
+
+    await _sendMessage(tester, 'draft kacamata');
+
+    expect(find.text('Berat/Ukuran'), findsOneWidget);
+    expect(find.text('kecil/ringan untuk motor'), findsOneWidget);
+    expect(find.textContaining('0 kg'), findsNothing);
+  });
 }
 
 Future<void> _pumpChatbot(
@@ -223,6 +254,59 @@ class _FakeChatbotApiService extends ChatbotApiService {
             'next_actions': ['OPEN_ADDRESSES'],
           },
           'order': {'created': false},
+        },
+      });
+    }
+
+    if (normalized.contains('map')) {
+      return ChatbotResult.fromApiJson({
+        'status': 'success',
+        'model_used': 'gemini-2.5-flash',
+        'data': {
+          'intent': 'courier_order',
+          'assistant_text':
+              'Alamat tujuan "Erha Setiabudi Tembalang" belum pas di peta. Pilih titiknya langsung di map.',
+          'validation': {
+            'is_valid_order': false,
+            'rejection_reasons': [
+              'Alamat tujuan belum pas di peta. Pilih titiknya langsung di map.',
+            ],
+            'missing_fields': ['dropoff_address'],
+            'next_actions': ['OPEN_MAP_PICKER_DROPOFF'],
+          },
+          'action_payloads': {
+            'OPEN_MAP_PICKER_DROPOFF': {
+              'target': 'dropoff',
+              'label': 'Pilih Titik Tujuan di Map',
+            },
+          },
+          'order': {'created': false},
+        },
+      });
+    }
+
+    if (normalized.contains('kacamata')) {
+      return ChatbotResult.fromApiJson({
+        'status': 'success',
+        'model_used': 'gemini-2.5-flash',
+        'data': {
+          'intent': 'courier_order',
+          'assistant_text':
+              'Baik Hassan, saya sudah siapkan draft pengiriman Kurir.\n'
+              'Ambil: Jalan Mawar No 1\n'
+              'Tujuan: Erha Setiabudi Tembalang\n'
+              'Barang: kacamata\n'
+              'Ukuran/Berat: kecil/ringan untuk motor\n'
+              'Status barang: Paket aman untuk layanan kurir motor.\n'
+              'Estimasi ongkir sementara: Rp 8.000 (kalkulasi detail menyusul).\n'
+              'Ketik "Konfirmasi" untuk lanjut. Pembayaran dilakukan tunai saat driver tiba dan mengecek barang di titik ambil.',
+          'validation': {
+            'is_valid_order': true,
+            'rejection_reasons': [],
+            'missing_fields': [],
+            'next_actions': ['CONFIRM_DRAFT'],
+          },
+          'order': {'created': false, 'delivery_fee': 8000},
         },
       });
     }

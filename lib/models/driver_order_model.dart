@@ -28,6 +28,15 @@ class DriverOrderModel {
   final String? acceptedAt;
   final List<DriverOrderActionModel> availableActions;
   final List<DriverOrderTimelineItemModel> statusTimeline;
+  final String? packageDescription;
+  final double? packageEstimatedWeightKg;
+  final int? packageLengthCm;
+  final int? packageWidthCm;
+  final int? packageHeightCm;
+  final String? packageSizeClass;
+  final String? packageSafetyStatus;
+  final String? packageSafetyReason;
+  final String? packagePackingNote;
 
   const DriverOrderModel({
     required this.id,
@@ -53,6 +62,15 @@ class DriverOrderModel {
     this.acceptedAt,
     this.availableActions = const <DriverOrderActionModel>[],
     this.statusTimeline = const <DriverOrderTimelineItemModel>[],
+    this.packageDescription,
+    this.packageEstimatedWeightKg,
+    this.packageLengthCm,
+    this.packageWidthCm,
+    this.packageHeightCm,
+    this.packageSizeClass,
+    this.packageSafetyStatus,
+    this.packageSafetyReason,
+    this.packagePackingNote,
   });
 
   DriverOrderModel copyWith({
@@ -87,6 +105,15 @@ class DriverOrderModel {
       acceptedAt: acceptedAt ?? this.acceptedAt,
       availableActions: availableActions ?? this.availableActions,
       statusTimeline: statusTimeline ?? this.statusTimeline,
+      packageDescription: packageDescription,
+      packageEstimatedWeightKg: packageEstimatedWeightKg,
+      packageLengthCm: packageLengthCm,
+      packageWidthCm: packageWidthCm,
+      packageHeightCm: packageHeightCm,
+      packageSizeClass: packageSizeClass,
+      packageSafetyStatus: packageSafetyStatus,
+      packageSafetyReason: packageSafetyReason,
+      packagePackingNote: packagePackingNote,
     );
   }
 
@@ -157,6 +184,32 @@ class DriverOrderModel {
           json['accepted_at']?.toString() ?? json['acceptedAt']?.toString(),
       availableActions: actions,
       statusTimeline: timeline,
+      packageDescription:
+          (json['package_description'] ?? json['packageDescription'])
+              ?.toString(),
+      packageEstimatedWeightKg: _asDoubleOrNull(
+        json['package_estimated_weight_kg'] ?? json['packageEstimatedWeightKg'],
+      ),
+      packageLengthCm: _asIntOrNull(
+        json['package_length_cm'] ?? json['packageLengthCm'],
+      ),
+      packageWidthCm: _asIntOrNull(
+        json['package_width_cm'] ?? json['packageWidthCm'],
+      ),
+      packageHeightCm: _asIntOrNull(
+        json['package_height_cm'] ?? json['packageHeightCm'],
+      ),
+      packageSizeClass: (json['package_size_class'] ?? json['packageSizeClass'])
+          ?.toString(),
+      packageSafetyStatus:
+          (json['package_safety_status'] ?? json['packageSafetyStatus'])
+              ?.toString(),
+      packageSafetyReason:
+          (json['package_safety_reason'] ?? json['packageSafetyReason'])
+              ?.toString(),
+      packagePackingNote:
+          (json['package_packing_note'] ?? json['packagePackingNote'])
+              ?.toString(),
     );
   }
 
@@ -175,6 +228,13 @@ class DriverOrderModel {
     if (value == null) return null;
     if (value is num) return value.toDouble();
     return double.tryParse(value.toString());
+  }
+
+  static int? _asIntOrNull(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString());
   }
 }
 

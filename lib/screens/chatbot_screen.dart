@@ -554,21 +554,18 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                       for (final actionHint in message.actionHints)
                         OutlinedButton.icon(
                           onPressed: () => _handleActionHint(actionHint),
-                          icon: Icon(
-                            switch (actionHint.type) {
-                              ChatbotMessageActionType.openAddresses =>
-                                Icons.home_outlined,
-                              ChatbotMessageActionType.openMapPicker =>
-                                Icons.location_on_outlined,
-                              ChatbotMessageActionType.sendPresetMessage =>
-                                Icons.bolt_rounded,
-                              ChatbotMessageActionType.openTrackOrder =>
-                                Icons.map_outlined,
-                              ChatbotMessageActionType.openActivity =>
-                                Icons.receipt_long_outlined,
-                            },
-                            size: 16,
-                          ),
+                          icon: Icon(switch (actionHint.type) {
+                            ChatbotMessageActionType.openAddresses =>
+                              Icons.home_outlined,
+                            ChatbotMessageActionType.openMapPicker =>
+                              Icons.location_on_outlined,
+                            ChatbotMessageActionType.sendPresetMessage =>
+                              Icons.bolt_rounded,
+                            ChatbotMessageActionType.openTrackOrder =>
+                              Icons.map_outlined,
+                            ChatbotMessageActionType.openActivity =>
+                              Icons.receipt_long_outlined,
+                          }, size: 16),
                           label: Text(actionHint.label),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: isUser
@@ -652,11 +649,30 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           value: parts.destinationAddress,
           textColor: textColor,
         ),
-        if (parts.packageDescription != null && parts.packageDescription!.isNotEmpty) ...[
+        if (parts.packageDescription != null &&
+            parts.packageDescription!.isNotEmpty) ...[
           const SizedBox(height: 8),
           _buildDraftField(
             label: 'Barang',
             value: parts.packageDescription!,
+            textColor: textColor,
+          ),
+        ],
+        if (parts.packageSizeLine != null &&
+            parts.packageSizeLine!.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _buildDraftField(
+            label: 'Berat/Ukuran',
+            value: parts.packageSizeLine!,
+            textColor: textColor,
+          ),
+        ],
+        if (parts.packageSafetyLine != null &&
+            parts.packageSafetyLine!.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _buildDraftField(
+            label: 'Status Barang',
+            value: parts.packageSafetyLine!,
             textColor: textColor,
           ),
         ],
@@ -744,13 +760,23 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     }
 
     final pickupIndex = lines.indexWhere(
-      (line) => line.toLowerCase().startsWith('jemput:') || line.toLowerCase().startsWith('ambil:'),
+      (line) =>
+          line.toLowerCase().startsWith('jemput:') ||
+          line.toLowerCase().startsWith('ambil:'),
     );
     final destinationIndex = lines.indexWhere(
       (line) => line.toLowerCase().startsWith('tujuan:'),
     );
     final packageIndex = lines.indexWhere(
       (line) => line.toLowerCase().startsWith('barang:'),
+    );
+    final packageSizeIndex = lines.indexWhere((line) {
+      final lower = line.toLowerCase();
+      return lower.startsWith('ukuran/berat:') ||
+          lower.startsWith('berat/ukuran:');
+    });
+    final packageSafetyIndex = lines.indexWhere(
+      (line) => line.toLowerCase().startsWith('status barang:'),
     );
     final feeIndex = lines.indexWhere((line) {
       final lower = line.toLowerCase();
@@ -764,7 +790,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
     final introText = lines.take(pickupIndex).join('\n').trim();
     if (introText.isEmpty ||
-        (!introText.toLowerCase().contains('antar jemput') && !introText.toLowerCase().contains('kurir'))) {
+        (!introText.toLowerCase().contains('antar jemput') &&
+            !introText.toLowerCase().contains('kurir'))) {
       return null;
     }
 
@@ -777,10 +804,24 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       '',
     );
 
-    final packageDescription = packageIndex >= 0 ? lines[packageIndex].replaceFirst(
-      RegExp(r'^Barang:\s*', caseSensitive: false),
-      '',
-    ) : null;
+    final packageDescription = packageIndex >= 0
+        ? lines[packageIndex].replaceFirst(
+            RegExp(r'^Barang:\s*', caseSensitive: false),
+            '',
+          )
+        : null;
+    final packageSizeLine = packageSizeIndex >= 0
+        ? lines[packageSizeIndex].replaceFirst(
+            RegExp(r'^(Ukuran/Berat|Berat/Ukuran):\s*', caseSensitive: false),
+            '',
+          )
+        : null;
+    final packageSafetyLine = packageSafetyIndex >= 0
+        ? lines[packageSafetyIndex].replaceFirst(
+            RegExp(r'^Status Barang:\s*', caseSensitive: false),
+            '',
+          )
+        : null;
 
     if (pickupAddress.isEmpty || destinationAddress.isEmpty) {
       return null;
@@ -792,10 +833,14 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
     return _DraftMessageParts(
       headline: introText,
-      pickupLabel: lines[pickupIndex].toLowerCase().startsWith('ambil:') ? 'Ambil' : 'Jemput',
+      pickupLabel: lines[pickupIndex].toLowerCase().startsWith('ambil:')
+          ? 'Ambil'
+          : 'Jemput',
       pickupAddress: pickupAddress,
       destinationAddress: destinationAddress,
       packageDescription: packageDescription,
+      packageSizeLine: packageSizeLine,
+      packageSafetyLine: packageSafetyLine,
       feeLine: lines[feeIndex],
       instructionLine: instructionLine,
     );
@@ -809,6 +854,8 @@ class _DraftMessageParts {
     required this.pickupAddress,
     required this.destinationAddress,
     this.packageDescription,
+    this.packageSizeLine,
+    this.packageSafetyLine,
     required this.feeLine,
     required this.instructionLine,
   });
@@ -818,6 +865,8 @@ class _DraftMessageParts {
   final String pickupAddress;
   final String destinationAddress;
   final String? packageDescription;
+  final String? packageSizeLine;
+  final String? packageSafetyLine;
   final String feeLine;
   final String instructionLine;
 }

@@ -11,6 +11,7 @@ import '../providers/driver_order_providers.dart';
 import '../services/driver_order_service.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/order_formatters.dart' hide formatCurrency;
+import '../utils/service_type.dart';
 
 class DriverActiveOrderScreen extends ConsumerWidget {
   final String orderId;
@@ -67,10 +68,9 @@ class DriverActiveOrderScreen extends ConsumerWidget {
         data: (order) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!context.mounted) return;
-            ref.read(driverLocationTrackingProvider.notifier).syncForOrder(
-                  orderId: order.id,
-                  statusCode: order.statusCode,
-                );
+            ref
+                .read(driverLocationTrackingProvider.notifier)
+                .syncForOrder(orderId: order.id, statusCode: order.statusCode);
           });
 
           return RefreshIndicator(
@@ -99,7 +99,11 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                       error = await notifier.collectCod(
                         orderId: order.id,
                         amount: order.totalPrice,
-                        note: 'Pembayaran COD dicatat dari app driver.',
+                        note:
+                            normalizeServiceTypeCode(order.serviceTypeCode) ==
+                                ServiceTypeCodes.courier
+                            ? 'Pembayaran courier dicatat saat pickup dari app driver.'
+                            : 'Pembayaran COD dicatat dari app driver.',
                       );
                     } else {
                       error = await notifier.transitionOrderStatus(
@@ -160,10 +164,7 @@ class _MapCard extends StatelessWidget {
   final DriverOrderModel order;
   final DriverLocationTrackingState trackingState;
 
-  const _MapCard({
-    required this.order,
-    required this.trackingState,
-  });
+  const _MapCard({required this.order, required this.trackingState});
 
   @override
   Widget build(BuildContext context) {
@@ -257,12 +258,14 @@ class _TrackingBadge extends StatelessWidget {
     final hasPosition = state.latitude != null && state.longitude != null;
     final text = state.isTracking
         ? hasPosition
-            ? 'GPS aktif - lokasi dikirim realtime'
-            : 'GPS aktif - menunggu titik lokasi'
+              ? 'GPS aktif - lokasi dikirim realtime'
+              : 'GPS aktif - menunggu titik lokasi'
         : state.isStarting
-            ? 'Mengaktifkan GPS driver...'
-            : 'GPS driver belum aktif';
-    final color = state.isTracking ? AppColors.success : AppColors.textSecondary;
+        ? 'Mengaktifkan GPS driver...'
+        : 'GPS driver belum aktif';
+    final color = state.isTracking
+        ? AppColors.success
+        : AppColors.textSecondary;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
@@ -297,10 +300,7 @@ class _OrderMetaCard extends StatelessWidget {
   final DriverOrderModel order;
   final DriverLocationTrackingState trackingState;
 
-  const _OrderMetaCard({
-    required this.order,
-    required this.trackingState,
-  });
+  const _OrderMetaCard({required this.order, required this.trackingState});
 
   @override
   Widget build(BuildContext context) {
@@ -348,6 +348,18 @@ class _OrderMetaCard extends StatelessWidget {
           _row('Pickup', order.pickupAddress),
           const SizedBox(height: 6),
           _row('Dropoff', order.dropoffAddress),
+          if (_isCourier && _packageDescription.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            _row('Barang', _packageDescription),
+          ],
+          if (_isCourier && _packageSizeLine.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            _row('Ukuran', _packageSizeLine),
+          ],
+          if (_isCourier && _packageSafetyLine.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            _row('Safety', _packageSafetyLine),
+          ],
           if ((trackingState.message ?? '').trim().isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
@@ -408,6 +420,53 @@ class _OrderMetaCard extends StatelessWidget {
 
   String _formatCurrency(int amount) {
     return formatRupiah(amount);
+  }
+
+  bool get _isCourier =>
+      normalizeServiceTypeCode(order.serviceTypeCode) ==
+      ServiceTypeCodes.courier;
+
+  String get _packageDescription => (order.packageDescription ?? '').trim();
+
+  String get _packageSizeLine {
+    final parts = <String>[];
+    if (order.packageEstimatedWeightKg != null) {
+      parts.add('${_formatWeight(order.packageEstimatedWeightKg!)} kg');
+    }
+
+    final length = order.packageLengthCm;
+    final width = order.packageWidthCm;
+    final height = order.packageHeightCm;
+    if (length != null && width != null && height != null) {
+      parts.add('${length}x${width}x$height cm');
+    }
+
+    final sizeClass = (order.packageSizeClass ?? '').trim();
+    if (sizeClass.isNotEmpty) {
+      parts.add(sizeClass.toUpperCase());
+    }
+
+    return parts.join(' - ');
+  }
+
+  String get _packageSafetyLine {
+    final status = (order.packageSafetyStatus ?? '').trim();
+    final reason = (order.packageSafetyReason ?? '').trim();
+    if (status.isEmpty) {
+      return reason;
+    }
+
+    return reason.isEmpty
+        ? status.toUpperCase()
+        : '${status.toUpperCase()} - $reason';
+  }
+
+  String _formatWeight(double value) {
+    if (value == value.roundToDouble()) {
+      return value.round().toString();
+    }
+
+    return value.toStringAsFixed(1);
   }
 }
 
@@ -475,6 +534,12 @@ class _ActionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final actions = order.availableActions;
     final hasCodCollection = actions.any((action) => action.isCodCollection);
+    final isCourier =
+        normalizeServiceTypeCode(order.serviceTypeCode) ==
+        ServiceTypeCodes.courier;
+    final codMessage = isCourier
+        ? 'Cek barang lebih dulu, lalu tagih ${formatRupiah(order.totalPrice)} saat pickup sebelum menekan Paket Diambil.'
+        : 'Tagih COD sebesar ${formatRupiah(order.totalPrice)} sebelum menyelesaikan order.';
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -506,7 +571,7 @@ class _ActionCard extends StatelessWidget {
                 ),
               ),
               child: Text(
-                'Tagih COD sebesar ${formatRupiah(order.totalPrice)} sebelum menyelesaikan order.',
+                codMessage,
                 style: const TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 12.5,
