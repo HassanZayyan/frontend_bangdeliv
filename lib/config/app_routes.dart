@@ -18,6 +18,7 @@ class AppRoutes {
   static const String addresses = '/addresses';
   static const String addAddress = '/addresses/add';
   static const String addressLocationPicker = '/addresses/location-picker';
+  static const String routeLocationPicker = '/route-location-picker';
   static const String notifications = '/notifications';
   static const String notificationSettings = '/notification-settings';
   static const String track = '/track';
