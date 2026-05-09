@@ -8,6 +8,7 @@ import 'package:frontend_bangdeliv/models/chatbot_model.dart';
 import 'package:frontend_bangdeliv/models/user_profile_model.dart';
 import 'package:frontend_bangdeliv/providers/api_providers.dart';
 import 'package:frontend_bangdeliv/providers/auth_session_provider.dart';
+import 'package:frontend_bangdeliv/providers/chatbot_conversation_provider.dart';
 import 'package:frontend_bangdeliv/screens/chatbot_screen.dart';
 import 'package:frontend_bangdeliv/services/api_client.dart';
 import 'package:frontend_bangdeliv/services/api_exception.dart';
@@ -73,6 +74,43 @@ void main() {
 
     expect(find.textContaining('belum pas di peta'), findsOneWidget);
     expect(find.text('Pilih Titik Tujuan di Map'), findsOneWidget);
+  });
+
+  test('initial courier map pin can patch backend session before chat', () async {
+    final fakeService = _FakeChatbotApiService();
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    final container = ProviderContainer(
+      overrides: [
+        authSessionProvider.overrideWith(
+          () => _FakeAuthSessionNotifier(_buildAuthenticatedSession()),
+        ),
+        chatbotApiServiceProvider.overrideWithValue(fakeService),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(chatbotConversationProvider.notifier);
+    await notifier.bootstrap(
+      serviceType: 'kurir',
+      welcomeMessage:
+          'Halo! Saya BangBot untuk layanan Kurir. Tulis lokasi ambil, tujuan kirim, isi paket, atau pilih titik langsung di map.',
+    );
+
+    await notifier.applyMapPinAction(
+      serviceType: 'kurir',
+      target: 'pickup',
+      latitude: -7.3289,
+      longitude: 110.5001,
+      address: 'Pin -7.328900, 110.500100',
+    );
+
+    final state = container.read(chatbotConversationProvider);
+
+    expect(fakeService.patchLocationCallCount, 1);
+    expect(fakeService.lastPatchTarget, 'pickup');
+    expect(state.messages.last.text, contains('Draft map pin diterima'));
+    expect(state.errorMessage, isNull);
   });
 
   testWidgets('show small courier draft size line without fake numbers', (
@@ -199,7 +237,9 @@ class _FakeChatbotApiService extends ChatbotApiService {
   _FakeChatbotApiService() : super(ApiClient());
 
   int callCount = 0;
+  int patchLocationCallCount = 0;
   String? lastServiceType;
+  String? lastPatchTarget;
 
   @override
   Future<List<ChatbotSessionSummary>> fetchSessions({
@@ -326,6 +366,58 @@ class _FakeChatbotApiService extends ChatbotApiService {
           'missing_fields': [],
           'next_actions': [],
         },
+        'order': {'created': false},
+      },
+    });
+  }
+
+  @override
+  Future<ChatbotResult> patchSessionLocation(
+    String sessionId, {
+    required String serviceType,
+    required String target,
+    required double latitude,
+    required double longitude,
+    String? address,
+  }) async {
+    patchLocationCallCount += 1;
+    lastServiceType = serviceType;
+    lastPatchTarget = target;
+
+    return ChatbotResult.fromApiJson({
+      'status': 'success',
+      'session_id': sessionId,
+      'service_context': {'service_type': serviceType},
+      'model_used': 'map-pin-action',
+      'data': {
+        'intent': serviceType == 'antar_jemput'
+            ? 'ride_order'
+            : 'courier_order',
+        'assistant_text':
+            'Draft map pin diterima. Lengkapi data lain agar siap dikonfirmasi.',
+        'validation': {
+          'is_valid_order': false,
+          'rejection_reasons': [],
+          'missing_fields': serviceType == 'kurir'
+              ? ['dropoff_address', 'package_description']
+              : ['destination_address'],
+          'next_actions': serviceType == 'kurir'
+              ? ['OPEN_MAP_PICKER_DROPOFF']
+              : ['OPEN_MAP_PICKER_DESTINATION'],
+        },
+        'action_payloads': serviceType == 'kurir'
+            ? {
+                'OPEN_MAP_PICKER_DROPOFF': {
+                  'target': 'dropoff',
+                  'label': 'Pilih Titik Tujuan',
+                },
+              }
+            : {
+                'OPEN_MAP_PICKER_DESTINATION': {
+                  'target': 'destination',
+                  'label': 'Pilih Titik Tujuan',
+                },
+              },
         'order': {'created': false},
       },
     });

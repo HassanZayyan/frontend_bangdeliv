@@ -354,7 +354,12 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                     controller: _scrollController,
                     padding: const EdgeInsets.all(20),
                     children: state.messages
-                        .map(_buildMessageItem)
+                        .map(
+                          (message) => _buildMessageItem(
+                            message,
+                            actionsEnabled: !effectiveBusy,
+                          ),
+                        )
                         .toList(growable: false),
                   ),
           ),
@@ -495,7 +500,10 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     );
   }
 
-  Widget _buildMessageItem(ChatbotConversationMessage message) {
+  Widget _buildMessageItem(
+    ChatbotConversationMessage message, {
+    required bool actionsEnabled,
+  }) {
     final isUser = message.isUser;
     final bubbleColor = isUser ? AppColors.primary : AppColors.white;
     final textColor = isUser ? Colors.white : AppColors.textPrimary;
@@ -553,7 +561,9 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                     children: [
                       for (final actionHint in message.actionHints)
                         OutlinedButton.icon(
-                          onPressed: () => _handleActionHint(actionHint),
+                          onPressed: actionsEnabled
+                              ? () => _handleActionHint(actionHint)
+                              : null,
                           icon: Icon(switch (actionHint.type) {
                             ChatbotMessageActionType.openAddresses =>
                               Icons.home_outlined,
