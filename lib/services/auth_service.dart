@@ -75,10 +75,8 @@ class AuthService {
             headers: await authorizedHeaders(),
             body: jsonEncode({
               'vehicle_type': vehicleType.trim(),
-              if (vehicleBrand.trim().isNotEmpty)
-                'vehicle_brand': vehicleBrand.trim(),
-              if (vehicleModel.trim().isNotEmpty)
-                'vehicle_model': vehicleModel.trim(),
+              'vehicle_brand': vehicleBrand.trim(),
+              'vehicle_model': vehicleModel.trim(),
               'vehicle_plate': vehiclePlate,
               'license_number': licenseNumber,
             }),
@@ -210,14 +208,14 @@ class AuthService {
         request.fields['name'] = name;
         request.fields['phone'] = phone;
         request.fields['email'] = email;
-        if ((vehicleType ?? '').trim().isNotEmpty) {
-          request.fields['vehicle_type'] = vehicleType!.trim();
+        if (vehicleType != null) {
+          request.fields['vehicle_type'] = vehicleType.trim();
         }
-        if ((vehicleBrand ?? '').trim().isNotEmpty) {
-          request.fields['vehicle_brand'] = vehicleBrand!.trim();
+        if (vehicleBrand != null) {
+          request.fields['vehicle_brand'] = vehicleBrand.trim();
         }
-        if ((vehicleModel ?? '').trim().isNotEmpty) {
-          request.fields['vehicle_model'] = vehicleModel!.trim();
+        if (vehicleModel != null) {
+          request.fields['vehicle_model'] = vehicleModel.trim();
         }
         if (removeAvatar) {
           request.fields['remove_avatar'] = '1';
@@ -248,12 +246,9 @@ class AuthService {
               'name': name,
               'phone': phone,
               'email': email,
-              if ((vehicleType ?? '').trim().isNotEmpty)
-                'vehicle_type': vehicleType!.trim(),
-              if ((vehicleBrand ?? '').trim().isNotEmpty)
-                'vehicle_brand': vehicleBrand!.trim(),
-              if ((vehicleModel ?? '').trim().isNotEmpty)
-                'vehicle_model': vehicleModel!.trim(),
+              if (vehicleType != null) 'vehicle_type': vehicleType.trim(),
+              if (vehicleBrand != null) 'vehicle_brand': vehicleBrand.trim(),
+              if (vehicleModel != null) 'vehicle_model': vehicleModel.trim(),
               if (removeAvatar) 'remove_avatar': true,
             }),
           )
