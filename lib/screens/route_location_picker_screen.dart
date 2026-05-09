@@ -33,7 +33,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
   bool _isResolvingCurrentLocation = false;
   bool _isResolvingMapPinAddress = false;
   bool _isLocationPermissionGranted = false;
-  String? _locationHint;
+  String? _statusHint;
 
   String get _pickupTarget => widget.args.pickupTarget;
   String get _destinationTarget => widget.args.destinationTarget;
@@ -69,11 +69,11 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
       );
     }
 
-    _activeTarget = _destinationPoint == null
-        ? _destinationTarget
-        : _pickupTarget;
-    _cameraTarget = destinationInitial ?? pickupInitial ?? _fallbackCenter;
-    _initialZoom = (destinationInitial ?? pickupInitial) == null ? 13.0 : 17.0;
+    _activeTarget = pickupInitial != null
+        ? _pickupTarget
+        : (destinationInitial != null ? _destinationTarget : _pickupTarget);
+    _cameraTarget = pickupInitial ?? destinationInitial ?? _fallbackCenter;
+    _initialZoom = (pickupInitial ?? destinationInitial) == null ? 13.0 : 17.0;
 
     if (destinationInitial == null && pickupInitial == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -107,6 +107,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     final activeLabel = _activeTarget == _pickupTarget
         ? widget.args.pickupLabel
         : widget.args.destinationLabel;
+    final activeAddress = _activePoint?.displayAddress;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -138,9 +139,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                 ],
                 selected: {_activeTarget},
                 onSelectionChanged: (selection) {
-                  final target = selection.first;
-                  setState(() => _activeTarget = target);
-                  _focusSelectedPoint(target);
+                  _selectTarget(selection.first);
                 },
               ),
             ),
@@ -257,15 +256,28 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                   const SizedBox(height: 10),
                   Text(
                     'Peta aktif: $activeLabel',
+                    key: const Key('route_picker_active_label'),
                     style: const TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 12,
                     ),
                   ),
-                  if ((_locationHint ?? '').isNotEmpty) ...[
+                  if ((activeAddress ?? '').isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(
-                      _locationHint!,
+                      activeAddress!,
+                      key: const Key('route_picker_active_address'),
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                  if ((_statusHint ?? '').isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      _statusHint!,
+                      key: const Key('route_picker_status_hint'),
                       style: const TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 12,
@@ -355,10 +367,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
             point: _pickupPoint,
             isActive: _activeTarget == _pickupTarget,
             color: AppColors.success,
-            onTap: () {
-              setState(() => _activeTarget = _pickupTarget);
-              _focusSelectedPoint(_pickupTarget);
-            },
+            onTap: () => _selectTarget(_pickupTarget),
           ),
         ),
         const SizedBox(width: 10),
@@ -368,14 +377,26 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
             point: _destinationPoint,
             isActive: _activeTarget == _destinationTarget,
             color: AppColors.primary,
-            onTap: () {
-              setState(() => _activeTarget = _destinationTarget);
-              _focusSelectedPoint(_destinationTarget);
-            },
+            onTap: () => _selectTarget(_destinationTarget),
           ),
         ),
       ],
     );
+  }
+
+  _RoutePoint? get _activePoint =>
+      _activeTarget == _pickupTarget ? _pickupPoint : _destinationPoint;
+
+  void _selectTarget(String target) {
+    if (target != _pickupTarget && target != _destinationTarget) {
+      return;
+    }
+
+    setState(() {
+      _activeTarget = target;
+      _statusHint = null;
+    });
+    _focusSelectedPoint(target);
   }
 
   Set<Marker> _markers() {
@@ -418,7 +439,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
   Future<void> _moveToCurrentLocation() async {
     setState(() {
       _isResolvingCurrentLocation = true;
-      _locationHint = null;
+      _statusHint = null;
     });
 
     try {
@@ -428,7 +449,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
           'Layanan lokasi belum aktif. Aktifkan GPS lalu coba lagi.',
         );
         setState(() {
-          _locationHint = 'GPS belum aktif, pilih titik manual di peta.';
+          _statusHint = 'GPS belum aktif, pilih titik manual di peta.';
         });
         return;
       }
@@ -441,7 +462,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
       if (permission == LocationPermission.denied) {
         _showMessage('Izin lokasi ditolak. Pilih titik manual di peta.');
         setState(() {
-          _locationHint = 'Izin lokasi ditolak, pilih titik manual di peta.';
+          _statusHint = 'Izin lokasi ditolak, pilih titik manual di peta.';
         });
         return;
       }
@@ -472,13 +493,14 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
 
       _saveActivePoint('gps', address: address);
       setState(() {
-        _locationHint =
-            address ?? 'Titik dipilih di peta untuk ${_activeLabelLower()}.';
+        _statusHint = address == null
+            ? 'Titik dipilih di peta untuk ${_activeLabelLower()}.'
+            : null;
       });
     } catch (_) {
       _showMessage('Gagal mengambil lokasi saat ini. Coba lagi.');
       setState(() {
-        _locationHint = 'Lokasi tidak tersedia, pilih titik manual di peta.';
+        _statusHint = 'Lokasi tidak tersedia, pilih titik manual di peta.';
       });
     } finally {
       if (mounted) {
@@ -496,8 +518,9 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
 
       _saveActivePoint('map_pin', address: address);
       setState(() {
-        _locationHint =
-            address ?? 'Titik dipilih di peta untuk ${_activeLabelLower()}.';
+        _statusHint = address == null
+            ? 'Titik dipilih di peta untuk ${_activeLabelLower()}.'
+            : null;
       });
     } finally {
       if (mounted) {
