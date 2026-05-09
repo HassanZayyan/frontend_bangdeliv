@@ -150,6 +150,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       );
 
       ref.invalidate(driverOrderDetailProvider(id));
+      ref.invalidate(driverAvailabilityProvider);
 
       return null;
     } catch (error) {
@@ -202,6 +203,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       state = AsyncData(
         latest.copyWith(processingOrderIds: cleanedProcessingIds),
       );
+      ref.invalidate(driverAvailabilityProvider);
 
       return null;
     } catch (error) {
@@ -266,6 +268,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       );
 
       ref.invalidate(driverOrderDetailProvider(orderId));
+      ref.invalidate(driverAvailabilityProvider);
       return null;
     } catch (error) {
       final latest = state.asData?.value;
@@ -467,6 +470,7 @@ class DriverAvailabilityNotifier
           syncIssueMessage: null,
         ),
       );
+      ref.invalidate(driverOrdersProvider);
 
       return null;
     } on DriverOrderApiException catch (error) {

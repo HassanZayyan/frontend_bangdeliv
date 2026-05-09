@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
+import '../providers/auth_session_provider.dart';
 import '../providers/driver_location_tracking_provider.dart';
 import '../providers/driver_order_providers.dart';
 
@@ -55,10 +56,18 @@ class _DriverMainLayoutState extends ConsumerState<DriverMainLayout> {
 
   @override
   Widget build(BuildContext context) {
-    final activeOrder = ref.watch(driverActiveOrderProvider);
+    final session = ref.watch(authSessionProvider);
+    final isActiveDriver =
+        session.driverAccessState == DriverAccessState.active;
+    final activeOrder = isActiveDriver
+        ? ref.watch(driverActiveOrderProvider)
+        : null;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref.read(driverLocationTrackingProvider.notifier).syncForOrder(
+      ref
+          .read(driverLocationTrackingProvider.notifier)
+          .syncForOrder(
             orderId: activeOrder?.id,
             statusCode: activeOrder?.statusCode,
           );
@@ -66,32 +75,34 @@ class _DriverMainLayoutState extends ConsumerState<DriverMainLayout> {
 
     return Scaffold(
       body: widget.child,
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: AppColors.white,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.textSecondary,
-        currentIndex: _calculateSelectedIndex(context),
-        onTap: (index) => _onItemTapped(index, context),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_filled),
-            label: 'Beranda',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.assignment_rounded),
-            label: 'Orderan',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.history),
-            label: 'Riwayat',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profil',
-          ),
-        ],
-      ),
+      bottomNavigationBar: isActiveDriver
+          ? BottomNavigationBar(
+              type: BottomNavigationBarType.fixed,
+              backgroundColor: AppColors.white,
+              selectedItemColor: AppColors.primary,
+              unselectedItemColor: AppColors.textSecondary,
+              currentIndex: _calculateSelectedIndex(context),
+              onTap: (index) => _onItemTapped(index, context),
+              items: const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.home_filled),
+                  label: 'Beranda',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.assignment_rounded),
+                  label: 'Orderan',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.history),
+                  label: 'Riwayat',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.person),
+                  label: 'Profil',
+                ),
+              ],
+            )
+          : null,
     );
   }
 }

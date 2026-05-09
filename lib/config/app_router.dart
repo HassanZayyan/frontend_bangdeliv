@@ -444,8 +444,11 @@ const Set<String> _customerOnlyRoutes = {
 
 const Set<String> _driverNonActiveAllowedRoutes = {
   AppRoutes.driverVerificationStatus,
+  AppRoutes.driverProfile,
   AppRoutes.editProfile,
   AppRoutes.changePassword,
+  AppRoutes.notificationSettings,
+  AppRoutes.privacyMapPreview,
 };
 
 bool _isDriverRoute(String location) {
