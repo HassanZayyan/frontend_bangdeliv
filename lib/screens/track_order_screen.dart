@@ -7,21 +7,31 @@ import '../config/app_routes.dart';
 import '../models/customer_order_model.dart';
 import '../providers/customer_order_providers.dart';
 import '../providers/customer_order_tracking_provider.dart';
+import '../providers/order_chat_unread_provider.dart';
 import '../utils/order_formatters.dart';
 import '../utils/order_status.dart';
 import '../utils/order_ui_helpers.dart';
 import '../utils/service_type.dart';
+import '../widgets/order_chat_badge_icon.dart';
 import '../widgets/tracking_map_section.dart';
 
 class TrackOrderScreen extends ConsumerWidget {
   const TrackOrderScreen({super.key});
 
-  static const _kStepLabels = [
+  static const _kStepLabelsDefault = [
     'Menunggu',
     'Ditugaskan',
     'Diambil',
     'Perjalanan',
     'Tiba',
+  ];
+
+  static const _kStepLabelsRide = [
+    'Menunggu',
+    'Ditugaskan',
+    'Naik',
+    'Perjalanan',
+    'Selesai',
   ];
 
   bool _shouldShowTrackingMap(CustomerOrderSummaryModel order) {
@@ -36,7 +46,8 @@ class TrackOrderScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final orderId = _extractOrderId(GoRouterState.of(context).extra);
+    final routeArgs = _extractRouteArgs(GoRouterState.of(context).extra);
+    final orderId = routeArgs.orderId;
 
     if (orderId != null) {
       final trackingProvider = customerOrderTrackingProvider(orderId);
@@ -44,6 +55,7 @@ class TrackOrderScreen extends ConsumerWidget {
       return _buildScaffold(
         context,
         trackingAsync,
+        forceHistoryTitle: routeArgs.fromHistory,
         showEmptyForNoActiveOrder: false,
         onRetry: () => ref.invalidate(trackingProvider),
         onRefresh: () async {
@@ -105,16 +117,22 @@ class TrackOrderScreen extends ConsumerWidget {
   Widget _buildScaffold(
     BuildContext context,
     AsyncValue<CustomerOrderTrackingState> trackingAsync, {
+    bool forceHistoryTitle = false,
     required bool showEmptyForNoActiveOrder,
     required VoidCallback onRetry,
     Future<void> Function()? onRefresh,
   }) {
+    final isHistoryDetail =
+        forceHistoryTitle ||
+        (trackingAsync.asData?.value.detail.summary.isTerminalStatus ?? false);
+    final appBarTitle = isHistoryDetail ? 'Detail Pesanan' : 'Lacak Pesanan';
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(
-          'Lacak Pesanan',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        title: Text(
+          appBarTitle,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         backgroundColor: AppColors.white,
         elevation: 0,
@@ -159,10 +177,23 @@ class TrackOrderScreen extends ConsumerWidget {
     );
   }
 
-  int? _extractOrderId(dynamic extra) {
-    if (extra is int) return extra;
-    if (extra is String) return int.tryParse(extra);
-    return null;
+  _TrackRouteArgs _extractRouteArgs(dynamic extra) {
+    if (extra is int) {
+      return _TrackRouteArgs(orderId: extra);
+    }
+    if (extra is String) {
+      return _TrackRouteArgs(orderId: int.tryParse(extra));
+    }
+    if (extra is Map) {
+      final map = Map<String, dynamic>.from(extra);
+      final dynamic rawOrderId = map['orderId'] ?? map['order_id'] ?? map['id'];
+      final orderId = rawOrderId is int
+          ? rawOrderId
+          : int.tryParse(rawOrderId?.toString() ?? '');
+      final fromHistory = map['fromHistory'] == true;
+      return _TrackRouteArgs(orderId: orderId, fromHistory: fromHistory);
+    }
+    return const _TrackRouteArgs();
   }
 
   Widget _buildEmptyState(BuildContext context) {
@@ -234,13 +265,28 @@ class TrackOrderScreen extends ConsumerWidget {
     final shouldShowMap = _shouldShowTrackingMap(order);
     final isWaitingDriver = _isWaitingDriverStatus(order);
     final isPassengerDropoff = _isPassengerDropoffStatus(order);
+    final isDriverArrivedDestination = _isDriverArrivedDestinationStatus(order);
     final isRide =
         normalizeServiceTypeCode(order.serviceTypeCode) ==
         ServiceTypeCodes.ride;
     final hasLiveDriver = tracking.hasLiveDriverLocation;
     final driverName = (detail.driverName ?? '').trim();
+    final driverVehicleLabel = _driverVehicleLabel(detail);
+    final driverVehiclePlate = _driverVehiclePlate(detail);
 
-    if ((isWaitingDriver || isPassengerDropoff) && !order.isTerminalStatus) {
+    if (!shouldShowMap) {
+      return _buildFixedStatusLayout(
+        context: context,
+        order: order,
+        detail: detail,
+        hasLiveDriver: hasLiveDriver,
+        infoMessage: _fixedStatusInfoMessage(order),
+        onRefresh: onRefresh,
+      );
+    }
+
+    if ((isWaitingDriver || isPassengerDropoff || isDriverArrivedDestination) &&
+        !order.isTerminalStatus) {
       return _buildFixedStatusLayout(
         context: context,
         order: order,
@@ -318,22 +364,28 @@ class TrackOrderScreen extends ConsumerWidget {
                                 order.statusCode,
                                 statusLabel: order.statusLabel,
                                 isTerminalStatus: order.isTerminalStatus,
+                                isRide: isRide,
                               ),
                               const SizedBox(height: 12),
+                              if (driverName.isNotEmpty) ...[
+                                _buildDriverCard(
+                                  driverName,
+                                  orderId: order.id,
+                                  vehicleLabel: driverVehicleLabel,
+                                  vehiclePlate: driverVehiclePlate,
+                                  onChat: () => context.push(
+                                    AppRoutes.orderChatPath(order.id),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                              ],
                               _buildStatusHeader(
                                 order: order,
                                 hasLiveDriver: hasLiveDriver,
                                 showEta: _shouldShowEta(order),
                               ),
-                              if (driverName.isNotEmpty) ...[
-                                const SizedBox(height: 12),
-                                _buildDriverCard(
-                                  driverName,
-                                  onChat: () => context.push(
-                                    AppRoutes.orderChatPath(order.id),
-                                  ),
-                                ),
-                              ],
+                              const SizedBox(height: 12),
+                              _buildAddressCard(order.deliveryAddress),
                               const SizedBox(height: 12),
                               _buildSummaryCard(
                                 order,
@@ -342,8 +394,6 @@ class TrackOrderScreen extends ConsumerWidget {
                               ),
                               const SizedBox(height: 12),
                               _buildPaymentCard(order, detail),
-                              const SizedBox(height: 12),
-                              _buildAddressCard(order.deliveryAddress),
                               const SizedBox(height: 12),
                               _buildTimelineCard(
                                 detail.timeline,
@@ -374,6 +424,8 @@ class TrackOrderScreen extends ConsumerWidget {
     Future<void> Function()? onRefresh,
   }) {
     final driverName = (detail.driverName ?? '').trim();
+    final driverVehicleLabel = _driverVehicleLabel(detail);
+    final driverVehiclePlate = _driverVehiclePlate(detail);
 
     return ColoredBox(
       color: AppColors.background,
@@ -389,20 +441,28 @@ class TrackOrderScreen extends ConsumerWidget {
                 order.statusCode,
                 statusLabel: order.statusLabel,
                 isTerminalStatus: order.isTerminalStatus,
+                isRide:
+                    normalizeServiceTypeCode(order.serviceTypeCode) ==
+                    ServiceTypeCodes.ride,
               ),
               const SizedBox(height: 12),
+              if (driverName.isNotEmpty) ...[
+                _buildDriverCard(
+                  driverName,
+                  orderId: order.id,
+                  vehicleLabel: driverVehicleLabel,
+                  vehiclePlate: driverVehiclePlate,
+                  onChat: () => context.push(AppRoutes.orderChatPath(order.id)),
+                ),
+                const SizedBox(height: 12),
+              ],
               _buildStatusHeader(
                 order: order,
                 hasLiveDriver: hasLiveDriver,
                 showEta: _shouldShowEta(order),
               ),
-              if (driverName.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                _buildDriverCard(
-                  driverName,
-                  onChat: () => context.push(AppRoutes.orderChatPath(order.id)),
-                ),
-              ],
+              const SizedBox(height: 12),
+              _buildAddressCard(order.deliveryAddress),
               const SizedBox(height: 12),
               _buildSummaryCard(order, detail, showEta: _shouldShowEta(order)),
               const SizedBox(height: 12),
@@ -451,7 +511,22 @@ class TrackOrderScreen extends ConsumerWidget {
         normalizedLabel.contains('SUDAH SAMPAI TUJUAN');
   }
 
+  bool _isDriverArrivedDestinationStatus(CustomerOrderSummaryModel order) {
+    final normalizedLabel = order.statusLabel.trim().toUpperCase();
+    return normalizedLabel.contains('DRIVER') &&
+        normalizedLabel.contains('TIBA') &&
+        normalizedLabel.contains('TUJUAN');
+  }
+
   String _fixedStatusInfoMessage(CustomerOrderSummaryModel order) {
+    if (order.isTerminalStatus) {
+      return 'Order sudah selesai, peta tracking tidak lagi ditampilkan.';
+    }
+
+    if (_isDriverArrivedDestinationStatus(order)) {
+      return 'Driver sudah tiba di tujuan. Proses order akan segera diselesaikan.';
+    }
+
     if (_isPassengerDropoffStatus(order)) {
       return 'Penumpang sudah tiba di tujuan. Proses order akan segera diselesaikan.';
     }
@@ -460,7 +535,9 @@ class TrackOrderScreen extends ConsumerWidget {
   }
 
   bool _shouldShowEta(CustomerOrderSummaryModel order) {
-    if (order.isTerminalStatus || _isPassengerDropoffStatus(order)) {
+    if (order.isTerminalStatus ||
+        _isPassengerDropoffStatus(order) ||
+        _isDriverArrivedDestinationStatus(order)) {
       return false;
     }
 
@@ -475,7 +552,9 @@ class TrackOrderScreen extends ConsumerWidget {
     String statusCode, {
     String? statusLabel,
     bool isTerminalStatus = false,
+    bool isRide = false,
   }) {
+    final stepLabels = isRide ? _kStepLabelsRide : _kStepLabelsDefault;
     final normalized = normalizeOrderStatusCode(statusCode);
     if (isTerminalStatus || isTerminalOrderStatus(normalized)) {
       return const SizedBox.shrink();
@@ -489,6 +568,7 @@ class TrackOrderScreen extends ConsumerWidget {
       statusCode: statusCode,
       statusLabel: statusLabel,
       currentIndex: currentIndex,
+      totalSteps: stepLabels.length,
     );
 
     return Container(
@@ -500,7 +580,7 @@ class TrackOrderScreen extends ConsumerWidget {
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: List.generate(_kStepLabels.length * 2 - 1, (i) {
+        children: List.generate(stepLabels.length * 2 - 1, (i) {
           if (i.isOdd) {
             final stepIndex = (i - 1) ~/ 2;
             final isPastConnector = stepIndex < currentIndex;
@@ -563,7 +643,7 @@ class TrackOrderScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 5),
               Text(
-                _kStepLabels[stepIndex],
+                stepLabels[stepIndex],
                 style: TextStyle(
                   fontSize: 9.5,
                   fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w500,
@@ -585,9 +665,10 @@ class TrackOrderScreen extends ConsumerWidget {
     required String statusCode,
     String? statusLabel,
     required int currentIndex,
+    required int totalSteps,
   }) {
     final normalizedCode = normalizeOrderStatusCode(statusCode);
-    if (currentIndex != _kStepLabels.length - 1) {
+    if (currentIndex != totalSteps - 1) {
       return false;
     }
 
@@ -625,114 +706,58 @@ class TrackOrderScreen extends ConsumerWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(
-                    serviceTypeLeadingIcon(order.serviceTypeCode),
-                    color: statusColor,
-                    size: 26,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        order.orderNumber,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                        ),
+                Row(
+                  children: [
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: statusColor.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              order.statusLabel,
-                              style: TextStyle(
-                                color: statusColor,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 11.5,
-                              ),
+                      child: Icon(
+                        serviceTypeLeadingIcon(order.serviceTypeCode),
+                        color: statusColor,
+                        size: 26,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: SizedBox(
+                        height: 24,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            order.orderNumber,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              height: 1.1,
                             ),
                           ),
-                          if (hasLiveDriver)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 7,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.green.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    width: 6,
-                                    height: 6,
-                                    decoration: const BoxDecoration(
-                                      color: Colors.green,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  const Text(
-                                    'LIVE',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.green,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
+                        ),
                       ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Text(
-                    order.serviceTypeLabel,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    _buildServiceTypeBadge(order.serviceTypeLabel),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _buildStatusBadge(
+                      text: order.statusLabel,
+                      color: statusColor,
+                    ),
+                    if (hasLiveDriver) _buildLiveBadge(),
+                  ],
                 ),
               ],
             ),
@@ -774,11 +799,171 @@ class TrackOrderScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildStatusBadge({required String text, required Color color}) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 30),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+          height: 1.15,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildServiceTypeBadge(String text) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 30, maxWidth: 130),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 11.5,
+          fontWeight: FontWeight.w600,
+          height: 1.15,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLiveBadge() {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 30),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.green.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: const BoxDecoration(
+              color: Colors.green,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 4),
+          const Text(
+            'LIVE',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: Colors.green,
+              letterSpacing: 0.5,
+              height: 1.15,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVehicleInfoSection({
+    String? vehicleLabel,
+    String? vehiclePlate,
+  }) {
+    if (vehicleLabel == null && vehiclePlate == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (vehicleLabel != null)
+          _buildVehicleInfoRow(
+            label: 'Motor',
+            value: vehicleLabel,
+            icon: Icons.two_wheeler_outlined,
+          ),
+        if (vehicleLabel != null && vehiclePlate != null)
+          const SizedBox(height: 6),
+        if (vehiclePlate != null)
+          _buildVehicleInfoRow(
+            label: 'Plat',
+            value: vehiclePlate,
+            icon: Icons.confirmation_number_outlined,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildVehicleInfoRow({
+    required String label,
+    required String value,
+    required IconData icon,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 14, color: AppColors.textSecondary),
+        const SizedBox(width: 6),
+        SizedBox(
+          width: 44,
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const Text(
+          ': ',
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              height: 1.25,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Driver card — avatar inisial + nama driver
   // ---------------------------------------------------------------------------
 
-  Widget _buildDriverCard(String driverName, {VoidCallback? onChat}) {
+  Widget _buildDriverCard(
+    String driverName, {
+    required int orderId,
+    String? vehicleLabel,
+    String? vehiclePlate,
+    VoidCallback? onChat,
+  }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -786,64 +971,87 @@ class TrackOrderScreen extends ConsumerWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.border),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.primary.withValues(alpha: 0.18),
-                  AppColors.primary.withValues(alpha: 0.08),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                driverName[0].toUpperCase(),
-                style: const TextStyle(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
+          Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.primary.withValues(alpha: 0.18),
+                      AppColors.primary.withValues(alpha: 0.08),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
                 ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Driver Anda',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
+                child: Center(
+                  child: Text(
+                    driverName[0].toUpperCase(),
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  driverName,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                  ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Driver Anda',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      driverName,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (onChat != null) ...[
+                const SizedBox(width: 10),
+                Consumer(
+                  builder: (context, ref, _) {
+                    final unreadCountAsync = ref.watch(
+                      orderChatUnreadCountProvider(orderId),
+                    );
+                    final unreadCount = unreadCountAsync.asData?.value ?? 0;
+
+                    return IconButton(
+                      onPressed: onChat,
+                      tooltip: 'Chat driver',
+                      icon: OrderChatBadgeIcon(unreadCount: unreadCount),
+                      color: AppColors.primary,
+                    );
+                  },
                 ),
               ],
-            ),
+            ],
           ),
-          if (onChat != null) ...[
-            const SizedBox(width: 10),
-            IconButton(
-              onPressed: onChat,
-              tooltip: 'Chat driver',
-              icon: const Icon(Icons.chat_bubble_outline),
-              color: AppColors.primary,
+          if (vehicleLabel != null || vehiclePlate != null) ...[
+            const SizedBox(height: 12),
+            const Divider(height: 1, thickness: 1, color: AppColors.border),
+            const SizedBox(height: 10),
+            _buildVehicleInfoSection(
+              vehicleLabel: vehicleLabel,
+              vehiclePlate: vehiclePlate,
             ),
           ],
         ],
@@ -1233,6 +1441,39 @@ class TrackOrderScreen extends ConsumerWidget {
     if (minutes == 0) return '$hours jam lagi';
     return '$hours jam $minutes menit lagi';
   }
+
+  String? _driverVehicleLabel(CustomerOrderDetailModel detail) {
+    final type = (detail.driverVehicleType ?? '').trim();
+    final brand = (detail.driverVehicleBrand ?? '').trim();
+    final model = (detail.driverVehicleModel ?? '').trim();
+
+    final brandModel = [
+      brand,
+      model,
+    ].where((part) => part.isNotEmpty).join(' ');
+    if (brandModel.isNotEmpty) {
+      return brandModel;
+    }
+
+    final typeBrand = [type, brand].where((part) => part.isNotEmpty).join(' ');
+    if (typeBrand.isNotEmpty) {
+      return typeBrand;
+    }
+
+    return type.isNotEmpty ? type : null;
+  }
+
+  String? _driverVehiclePlate(CustomerOrderDetailModel detail) {
+    final plate = (detail.driverVehiclePlate ?? '').trim().toUpperCase();
+    return plate.isEmpty ? null : plate;
+  }
+}
+
+class _TrackRouteArgs {
+  final int? orderId;
+  final bool fromHistory;
+
+  const _TrackRouteArgs({this.orderId, this.fromHistory = false});
 }
 
 class _InfoRow {

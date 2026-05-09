@@ -45,95 +45,104 @@ void main() {
     expect(fakeService.fetchCalls, 1);
   });
 
-  test('sendMessage shows optimistic item then replaces it with API result', () async {
-    final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
-    final sendCompleter = Completer<OrderChatSendResult>();
-    final fakeService = _FakeOrderChatApiService(
-      initialPage: const OrderChatMessagesPage(
-        messages: <OrderChatMessageModel>[],
-        canSend: true,
-        hasMore: false,
-        nextBeforeId: null,
-      ),
-      sendCompleter: sendCompleter,
-    );
-
-    final container = ProviderContainer(
-      overrides: [
-        authSessionProvider.overrideWith(() => fakeAuth),
-        orderChatApiServiceProvider.overrideWithValue(fakeService),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    await container.read(orderChatProvider(99).future);
-
-    final sendFuture = container
-        .read(orderChatProvider(99).notifier)
-        .sendMessage('Halo driver');
-
-    final optimistic = container.read(orderChatProvider(99)).asData!.value;
-    expect(optimistic.isSending, isTrue);
-    expect(optimistic.messages.single.isPending, isTrue);
-    expect(optimistic.messages.single.body, 'Halo driver');
-
-    final clientMessageId = fakeService.lastClientMessageId!;
-    sendCompleter.complete(
-      OrderChatSendResult(
-        message: _message(
-          id: 42,
-          senderUserId: 7,
-          body: 'Halo driver',
-          clientMessageId: clientMessageId,
+  test(
+    'sendMessage shows optimistic item then replaces it with API result',
+    () async {
+      final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
+      final sendCompleter = Completer<OrderChatSendResult>();
+      final fakeService = _FakeOrderChatApiService(
+        initialPage: const OrderChatMessagesPage(
+          messages: <OrderChatMessageModel>[],
+          canSend: true,
+          hasMore: false,
+          nextBeforeId: null,
         ),
-        canSend: true,
-      ),
-    );
+        sendCompleter: sendCompleter,
+      );
 
-    expect(await sendFuture, isNull);
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          orderChatApiServiceProvider.overrideWithValue(fakeService),
+        ],
+      );
+      addTearDown(container.dispose);
 
-    final sent = container.read(orderChatProvider(99)).asData!.value;
-    expect(sent.isSending, isFalse);
-    expect(sent.messages.single.id, 42);
-    expect(sent.messages.single.isPending, isFalse);
-  });
+      await container.read(orderChatProvider(99).future);
 
-  test('sendMessage recovers persisted message after broadcast-only failure', () async {
-    final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
-    final fakeService = _FakeOrderChatApiService(
-      initialPage: const OrderChatMessagesPage(
-        messages: <OrderChatMessageModel>[],
-        canSend: true,
-        hasMore: false,
-        nextBeforeId: null,
-      ),
-      sendError: const ApiException('Pusher error: realtime offline', statusCode: 500),
-      recoverFailedSend: true,
-    );
+      final sendFuture = container
+          .read(orderChatProvider(99).notifier)
+          .sendMessage('Halo driver');
 
-    final container = ProviderContainer(
-      overrides: [
-        authSessionProvider.overrideWith(() => fakeAuth),
-        orderChatApiServiceProvider.overrideWithValue(fakeService),
-      ],
-    );
-    addTearDown(container.dispose);
+      final optimistic = container.read(orderChatProvider(99)).asData!.value;
+      expect(optimistic.isSending, isTrue);
+      expect(optimistic.messages.single.isPending, isTrue);
+      expect(optimistic.messages.single.body, 'Halo driver');
 
-    await container.read(orderChatProvider(99).future);
+      final clientMessageId = fakeService.lastClientMessageId!;
+      sendCompleter.complete(
+        OrderChatSendResult(
+          message: _message(
+            id: 42,
+            senderUserId: 7,
+            body: 'Halo driver',
+            clientMessageId: clientMessageId,
+          ),
+          canSend: true,
+        ),
+      );
 
-    final error = await container
-        .read(orderChatProvider(99).notifier)
-        .sendMessage('Tetap tersimpan');
+      expect(await sendFuture, isNull);
 
-    expect(error, isNull);
+      final sent = container.read(orderChatProvider(99)).asData!.value;
+      expect(sent.isSending, isFalse);
+      expect(sent.messages.single.id, 42);
+      expect(sent.messages.single.isPending, isFalse);
+    },
+  );
 
-    final recovered = container.read(orderChatProvider(99)).asData!.value;
-    expect(recovered.messages.single.id, 77);
-    expect(recovered.messages.single.body, 'Tetap tersimpan');
-    expect(recovered.messages.single.isPending, isFalse);
-    expect(recovered.messages.single.isFailed, isFalse);
-    expect(recovered.realtimeUnavailable, isTrue);
-  });
+  test(
+    'sendMessage recovers persisted message after broadcast-only failure',
+    () async {
+      final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
+      final fakeService = _FakeOrderChatApiService(
+        initialPage: const OrderChatMessagesPage(
+          messages: <OrderChatMessageModel>[],
+          canSend: true,
+          hasMore: false,
+          nextBeforeId: null,
+        ),
+        sendError: const ApiException(
+          'Pusher error: realtime offline',
+          statusCode: 500,
+        ),
+        recoverFailedSend: true,
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          orderChatApiServiceProvider.overrideWithValue(fakeService),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(orderChatProvider(99).future);
+
+      final error = await container
+          .read(orderChatProvider(99).notifier)
+          .sendMessage('Tetap tersimpan');
+
+      expect(error, isNull);
+
+      final recovered = container.read(orderChatProvider(99)).asData!.value;
+      expect(recovered.messages.single.id, 77);
+      expect(recovered.messages.single.body, 'Tetap tersimpan');
+      expect(recovered.messages.single.isPending, isFalse);
+      expect(recovered.messages.single.isFailed, isFalse);
+      expect(recovered.realtimeUnavailable, isTrue);
+    },
+  );
 
   test('sendMessage maps raw pusher failures to a friendly message', () async {
     final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
@@ -144,7 +153,10 @@ void main() {
         hasMore: false,
         nextBeforeId: null,
       ),
-      sendError: const ApiException('Pusher error: cURL error 7', statusCode: 500),
+      sendError: const ApiException(
+        'Pusher error: cURL error 7',
+        statusCode: 500,
+      ),
     );
 
     final container = ProviderContainer(
@@ -167,80 +179,86 @@ void main() {
     expect(failed.messages.single.isFailed, isTrue);
   });
 
-  test('sendMessage marks realtime unavailable when API saved without broadcast', () async {
-    final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
-    final fakeService = _FakeOrderChatApiService(
-      initialPage: const OrderChatMessagesPage(
-        messages: <OrderChatMessageModel>[],
-        canSend: true,
-        hasMore: false,
-        nextBeforeId: null,
-      ),
-      broadcastedOnSend: false,
-    );
-
-    final container = ProviderContainer(
-      overrides: [
-        authSessionProvider.overrideWith(() => fakeAuth),
-        orderChatApiServiceProvider.overrideWithValue(fakeService),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    await container.read(orderChatProvider(99).future);
-
-    final error = await container
-        .read(orderChatProvider(99).notifier)
-        .sendMessage('Realtime nonaktif');
-
-    expect(error, isNull);
-    expect(
-      container.read(orderChatProvider(99)).asData!.value.realtimeUnavailable,
-      isTrue,
-    );
-  });
-
-  test('sendMessage ignores late response after provider is disposed', () async {
-    final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
-    final sendCompleter = Completer<OrderChatSendResult>();
-    final fakeService = _FakeOrderChatApiService(
-      initialPage: const OrderChatMessagesPage(
-        messages: <OrderChatMessageModel>[],
-        canSend: true,
-        hasMore: false,
-        nextBeforeId: null,
-      ),
-      sendCompleter: sendCompleter,
-    );
-
-    final container = ProviderContainer(
-      overrides: [
-        authSessionProvider.overrideWith(() => fakeAuth),
-        orderChatApiServiceProvider.overrideWithValue(fakeService),
-      ],
-    );
-
-    await container.read(orderChatProvider(99).future);
-
-    final sendFuture = container
-        .read(orderChatProvider(99).notifier)
-        .sendMessage('Tutup screen cepat');
-
-    container.dispose();
-    sendCompleter.complete(
-      OrderChatSendResult(
-        message: _message(
-          id: 100,
-          senderUserId: 7,
-          body: 'Tutup screen cepat',
-          clientMessageId: fakeService.lastClientMessageId,
+  test(
+    'sendMessage marks realtime unavailable when API saved without broadcast',
+    () async {
+      final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
+      final fakeService = _FakeOrderChatApiService(
+        initialPage: const OrderChatMessagesPage(
+          messages: <OrderChatMessageModel>[],
+          canSend: true,
+          hasMore: false,
+          nextBeforeId: null,
         ),
-        canSend: true,
-      ),
-    );
+        broadcastedOnSend: false,
+      );
 
-    expect(await sendFuture, isNull);
-  });
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          orderChatApiServiceProvider.overrideWithValue(fakeService),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(orderChatProvider(99).future);
+
+      final error = await container
+          .read(orderChatProvider(99).notifier)
+          .sendMessage('Realtime nonaktif');
+
+      expect(error, isNull);
+      expect(
+        container.read(orderChatProvider(99)).asData!.value.realtimeUnavailable,
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'sendMessage ignores late response after provider is disposed',
+    () async {
+      final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
+      final sendCompleter = Completer<OrderChatSendResult>();
+      final fakeService = _FakeOrderChatApiService(
+        initialPage: const OrderChatMessagesPage(
+          messages: <OrderChatMessageModel>[],
+          canSend: true,
+          hasMore: false,
+          nextBeforeId: null,
+        ),
+        sendCompleter: sendCompleter,
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          orderChatApiServiceProvider.overrideWithValue(fakeService),
+        ],
+      );
+
+      await container.read(orderChatProvider(99).future);
+
+      final sendFuture = container
+          .read(orderChatProvider(99).notifier)
+          .sendMessage('Tutup screen cepat');
+
+      container.dispose();
+      sendCompleter.complete(
+        OrderChatSendResult(
+          message: _message(
+            id: 100,
+            senderUserId: 7,
+            body: 'Tutup screen cepat',
+            clientMessageId: fakeService.lastClientMessageId,
+          ),
+          canSend: true,
+        ),
+      );
+
+      expect(await sendFuture, isNull);
+    },
+  );
 
   testWidgets('OrderChatScreen renders messages and disables composer', (
     tester,
@@ -271,10 +289,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.text('Order sudah saya ambil.'), findsOneWidget);
-    expect(
-      find.text('Chat tidak aktif untuk status order ini'),
-      findsOneWidget,
-    );
+    expect(find.text('Sesi chat dengan driver berakhir'), findsOneWidget);
   });
 }
 
@@ -304,9 +319,7 @@ class _FakeOrderChatApiService extends OrderChatApiService {
     int? afterId,
   }) async {
     fetchCalls += 1;
-    if (recoverFailedSend &&
-        lastClientMessageId != null &&
-        fetchCalls > 1) {
+    if (recoverFailedSend && lastClientMessageId != null && fetchCalls > 1) {
       return OrderChatMessagesPage(
         messages: <OrderChatMessageModel>[
           _message(

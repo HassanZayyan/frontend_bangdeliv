@@ -21,7 +21,7 @@ class OrderChatState {
     required this.hasMore,
     required this.nextBeforeId,
     this.isLoadingOlder = false,
-    this.isSending = false,
+    this.sendingCount = 0,
     this.realtimeUnavailable = false,
     this.errorMessage,
   });
@@ -32,9 +32,10 @@ class OrderChatState {
   final bool hasMore;
   final int? nextBeforeId;
   final bool isLoadingOlder;
-  final bool isSending;
+  final int sendingCount;
   final bool realtimeUnavailable;
   final String? errorMessage;
+  bool get isSending => sendingCount > 0;
 
   OrderChatState copyWith({
     List<OrderChatMessageModel>? messages,
@@ -43,7 +44,7 @@ class OrderChatState {
     int? nextBeforeId,
     bool clearNextBeforeId = false,
     bool? isLoadingOlder,
-    bool? isSending,
+    int? sendingCount,
     bool? realtimeUnavailable,
     String? errorMessage,
     bool clearErrorMessage = false,
@@ -57,7 +58,7 @@ class OrderChatState {
           ? null
           : (nextBeforeId ?? this.nextBeforeId),
       isLoadingOlder: isLoadingOlder ?? this.isLoadingOlder,
-      isSending: isSending ?? this.isSending,
+      sendingCount: sendingCount ?? this.sendingCount,
       realtimeUnavailable:
           realtimeUnavailable ?? this.realtimeUnavailable,
       errorMessage: clearErrorMessage
@@ -226,7 +227,7 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
         messages: _mergeMessages(current.messages, <OrderChatMessageModel>[
           optimistic,
         ]),
-        isSending: true,
+        sendingCount: current.sendingCount + 1,
         clearErrorMessage: true,
       ),
     );
@@ -259,7 +260,7 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
             result.message,
           ]),
           canSend: result.canSend,
-          isSending: false,
+          sendingCount: _decrementSending(latest.sendingCount),
           realtimeUnavailable: !result.broadcasted,
           clearErrorMessage: true,
         ),
@@ -291,7 +292,7 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
             latest.messages,
             clientMessageId,
           ),
-          isSending: false,
+          sendingCount: _decrementSending(latest.sendingCount),
           errorMessage: friendlyError,
         ),
       );
@@ -414,7 +415,7 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
     if (alreadyRecovered) {
       state = AsyncData(
         current.copyWith(
-          isSending: false,
+          sendingCount: _decrementSending(current.sendingCount),
           realtimeUnavailable: true,
           clearErrorMessage: true,
         ),
@@ -456,7 +457,7 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
         latest.copyWith(
           messages: _mergeMessages(latest.messages, page.messages),
           canSend: page.canSend,
-          isSending: false,
+          sendingCount: _decrementSending(latest.sendingCount),
           realtimeUnavailable: true,
           clearErrorMessage: true,
         ),
@@ -553,6 +554,10 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
   String _clientMessageId() {
     final micros = DateTime.now().microsecondsSinceEpoch;
     return 'order-chat-$orderId-$micros-${identityHashCode(this)}';
+  }
+
+  int _decrementSending(int value) {
+    return value > 0 ? value - 1 : 0;
   }
 
   void _cancelRealtime() {

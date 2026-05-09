@@ -184,6 +184,9 @@ DriverProfileModel _activeDriverProfile() {
   return const DriverProfileModel(
     registrationStatus: 'active',
     status: 'active',
+    vehicleType: 'Motor Matic',
+    vehicleBrand: 'Honda',
+    vehicleModel: 'Beat',
     vehiclePlate: 'BG 1234 DL',
     licenseNumber: 'SIM-DRIVER-001',
     avgRating: 5,

@@ -60,6 +60,9 @@ class AuthService {
   }
 
   static Future<void> upgradeToDriver({
+    required String vehicleType,
+    required String vehicleBrand,
+    required String vehicleModel,
     required String vehiclePlate,
     required String licenseNumber,
   }) async {
@@ -71,6 +74,11 @@ class AuthService {
             uri,
             headers: await authorizedHeaders(),
             body: jsonEncode({
+              'vehicle_type': vehicleType.trim(),
+              if (vehicleBrand.trim().isNotEmpty)
+                'vehicle_brand': vehicleBrand.trim(),
+              if (vehicleModel.trim().isNotEmpty)
+                'vehicle_model': vehicleModel.trim(),
               'vehicle_plate': vehiclePlate,
               'license_number': licenseNumber,
             }),
@@ -183,6 +191,9 @@ class AuthService {
     required String name,
     required String phone,
     required String email,
+    String? vehicleType,
+    String? vehicleBrand,
+    String? vehicleModel,
     String? avatarPath,
     bool removeAvatar = false,
   }) async {
@@ -199,6 +210,15 @@ class AuthService {
         request.fields['name'] = name;
         request.fields['phone'] = phone;
         request.fields['email'] = email;
+        if ((vehicleType ?? '').trim().isNotEmpty) {
+          request.fields['vehicle_type'] = vehicleType!.trim();
+        }
+        if ((vehicleBrand ?? '').trim().isNotEmpty) {
+          request.fields['vehicle_brand'] = vehicleBrand!.trim();
+        }
+        if ((vehicleModel ?? '').trim().isNotEmpty) {
+          request.fields['vehicle_model'] = vehicleModel!.trim();
+        }
         if (removeAvatar) {
           request.fields['remove_avatar'] = '1';
         }
@@ -228,6 +248,12 @@ class AuthService {
               'name': name,
               'phone': phone,
               'email': email,
+              if ((vehicleType ?? '').trim().isNotEmpty)
+                'vehicle_type': vehicleType!.trim(),
+              if ((vehicleBrand ?? '').trim().isNotEmpty)
+                'vehicle_brand': vehicleBrand!.trim(),
+              if ((vehicleModel ?? '').trim().isNotEmpty)
+                'vehicle_model': vehicleModel!.trim(),
               if (removeAvatar) 'remove_avatar': true,
             }),
           )
