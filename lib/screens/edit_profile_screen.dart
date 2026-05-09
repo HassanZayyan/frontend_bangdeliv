@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import '../config/app_colors.dart';
 import '../providers/auth_session_provider.dart';
 import '../services/auth_service.dart';
+import '../widgets/vehicle_info_fields.dart';
 
 enum _AvatarPickerAction { camera, gallery, remove }
 
@@ -23,19 +24,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
-  static const List<String> _vehicleTypeOptions = <String>[
-    'Motor Matic',
-    'Motor Manual',
-    'Motor Listrik',
-    'Motor Sport',
-    'Motor Lainnya',
-  ];
-  static const List<String> _vehicleBrandOptions = <String>[
-    'Honda',
-    'Yamaha',
-    'Suzuki',
-    'Kawasaki',
-  ];
   String? _selectedVehicleType;
   String? _selectedVehicleBrand;
   final _vehicleModelController = TextEditingController();
@@ -66,16 +54,18 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       _phoneController.text = profile.phone;
       _emailController.text = profile.email;
       _isDriver = profile.role.trim().toLowerCase() == 'driver';
-      final currentVehicleType =
-          (profile.driverProfile?.vehicleType ?? '').trim();
-      _selectedVehicleType = currentVehicleType.isEmpty ? null : currentVehicleType;
-      final currentVehicleBrand =
-          (profile.driverProfile?.vehicleBrand ?? '').trim();
+      final currentVehicleType = (profile.driverProfile?.vehicleType ?? '')
+          .trim();
+      _selectedVehicleType = currentVehicleType.isEmpty
+          ? null
+          : currentVehicleType;
+      final currentVehicleBrand = (profile.driverProfile?.vehicleBrand ?? '')
+          .trim();
       _selectedVehicleBrand = currentVehicleBrand.isEmpty
           ? null
           : currentVehicleBrand;
-      _vehicleModelController.text =
-          (profile.driverProfile?.vehicleModel ?? '').trim();
+      _vehicleModelController.text = (profile.driverProfile?.vehicleModel ?? '')
+          .trim();
       _currentAvatarUrl = profile.avatarUrl;
       _selectedAvatar = null;
       _removeAvatar = false;
@@ -207,158 +197,32 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     ),
                     if (_isDriver) ...[
                       const SizedBox(height: 20),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Jenis Motor',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          DropdownButtonFormField<String>(
-                            key: ValueKey<String?>(
-                              'vehicle-type-${_selectedVehicleType ?? ''}',
-                            ),
-                            initialValue: _selectedVehicleType,
-                            isExpanded: true,
-                            decoration: InputDecoration(
-                              filled: true,
-                              fillColor: Colors.white,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 16,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: AppColors.border,
-                                ),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                  color: AppColors.border,
-                                ),
-                              ),
-                            ),
-                            items: _vehicleTypeItems()
-                                .map(
-                                  (type) => DropdownMenuItem<String>(
-                                    value: type,
-                                    child: Text(type),
-                                  ),
-                                )
-                                .toList(growable: false),
-                            onChanged: _isSubmitting
-                                ? null
-                                : (value) {
-                                    setState(() {
-                                      _selectedVehicleType = value;
-                                      if ((value ?? '').trim().isEmpty) {
-                                        _selectedVehicleBrand = null;
-                                        _vehicleModelController.clear();
-                                      }
-                                    });
-                                  },
-                            validator: (value) {
-                              final selected = (value ?? '').trim();
-                              if (_isDriver && selected.isEmpty) {
-                                return 'Jenis motor wajib dipilih';
-                              }
-                              return null;
-                            },
-                          ),
-                          if ((_selectedVehicleType ?? '').trim().isNotEmpty) ...[
-                            const SizedBox(height: 16),
-                            const Text(
-                              'Merk Motor',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            DropdownButtonFormField<String>(
-                              key: ValueKey<String?>(
-                                'vehicle-brand-${_selectedVehicleBrand ?? ''}',
-                              ),
-                              initialValue: _selectedVehicleBrand,
-                              isExpanded: true,
-                              decoration: InputDecoration(
-                                filled: true,
-                                fillColor: Colors.white,
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 16,
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(
-                                    color: AppColors.border,
-                                  ),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(
-                                    color: AppColors.border,
-                                  ),
-                                ),
-                              ),
-                              items: _vehicleBrandItems()
-                                  .map(
-                                    (brand) => DropdownMenuItem<String>(
-                                      value: brand,
-                                      child: Text(brand),
-                                    ),
-                                  )
-                                  .toList(growable: false),
-                              onChanged: _isSubmitting
-                                  ? null
-                                  : (value) {
-                                      setState(() {
-                                        _selectedVehicleBrand = value;
-                                        if ((value ?? '').trim().isEmpty) {
-                                          _vehicleModelController.clear();
-                                        }
-                                      });
-                                    },
-                              validator: (value) {
-                                if (!_isDriver) return null;
-                                if ((_selectedVehicleType ?? '').trim().isEmpty) {
-                                  return null;
-                                }
-
-                                final selected = (value ?? '').trim();
-                                if (selected.isEmpty) {
-                                  return 'Merk motor wajib dipilih';
-                                }
-                                return null;
-                              },
-                            ),
-                          ],
-                          if ((_selectedVehicleBrand ?? '').trim().isNotEmpty) ...[
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              label: 'Tipe Motor',
-                              controller: _vehicleModelController,
-                              keyboardType: TextInputType.text,
-                              validator: (value) {
-                                if (!_isDriver) return null;
-                                if ((_selectedVehicleBrand ?? '').trim().isEmpty) {
-                                  return null;
-                                }
-                                final model = value?.trim() ?? '';
-                                if (model.isEmpty) {
-                                  return 'Tipe motor wajib diisi';
-                                }
-                                return null;
-                              },
-                            ),
-                          ],
-                        ],
+                      VehicleInfoFields(
+                        selectedVehicleType: _selectedVehicleType,
+                        selectedVehicleBrand: _selectedVehicleBrand,
+                        vehicleModelController: _vehicleModelController,
+                        enabled: !_isSubmitting,
+                        requiredFields: _isDriver,
+                        showLabels: true,
+                        filled: true,
+                        fillColor: Colors.white,
+                        onVehicleTypeChanged: (value) {
+                          setState(() {
+                            _selectedVehicleType = value;
+                            if ((value ?? '').trim().isEmpty) {
+                              _selectedVehicleBrand = null;
+                              _vehicleModelController.clear();
+                            }
+                          });
+                        },
+                        onVehicleBrandChanged: (value) {
+                          setState(() {
+                            _selectedVehicleBrand = value;
+                            if ((value ?? '').trim().isEmpty) {
+                              _vehicleModelController.clear();
+                            }
+                          });
+                        },
                       ),
                     ],
                     const SizedBox(height: 40),
@@ -499,22 +363,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         ),
       ],
     );
-  }
-
-  List<String> _vehicleTypeItems() {
-    final selected = (_selectedVehicleType ?? '').trim();
-    if (selected.isEmpty || _vehicleTypeOptions.contains(selected)) {
-      return _vehicleTypeOptions;
-    }
-    return <String>[..._vehicleTypeOptions, selected];
-  }
-
-  List<String> _vehicleBrandItems() {
-    final selected = (_selectedVehicleBrand ?? '').trim();
-    if (selected.isEmpty || _vehicleBrandOptions.contains(selected)) {
-      return _vehicleBrandOptions;
-    }
-    return <String>[..._vehicleBrandOptions, selected];
   }
 
   Widget _buildAvatarPreview() {
