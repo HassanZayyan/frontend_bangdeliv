@@ -38,6 +38,9 @@ class DriverVerificationDriverModel {
   final String name;
   final String email;
   final String phone;
+  final String vehicleType;
+  final String vehicleBrand;
+  final String vehicleModel;
   final String vehiclePlate;
   final String licenseNumber;
   final String registrationStatus;
@@ -50,6 +53,9 @@ class DriverVerificationDriverModel {
     required this.name,
     required this.email,
     required this.phone,
+    required this.vehicleType,
+    required this.vehicleBrand,
+    required this.vehicleModel,
     required this.vehiclePlate,
     required this.licenseNumber,
     required this.registrationStatus,
@@ -64,6 +70,9 @@ class DriverVerificationDriverModel {
       name: (json['name'] ?? '').toString(),
       email: (json['email'] ?? '').toString(),
       phone: (json['phone'] ?? '').toString(),
+      vehicleType: (json['vehicle_type'] ?? '').toString(),
+      vehicleBrand: (json['vehicle_brand'] ?? '').toString(),
+      vehicleModel: (json['vehicle_model'] ?? '').toString(),
       vehiclePlate: (json['vehicle_plate'] ?? '').toString(),
       licenseNumber: (json['license_number'] ?? '').toString(),
       registrationStatus: (json['registration_status'] ?? '').toString(),

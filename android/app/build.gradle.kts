@@ -1,4 +1,5 @@
 import java.util.Base64
+import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -46,9 +47,21 @@ android {
                 ?.takeIf { it.isNotBlank() }
         }
 
+        val localProperties = Properties().apply {
+            val file = rootProject.file("local.properties")
+            if (file.exists()) {
+                file.inputStream().use { load(it) }
+            }
+        }
+
+        fun localPropertyValue(name: String): String? =
+            localProperties.getProperty(name)?.takeIf { it.isNotBlank() }
+
         val configuredMapsApiKey =
             (project.findProperty("MAPS_API_KEY") as String?)
                 ?.takeIf { it.isNotBlank() }
+                ?: localPropertyValue("MAPS_API_KEY")
+                ?: localPropertyValue("GOOGLE_MAPS_API_KEY")
                 ?: dartDefineValue("GOOGLE_MAPS_API_KEY")
                 ?: System.getenv("GOOGLE_MAPS_API_KEY")?.takeIf { it.isNotBlank() }
                 ?: System.getenv("MAPS_API_KEY")?.takeIf { it.isNotBlank() }

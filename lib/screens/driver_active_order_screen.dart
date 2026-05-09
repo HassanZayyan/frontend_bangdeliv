@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,11 +9,13 @@ import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../models/driver_order_model.dart';
 import '../providers/driver_location_tracking_provider.dart';
+import '../providers/order_chat_unread_provider.dart';
 import '../providers/driver_order_providers.dart';
 import '../services/driver_order_service.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/order_formatters.dart' hide formatCurrency;
 import '../utils/service_type.dart';
+import '../widgets/order_chat_badge_icon.dart';
 
 class DriverActiveOrderScreen extends ConsumerWidget {
   final String orderId;
@@ -34,6 +38,11 @@ class DriverActiveOrderScreen extends ConsumerWidget {
       data: (value) => value.isProcessing(orderId),
       orElse: () => false,
     );
+    final parsedOrderId = int.tryParse(orderId);
+    final unreadCountAsync = parsedOrderId == null
+        ? const AsyncData<int>(0)
+        : ref.watch(orderChatUnreadCountProvider(parsedOrderId));
+    final unreadCount = unreadCountAsync.asData?.value ?? 0;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -47,9 +56,9 @@ class DriverActiveOrderScreen extends ConsumerWidget {
         actions: [
           IconButton(
             tooltip: 'Chat customer',
-            icon: const Icon(
-              Icons.chat_bubble_outline,
-              color: AppColors.textPrimary,
+            icon: OrderChatBadgeIcon(
+              unreadCount: unreadCount,
+              iconColor: AppColors.textPrimary,
             ),
             onPressed: () => context.push(AppRoutes.orderChatPath(orderId)),
           ),
@@ -223,6 +232,15 @@ class _MapCard extends StatelessWidget {
             GoogleMap(
               initialCameraPosition: CameraPosition(target: initial, zoom: 14),
               markers: markers,
+              scrollGesturesEnabled: true,
+              zoomGesturesEnabled: true,
+              rotateGesturesEnabled: true,
+              tiltGesturesEnabled: true,
+              gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+                Factory<OneSequenceGestureRecognizer>(
+                  EagerGestureRecognizer.new,
+                ),
+              },
               myLocationButtonEnabled: false,
               mapToolbarEnabled: true,
               zoomControlsEnabled: false,
@@ -304,6 +322,8 @@ class _OrderMetaCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final serviceLabel = serviceTypeLabel(order.serviceTypeCode);
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -328,7 +348,7 @@ class _OrderMetaCard extends StatelessWidget {
             runSpacing: 8,
             children: [
               _pill(
-                order.serviceTypeCode,
+                serviceLabel,
                 AppColors.primary.withValues(alpha: 0.1),
                 AppColors.primaryDark,
               ),
@@ -345,21 +365,10 @@ class _OrderMetaCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          _row('Pickup', order.pickupAddress),
+          _row('Jemput', order.pickupAddress),
           const SizedBox(height: 6),
-          _row('Dropoff', order.dropoffAddress),
-          if (_isCourier && _packageDescription.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            _row('Barang', _packageDescription),
-          ],
-          if (_isCourier && _packageSizeLine.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            _row('Ukuran', _packageSizeLine),
-          ],
-          if (_isCourier && _packageSafetyLine.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            _row('Safety', _packageSafetyLine),
-          ],
+          _row('Tujuan', order.dropoffAddress),
+          ..._buildCourierPackageRows(),
           if ((trackingState.message ?? '').trim().isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
@@ -368,13 +377,7 @@ class _OrderMetaCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 8),
-          Text(
-            'Fee ${_formatCurrency(order.fee)} • Total ${_formatCurrency(order.totalPrice.round())}',
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          _buildPricingSummary(),
         ],
       ),
     );
@@ -401,17 +404,93 @@ class _OrderMetaCard extends StatelessWidget {
         SizedBox(
           width: 58,
           child: Text(
-            '$title:',
+            title,
+            maxLines: 1,
+            softWrap: false,
             style: const TextStyle(
-              color: AppColors.textSecondary,
+              color: AppColors.textPrimary,
               fontSize: 12,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),
+        const Text(
+          ':',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(width: 6),
         Expanded(
           child: Text(
             value,
             style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _buildCourierPackageRows() {
+    if (!_isCourier) {
+      return const [];
+    }
+
+    final rows = <Widget>[];
+
+    void addRow(String title, String value) {
+      if (value.isEmpty) {
+        return;
+      }
+
+      rows
+        ..add(const SizedBox(height: 6))
+        ..add(_row(title, value));
+    }
+
+    addRow('Barang', _packageDescription);
+    addRow('Ukuran', _packageSizeLine);
+    addRow('Safety', _packageSafetyLine);
+
+    return rows;
+  }
+
+  Widget _buildPricingSummary() {
+    final fee = order.fee;
+    final total = order.totalPrice.round();
+    final isSameAmount = fee == total;
+
+    if (isSameAmount) {
+      return Text(
+        'Total Pembayaran ${_formatCurrency(total)}',
+        style: const TextStyle(
+          color: AppColors.textPrimary,
+          fontWeight: FontWeight.w700,
+          fontSize: 15,
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Fee Driver ${_formatCurrency(fee)}',
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          'Total Pembayaran ${_formatCurrency(total)}',
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
           ),
         ),
       ],
@@ -488,7 +567,7 @@ class _TimelineCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Timeline Status',
+            'Riwayat Status',
             style: TextStyle(
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
@@ -501,18 +580,88 @@ class _TimelineCard extends StatelessWidget {
               style: TextStyle(color: AppColors.textSecondary),
             )
           else
-            ...timeline.map(
-              (item) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
-                  '- ${item.statusDisplayName ?? item.statusCode} ${item.createdAt == null ? '' : '- ${formatTime(item.createdAt)}'}',
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 13,
+            ...List.generate(timeline.length, (index) {
+              final item = timeline[index];
+              final isLast = index == timeline.length - 1;
+              final statusText = item.statusDisplayName ?? item.statusCode;
+              final timeText = item.createdAt == null
+                  ? 'Waktu belum tersedia'
+                  : formatTime(item.createdAt);
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 20,
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: isLast
+                                ? AppColors.primary
+                                : AppColors.textSecondary.withValues(
+                                    alpha: 0.7,
+                                  ),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        if (!isLast)
+                          Container(
+                            width: 2,
+                            height: 34,
+                            margin: const EdgeInsets.symmetric(vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.border,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-              ),
-            ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            statusText,
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 13.5,
+                              fontWeight: isLast
+                                  ? FontWeight.w700
+                                  : FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.access_time,
+                                size: 12,
+                                color: AppColors.textSecondary,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                timeText,
+                                style: const TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }),
         ],
       ),
     );

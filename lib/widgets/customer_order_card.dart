@@ -10,6 +10,7 @@ class CustomerOrderCard extends StatelessWidget {
   const CustomerOrderCard({
     super.key,
     required this.order,
+    this.onTap,
     this.onTrack,
     this.onCancel,
     this.onReorder,
@@ -17,9 +18,11 @@ class CustomerOrderCard extends StatelessWidget {
     this.showTrackAction = false,
     this.showCancelAction = false,
     this.showReorderAction = false,
+    this.showDetailHint = false,
   });
 
   final CustomerOrderSummaryModel order;
+  final VoidCallback? onTap;
   final VoidCallback? onTrack;
   final VoidCallback? onCancel;
   final VoidCallback? onReorder;
@@ -27,6 +30,7 @@ class CustomerOrderCard extends StatelessWidget {
   final bool showTrackAction;
   final bool showCancelAction;
   final bool showReorderAction;
+  final bool showDetailHint;
 
   @override
   Widget build(BuildContext context) {
@@ -36,129 +40,158 @@ class CustomerOrderCard extends StatelessWidget {
         serviceCode == 'RIDE' &&
         order.itemsSummary.trim().toLowerCase() == 'tanpa item';
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.cardYellow,
+    return Material(
+      color: AppColors.cardYellow,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  order.orderNumber,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              _buildStatusChip(statusColor),
-            ],
+        child: Ink(
+          decoration: BoxDecoration(
+            color: AppColors.cardYellow,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border),
           ),
-          const SizedBox(height: 10),
-          _buildServiceTypeChip(order),
-          const SizedBox(height: 12),
-          Row(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Icon(
-                  serviceTypeLeadingIcon(serviceCode),
-                  size: 18,
-                  color: AppColors.primary,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      order.restaurantName,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      order.orderNumber,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
                       ),
                     ),
-                    if (!hideItemsSummary) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        order.itemsSummary,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                  ),
+                  const SizedBox(width: 8),
+                  _buildStatusChip(statusColor),
+                ],
+              ),
+              const SizedBox(height: 10),
+              _buildServiceTypeChip(order),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Icon(
+                      serviceTypeLeadingIcon(serviceCode),
+                      size: 18,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          order.restaurantName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        if (!hideItemsSummary) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            order.itemsSummary,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Divider(color: AppColors.border, height: 1),
+              ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final shouldStackActions =
+                      _hasAnyAction && constraints.maxWidth < 380;
+
+                  if (shouldStackActions) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildOrderMeta(),
+                        const SizedBox(height: 10),
+                        _buildActionButtons(
+                          context: context,
+                          horizontal: _actionCount == 2,
+                          compact: true,
+                        ),
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: _buildOrderMeta()),
+                      if (_hasAnyAction) ...[
+                        const SizedBox(width: 12),
+                        _buildActionButtons(context: context, compact: true),
+                      ],
+                    ],
+                  );
+                },
+              ),
+              if (showDetailHint && onTap != null) ...[
+                const SizedBox(height: 10),
+                const Divider(color: AppColors.border, height: 1),
+                const SizedBox(height: 8),
+                Row(
+                  children: const [
+                    Icon(
+                      Icons.touch_app_outlined,
+                      size: 14,
+                      color: AppColors.textSecondary,
+                    ),
+                    SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Ketuk kartu untuk lihat detail transaksi',
+                        style: TextStyle(
                           color: AppColors.textSecondary,
-                          fontSize: 13,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Divider(color: AppColors.border, height: 1),
-          ),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      formatCurrency(order.totalAmount),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: AppColors.primaryDark,
-                      ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      formatDateTime(order.createdAt),
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${_paymentMethodLabel(order.paymentMethod)} - ${_paymentStatusLabel(order.paymentStatus)}',
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    Icon(
+                      Icons.chevron_right,
+                      size: 16,
+                      color: AppColors.textSecondary,
                     ),
                   ],
                 ),
-              ),
-              if (_hasAnyAction) ...[
-                const SizedBox(width: 12),
-                _buildActionButtons(),
               ],
             ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -169,29 +202,88 @@ class CustomerOrderCard extends StatelessWidget {
         (showReorderAction && onReorder != null);
   }
 
-  Widget _buildActionButtons() {
+  int get _actionCount {
+    var count = 0;
+    if (showTrackAction && onTrack != null) count++;
+    if (showCancelAction && onCancel != null) count++;
+    if (showReorderAction && onReorder != null) count++;
+    return count;
+  }
+
+  Widget _buildOrderMeta() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          formatCurrency(order.totalAmount),
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            color: AppColors.primaryDark,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          formatDateTime(order.createdAt),
+          style: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          '${_paymentMethodLabel(order.paymentMethod)} - ${_paymentStatusLabel(order.paymentStatus)}',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionButtons({
+    required BuildContext context,
+    bool compact = false,
+    bool horizontal = false,
+  }) {
     final buttons = <Widget>[];
+    final buttonHeight = compact ? 40.0 : 44.0;
+    final buttonTextStyle = Theme.of(context).textTheme.labelLarge?.copyWith(
+      fontSize: 16,
+      fontWeight: FontWeight.w700,
+      height: 1.1,
+    );
+    final trackTextStyle = buttonTextStyle?.copyWith(color: AppColors.primary);
+    final dangerTextStyle = buttonTextStyle?.copyWith(color: AppColors.white);
+    final neutralTextStyle = buttonTextStyle?.copyWith(
+      color: AppColors.textSecondary,
+    );
 
     if (showTrackAction && onTrack != null) {
       buttons.add(
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: onTrack,
-            icon: const Icon(Icons.location_on, size: 16),
-            label: const Text(
+        OutlinedButton.icon(
+          onPressed: onTrack,
+          icon: const Icon(Icons.location_on, size: 14),
+          label: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
               'Lacak',
               maxLines: 1,
-              overflow: TextOverflow.ellipsis,
               softWrap: false,
+              style: trackTextStyle,
             ),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.primary,
-              side: const BorderSide(color: AppColors.primary),
-              minimumSize: const Size(0, 44),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+          ),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.primary,
+            side: const BorderSide(color: AppColors.primary),
+            minimumSize: Size(0, buttonHeight),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
             ),
           ),
         ),
@@ -200,33 +292,34 @@ class CustomerOrderCard extends StatelessWidget {
 
     if (showCancelAction && onCancel != null) {
       buttons.add(
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: isCancelling ? null : onCancel,
-            icon: isCancelling
-                ? const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.white,
-                    ),
-                  )
-                : const Icon(Icons.close, size: 16),
-            label: Text(
+        ElevatedButton.icon(
+          onPressed: isCancelling ? null : onCancel,
+          icon: isCancelling
+              ? const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.white,
+                  ),
+                )
+              : const Icon(Icons.close, size: 14),
+          label: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
               isCancelling ? 'Proses' : 'Batalkan',
               maxLines: 1,
-              overflow: TextOverflow.ellipsis,
               softWrap: false,
+              style: dangerTextStyle,
             ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: AppColors.white,
-              minimumSize: const Size(0, 44),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.error,
+            foregroundColor: AppColors.white,
+            minimumSize: Size(0, buttonHeight),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
             ),
           ),
         ),
@@ -235,32 +328,47 @@ class CustomerOrderCard extends StatelessWidget {
 
     if (showReorderAction && onReorder != null) {
       buttons.add(
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: onReorder,
-            icon: const Icon(Icons.refresh, size: 16),
-            label: const Text(
+        OutlinedButton.icon(
+          onPressed: onReorder,
+          icon: const Icon(Icons.refresh, size: 14),
+          label: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
               'Pesan Lagi',
               maxLines: 1,
-              overflow: TextOverflow.ellipsis,
               softWrap: false,
+              style: neutralTextStyle,
             ),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.textSecondary,
-              side: const BorderSide(color: AppColors.textSecondary),
-              minimumSize: const Size(0, 44),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+          ),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.textSecondary,
+            side: const BorderSide(color: AppColors.textSecondary),
+            minimumSize: Size(0, buttonHeight),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
             ),
           ),
         ),
       );
     }
 
+    if (horizontal && buttons.length > 1) {
+      return Row(
+        children: [
+          for (int i = 0; i < buttons.length; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            Expanded(child: buttons[i]),
+          ],
+        ],
+      );
+    }
+
     return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 150, maxWidth: 190),
+      constraints: BoxConstraints(
+        minWidth: compact ? 120 : 150,
+        maxWidth: compact ? 150 : 190,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

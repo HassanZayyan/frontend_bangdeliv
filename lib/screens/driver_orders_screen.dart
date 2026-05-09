@@ -9,6 +9,7 @@ import '../config/app_routes.dart';
 import '../models/driver_order_model.dart';
 import '../providers/driver_order_providers.dart';
 import '../utils/order_formatters.dart';
+import '../utils/service_type.dart';
 
 class DriverOrdersScreen extends ConsumerStatefulWidget {
   const DriverOrdersScreen({super.key});
@@ -17,12 +18,16 @@ class DriverOrdersScreen extends ConsumerStatefulWidget {
   ConsumerState<DriverOrdersScreen> createState() => _DriverOrdersScreenState();
 }
 
-class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen> {
+class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen>
+    with SingleTickerProviderStateMixin {
   Timer? _refreshTimer;
+  late final TabController _tabController;
+  bool _didResolveInitialTab = false;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _refreshTimer = Timer.periodic(const Duration(seconds: 8), (_) {
       if (!mounted) return;
       ref.read(driverOrdersProvider.notifier).refresh();
@@ -32,7 +37,26 @@ class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen> {
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _tabController.dispose();
     super.dispose();
+  }
+
+  void _goToRunningTab() {
+    if (!_tabController.indexIsChanging && _tabController.index != 1) {
+      _tabController.animateTo(1);
+    }
+  }
+
+  void _syncInitialTab(DriverOrdersState data) {
+    if (_didResolveInitialTab) {
+      return;
+    }
+
+    _didResolveInitialTab = true;
+    final targetIndex = data.running.isNotEmpty ? 1 : 0;
+    if (_tabController.index != targetIndex) {
+      _tabController.index = targetIndex;
+    }
   }
 
   @override
@@ -51,12 +75,13 @@ class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen> {
           backgroundColor: AppColors.white,
           elevation: 0,
           automaticallyImplyLeading: false,
-          bottom: const TabBar(
+          bottom: TabBar(
+            controller: _tabController,
             labelColor: AppColors.primary,
             unselectedLabelColor: AppColors.textSecondary,
             indicatorColor: AppColors.primary,
             indicatorWeight: 3,
-            tabs: [
+            tabs: const [
               Tab(text: 'Masuk'),
               Tab(text: 'Berjalan'),
             ],
@@ -73,14 +98,17 @@ class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen> {
             );
           },
           data: (data) {
+            _syncInitialTab(data);
             return Column(
               children: [
                 Expanded(
                   child: TabBarView(
+                    controller: _tabController,
                     children: [
                       _IncomingOrdersTab(
                         orders: data.incoming,
                         processingOrderIds: data.processingOrderIds,
+                        onAcceptSuccess: _goToRunningTab,
                       ),
                       _RunningOrdersTab(orders: data.running),
                     ],
@@ -98,10 +126,12 @@ class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen> {
 class _IncomingOrdersTab extends ConsumerWidget {
   final List<DriverOrderModel> orders;
   final Set<String> processingOrderIds;
+  final VoidCallback onAcceptSuccess;
 
   const _IncomingOrdersTab({
     required this.orders,
     required this.processingOrderIds,
+    required this.onAcceptSuccess,
   });
 
   @override
@@ -141,6 +171,7 @@ class _IncomingOrdersTab extends ConsumerWidget {
                     }
 
                     if (error == null) {
+                      onAcceptSuccess();
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Order diterima.')),
                       );
@@ -272,6 +303,26 @@ class _OrderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final serviceLabel = serviceTypeLabel(order.serviceTypeCode);
+    final rejectButtonStyle = OutlinedButton.styleFrom(
+      foregroundColor: AppColors.error,
+      side: const BorderSide(color: AppColors.error),
+      minimumSize: const Size(0, 48),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
+        fontWeight: FontWeight.w700,
+      ),
+    );
+    final acceptButtonStyle = ElevatedButton.styleFrom(
+      minimumSize: const Size(0, 48),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
+        fontWeight: FontWeight.w700,
+      ),
+    );
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -336,7 +387,7 @@ class _OrderCard extends StatelessWidget {
               children: [
                 if (order.serviceTypeCode.isNotEmpty)
                   _metaChip(
-                    order.serviceTypeCode.toUpperCase(),
+                    serviceLabel,
                     AppColors.primary.withValues(alpha: 0.1),
                     AppColors.primaryDark,
                   ),
@@ -369,10 +420,7 @@ class _OrderCard extends StatelessWidget {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: isProcessing ? null : onReject,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.error,
-                      side: const BorderSide(color: AppColors.error),
-                    ),
+                    style: rejectButtonStyle,
                     child: const Text('Tolak'),
                   ),
                 ),
@@ -380,6 +428,7 @@ class _OrderCard extends StatelessWidget {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: isProcessing ? null : onAccept,
+                    style: acceptButtonStyle,
                     child: isProcessing
                         ? const SizedBox(
                             width: 16,
@@ -401,7 +450,12 @@ class _OrderCard extends StatelessWidget {
                   child: OutlinedButton.icon(
                     onPressed: onNavigate,
                     icon: const Icon(Icons.navigation_outlined, size: 18),
-                    label: const Text('Detail Proses'),
+                    label: const Text(
+                      'Detail',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),

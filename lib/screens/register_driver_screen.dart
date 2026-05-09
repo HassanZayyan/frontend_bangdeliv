@@ -26,6 +26,22 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
   final _platePrefixFocusNode = FocusNode();
   final _plateNumberFocusNode = FocusNode();
   final _plateSuffixFocusNode = FocusNode();
+  static const List<String> _vehicleTypeOptions = <String>[
+    'Motor Matic',
+    'Motor Manual',
+    'Motor Listrik',
+    'Motor Sport',
+    'Motor Lainnya',
+  ];
+  static const List<String> _vehicleBrandOptions = <String>[
+    'Honda',
+    'Yamaha',
+    'Suzuki',
+    'Kawasaki',
+  ];
+  String? _selectedVehicleType;
+  String? _selectedVehicleBrand;
+  final _vehicleModelController = TextEditingController();
   bool _isSubmitting = false;
 
   @override
@@ -113,6 +129,119 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
           const SizedBox(height: 8),
           _InfoTile(label: 'Email', value: email.isEmpty ? '-' : email),
           const SizedBox(height: 18),
+          DropdownButtonFormField<String>(
+            key: ValueKey<String?>('vehicle-type-${_selectedVehicleType ?? ''}'),
+            initialValue: _selectedVehicleType,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              hintText: 'Pilih jenis motor',
+              prefixIcon: Icon(
+                Icons.two_wheeler_outlined,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            items: _vehicleTypeOptions
+                .map(
+                  (type) => DropdownMenuItem<String>(
+                    value: type,
+                    child: Text(type),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: _isSubmitting
+                ? null
+                : (value) {
+                    setState(() {
+                      _selectedVehicleType = value;
+                      if ((value ?? '').trim().isEmpty) {
+                        _selectedVehicleBrand = null;
+                        _vehicleModelController.clear();
+                      }
+                    });
+                  },
+            validator: (value) {
+              final selected = (value ?? '').trim();
+              if (selected.isEmpty) {
+                return 'Jenis motor wajib dipilih';
+              }
+              return null;
+            },
+          ),
+          if ((_selectedVehicleType ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              key: ValueKey<String?>(
+                'vehicle-brand-${_selectedVehicleBrand ?? ''}',
+              ),
+              initialValue: _selectedVehicleBrand,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                hintText: 'Pilih merk motor',
+                prefixIcon: Icon(
+                  Icons.local_offer_outlined,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              items: _vehicleBrandItems()
+                  .map(
+                    (brand) => DropdownMenuItem<String>(
+                      value: brand,
+                      child: Text(brand),
+                    ),
+                  )
+                  .toList(growable: false),
+              onChanged: _isSubmitting
+                  ? null
+                  : (value) {
+                      setState(() {
+                        _selectedVehicleBrand = value;
+                        if ((value ?? '').trim().isEmpty) {
+                          _vehicleModelController.clear();
+                        }
+                      });
+                    },
+              validator: (value) {
+                if ((_selectedVehicleType ?? '').trim().isEmpty) {
+                  return null;
+                }
+
+                final selected = (value ?? '').trim();
+                if (selected.isEmpty) {
+                  return 'Merk motor wajib dipilih';
+                }
+
+                return null;
+              },
+            ),
+          ],
+          if ((_selectedVehicleBrand ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _vehicleModelController,
+              textInputAction: TextInputAction.next,
+              keyboardType: TextInputType.text,
+              decoration: const InputDecoration(
+                hintText: 'Tipe motor (contoh: Vario 160)',
+                prefixIcon: Icon(
+                  Icons.directions_bike_outlined,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              validator: (value) {
+                if ((_selectedVehicleBrand ?? '').trim().isEmpty) {
+                  return null;
+                }
+
+                final model = value?.trim() ?? '';
+                if (model.isEmpty) {
+                  return 'Tipe motor wajib diisi';
+                }
+
+                return null;
+              },
+            ),
+          ],
+          const SizedBox(height: 16),
           _buildVehiclePlateFields(),
           const SizedBox(height: 16),
           TextFormField(
@@ -303,6 +432,9 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
 
     try {
       await AuthService.upgradeToDriver(
+        vehicleType: (_selectedVehicleType ?? '').trim(),
+        vehicleBrand: (_selectedVehicleBrand ?? '').trim(),
+        vehicleModel: _vehicleModelController.text.trim(),
         vehiclePlate: _buildVehiclePlate(),
         licenseNumber: _licenseNumberController.text.trim(),
       );
@@ -340,10 +472,20 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
     _plateNumberController.dispose();
     _plateSuffixController.dispose();
     _licenseNumberController.dispose();
+    _vehicleModelController.dispose();
     _platePrefixFocusNode.dispose();
     _plateNumberFocusNode.dispose();
     _plateSuffixFocusNode.dispose();
     super.dispose();
+  }
+
+  List<String> _vehicleBrandItems() {
+    final selected = (_selectedVehicleBrand ?? '').trim();
+    if (selected.isEmpty || _vehicleBrandOptions.contains(selected)) {
+      return _vehicleBrandOptions;
+    }
+
+    return <String>[..._vehicleBrandOptions, selected];
   }
 }
 
