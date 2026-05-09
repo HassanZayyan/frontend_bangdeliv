@@ -31,6 +31,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
   _RoutePoint? _destinationPoint;
   bool _pickupChanged = false;
   bool _isResolvingCurrentLocation = false;
+  bool _isResolvingMapPinAddress = false;
   bool _isLocationPermissionGranted = false;
   String? _locationHint;
 
@@ -255,7 +256,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                   _buildPointSummary(),
                   const SizedBox(height: 10),
                   Text(
-                    'Peta aktif: $activeLabel (${_cameraTarget.latitude.toStringAsFixed(6)}, ${_cameraTarget.longitude.toStringAsFixed(6)})',
+                    'Peta aktif: $activeLabel',
                     style: const TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 12,
@@ -299,8 +300,20 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                         child: SizedBox(
                           height: 48,
                           child: OutlinedButton.icon(
-                            onPressed: () => _saveActivePoint('map_pin'),
-                            icon: const Icon(Icons.add_location_alt, size: 18),
+                            onPressed:
+                                _isResolvingMapPinAddress ||
+                                    _isResolvingCurrentLocation
+                                ? null
+                                : _saveActivePointFromMap,
+                            icon: _isResolvingMapPinAddress
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.add_location_alt, size: 18),
                             label: Text('Set $activeLabel'),
                           ),
                         ),
@@ -411,7 +424,9 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     try {
       final isServiceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!isServiceEnabled) {
-        _showMessage('Layanan lokasi belum aktif. Aktifkan GPS lalu coba lagi.');
+        _showMessage(
+          'Layanan lokasi belum aktif. Aktifkan GPS lalu coba lagi.',
+        );
         setState(() {
           _locationHint = 'GPS belum aktif, pilih titik manual di peta.';
         });
@@ -449,10 +464,16 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
 
       final target = LatLng(position.latitude, position.longitude);
       _cameraTarget = target;
-      await _mapController?.animateCamera(CameraUpdate.newLatLngZoom(target, 18));
-      _saveActivePoint('gps');
+      await _mapController?.animateCamera(
+        CameraUpdate.newLatLngZoom(target, 18),
+      );
+      final address = await _reverseGeocode(target);
+      if (!mounted) return;
+
+      _saveActivePoint('gps', address: address);
       setState(() {
-        _locationHint = 'Lokasi saat ini disimpan untuk titik aktif.';
+        _locationHint =
+            address ?? 'Titik dipilih di peta untuk ${_activeLabelLower()}.';
       });
     } catch (_) {
       _showMessage('Gagal mengambil lokasi saat ini. Coba lagi.');
@@ -466,14 +487,32 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     }
   }
 
+  Future<void> _saveActivePointFromMap() async {
+    setState(() => _isResolvingMapPinAddress = true);
+
+    try {
+      final address = await _reverseGeocode(_cameraTarget);
+      if (!mounted) return;
+
+      _saveActivePoint('map_pin', address: address);
+      setState(() {
+        _locationHint =
+            address ?? 'Titik dipilih di peta untuk ${_activeLabelLower()}.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isResolvingMapPinAddress = false);
+      }
+    }
+  }
+
   void _saveActivePoint(String source, {String? address}) {
+    final cleanedAddress = _cleanAddress(address);
     final point = _RoutePoint(
       target: _activeTarget,
       latitude: _cameraTarget.latitude,
       longitude: _cameraTarget.longitude,
-      address:
-          address ??
-          'Pin ${_cameraTarget.latitude.toStringAsFixed(6)}, ${_cameraTarget.longitude.toStringAsFixed(6)}',
+      address: cleanedAddress,
       source: source,
     );
 
@@ -584,15 +623,63 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
           _saveActivePoint(
             'search',
             address:
-                data['result']['formatted_address'] ??
-                data['result']['name'] ??
-                'Lokasi ditemukan',
+                _cleanAddress(data['result']['formatted_address']) ??
+                _cleanAddress(data['result']['name']),
           );
         }
       }
     } catch (_) {
       _showMessage('Gagal mengambil detail lokasi.');
     }
+  }
+
+  Future<String?> _reverseGeocode(LatLng target) async {
+    final apiKey = AppEnv.googleMapsApiKey.trim();
+    if (apiKey.isEmpty) return null;
+
+    final url = Uri.https('maps.googleapis.com', '/maps/api/geocode/json', <
+      String,
+      String
+    >{
+      'latlng':
+          '${target.latitude.toStringAsFixed(6)},${target.longitude.toStringAsFixed(6)}',
+      'key': apiKey,
+      'language': 'id',
+    });
+
+    try {
+      final response = await http.get(url);
+      if (response.statusCode != 200) return null;
+
+      final data = json.decode(response.body);
+      if (data['status'] != 'OK') return null;
+
+      final results = data['results'];
+      if (results is! List || results.isEmpty) return null;
+
+      final first = results.first;
+      if (first is! Map<String, dynamic>) return null;
+
+      return _cleanAddress(first['formatted_address']);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String? _cleanAddress(dynamic value) {
+    final text = value?.toString().trim();
+    if (text == null || text.isEmpty) return null;
+    if (RegExp(r'^pin\s+-?\d', caseSensitive: false).hasMatch(text)) {
+      return null;
+    }
+    return text;
+  }
+
+  String _activeLabelLower() {
+    if (_activeTarget == _pickupTarget) {
+      return widget.args.pickupLabel.toLowerCase();
+    }
+    return widget.args.destinationLabel.toLowerCase();
   }
 
   void _showMessage(String message) {
@@ -659,9 +746,7 @@ class _PointCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              point == null
-                  ? 'Belum dipilih'
-                  : '${point.latitude.toStringAsFixed(5)}, ${point.longitude.toStringAsFixed(5)}',
+              point == null ? 'Belum dipilih' : point.displayAddress,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
@@ -691,4 +776,12 @@ class _RoutePoint {
   final double longitude;
   final String source;
   final String? address;
+
+  String get displayAddress {
+    final normalized = address?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      return 'Titik dipilih di peta';
+    }
+    return normalized;
+  }
 }

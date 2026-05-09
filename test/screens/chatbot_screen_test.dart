@@ -196,6 +196,42 @@ void main() {
     expect(state.messages.last.text, contains('Draft rute diterima'));
   });
 
+  test('route picker action can let backend resolve missing address', () async {
+    final fakeService = _FakeChatbotApiService();
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    final container = ProviderContainer(
+      overrides: [
+        authSessionProvider.overrideWith(
+          () => _FakeAuthSessionNotifier(_buildAuthenticatedSession()),
+        ),
+        chatbotApiServiceProvider.overrideWithValue(fakeService),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(chatbotConversationProvider.notifier);
+    await notifier.bootstrap(
+      serviceType: 'antar_jemput',
+      welcomeMessage: 'Halo ride',
+    );
+
+    await notifier.applyRoutePickerAction(
+      serviceType: 'antar_jemput',
+      locations: const <ChatbotLocationPatch>[
+        ChatbotLocationPatch(
+          target: 'destination',
+          latitude: -7.3312,
+          longitude: 110.5077,
+        ),
+      ],
+    );
+
+    expect(fakeService.patchLocationsCallCount, 1);
+    expect(fakeService.lastRouteTargets, ['destination']);
+    expect(fakeService.lastRouteAddresses, [null]);
+  });
+
   testWidgets('show small courier draft size line without fake numbers', (
     WidgetTester tester,
   ) async {
@@ -347,6 +383,7 @@ class _FakeChatbotApiService extends ChatbotApiService {
   String? lastServiceType;
   String? lastPatchTarget;
   List<String> lastRouteTargets = const <String>[];
+  List<String?> lastRouteAddresses = const <String?>[];
 
   @override
   Future<List<ChatbotSessionSummary>> fetchSessions({
@@ -539,6 +576,7 @@ class _FakeChatbotApiService extends ChatbotApiService {
     patchLocationsCallCount += 1;
     lastServiceType = serviceType;
     lastRouteTargets = locations.map((location) => location.target).toList();
+    lastRouteAddresses = locations.map((location) => location.address).toList();
 
     return ChatbotResult.fromApiJson({
       'status': 'success',

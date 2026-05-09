@@ -101,8 +101,7 @@ extension _CourierChatHandler on _ChatbotScreenState {
           target: target,
           latitude: result.latitude,
           longitude: result.longitude,
-          address:
-              'Pin ${result.latitude.toStringAsFixed(6)}, ${result.longitude.toStringAsFixed(6)}',
+          address: null,
         );
 
     _scrollToBottom();
@@ -137,7 +136,9 @@ extension _CourierChatHandler on _ChatbotScreenState {
     }
 
     final pickupPoint = pointFor('pickup');
-    final destinationTarget = serviceType == 'kurir' ? 'dropoff' : 'destination';
+    final destinationTarget = serviceType == 'kurir'
+        ? 'dropoff'
+        : 'destination';
     final destinationPoint = pointFor(destinationTarget);
     final isCourier = serviceType == 'kurir';
 
@@ -171,10 +172,9 @@ extension _CourierChatHandler on _ChatbotScreenState {
             target: location.target,
             latitude: location.latitude,
             longitude: location.longitude,
-            address:
-                (location.address ?? '').trim().isEmpty
-                    ? 'Pin ${location.latitude.toStringAsFixed(6)}, ${location.longitude.toStringAsFixed(6)}'
-                    : location.address!.trim(),
+            address: (location.address ?? '').trim().isEmpty
+                ? null
+                : location.address!.trim(),
           ),
         )
         .toList(growable: false);
