@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/chatbot_model.dart';
+import '../services/chatbot_api_service.dart';
 import '../utils/order_formatters.dart';
 import 'auth_session_provider.dart';
 import 'api_providers.dart';
@@ -9,9 +10,38 @@ import 'api_providers.dart';
 enum ChatbotMessageActionType {
   openAddresses,
   openMapPicker,
+  openRoutePicker,
   sendPresetMessage,
   openTrackOrder,
   openActivity,
+}
+
+class ChatbotRoutePointHint {
+  const ChatbotRoutePointHint({
+    required this.target,
+    required this.label,
+    this.initialLatitude,
+    this.initialLongitude,
+  });
+
+  final String target;
+  final String label;
+  final double? initialLatitude;
+  final double? initialLongitude;
+}
+
+class ChatbotLocationPatch {
+  const ChatbotLocationPatch({
+    required this.target,
+    required this.latitude,
+    required this.longitude,
+    this.address,
+  });
+
+  final String target;
+  final double latitude;
+  final double longitude;
+  final String? address;
 }
 
 class ChatbotMessageActionHint {
@@ -23,6 +53,7 @@ class ChatbotMessageActionHint {
     this.orderId,
     this.initialLatitude,
     this.initialLongitude,
+    this.routePoints = const <ChatbotRoutePointHint>[],
   });
 
   final ChatbotMessageActionType type;
@@ -32,6 +63,7 @@ class ChatbotMessageActionHint {
   final int? orderId;
   final double? initialLatitude;
   final double? initialLongitude;
+  final List<ChatbotRoutePointHint> routePoints;
 }
 
 class ChatbotConversationMessage {
@@ -418,6 +450,67 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     }
   }
 
+  Future<void> applyRoutePickerAction({
+    required String serviceType,
+    required List<ChatbotLocationPatch> locations,
+  }) async {
+    _ensureService(serviceType);
+
+    final sessionId = state.sessionId?.trim();
+    if (sessionId == null ||
+        sessionId.isEmpty ||
+        state.isApplyingAction ||
+        locations.isEmpty) {
+      return;
+    }
+
+    state = state.copyWith(isApplyingAction: true, clearErrorMessage: true);
+
+    final api = ref.read(chatbotApiServiceProvider);
+    try {
+      final result = await api.patchSessionLocations(
+        sessionId,
+        serviceType: serviceType,
+        locations: locations
+            .map(
+              (location) => ChatbotLocationPatchRequest(
+                target: location.target,
+                latitude: location.latitude,
+                longitude: location.longitude,
+                address: location.address,
+              ),
+            )
+            .toList(growable: false),
+      );
+
+      final canonicalSessionId = result.sessionId?.trim();
+      final resolvedSessionId =
+          canonicalSessionId != null && canonicalSessionId.isNotEmpty
+          ? canonicalSessionId
+          : sessionId;
+
+      await _persistSessionId(serviceType, resolvedSessionId);
+
+      state = state.copyWith(
+        serviceType: serviceType,
+        sessionId: resolvedSessionId,
+        isApplyingAction: false,
+        messages: <ChatbotConversationMessage>[
+          ...state.messages,
+          _messageFromResult(result, serviceType),
+        ],
+        clearErrorMessage: true,
+      );
+
+      await refreshSessions(serviceType: serviceType);
+    } catch (_) {
+      state = state.copyWith(
+        isApplyingAction: false,
+        errorMessage: 'Gagal memperbarui titik rute.',
+      );
+    }
+  }
+
   void onAddressBookUpdated({required String serviceType}) {
     _ensureService(serviceType);
 
@@ -442,8 +535,8 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         ...state.messages,
         _botMessage(
           text: serviceType == 'kurir'
-              ? 'Alamat ambil kamu sudah tersimpan. Sekarang pilih titik ambil dan tujuan lewat tombol di bawah, atau tetap kirim lewat chat.'
-              : 'Alamat jemput kamu sudah tersimpan. Sekarang pilih titik jemput dan tujuan lewat tombol di bawah, atau tetap kirim lewat chat.',
+              ? 'Alamat ambil kamu sudah tersimpan. Atur titik ambil dan tujuan lewat tombol di bawah, atau tetap kirim lewat chat.'
+              : 'Alamat jemput kamu sudah tersimpan. Atur titik jemput dan tujuan lewat tombol di bawah, atau tetap kirim lewat chat.',
           timestamp: _nowLabel(),
           actionHints: mapHints,
         ),
@@ -483,7 +576,10 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       meta: metaParts.join(' • '),
       actionHints: entry.aiResponse == null
           ? const <ChatbotMessageActionHint>[]
-          : _resolveActionHintsFromPayload(entry.aiResponse!),
+          : _resolveActionHintsFromPayload(
+              entry.aiResponse!,
+              serviceType: effectiveServiceType,
+            ),
     );
   }
 
@@ -547,12 +643,14 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     return _resolveActionHints(
       nextActions: nextActions,
       actionPayloads: result.actionPayloads,
+      serviceType: result.serviceType ?? state.serviceType,
     );
   }
 
   List<ChatbotMessageActionHint> _resolveActionHintsFromPayload(
-    Map<String, dynamic> payload,
-  ) {
+    Map<String, dynamic> payload, {
+    required String serviceType,
+  }) {
     final validation = (payload['validation'] is Map<String, dynamic>)
         ? payload['validation'] as Map<String, dynamic>
         : null;
@@ -572,12 +670,14 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     return _resolveActionHints(
       nextActions: nextActions,
       actionPayloads: actionPayloads,
+      serviceType: serviceType,
     );
   }
 
   List<ChatbotMessageActionHint> _resolveActionHints({
     required List<String> nextActions,
     required Map<String, dynamic>? actionPayloads,
+    required String serviceType,
   }) {
     final hasSavedAddress = _hasSavedAddressInProfile();
     final requireAddressFirst =
@@ -590,12 +690,16 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       final key = switch (hint.type) {
         ChatbotMessageActionType.openMapPicker =>
           '${hint.type.name}:${hint.target ?? '-'}',
+        ChatbotMessageActionType.openRoutePicker =>
+          '${hint.type.name}:${hint.label}',
         ChatbotMessageActionType.sendPresetMessage =>
           '${hint.type.name}:${hint.presetMessage ?? hint.label}',
-        ChatbotMessageActionType.openAddresses => '${hint.type.name}:${hint.label}',
+        ChatbotMessageActionType.openAddresses =>
+          '${hint.type.name}:${hint.label}',
         ChatbotMessageActionType.openTrackOrder =>
           '${hint.type.name}:${hint.orderId ?? '-'}',
-        ChatbotMessageActionType.openActivity => '${hint.type.name}:${hint.label}',
+        ChatbotMessageActionType.openActivity =>
+          '${hint.type.name}:${hint.label}',
       };
       if (seen.add(key)) {
         hints.add(hint);
@@ -615,7 +719,26 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       return hints;
     }
 
-    if (nextActions.contains('OPEN_MAP_PICKER_PICKUP')) {
+    final isTransport = serviceType == 'antar_jemput' || serviceType == 'kurir';
+    final hasLegacyTransportMapAction =
+        nextActions.contains('OPEN_MAP_PICKER_PICKUP') ||
+        (serviceType == 'antar_jemput' &&
+            nextActions.contains('OPEN_MAP_PICKER_DESTINATION')) ||
+        (serviceType == 'kurir' &&
+            nextActions.contains('OPEN_MAP_PICKER_DROPOFF'));
+    final shouldUseRoutePicker =
+        isTransport &&
+        (nextActions.contains('OPEN_ROUTE_PICKER') ||
+            hasLegacyTransportMapAction);
+
+    if (shouldUseRoutePicker) {
+      add(
+        _routePickerHintFromPayload(actionPayloads, serviceType: serviceType),
+      );
+    }
+
+    if (!shouldUseRoutePicker &&
+        nextActions.contains('OPEN_MAP_PICKER_PICKUP')) {
       add(
         _mapPickerHintFromPayload(
           actionPayloads,
@@ -626,7 +749,8 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       );
     }
 
-    if (nextActions.contains('OPEN_MAP_PICKER_DESTINATION')) {
+    if (!shouldUseRoutePicker &&
+        nextActions.contains('OPEN_MAP_PICKER_DESTINATION')) {
       add(
         _mapPickerHintFromPayload(
           actionPayloads,
@@ -637,7 +761,8 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       );
     }
 
-    if (nextActions.contains('OPEN_MAP_PICKER_DROPOFF')) {
+    if (!shouldUseRoutePicker &&
+        nextActions.contains('OPEN_MAP_PICKER_DROPOFF')) {
       add(
         _mapPickerHintFromPayload(
           actionPayloads,
@@ -697,7 +822,9 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     return hints;
   }
 
-  List<ChatbotMessageActionHint> _orderCreatedActionHints(ChatbotResult result) {
+  List<ChatbotMessageActionHint> _orderCreatedActionHints(
+    ChatbotResult result,
+  ) {
     final hints = <ChatbotMessageActionHint>[
       ChatbotMessageActionHint(
         type: ChatbotMessageActionType.openTrackOrder,
@@ -765,6 +892,80 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     );
   }
 
+  ChatbotMessageActionHint _routePickerHintFromPayload(
+    Map<String, dynamic>? actionPayloads, {
+    required String serviceType,
+  }) {
+    final payload = actionPayloads?['OPEN_ROUTE_PICKER'];
+    final payloadMap = payload is Map<String, dynamic>
+        ? payload
+        : <String, dynamic>{};
+    final points = payloadMap['points'] is Map<String, dynamic>
+        ? payloadMap['points'] as Map<String, dynamic>
+        : <String, dynamic>{};
+
+    final isCourier = serviceType == 'kurir';
+    final label = (payloadMap['label']?.toString().trim() ?? '').isEmpty
+        ? (isCourier
+              ? 'Atur Titik Ambil & Tujuan'
+              : 'Atur Titik Jemput & Tujuan')
+        : payloadMap['label'].toString().trim();
+
+    ChatbotRoutePointHint pointFrom(
+      String payloadKey, {
+      required String fallbackTarget,
+      required String fallbackLabel,
+      String? legacyActionKey,
+    }) {
+      final rawPoint = points[payloadKey];
+      final pointMap = rawPoint is Map<String, dynamic>
+          ? rawPoint
+          : <String, dynamic>{};
+      final legacyPayload = legacyActionKey == null
+          ? null
+          : actionPayloads?[legacyActionKey];
+      final legacyMap = legacyPayload is Map<String, dynamic>
+          ? legacyPayload
+          : <String, dynamic>{};
+      final source = pointMap.isNotEmpty ? pointMap : legacyMap;
+
+      final target = (source['target']?.toString().trim() ?? '').isEmpty
+          ? fallbackTarget
+          : source['target'].toString().trim();
+      final pointLabel = (source['label']?.toString().trim() ?? '').isEmpty
+          ? fallbackLabel
+          : source['label'].toString().trim();
+
+      return ChatbotRoutePointHint(
+        target: target,
+        label: pointLabel,
+        initialLatitude: _toDouble(source['initial_latitude']),
+        initialLongitude: _toDouble(source['initial_longitude']),
+      );
+    }
+
+    return ChatbotMessageActionHint(
+      type: ChatbotMessageActionType.openRoutePicker,
+      label: label,
+      routePoints: <ChatbotRoutePointHint>[
+        pointFrom(
+          'pickup',
+          fallbackTarget: 'pickup',
+          fallbackLabel: isCourier ? 'Titik Ambil' : 'Titik Jemput',
+          legacyActionKey: 'OPEN_MAP_PICKER_PICKUP',
+        ),
+        pointFrom(
+          isCourier ? 'dropoff' : 'destination',
+          fallbackTarget: isCourier ? 'dropoff' : 'destination',
+          fallbackLabel: 'Titik Tujuan',
+          legacyActionKey: isCourier
+              ? 'OPEN_MAP_PICKER_DROPOFF'
+              : 'OPEN_MAP_PICKER_DESTINATION',
+        ),
+      ],
+    );
+  }
+
   double? _toDouble(dynamic raw) {
     if (raw is num) {
       return raw.toDouble();
@@ -811,28 +1012,24 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     if (serviceType == 'kurir') {
       return const <ChatbotMessageActionHint>[
         ChatbotMessageActionHint(
-          type: ChatbotMessageActionType.openMapPicker,
-          label: 'Pilih Titik Ambil',
-          target: 'pickup',
-        ),
-        ChatbotMessageActionHint(
-          type: ChatbotMessageActionType.openMapPicker,
-          label: 'Pilih Titik Tujuan',
-          target: 'dropoff',
+          type: ChatbotMessageActionType.openRoutePicker,
+          label: 'Atur Titik Ambil & Tujuan',
+          routePoints: <ChatbotRoutePointHint>[
+            ChatbotRoutePointHint(target: 'pickup', label: 'Titik Ambil'),
+            ChatbotRoutePointHint(target: 'dropoff', label: 'Titik Tujuan'),
+          ],
         ),
       ];
     }
 
     return const <ChatbotMessageActionHint>[
       ChatbotMessageActionHint(
-        type: ChatbotMessageActionType.openMapPicker,
-        label: 'Pilih Titik Jemput',
-        target: 'pickup',
-      ),
-      ChatbotMessageActionHint(
-        type: ChatbotMessageActionType.openMapPicker,
-        label: 'Pilih Titik Tujuan',
-        target: 'destination',
+        type: ChatbotMessageActionType.openRoutePicker,
+        label: 'Atur Titik Jemput & Tujuan',
+        routePoints: <ChatbotRoutePointHint>[
+          ChatbotRoutePointHint(target: 'pickup', label: 'Titik Jemput'),
+          ChatbotRoutePointHint(target: 'destination', label: 'Titik Tujuan'),
+        ],
       ),
     ];
   }
@@ -846,16 +1043,16 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     }
 
     final currentKeys = current
-      .map(
-        (item) =>
-          '${item.type.name}:${item.target ?? '-'}:${item.presetMessage ?? '-'}:${item.orderId ?? '-'}:${item.label}',
-      )
+        .map(
+          (item) =>
+              '${item.type.name}:${item.target ?? '-'}:${item.presetMessage ?? '-'}:${item.orderId ?? '-'}:${item.label}',
+        )
         .toSet();
     final incomingKeys = incoming
-      .map(
-        (item) =>
-          '${item.type.name}:${item.target ?? '-'}:${item.presetMessage ?? '-'}:${item.orderId ?? '-'}:${item.label}',
-      )
+        .map(
+          (item) =>
+              '${item.type.name}:${item.target ?? '-'}:${item.presetMessage ?? '-'}:${item.orderId ?? '-'}:${item.label}',
+        )
         .toSet();
 
     return currentKeys.length == incomingKeys.length &&

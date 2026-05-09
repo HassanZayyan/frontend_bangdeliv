@@ -47,6 +47,48 @@ void main() {
     expect(find.text('Isi Alamat Saya'), findsOneWidget);
   });
 
+  testWidgets('courier bootstrap shows one route picker action', (
+    WidgetTester tester,
+  ) async {
+    await _pumpChatbot(
+      tester,
+      serviceType: 'kurir',
+      chatbotApiService: _FakeChatbotApiService(),
+    );
+
+    expect(find.text('Atur Titik Ambil & Tujuan'), findsOneWidget);
+    expect(find.text('Pilih Titik Ambil'), findsNothing);
+    expect(find.text('Pilih Titik Tujuan'), findsNothing);
+  });
+
+  testWidgets('ride bootstrap shows one route picker action', (
+    WidgetTester tester,
+  ) async {
+    await _pumpChatbot(
+      tester,
+      serviceType: 'antar_jemput',
+      chatbotApiService: _FakeChatbotApiService(),
+    );
+
+    expect(find.text('Atur Titik Jemput & Tujuan'), findsOneWidget);
+    expect(find.text('Pilih Titik Jemput'), findsNothing);
+    expect(find.text('Pilih Titik Tujuan'), findsNothing);
+  });
+
+  testWidgets('transport bootstrap without address only shows address action', (
+    WidgetTester tester,
+  ) async {
+    await _pumpChatbot(
+      tester,
+      serviceType: 'kurir',
+      chatbotApiService: _FakeChatbotApiService(),
+      authSession: _buildAuthenticatedSessionWithoutAddress(),
+    );
+
+    expect(find.text('Isi Alamat Saya'), findsOneWidget);
+    expect(find.text('Atur Titik Ambil & Tujuan'), findsNothing);
+  });
+
   testWidgets('show api error message from chatbot service', (
     WidgetTester tester,
   ) async {
@@ -73,7 +115,8 @@ void main() {
     await _sendMessage(tester, 'butuh map tujuan');
 
     expect(find.textContaining('belum pas di peta'), findsOneWidget);
-    expect(find.text('Pilih Titik Tujuan di Map'), findsOneWidget);
+    expect(find.text('Atur Titik Ambil & Tujuan'), findsWidgets);
+    expect(find.text('Pilih Titik Tujuan di Map'), findsNothing);
   });
 
   test('initial courier map pin can patch backend session before chat', () async {
@@ -113,6 +156,46 @@ void main() {
     expect(state.errorMessage, isNull);
   });
 
+  test('route picker action sends one bulk patch request', () async {
+    final fakeService = _FakeChatbotApiService();
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    final container = ProviderContainer(
+      overrides: [
+        authSessionProvider.overrideWith(
+          () => _FakeAuthSessionNotifier(_buildAuthenticatedSession()),
+        ),
+        chatbotApiServiceProvider.overrideWithValue(fakeService),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(chatbotConversationProvider.notifier);
+    await notifier.bootstrap(
+      serviceType: 'kurir',
+      welcomeMessage: 'Halo kurir',
+    );
+
+    await notifier.applyRoutePickerAction(
+      serviceType: 'kurir',
+      locations: const <ChatbotLocationPatch>[
+        ChatbotLocationPatch(
+          target: 'dropoff',
+          latitude: -7.3312,
+          longitude: 110.5077,
+          address: 'Lapangan Pancasila Salatiga',
+        ),
+      ],
+    );
+
+    final state = container.read(chatbotConversationProvider);
+
+    expect(fakeService.patchLocationsCallCount, 1);
+    expect(fakeService.patchLocationCallCount, 0);
+    expect(fakeService.lastRouteTargets, ['dropoff']);
+    expect(state.messages.last.text, contains('Draft rute diterima'));
+  });
+
   testWidgets('show small courier draft size line without fake numbers', (
     WidgetTester tester,
   ) async {
@@ -134,6 +217,7 @@ Future<void> _pumpChatbot(
   WidgetTester tester, {
   required String serviceType,
   required ChatbotApiService chatbotApiService,
+  AuthSessionState? authSession,
 }) async {
   SharedPreferences.setMockInitialValues(<String, Object>{});
 
@@ -160,7 +244,9 @@ Future<void> _pumpChatbot(
     ProviderScope(
       overrides: [
         authSessionProvider.overrideWith(
-          () => _FakeAuthSessionNotifier(_buildAuthenticatedSession()),
+          () => _FakeAuthSessionNotifier(
+            authSession ?? _buildAuthenticatedSession(),
+          ),
         ),
         chatbotApiServiceProvider.overrideWithValue(chatbotApiService),
       ],
@@ -201,9 +287,28 @@ AuthSessionState _buildAuthenticatedSession() {
         phone: '081234567890',
         fullAddress: 'Jalan Mawar No 1',
         detail: 'RT 01 RW 02',
+        latitude: -7.0509,
+        longitude: 110.4315,
         isDefault: true,
       ),
     ],
+  );
+
+  return AuthSessionState.fromProfile(profile);
+}
+
+AuthSessionState _buildAuthenticatedSessionWithoutAddress() {
+  const profile = UserProfileModel(
+    id: 2,
+    name: 'Hassan',
+    phone: '081234567890',
+    email: 'hassan.noaddress@example.com',
+    avatar: null,
+    avatarUrl: null,
+    role: 'customer',
+    driverProfile: null,
+    stats: UserStatsModel(totalOrders: 0, totalPaid: 0, rating: 0),
+    addresses: <SavedAddressModel>[],
   );
 
   return AuthSessionState.fromProfile(profile);
@@ -238,8 +343,10 @@ class _FakeChatbotApiService extends ChatbotApiService {
 
   int callCount = 0;
   int patchLocationCallCount = 0;
+  int patchLocationsCallCount = 0;
   String? lastServiceType;
   String? lastPatchTarget;
+  List<String> lastRouteTargets = const <String>[];
 
   @override
   Future<List<ChatbotSessionSummary>> fetchSessions({
@@ -418,6 +525,39 @@ class _FakeChatbotApiService extends ChatbotApiService {
                   'label': 'Pilih Titik Tujuan',
                 },
               },
+        'order': {'created': false},
+      },
+    });
+  }
+
+  @override
+  Future<ChatbotResult> patchSessionLocations(
+    String sessionId, {
+    required String serviceType,
+    required List<ChatbotLocationPatchRequest> locations,
+  }) async {
+    patchLocationsCallCount += 1;
+    lastServiceType = serviceType;
+    lastRouteTargets = locations.map((location) => location.target).toList();
+
+    return ChatbotResult.fromApiJson({
+      'status': 'success',
+      'session_id': sessionId,
+      'service_context': {'service_type': serviceType},
+      'model_used': 'map-route-action',
+      'data': {
+        'intent': serviceType == 'antar_jemput'
+            ? 'ride_order'
+            : 'courier_order',
+        'assistant_text': 'Draft rute diterima.',
+        'validation': {
+          'is_valid_order': false,
+          'rejection_reasons': [],
+          'missing_fields': serviceType == 'kurir'
+              ? ['package_description']
+              : ['destination_address'],
+          'next_actions': [],
+        },
         'order': {'created': false},
       },
     });

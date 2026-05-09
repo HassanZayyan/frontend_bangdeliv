@@ -3,6 +3,31 @@ import 'api_client.dart';
 import 'api_exception.dart';
 import 'auth_service.dart';
 
+class ChatbotLocationPatchRequest {
+  const ChatbotLocationPatchRequest({
+    required this.target,
+    required this.latitude,
+    required this.longitude,
+    this.address,
+  });
+
+  final String target;
+  final double latitude;
+  final double longitude;
+  final String? address;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'target': target,
+      'latitude': latitude,
+      'longitude': longitude,
+      ...?((address ?? '').trim().isEmpty
+          ? null
+          : <String, dynamic>{'address': address!.trim()}),
+    };
+  }
+}
+
 class ChatbotApiService {
   ChatbotApiService(this._apiClient);
 
@@ -158,6 +183,49 @@ class ChatbotApiService {
       throw ApiException(
         response['message']?.toString() ??
             'Gagal memperbarui titik lokasi chatbot.',
+      );
+    }
+
+    return ChatbotResult.fromApiJson(response);
+  }
+
+  Future<ChatbotResult> patchSessionLocations(
+    String sessionId, {
+    required String serviceType,
+    required List<ChatbotLocationPatchRequest> locations,
+  }) async {
+    final normalizedSessionId = sessionId.trim();
+    if (normalizedSessionId.isEmpty) {
+      throw const ApiException('Session chat tidak valid.');
+    }
+    if (locations.isEmpty) {
+      throw const ApiException('Titik rute belum dipilih.');
+    }
+
+    final requestBody = <String, dynamic>{
+      'service_type': serviceType,
+      'locations': locations
+          .map((location) => location.toJson())
+          .toList(growable: false),
+    };
+
+    Map<String, dynamic> response;
+    try {
+      response = await _apiClient.post(
+        '/chatbot/sessions/$normalizedSessionId/locations',
+        body: requestBody,
+        headers: await AuthService.authorizedHeaders(),
+        timeout: _historyTimeout,
+      );
+    } on AuthException catch (error) {
+      throw ApiException(error.message);
+    }
+
+    final status = response['status']?.toString().toLowerCase();
+    if (status == 'error') {
+      throw ApiException(
+        response['message']?.toString() ??
+            'Gagal memperbarui titik rute chatbot.',
       );
     }
 

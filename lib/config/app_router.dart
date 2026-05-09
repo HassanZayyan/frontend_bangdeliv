@@ -25,7 +25,9 @@ import '../screens/change_password_screen.dart';
 import '../screens/saved_addresses_screen.dart';
 import '../screens/add_address_screen.dart';
 import '../screens/address_location_picker_screen.dart';
+import '../screens/route_location_picker_screen.dart';
 import '../models/user_profile_model.dart';
+import '../models/route_location_picker_result.dart';
 import '../models/food_model.dart';
 import '../models/merchant_model.dart';
 import '../providers/api_providers.dart';
@@ -205,6 +207,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return AddressLocationPickerScreen(
             initialLatitude: initialLatitude,
             initialLongitude: initialLongitude,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.routeLocationPicker,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final extra = state.extra;
+          if (extra is RouteLocationPickerArgs) {
+            return RouteLocationPickerScreen(args: extra);
+          }
+
+          return const Scaffold(
+            body: Center(child: Text('Route picker tidak valid.')),
           );
         },
       ),

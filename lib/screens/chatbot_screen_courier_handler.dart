@@ -16,6 +16,9 @@ extension _CourierChatHandler on _ChatbotScreenState {
       case ChatbotMessageActionType.openMapPicker:
         await _handleOpenMapPickerAction(actionHint);
         return;
+      case ChatbotMessageActionType.openRoutePicker:
+        await _handleOpenRoutePickerAction(actionHint);
+        return;
       case ChatbotMessageActionType.sendPresetMessage:
         await _handleSendPresetMessageAction(actionHint);
         return;
@@ -61,7 +64,8 @@ extension _CourierChatHandler on _ChatbotScreenState {
   Future<void> _handleOpenMapPickerAction(
     ChatbotMessageActionHint actionHint,
   ) async {
-    if (_serviceContext.serviceType == 'antar_jemput' &&
+    if ((_serviceContext.serviceType == 'antar_jemput' ||
+            _serviceContext.serviceType == 'kurir') &&
         !_hasSavedAddressInProfile()) {
       await _handleOpenAddressesAction();
       return;
@@ -104,6 +108,84 @@ extension _CourierChatHandler on _ChatbotScreenState {
     _scrollToBottom();
   }
 
+  Future<void> _handleOpenRoutePickerAction(
+    ChatbotMessageActionHint actionHint,
+  ) async {
+    if (!_hasSavedAddressInProfile()) {
+      await _handleOpenAddressesAction();
+      return;
+    }
+
+    final serviceType = _serviceContext.serviceType;
+    if (serviceType != 'antar_jemput' && serviceType != 'kurir') {
+      return;
+    }
+
+    final defaultPickup = _defaultSavedAddress();
+    if (defaultPickup == null || !_hasValidCoordinate(defaultPickup)) {
+      await _handleOpenAddressesAction();
+      return;
+    }
+
+    ChatbotRoutePointHint? pointFor(String target) {
+      for (final point in actionHint.routePoints) {
+        if (point.target == target) {
+          return point;
+        }
+      }
+      return null;
+    }
+
+    final pickupPoint = pointFor('pickup');
+    final destinationTarget = serviceType == 'kurir' ? 'dropoff' : 'destination';
+    final destinationPoint = pointFor(destinationTarget);
+    final isCourier = serviceType == 'kurir';
+
+    final result = await context.push(
+      AppRoutes.routeLocationPicker,
+      extra: RouteLocationPickerArgs(
+        serviceType: serviceType,
+        pickupTarget: 'pickup',
+        destinationTarget: destinationTarget,
+        pickupLabel: isCourier ? 'Ambil' : 'Jemput',
+        destinationLabel: 'Tujuan',
+        title: isCourier ? 'Atur Rute Kurir' : 'Atur Rute Antar Jemput',
+        confirmLabel: isCourier ? 'Simpan Rute Kurir' : 'Simpan Rute',
+        defaultPickupAddress: defaultPickup.fullAddress,
+        defaultPickupLatitude: defaultPickup.latitude,
+        defaultPickupLongitude: defaultPickup.longitude,
+        pickupInitialLatitude: pickupPoint?.initialLatitude,
+        pickupInitialLongitude: pickupPoint?.initialLongitude,
+        destinationInitialLatitude: destinationPoint?.initialLatitude,
+        destinationInitialLongitude: destinationPoint?.initialLongitude,
+      ),
+    );
+
+    if (!mounted || result is! RouteLocationPickerResult) {
+      return;
+    }
+
+    final locations = result.locations
+        .map(
+          (location) => ChatbotLocationPatch(
+            target: location.target,
+            latitude: location.latitude,
+            longitude: location.longitude,
+            address:
+                (location.address ?? '').trim().isEmpty
+                    ? 'Pin ${location.latitude.toStringAsFixed(6)}, ${location.longitude.toStringAsFixed(6)}'
+                    : location.address!.trim(),
+          ),
+        )
+        .toList(growable: false);
+
+    await ref
+        .read(chatbotConversationProvider.notifier)
+        .applyRoutePickerAction(serviceType: serviceType, locations: locations);
+
+    _scrollToBottom();
+  }
+
   Future<void> _handleOpenTrackOrderAction(
     ChatbotMessageActionHint actionHint,
   ) async {
@@ -118,5 +200,34 @@ extension _CourierChatHandler on _ChatbotScreenState {
 
   void _handleOpenActivityAction() {
     context.go(AppRoutes.activity);
+  }
+
+  SavedAddressModel? _defaultSavedAddress() {
+    final addresses =
+        ref.read(authSessionProvider).profile?.addresses ??
+        const <SavedAddressModel>[];
+    final validAddresses = addresses
+        .where((address) => address.fullAddress.trim().isNotEmpty)
+        .where(_hasValidCoordinate)
+        .toList(growable: false);
+    if (validAddresses.isEmpty) {
+      return null;
+    }
+
+    for (final address in validAddresses) {
+      if (address.isDefault) {
+        return address;
+      }
+    }
+
+    return validAddresses.first;
+  }
+
+  bool _hasValidCoordinate(SavedAddressModel address) {
+    return address.latitude >= -90 &&
+        address.latitude <= 90 &&
+        address.longitude >= -180 &&
+        address.longitude <= 180 &&
+        !(address.latitude == 0 && address.longitude == 0);
   }
 }

@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../models/address_location_picker_result.dart';
+import '../models/route_location_picker_result.dart';
+import '../models/user_profile_model.dart';
 import '../providers/auth_session_provider.dart';
 import '../providers/chatbot_conversation_provider.dart';
 
@@ -70,11 +72,11 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           title: 'BangBot AI - Antar Jemput',
           subtitle: 'Mode perjalanan aktif',
           welcomeMessage:
-              'Halo! Saya BangBot untuk layanan Antar Jemput. Kamu bisa kirim tujuan lewat chat. Jika belum punya alamat, isi Alamat Saya dulu.',
+              'Halo! Saya BangBot untuk layanan Antar Jemput. Kamu bisa kirim tujuan lewat chat atau atur titik jemput dan tujuan di map. Jika belum punya alamat, isi Alamat Saya dulu.',
           suggestions: [
-            'Saya mau pergi ke Jalan Sudirman',
-            'Antar ke Stasiun Gambir',
-            'Tujuan ke Bandara Soekarno-Hatta',
+            'Antar ke Stasiun Tawang',
+            'Tujuan ke Jalan Sudirman No 10',
+            'Saya mau ke Polines',
           ],
         );
       case 'kurir':
@@ -83,8 +85,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           title: 'BangBot AI - Kurir',
           subtitle: 'Mode pengiriman paket aktif',
           welcomeMessage:
-              'Halo! Saya BangBot untuk layanan Kurir. Tulis lokasi ambil, tujuan kirim, isi paket, atau pilih titik langsung di map.',
-          suggestions: ['Kirim dokumen', 'Ambil di kantor', 'Kirim ke rumah'],
+              'Halo! Saya BangBot untuk layanan Kurir. Tulis tujuan kirim dan isi paket lewat chat, atau atur titik ambil dan tujuan di map.',
+          suggestions: ['Isi paket kunci', 'Kirim kunci', 'Kirim dokumen'],
         );
       default:
         return const _ServiceContext(
@@ -569,6 +571,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                               Icons.home_outlined,
                             ChatbotMessageActionType.openMapPicker =>
                               Icons.location_on_outlined,
+                            ChatbotMessageActionType.openRoutePicker =>
+                              Icons.route_outlined,
                             ChatbotMessageActionType.sendPresetMessage =>
                               Icons.bolt_rounded,
                             ChatbotMessageActionType.openTrackOrder =>
