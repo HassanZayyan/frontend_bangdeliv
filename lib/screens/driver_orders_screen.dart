@@ -30,7 +30,7 @@ class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen>
     _tabController = TabController(length: 2, vsync: this);
     _refreshTimer = Timer.periodic(const Duration(seconds: 8), (_) {
       if (!mounted) return;
-      ref.read(driverOrdersProvider.notifier).refresh();
+      _refreshOrdersIfDriverOnline();
     });
   }
 
@@ -59,9 +59,24 @@ class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen>
     }
   }
 
+  void _refreshOrdersIfDriverOnline() {
+    final availability = ref.read(driverAvailabilityProvider).asData?.value;
+    if (availability != null && !availability.isOnline) {
+      return;
+    }
+
+    ref.read(driverOrdersProvider.notifier).refresh();
+  }
+
   @override
   Widget build(BuildContext context) {
     final ordersState = ref.watch(driverOrdersProvider);
+    final availabilityState = ref.watch(driverAvailabilityProvider);
+    final availabilityStatus =
+        availabilityState.asData?.value.status ?? 'offline';
+    final canReceiveIncomingOrders = _canReceiveIncomingOrders(
+      availabilityStatus,
+    );
 
     return DefaultTabController(
       length: 2,
@@ -108,6 +123,8 @@ class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen>
                       _IncomingOrdersTab(
                         orders: data.incoming,
                         processingOrderIds: data.processingOrderIds,
+                        canReceiveIncomingOrders: canReceiveIncomingOrders,
+                        availabilityStatus: availabilityStatus,
                         onAcceptSuccess: _goToRunningTab,
                       ),
                       _RunningOrdersTab(orders: data.running),
@@ -121,26 +138,53 @@ class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen>
       ),
     );
   }
+
+  bool _canReceiveIncomingOrders(String status) {
+    final normalized = status.trim().toLowerCase();
+    return normalized == 'available' || normalized == 'online';
+  }
 }
 
 class _IncomingOrdersTab extends ConsumerWidget {
   final List<DriverOrderModel> orders;
   final Set<String> processingOrderIds;
+  final bool canReceiveIncomingOrders;
+  final String availabilityStatus;
   final VoidCallback onAcceptSuccess;
 
   const _IncomingOrdersTab({
     required this.orders,
     required this.processingOrderIds,
+    required this.canReceiveIncomingOrders,
+    required this.availabilityStatus,
     required this.onAcceptSuccess,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (orders.isEmpty) {
-      return const _EmptyOrderState(
-        icon: Icons.inbox_outlined,
-        title: 'Belum ada orderan masuk',
-        subtitle: 'Order baru akan tampil di sini saat driver sedang aktif.',
+      final normalizedStatus = availabilityStatus.trim().toLowerCase();
+      final isBusy = normalizedStatus == 'busy';
+
+      return _EmptyOrderState(
+        icon: canReceiveIncomingOrders
+            ? Icons.inbox_outlined
+            : (isBusy ? Icons.delivery_dining : Icons.power_settings_new),
+        title: canReceiveIncomingOrders
+            ? 'Belum ada orderan masuk'
+            : (isBusy ? 'Sedang menjalankan order' : 'Status kerja offline'),
+        subtitle: canReceiveIncomingOrders
+            ? 'Order baru akan tampil di sini saat driver sedang aktif.'
+            : (isBusy
+                  ? 'Selesaikan order berjalan sebelum menerima order baru.'
+                  : 'Aktifkan status kerja untuk menerima order masuk.'),
+        action: canReceiveIncomingOrders || isBusy
+            ? null
+            : OutlinedButton.icon(
+                onPressed: () => context.go(AppRoutes.driverHome),
+                icon: const Icon(Icons.toggle_on_outlined),
+                label: const Text('Atur Status Kerja'),
+              ),
       );
     }
 
@@ -310,17 +354,17 @@ class _OrderCard extends StatelessWidget {
       minimumSize: const Size(0, 48),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
-        fontWeight: FontWeight.w700,
-      ),
+      textStyle: Theme.of(
+        context,
+      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
     );
     final acceptButtonStyle = ElevatedButton.styleFrom(
       minimumSize: const Size(0, 48),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
-        fontWeight: FontWeight.w700,
-      ),
+      textStyle: Theme.of(
+        context,
+      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
     );
 
     return Container(
@@ -516,11 +560,13 @@ class _EmptyOrderState extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
+  final Widget? action;
 
   const _EmptyOrderState({
     required this.icon,
     required this.title,
     required this.subtitle,
+    this.action,
   });
 
   @override
@@ -551,6 +597,7 @@ class _EmptyOrderState extends StatelessWidget {
                 fontSize: 13,
               ),
             ),
+            if (action != null) ...[const SizedBox(height: 14), action!],
           ],
         ),
       ),

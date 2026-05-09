@@ -21,11 +21,11 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _profileFuture = AuthService.fetchCurrentUserProfile();
+    _profileFuture = _fetchAndSyncProfile();
   }
 
   Future<void> _reloadProfile() async {
-    final nextFuture = AuthService.fetchCurrentUserProfile();
+    final nextFuture = _fetchAndSyncProfile();
 
     setState(() {
       _profileFuture = nextFuture;
@@ -36,6 +36,14 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
     } catch (_) {
       // Error handling is surfaced via FutureBuilder state.
     }
+  }
+
+  Future<UserProfileModel> _fetchAndSyncProfile() async {
+    final profile = await AuthService.fetchCurrentUserProfile();
+    if (mounted) {
+      ref.read(authSessionProvider.notifier).syncProfile(profile);
+    }
+    return profile;
   }
 
   @override

@@ -42,23 +42,29 @@ class _DriverVerificationStatusScreenState
   @override
   Widget build(BuildContext context) {
     if (_isLoading && _status == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return _withProfileBackHandling(
+        const Scaffold(body: Center(child: CircularProgressIndicator())),
+      );
     }
 
     if (_errorMessage != null && _status == null) {
-      return Scaffold(
-        appBar: _buildAppBar(),
-        body: _ErrorState(message: _errorMessage!, onRetry: _loadStatus),
+      return _withProfileBackHandling(
+        Scaffold(
+          appBar: _buildAppBar(),
+          body: _ErrorState(message: _errorMessage!, onRetry: _loadStatus),
+        ),
       );
     }
 
     final status = _status;
     if (status == null) {
-      return Scaffold(
-        appBar: _buildAppBar(),
-        body: _ErrorState(
-          message: 'Status verifikasi driver tidak ditemukan.',
-          onRetry: _loadStatus,
+      return _withProfileBackHandling(
+        Scaffold(
+          appBar: _buildAppBar(),
+          body: _ErrorState(
+            message: 'Status verifikasi driver tidak ditemukan.',
+            onRetry: _loadStatus,
+          ),
         ),
       );
     }
@@ -68,113 +74,146 @@ class _DriverVerificationStatusScreenState
         .toLowerCase();
     final canUpload = _canUpload(registrationStatus);
 
-    return Scaffold(
-      appBar: _buildAppBar(),
-      body: RefreshIndicator(
-        onRefresh: _loadStatus,
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            _StatusCard(
-              title: _titleFor(registrationStatus),
-              description: _descriptionFor(registrationStatus),
-              registrationStatus: registrationStatus,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Dokumen Verifikasi',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
+    return _withProfileBackHandling(
+      Scaffold(
+        appBar: _buildAppBar(),
+        body: RefreshIndicator(
+          onRefresh: _loadStatus,
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              _StatusCard(
+                title: _titleFor(registrationStatus),
+                description: _descriptionFor(registrationStatus),
+                registrationStatus: registrationStatus,
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              canUpload
-                  ? 'Pilih dokumen dari kamera atau galeri. Anda bisa unggah minimal satu dokumen setiap pengajuan.'
-                  : 'Upload dokumen dinonaktifkan untuk status akun driver saat ini.',
-              style: const TextStyle(color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 12),
-            ..._orderedDocumentTypes.map((documentType) {
-              final document = status.documentByType(documentType);
-              final selectedFile = _selectedDocuments[documentType];
+              const SizedBox(height: 16),
+              const Text(
+                'Dokumen Verifikasi',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                canUpload
+                    ? 'Pilih dokumen dari kamera atau galeri. Anda bisa unggah minimal satu dokumen setiap pengajuan.'
+                    : 'Upload dokumen dinonaktifkan untuk status akun driver saat ini.',
+                style: const TextStyle(color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              ..._orderedDocumentTypes.map((documentType) {
+                final document = status.documentByType(documentType);
+                final selectedFile = _selectedDocuments[documentType];
 
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _DocumentCard(
-                  documentType: documentType,
-                  document: document,
-                  selectedFile: selectedFile,
-                  enabled: canUpload && !_isSubmitting,
-                  onPickPressed: () => _openPickerSheet(documentType),
-                ),
-              );
-            }),
-            if (_errorMessage != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(12),
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _DocumentCard(
+                    documentType: documentType,
+                    document: document,
+                    selectedFile: selectedFile,
+                    enabled: canUpload && !_isSubmitting,
+                    onPickPressed: () => _openPickerSheet(documentType),
                   ),
-                  child: Text(
-                    _errorMessage!,
-                    style: TextStyle(color: Colors.red.shade700),
+                );
+              }),
+              if (_errorMessage != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      _errorMessage!,
+                      style: TextStyle(color: Colors.red.shade700),
+                    ),
+                  ),
+                ),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: (!_isSubmitting && canUpload)
+                      ? _submitDocuments
+                      : null,
+                  icon: _isSubmitting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.white,
+                          ),
+                        )
+                      : const Icon(Icons.upload_file_outlined),
+                  label: Text(
+                    _isSubmitting ? 'Mengunggah...' : 'Kirim Dokumen',
                   ),
                 ),
               ),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: (!_isSubmitting && canUpload)
-                    ? _submitDocuments
-                    : null,
-                icon: _isSubmitting
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.white,
-                        ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _isLoading ? null : _loadStatus,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Refresh Status'),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: registrationStatus == 'active'
+                    ? ElevatedButton.icon(
+                        onPressed: _isLoading ? null : _backToDriverProfile,
+                        icon: const Icon(Icons.person_outline),
+                        label: const Text('Buka Profil Driver'),
                       )
-                    : const Icon(Icons.upload_file_outlined),
-                label: Text(_isSubmitting ? 'Mengunggah...' : 'Kirim Dokumen'),
+                    : OutlinedButton.icon(
+                        onPressed: _isLoading ? null : _backToDriverProfile,
+                        icon: const Icon(Icons.person_outline),
+                        label: const Text('Kembali ke Profil Driver'),
+                      ),
               ),
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _isLoading ? null : _loadStatus,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Refresh Status'),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: Text(
+                  'Anda tidak perlu menunggu di halaman ini. Gunakan tombol refresh untuk cek status secara berkala.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: Text(
-                'Anda tidak perlu menunggu di halaman ini. Gunakan tombol refresh untuk cek status secara berkala.',
+              const SizedBox(height: 8),
+              Text(
+                'Jika dokumen ditolak, unggah ulang dari halaman ini sampai status aktif.',
                 style: Theme.of(
                   context,
                 ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Jika dokumen ditolak, unggah ulang dari halaman ini sampai status aktif.',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _withProfileBackHandling(Widget child) {
+    return PopScope(
+      canPop: Navigator.of(context).canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          return;
+        }
+
+        _backToDriverProfile();
+      },
+      child: child,
     );
   }
 
@@ -192,13 +231,11 @@ class _DriverVerificationStatusScreenState
     return AppBar(
       title: const Text('Status Verifikasi Driver'),
       automaticallyImplyLeading: false,
-      actions: [
-        IconButton(
-          onPressed: _backToDriverProfile,
-          icon: const Icon(Icons.arrow_back),
-          tooltip: 'Kembali ke Profil Driver',
-        ),
-      ],
+      leading: IconButton(
+        onPressed: _backToDriverProfile,
+        icon: const Icon(Icons.arrow_back),
+        tooltip: 'Kembali ke Profil Driver',
+      ),
     );
   }
 
@@ -218,6 +255,8 @@ class _DriverVerificationStatusScreenState
       setState(() {
         _status = data;
       });
+
+      await ref.read(authSessionProvider.notifier).refreshSession();
     } on DriverVerificationException catch (e) {
       if (!mounted) {
         return;
