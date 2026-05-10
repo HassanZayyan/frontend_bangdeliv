@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -20,7 +18,6 @@ class DriverOrdersScreen extends ConsumerStatefulWidget {
 
 class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen>
     with SingleTickerProviderStateMixin {
-  Timer? _refreshTimer;
   late final TabController _tabController;
   bool _didResolveInitialTab = false;
 
@@ -28,15 +25,10 @@ class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _refreshTimer = Timer.periodic(const Duration(seconds: 8), (_) {
-      if (!mounted) return;
-      _refreshOrdersIfDriverOnline();
-    });
   }
 
   @override
   void dispose() {
-    _refreshTimer?.cancel();
     _tabController.dispose();
     super.dispose();
   }
@@ -57,15 +49,6 @@ class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen>
     if (_tabController.index != targetIndex) {
       _tabController.index = targetIndex;
     }
-  }
-
-  void _refreshOrdersIfDriverOnline() {
-    final availability = ref.read(driverAvailabilityProvider).asData?.value;
-    if (availability != null && !availability.isOnline) {
-      return;
-    }
-
-    ref.read(driverOrdersProvider.notifier).refresh();
   }
 
   @override

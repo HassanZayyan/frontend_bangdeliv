@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../config/app_env.dart';
+import '../models/driver_order_model.dart';
 import '../models/order_chat_model.dart';
 import '../utils/order_formatters.dart';
 import 'auth_service.dart';
@@ -49,10 +50,9 @@ class _RawRealtimeEvent {
 
 /// Pusher protocol client for Laravel Reverb.
 ///
-/// The native `pusher_channels_flutter` wrapper exposes `proxy` on Android, but
-/// that value is an HTTP proxy, not a Reverb host. This implementation connects
-/// to Reverb's Pusher-compatible WebSocket endpoint directly so the configured
-/// host, port, and scheme are honored on every Flutter platform.
+/// This implementation connects to Reverb's Pusher-compatible WebSocket
+/// endpoint directly so the configured host, port, and scheme are honored on
+/// every Flutter platform.
 class PusherService {
   PusherService._();
 
@@ -60,9 +60,10 @@ class PusherService {
   static const _driverLocationUpdatedEvent =
       'App\\Events\\DriverLocationUpdated';
   static const _orderStatusChangedEvent = 'App\\Events\\OrderStatusChanged';
-  static const _orderChatMessageSentEvent =
-      'App\\Events\\OrderChatMessageSent';
+  static const _orderChatMessageSentEvent = 'App\\Events\\OrderChatMessageSent';
   static const _orderChatMessageSentAlias = 'order.chat.message.sent';
+  static const _driverOrderAvailableEvent = 'driver.order.available';
+  static const _driverOrderRemovedEvent = 'driver.order.removed';
   static const _protocolVersion = '7';
 
   WebSocketChannel? _socket;
@@ -184,13 +185,18 @@ class PusherService {
     onLocation,
     void Function(OrderStatusRealtimeEvent event)? onStatusChanged,
     void Function(OrderChatMessageModel message)? onChatMessage,
+    VoidCallback? onSubscribed,
+    void Function(Object error)? onConnectionIssue,
   }) {
     final channelName = 'private-order.tracking.$orderId';
     final controller = _retainChannel(channelName);
 
     unawaited(
-      _subscribeChannel(channelName).catchError((Object error) {
+      _subscribeChannel(
+        channelName,
+      ).then((_) => onSubscribed?.call()).catchError((Object error) {
         _log('subscribe failed for $channelName: $error');
+        onConnectionIssue?.call(error);
       }),
     );
 
@@ -208,6 +214,44 @@ class PusherService {
       if (_isOrderChatMessageEvent(rawEvent.eventName) &&
           onChatMessage != null) {
         _handleChatPayload(rawEvent.payload, onChatMessage);
+      }
+    });
+
+    return _MappedStreamSubscription<Map<String, dynamic>>(
+      rawSubscription,
+      onCancel: () => _releaseChannel(channelName),
+    );
+  }
+
+  StreamSubscription<Map<String, dynamic>> subscribeDriverOrders(
+    int userId, {
+    void Function(DriverOrderModel order)? onOrderAvailable,
+    void Function(String orderId, String? reason)? onOrderRemoved,
+    VoidCallback? onSubscribed,
+    void Function(Object error)? onConnectionIssue,
+  }) {
+    final channelName = 'private-driver.orders.user.$userId';
+    final controller = _retainChannel(channelName);
+
+    unawaited(
+      _subscribeChannel(
+        channelName,
+      ).then((_) => onSubscribed?.call()).catchError((Object error) {
+        _log('subscribe failed for $channelName: $error');
+        onConnectionIssue?.call(error);
+      }),
+    );
+
+    final rawSubscription = controller.stream.listen((rawEvent) {
+      if (_isDriverOrderAvailableEvent(rawEvent.eventName) &&
+          onOrderAvailable != null) {
+        _handleDriverOrderAvailablePayload(rawEvent.payload, onOrderAvailable);
+        return;
+      }
+
+      if (_isDriverOrderRemovedEvent(rawEvent.eventName) &&
+          onOrderRemoved != null) {
+        _handleDriverOrderRemovedPayload(rawEvent.payload, onOrderRemoved);
       }
     });
 
@@ -363,7 +407,8 @@ class PusherService {
         !_channelControllers.containsKey(channelName) ||
         (!_isDriverLocationEvent(eventName) &&
             !_isOrderStatusEvent(eventName) &&
-            !_isOrderChatMessageEvent(eventName))) {
+            !_isOrderChatMessageEvent(eventName) &&
+            !_isDriverOrderEvent(eventName))) {
       return;
     }
 
@@ -409,7 +454,12 @@ class PusherService {
     }
 
     _reconnectAttempts += 1;
-    final delaySeconds = (_reconnectAttempts * 3).clamp(3, 30).toInt();
+    final delaySeconds = switch (_reconnectAttempts) {
+      1 => 1,
+      2 => 2,
+      3 => 5,
+      _ => 15,
+    };
     _log('reconnecting in ${delaySeconds}s');
 
     _reconnectTimer = Timer(Duration(seconds: delaySeconds), () {
@@ -484,6 +534,19 @@ class PusherService {
   bool _isOrderChatMessageEvent(String eventName) {
     return _matchesEvent(eventName, _orderChatMessageSentEvent) ||
         _matchesEvent(eventName, _orderChatMessageSentAlias);
+  }
+
+  bool _isDriverOrderEvent(String eventName) {
+    return _isDriverOrderAvailableEvent(eventName) ||
+        _isDriverOrderRemovedEvent(eventName);
+  }
+
+  bool _isDriverOrderAvailableEvent(String eventName) {
+    return _matchesEvent(eventName, _driverOrderAvailableEvent);
+  }
+
+  bool _isDriverOrderRemovedEvent(String eventName) {
+    return _matchesEvent(eventName, _driverOrderRemovedEvent);
   }
 
   bool _matchesEvent(String rawEventName, String expectedEventName) {
@@ -615,6 +678,36 @@ class PusherService {
     } catch (error) {
       _log('chat payload decode failed: $error');
     }
+  }
+
+  void _handleDriverOrderAvailablePayload(
+    Map<String, dynamic> payload,
+    void Function(DriverOrderModel order) onOrderAvailable,
+  ) {
+    final order = (payload['order'] is Map<String, dynamic>)
+        ? payload['order'] as Map<String, dynamic>
+        : payload;
+
+    try {
+      onOrderAvailable(DriverOrderModel.fromJson(order));
+    } catch (error) {
+      _log('driver order available payload decode failed: $error');
+    }
+  }
+
+  void _handleDriverOrderRemovedPayload(
+    Map<String, dynamic> payload,
+    void Function(String orderId, String? reason) onOrderRemoved,
+  ) {
+    final rawOrderId =
+        payload['order_id'] ?? payload['orderId'] ?? payload['id'];
+    final orderId = rawOrderId?.toString().trim() ?? '';
+    if (orderId.isEmpty) {
+      return;
+    }
+
+    final reason = payload['reason']?.toString().trim();
+    onOrderRemoved(orderId, reason == null || reason.isEmpty ? null : reason);
   }
 
   double? _asDouble(dynamic value) {

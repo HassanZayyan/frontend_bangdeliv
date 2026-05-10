@@ -29,11 +29,6 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
     super.initState();
     _inputController = TextEditingController();
     _scrollController = ScrollController();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(
-        ref.read(orderChatUnreadCountProvider(widget.orderId).notifier).markRead(),
-      );
-    });
   }
 
   @override
@@ -73,26 +68,37 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
     );
   }
 
+  int _latestServerMessageId(List<OrderChatMessageModel> messages) {
+    return messages
+        .where((message) => message.hasServerId)
+        .fold<int>(
+          0,
+          (maxId, message) => message.id > maxId ? message.id : maxId,
+        );
+  }
+
   @override
   Widget build(BuildContext context) {
     final chatAsync = ref.watch(orderChatProvider(widget.orderId));
     final currentUserId = ref.watch(authSessionProvider).profile?.id ?? 0;
 
-    ref.listen<AsyncValue<OrderChatState>>(
-      orderChatProvider(widget.orderId),
-      (previous, next) {
-        final previousLength = previous?.asData?.value.messages.length ?? 0;
-        final nextLength = next.asData?.value.messages.length ?? 0;
-        if (nextLength > previousLength) {
-          unawaited(
-            ref
-                .read(orderChatUnreadCountProvider(widget.orderId).notifier)
-                .markRead(),
-          );
-          _scrollToBottom();
-        }
-      },
-    );
+    ref.listen<AsyncValue<OrderChatState>>(orderChatProvider(widget.orderId), (
+      previous,
+      next,
+    ) {
+      final previousLength = previous?.asData?.value.messages.length ?? 0;
+      final nextMessages =
+          next.asData?.value.messages ?? const <OrderChatMessageModel>[];
+      final nextLength = nextMessages.length;
+      if (nextLength > previousLength) {
+        unawaited(
+          ref
+              .read(orderChatUnreadCountProvider(widget.orderId).notifier)
+              .markReadThrough(_latestServerMessageId(nextMessages)),
+        );
+        _scrollToBottom();
+      }
+    });
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -122,8 +128,7 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
           children: [
             if (chat.realtimeUnavailable)
               const _InfoBanner(
-                text:
-                    'Realtime belum stabil. Chat tetap disinkronkan berkala.',
+                text: 'Realtime belum stabil. Chat tetap disinkronkan berkala.',
               ),
             if ((chat.errorMessage ?? '').isNotEmpty)
               _InfoBanner(text: chat.errorMessage!),
@@ -132,9 +137,18 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
                 onRefresh: () async {
                   ref.invalidate(orderChatProvider(widget.orderId));
                   await ref.read(orderChatProvider(widget.orderId).future);
+                  final messages =
+                      ref
+                          .read(orderChatProvider(widget.orderId))
+                          .asData
+                          ?.value
+                          .messages ??
+                      const <OrderChatMessageModel>[];
                   await ref
-                      .read(orderChatUnreadCountProvider(widget.orderId).notifier)
-                      .markRead();
+                      .read(
+                        orderChatUnreadCountProvider(widget.orderId).notifier,
+                      )
+                      .markReadThrough(_latestServerMessageId(messages));
                 },
                 child: ListView(
                   controller: _scrollController,
@@ -373,8 +387,9 @@ class _Composer extends StatelessWidget {
                   : const Icon(Icons.send),
               style: IconButton.styleFrom(
                 backgroundColor: AppColors.primary,
-                disabledBackgroundColor:
-                    AppColors.primary.withValues(alpha: 0.45),
+                disabledBackgroundColor: AppColors.primary.withValues(
+                  alpha: 0.45,
+                ),
                 foregroundColor: Colors.white,
               ),
             ),
