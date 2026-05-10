@@ -180,7 +180,7 @@ void main() {
   });
 
   test(
-    'sendMessage marks realtime unavailable when API saved without broadcast',
+    'sendMessage keeps realtime unavailable tied to connection state',
     () async {
       final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
       final fakeService = _FakeOrderChatApiService(
@@ -190,7 +190,6 @@ void main() {
           hasMore: false,
           nextBeforeId: null,
         ),
-        broadcastedOnSend: false,
       );
 
       final container = ProviderContainer(
@@ -299,14 +298,12 @@ class _FakeOrderChatApiService extends OrderChatApiService {
     this.sendCompleter,
     this.sendError,
     this.recoverFailedSend = false,
-    this.broadcastedOnSend = true,
   }) : super(ApiClient());
 
   final OrderChatMessagesPage initialPage;
   final Completer<OrderChatSendResult>? sendCompleter;
   final Object? sendError;
   final bool recoverFailedSend;
-  final bool broadcastedOnSend;
   int fetchCalls = 0;
   String? lastClientMessageId;
   String? lastBody;
@@ -372,7 +369,6 @@ class _FakeOrderChatApiService extends OrderChatApiService {
         clientMessageId: clientMessageId,
       ),
       canSend: true,
-      broadcasted: broadcastedOnSend,
     );
   }
 }

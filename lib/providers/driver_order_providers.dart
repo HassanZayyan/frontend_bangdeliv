@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/driver_order_model.dart';
 import '../services/driver_order_service.dart';
+import '../services/pusher_service.dart';
 import '../utils/order_formatters.dart';
 import '../utils/order_status.dart';
 import 'auth_session_provider.dart';
@@ -37,12 +40,25 @@ class DriverOrdersState {
 }
 
 class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
+  StreamSubscription<Map<String, dynamic>>? _driverRealtimeSub;
+  Timer? _degradedRefreshTimer;
+  bool _disposed = false;
+  bool _silentRefreshInFlight = false;
+
+  bool get _isMounted => !_disposed && ref.mounted;
+
   @override
   Future<DriverOrdersState> build() async {
+    _disposed = false;
+    _cancelRealtime();
+    _stopDegradedRefresh();
+    ref.onDispose(_dispose);
+
     final session = ref.watch(authSessionProvider);
     if (!session.isAuthenticated ||
         session.role != SessionUserRole.driver ||
         session.profile == null) {
+      _cancelRealtime();
       return const DriverOrdersState(
         incoming: <DriverOrderModel>[],
         running: <DriverOrderModel>[],
@@ -50,6 +66,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     }
 
     final payload = await ref.read(driverOrderServiceProvider).fetchOrders();
+    _syncRealtimeSubscription(session);
 
     return DriverOrdersState(
       incoming: payload.incoming,
@@ -58,11 +75,21 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     );
   }
 
-  Future<void> refresh() async {
+  Future<void> refresh({bool showLoading = true}) async {
+    if (!_isMounted) {
+      return;
+    }
+
+    if (!showLoading && _silentRefreshInFlight) {
+      return;
+    }
+
     final session = ref.read(authSessionProvider);
     if (!session.isAuthenticated ||
         session.role != SessionUserRole.driver ||
         session.profile == null) {
+      _cancelRealtime();
+      _stopDegradedRefresh();
       state = const AsyncData(
         DriverOrdersState(
           incoming: <DriverOrderModel>[],
@@ -72,8 +99,17 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       return;
     }
 
+    if (showLoading) {
+      state = const AsyncLoading<DriverOrdersState>();
+    }
+
     try {
+      if (!showLoading) {
+        _silentRefreshInFlight = true;
+      }
+
       final payload = await ref.read(driverOrderServiceProvider).fetchOrders();
+      _syncRealtimeSubscription(session);
       state = AsyncData(
         DriverOrdersState(
           incoming: payload.incoming,
@@ -82,8 +118,150 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         ),
       );
     } catch (error, stackTrace) {
+      if (!showLoading && state.asData != null) {
+        return;
+      }
+
       state = AsyncError(error, stackTrace);
+    } finally {
+      if (!showLoading) {
+        _silentRefreshInFlight = false;
+      }
     }
+  }
+
+  void _syncRealtimeSubscription(AuthSessionState session) {
+    final profile = session.profile;
+    if (!_isMounted ||
+        !session.isAuthenticated ||
+        session.role != SessionUserRole.driver ||
+        profile == null) {
+      _cancelRealtime();
+      return;
+    }
+
+    final availability = ref.read(driverAvailabilityProvider).asData?.value;
+    final fallbackStatus = profile.driverProfile?.status ?? 'offline';
+    final status = (availability?.status ?? fallbackStatus)
+        .trim()
+        .toLowerCase();
+    final canReceiveIncoming = status == 'available' || status == 'online';
+
+    if (!canReceiveIncoming) {
+      _cancelRealtime();
+      _stopDegradedRefresh();
+      _clearIncomingIfNeeded();
+      return;
+    }
+
+    if (_driverRealtimeSub != null) {
+      return;
+    }
+
+    _driverRealtimeSub = PusherService.instance.subscribeDriverOrders(
+      profile.id,
+      onOrderAvailable: _handleRealtimeOrderAvailable,
+      onOrderRemoved: (orderId, _) => _handleRealtimeOrderRemoved(orderId),
+      onSubscribed: _markRealtimeHealthy,
+      onConnectionIssue: (_) => _markRealtimeDegraded(),
+    );
+  }
+
+  void _handleRealtimeOrderAvailable(DriverOrderModel order) {
+    if (!_isMounted) {
+      return;
+    }
+
+    final current = state.asData?.value;
+    if (current == null || order.id.trim().isEmpty) {
+      return;
+    }
+
+    if (current.running.any((item) => item.id == order.id)) {
+      return;
+    }
+
+    state = AsyncData(
+      current.copyWith(incoming: _upsertIncomingOrder(current.incoming, order)),
+    );
+    _markRealtimeHealthy();
+  }
+
+  void _handleRealtimeOrderRemoved(String orderId) {
+    if (!_isMounted) {
+      return;
+    }
+
+    final current = state.asData?.value;
+    if (current == null) {
+      return;
+    }
+
+    final incoming = current.incoming
+        .where((order) => order.id != orderId)
+        .toList(growable: false);
+    if (incoming.length == current.incoming.length) {
+      return;
+    }
+
+    state = AsyncData(current.copyWith(incoming: incoming));
+    _markRealtimeHealthy();
+  }
+
+  List<DriverOrderModel> _upsertIncomingOrder(
+    List<DriverOrderModel> incoming,
+    DriverOrderModel order,
+  ) {
+    final next = List<DriverOrderModel>.from(incoming);
+    final index = next.indexWhere((item) => item.id == order.id);
+    if (index < 0) {
+      next.insert(0, order);
+    } else {
+      next[index] = order;
+    }
+
+    return next.toList(growable: false);
+  }
+
+  void _clearIncomingIfNeeded() {
+    final current = state.asData?.value;
+    if (current == null || current.incoming.isEmpty) {
+      return;
+    }
+
+    state = AsyncData(current.copyWith(incoming: const <DriverOrderModel>[]));
+  }
+
+  void _markRealtimeHealthy() {
+    _stopDegradedRefresh();
+  }
+
+  void _markRealtimeDegraded() {
+    if (!_isMounted || _degradedRefreshTimer != null) {
+      return;
+    }
+
+    _degradedRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      unawaited(refresh(showLoading: false));
+    });
+  }
+
+  void _refreshAvailabilityThenSyncRealtime() {
+    final session = ref.read(authSessionProvider);
+    unawaited(
+      ref
+          .read(driverAvailabilityProvider.future)
+          .then((_) {
+            if (_isMounted) {
+              _syncRealtimeSubscription(session);
+            }
+          })
+          .catchError((_) {
+            if (_isMounted) {
+              _syncRealtimeSubscription(session);
+            }
+          }),
+    );
   }
 
   Future<String?> acceptOrder(String id) async {
@@ -151,6 +329,8 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
 
       ref.invalidate(driverOrderDetailProvider(id));
       ref.invalidate(driverAvailabilityProvider);
+      _cancelRealtime();
+      _stopDegradedRefresh();
 
       return null;
     } catch (error) {
@@ -204,6 +384,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         latest.copyWith(processingOrderIds: cleanedProcessingIds),
       );
       ref.invalidate(driverAvailabilityProvider);
+      _refreshAvailabilityThenSyncRealtime();
 
       return null;
     } catch (error) {
@@ -269,6 +450,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
 
       ref.invalidate(driverOrderDetailProvider(orderId));
       ref.invalidate(driverAvailabilityProvider);
+      _refreshAvailabilityThenSyncRealtime();
       return null;
     } catch (error) {
       final latest = state.asData?.value;
@@ -377,6 +559,23 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
 
   String _currentHourMinute() {
     return currentWibHourMinute();
+  }
+
+  void _cancelRealtime() {
+    final subscription = _driverRealtimeSub;
+    _driverRealtimeSub = null;
+    unawaited(subscription?.cancel());
+  }
+
+  void _stopDegradedRefresh() {
+    _degradedRefreshTimer?.cancel();
+    _degradedRefreshTimer = null;
+  }
+
+  void _dispose() {
+    _disposed = true;
+    _cancelRealtime();
+    _stopDegradedRefresh();
   }
 }
 

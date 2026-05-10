@@ -57,26 +57,23 @@ class OrderChatMessageModel {
     return OrderChatMessageModel(
       id: _asInt(json['id']),
       orderId: _asInt(json['order_id'] ?? json['orderId']),
-      senderUserId: _asInt(
-        json['sender_user_id'] ?? json['senderUserId'],
-      ),
+      senderUserId: _asInt(json['sender_user_id'] ?? json['senderUserId']),
       senderRole: (json['sender_role'] ?? json['senderRole'] ?? '')
           .toString()
           .trim()
           .toLowerCase(),
-      senderName: (json['sender_name'] ??
-              json['senderName'] ??
-              json['sender_name_snapshot'] ??
-              '')
-          .toString()
-          .trim(),
+      senderName:
+          (json['sender_name'] ??
+                  json['senderName'] ??
+                  json['sender_name_snapshot'] ??
+                  '')
+              .toString()
+              .trim(),
       body: (json['body'] ?? '').toString(),
       clientMessageId: _nullableString(
         json['client_message_id'] ?? json['clientMessageId'],
       ),
-      createdAt: parseBackendDateTime(
-        json['created_at'] ?? json['createdAt'],
-      ),
+      createdAt: parseBackendDateTime(json['created_at'] ?? json['createdAt']),
     );
   }
 
@@ -136,15 +133,10 @@ class OrderChatMessagesPage {
 }
 
 class OrderChatSendResult {
-  const OrderChatSendResult({
-    required this.message,
-    required this.canSend,
-    this.broadcasted = true,
-  });
+  const OrderChatSendResult({required this.message, required this.canSend});
 
   final OrderChatMessageModel message;
   final bool canSend;
-  final bool broadcasted;
 
   factory OrderChatSendResult.fromApiJson(Map<String, dynamic> json) {
     final data = (json['data'] is Map<String, dynamic>)
@@ -157,9 +149,6 @@ class OrderChatSendResult {
     return OrderChatSendResult(
       message: OrderChatMessageModel.fromJson(rawMessage),
       canSend: data['can_send'] == true,
-      broadcasted: data.containsKey('broadcasted')
-          ? data['broadcasted'] == true
-          : true,
     );
   }
 }

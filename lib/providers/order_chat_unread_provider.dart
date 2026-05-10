@@ -8,17 +8,16 @@ import '../services/pusher_service.dart';
 import 'api_providers.dart';
 import 'auth_session_provider.dart';
 
-final orderChatUnreadCountProvider =
-    AsyncNotifierProvider.family
-        .autoDispose<OrderChatUnreadNotifier, int, int>(
-          OrderChatUnreadNotifier.new,
-        );
+final orderChatUnreadCountProvider = AsyncNotifierProvider.family
+    .autoDispose<OrderChatUnreadNotifier, int, int>(
+      OrderChatUnreadNotifier.new,
+    );
 
 class OrderChatUnreadNotifier extends AsyncNotifier<int> {
   OrderChatUnreadNotifier(this.orderId);
 
   final int orderId;
-  Timer? _pollTimer;
+  Timer? _degradedRefreshTimer;
   StreamSubscription<Map<String, dynamic>>? _realtimeSub;
   bool _disposed = false;
 
@@ -35,7 +34,6 @@ class OrderChatUnreadNotifier extends AsyncNotifier<int> {
     }
 
     _subscribeRealtime();
-    _startPolling();
     return _computeUnreadCount();
   }
 
@@ -62,8 +60,8 @@ class OrderChatUnreadNotifier extends AsyncNotifier<int> {
     }
   }
 
-  Future<void> markRead() async {
-    if (!_isMounted) {
+  Future<void> markReadThrough(int messageId) async {
+    if (!_isMounted || messageId <= 0) {
       return;
     }
 
@@ -73,22 +71,14 @@ class OrderChatUnreadNotifier extends AsyncNotifier<int> {
       return;
     }
 
-    try {
-      final page = await ref
-          .read(orderChatApiServiceProvider)
-          .fetchMessages(orderId: orderId, limit: 100);
-      final latestMessageId = _latestServerMessageId(page.messages);
-      await _writeLastSeenMessageId(
-        userId: profile.id,
-        role: session.role,
-        messageId: latestMessageId,
-      );
+    await _writeLastSeenMessageId(
+      userId: profile.id,
+      role: session.role,
+      messageId: messageId,
+    );
 
-      if (_isMounted) {
-        state = const AsyncData(0);
-      }
-    } catch (_) {
-      // Ignore mark-read failures to avoid disturbing chat flow.
+    if (_isMounted) {
+      state = const AsyncData(0);
     }
   }
 
@@ -117,12 +107,6 @@ class OrderChatUnreadNotifier extends AsyncNotifier<int> {
       if (message.id <= lastSeenMessageId) return false;
       return message.senderRole.trim().toLowerCase() != myRoleToken;
     }).length;
-  }
-
-  int _latestServerMessageId(List<OrderChatMessageModel> messages) {
-    return messages
-        .where((message) => message.hasServerId)
-        .fold<int>(0, (maxId, message) => message.id > maxId ? message.id : maxId);
   }
 
   bool _isEligibleSession(AuthSessionState session) {
@@ -172,27 +156,52 @@ class OrderChatUnreadNotifier extends AsyncNotifier<int> {
     _realtimeSub?.cancel();
     _realtimeSub = PusherService.instance.subscribeOrderTracking(
       orderId,
-      onChatMessage: (_) {
-        unawaited(refreshUnread());
-      },
+      onSubscribed: _markRealtimeHealthy,
+      onConnectionIssue: (_) => _markRealtimeDegraded(),
+      onChatMessage: _handleRealtimeMessage,
     );
   }
 
-  void _startPolling() {
+  void _handleRealtimeMessage(OrderChatMessageModel message) {
     if (!_isMounted) {
       return;
     }
 
-    _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+    final session = ref.read(authSessionProvider);
+    final profile = session.profile;
+    if (!_isEligibleSession(session) || profile == null) {
+      return;
+    }
+
+    _markRealtimeHealthy();
+
+    if (message.senderUserId == profile.id) {
+      return;
+    }
+
+    final current = state.asData?.value ?? 0;
+    state = AsyncData(current + 1);
+  }
+
+  void _markRealtimeHealthy() {
+    _degradedRefreshTimer?.cancel();
+    _degradedRefreshTimer = null;
+  }
+
+  void _markRealtimeDegraded() {
+    if (!_isMounted || _degradedRefreshTimer != null) {
+      return;
+    }
+
+    _degradedRefreshTimer = Timer.periodic(const Duration(seconds: 12), (_) {
       unawaited(refreshUnread());
     });
   }
 
   void _dispose() {
     _disposed = true;
-    _pollTimer?.cancel();
-    _pollTimer = null;
+    _degradedRefreshTimer?.cancel();
+    _degradedRefreshTimer = null;
     unawaited(_realtimeSub?.cancel());
     _realtimeSub = null;
   }

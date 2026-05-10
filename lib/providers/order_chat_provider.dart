@@ -9,9 +9,7 @@ import 'api_providers.dart';
 import 'auth_session_provider.dart';
 
 final orderChatProvider = AsyncNotifierProvider.family
-    .autoDispose<OrderChatNotifier, OrderChatState, int>(
-  OrderChatNotifier.new,
-);
+    .autoDispose<OrderChatNotifier, OrderChatState, int>(OrderChatNotifier.new);
 
 class OrderChatState {
   const OrderChatState({
@@ -59,8 +57,7 @@ class OrderChatState {
           : (nextBeforeId ?? this.nextBeforeId),
       isLoadingOlder: isLoadingOlder ?? this.isLoadingOlder,
       sendingCount: sendingCount ?? this.sendingCount,
-      realtimeUnavailable:
-          realtimeUnavailable ?? this.realtimeUnavailable,
+      realtimeUnavailable: realtimeUnavailable ?? this.realtimeUnavailable,
       errorMessage: clearErrorMessage
           ? null
           : (errorMessage ?? this.errorMessage),
@@ -74,7 +71,7 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
   final int orderId;
 
   StreamSubscription<Map<String, dynamic>>? _realtimeSub;
-  Timer? _pollTimer;
+  Timer? _degradedSyncTimer;
   bool _disposed = false;
 
   bool get _isMounted => !_disposed && ref.mounted;
@@ -83,8 +80,7 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
   Future<OrderChatState> build() async {
     _disposed = false;
     _cancelRealtime();
-    _pollTimer?.cancel();
-    _pollTimer = null;
+    _stopDegradedSync();
     ref.onDispose(_dispose);
 
     final session = ref.watch(authSessionProvider);
@@ -110,7 +106,6 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
     }
 
     _subscribeRealtime();
-    _startPolling();
 
     return OrderChatState(
       orderId: orderId,
@@ -261,7 +256,6 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
           ]),
           canSend: result.canSend,
           sendingCount: _decrementSending(latest.sendingCount),
-          realtimeUnavailable: !result.broadcasted,
           clearErrorMessage: true,
         ),
       );
@@ -288,10 +282,7 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
 
       state = AsyncData(
         latest.copyWith(
-          messages: _markOptimisticFailed(
-            latest.messages,
-            clientMessageId,
-          ),
+          messages: _markOptimisticFailed(latest.messages, clientMessageId),
           sendingCount: _decrementSending(latest.sendingCount),
           errorMessage: friendlyError,
         ),
@@ -309,6 +300,8 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
     _realtimeSub?.cancel();
     _realtimeSub = PusherService.instance.subscribeOrderTracking(
       orderId,
+      onSubscribed: _markRealtimeHealthy,
+      onConnectionIssue: (_) => _markRealtimeDegraded(),
       onChatMessage: (message) {
         if (!_isMounted) {
           return;
@@ -328,17 +321,40 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
             clearErrorMessage: true,
           ),
         );
+        _markRealtimeHealthy();
       },
     );
   }
 
-  void _startPolling() {
+  void _markRealtimeHealthy() {
     if (!_isMounted) {
       return;
     }
 
-    _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+    _stopDegradedSync();
+    final current = state.asData?.value;
+    if (current == null || !current.realtimeUnavailable) {
+      return;
+    }
+
+    state = AsyncData(current.copyWith(realtimeUnavailable: false));
+  }
+
+  void _markRealtimeDegraded() {
+    if (!_isMounted) {
+      return;
+    }
+
+    final current = state.asData?.value;
+    if (current != null && !current.realtimeUnavailable) {
+      state = AsyncData(current.copyWith(realtimeUnavailable: true));
+    }
+
+    if (_degradedSyncTimer != null) {
+      return;
+    }
+
+    _degradedSyncTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       unawaited(_pollNewMessages());
     });
   }
@@ -381,7 +397,6 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
         latest.copyWith(
           messages: _mergeMessages(latest.messages, page.messages),
           canSend: page.canSend,
-          realtimeUnavailable: false,
           clearErrorMessage: true,
         ),
       );
@@ -392,9 +407,7 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
 
       final latest = state.asData?.value;
       if (latest == null) return;
-      state = AsyncData(
-        latest.copyWith(realtimeUnavailable: true),
-      );
+      state = AsyncData(latest.copyWith(realtimeUnavailable: true));
     }
   }
 
@@ -416,7 +429,6 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
       state = AsyncData(
         current.copyWith(
           sendingCount: _decrementSending(current.sendingCount),
-          realtimeUnavailable: true,
           clearErrorMessage: true,
         ),
       );
@@ -458,7 +470,6 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
           messages: _mergeMessages(latest.messages, page.messages),
           canSend: page.canSend,
           sendingCount: _decrementSending(latest.sendingCount),
-          realtimeUnavailable: true,
           clearErrorMessage: true,
         ),
       );
@@ -471,7 +482,10 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
   int _latestServerMessageId(List<OrderChatMessageModel> messages) {
     return messages
         .where((message) => message.hasServerId)
-        .fold<int>(0, (maxId, message) => message.id > maxId ? message.id : maxId);
+        .fold<int>(
+          0,
+          (maxId, message) => message.id > maxId ? message.id : maxId,
+        );
   }
 
   String _friendlySendError(Object error) {
@@ -540,10 +554,7 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
     return next.toList(growable: false);
   }
 
-  int _compareMessages(
-    OrderChatMessageModel a,
-    OrderChatMessageModel b,
-  ) {
+  int _compareMessages(OrderChatMessageModel a, OrderChatMessageModel b) {
     final aTime = a.createdAt?.millisecondsSinceEpoch ?? 0;
     final bTime = b.createdAt?.millisecondsSinceEpoch ?? 0;
     final byTime = aTime.compareTo(bTime);
@@ -566,10 +577,14 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
     unawaited(subscription?.cancel());
   }
 
+  void _stopDegradedSync() {
+    _degradedSyncTimer?.cancel();
+    _degradedSyncTimer = null;
+  }
+
   void _dispose() {
     _disposed = true;
     _cancelRealtime();
-    _pollTimer?.cancel();
-    _pollTimer = null;
+    _stopDegradedSync();
   }
 }
