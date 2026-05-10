@@ -95,12 +95,16 @@ class OrderChatMessagesPage {
     required this.canSend,
     required this.hasMore,
     required this.nextBeforeId,
+    required this.unreadCount,
+    required this.lastReadMessageId,
   });
 
   final List<OrderChatMessageModel> messages;
   final bool canSend;
   final bool hasMore;
   final int? nextBeforeId;
+  final int unreadCount;
+  final int lastReadMessageId;
 
   factory OrderChatMessagesPage.fromApiJson(Map<String, dynamic> json) {
     final data = (json['data'] is Map<String, dynamic>)
@@ -121,6 +125,8 @@ class OrderChatMessagesPage {
       canSend: data['can_send'] == true,
       hasMore: pagination['has_more'] == true,
       nextBeforeId: _asNullableInt(pagination['next_before_id']),
+      unreadCount: _asInt(data['unread_count']),
+      lastReadMessageId: _asInt(data['last_read_message_id']),
     );
   }
 
@@ -129,6 +135,35 @@ class OrderChatMessagesPage {
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse(value.toString());
+  }
+
+  static int _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+}
+
+class OrderChatUnreadSummary {
+  const OrderChatUnreadSummary({
+    required this.unreadCount,
+    required this.lastReadMessageId,
+  });
+
+  final int unreadCount;
+  final int lastReadMessageId;
+
+  factory OrderChatUnreadSummary.fromApiJson(Map<String, dynamic> json) {
+    final data = (json['data'] is Map<String, dynamic>)
+        ? json['data'] as Map<String, dynamic>
+        : const <String, dynamic>{};
+
+    return OrderChatUnreadSummary(
+      unreadCount: OrderChatMessagesPage._asInt(data['unread_count']),
+      lastReadMessageId: OrderChatMessagesPage._asInt(
+        data['last_read_message_id'],
+      ),
+    );
   }
 }
 

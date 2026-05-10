@@ -33,10 +33,10 @@ import '../models/merchant_model.dart';
 import '../providers/api_providers.dart';
 import '../providers/auth_session_provider.dart';
 import '../providers/customer_order_providers.dart';
-import '../providers/customer_order_realtime_provider.dart';
 import '../providers/customer_order_tracking_provider.dart';
 import '../providers/driver_order_providers.dart';
 import '../providers/order_chat_provider.dart';
+import '../providers/order_realtime_hub_provider.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/notification_settings_screen.dart';
 import '../screens/privacy_map_screen.dart';
@@ -320,7 +320,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ref.invalidate(customerOngoingOrdersProvider);
       ref.invalidate(customerCancelledOrdersProvider);
       ref.invalidate(customerActiveOrderProvider);
-      ref.invalidate(customerOrderRealtimeHubProvider);
+      ref.invalidate(orderRealtimeHubProvider);
       ref.invalidate(customerOrderTrackingProvider);
       ref.invalidate(orderChatProvider);
 

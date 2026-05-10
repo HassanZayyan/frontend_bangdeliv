@@ -7,7 +7,7 @@ import '../services/pusher_service.dart';
 import '../utils/order_status.dart';
 import 'api_providers.dart';
 import 'auth_session_provider.dart';
-import 'customer_order_realtime_provider.dart';
+import 'order_realtime_hub_provider.dart';
 
 final customerOrderTrackingProvider = AsyncNotifierProvider.family
     .autoDispose<CustomerOrderTrackingNotifier, CustomerOrderTrackingState, int>(
@@ -72,10 +72,10 @@ class CustomerOrderTrackingNotifier
 
   final int orderId;
 
-  StreamSubscription<CustomerOrderRealtimeEvent>? _realtimeSub;
+  StreamSubscription<OrderRealtimeEvent>? _realtimeSub;
   Timer? _reconcileDebounce;
   Timer? _autoRefreshTimer;
-  CustomerOrderRealtimeHub? _hub;
+  OrderRealtimeHub? _hub;
   bool _disposed = false;
   bool _retainedOrder = false;
   bool _autoRefreshInFlight = false;
@@ -98,7 +98,7 @@ class CustomerOrderTrackingNotifier
       throw StateError('Sesi customer tidak aktif.');
     }
 
-    final hub = ref.read(customerOrderRealtimeHubProvider);
+    final hub = ref.read(orderRealtimeHubProvider);
     _hub = hub;
     _realtimeSub = hub.events
         .where((event) => event.orderId == orderId)
@@ -117,22 +117,27 @@ class CustomerOrderTrackingNotifier
     return CustomerOrderTrackingState(detail: detail);
   }
 
-  void _handleRealtimeEvent(CustomerOrderRealtimeEvent event) {
+  void _handleRealtimeEvent(OrderRealtimeEvent event) {
     if (!_isMounted) {
       return;
     }
 
     switch (event.type) {
-      case CustomerOrderRealtimeEventType.status:
+      case OrderRealtimeEventType.connected:
+        _markRealtimeConnected();
+        break;
+      case OrderRealtimeEventType.status:
         final status = event.status;
         if (status != null) {
           _applyStatusEvent(status);
         }
         break;
-      case CustomerOrderRealtimeEventType.location:
+      case OrderRealtimeEventType.location:
         _applyLocationEvent(event);
         break;
-      case CustomerOrderRealtimeEventType.connectionIssue:
+      case OrderRealtimeEventType.chat:
+        break;
+      case OrderRealtimeEventType.connectionIssue:
         _markRealtimeUnavailable(
           event.message ??
               'Realtime belum tersambung. Aplikasi akan mencoba ulang.',
@@ -141,7 +146,27 @@ class CustomerOrderTrackingNotifier
     }
   }
 
-  void _applyLocationEvent(CustomerOrderRealtimeEvent event) {
+  void _markRealtimeConnected() {
+    if (!_isMounted) {
+      return;
+    }
+
+    final current = state.asData?.value;
+    if (current == null) {
+      return;
+    }
+
+    state = AsyncData(
+      current.copyWith(
+        realtimeConnected: true,
+        realtimeUnavailable: false,
+        clearRealtimeMessage: true,
+      ),
+    );
+    unawaited(_reconcileDetail());
+  }
+
+  void _applyLocationEvent(OrderRealtimeEvent event) {
     if (!_isMounted) {
       return;
     }

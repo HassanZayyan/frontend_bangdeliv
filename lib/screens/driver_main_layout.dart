@@ -59,9 +59,11 @@ class _DriverMainLayoutState extends ConsumerState<DriverMainLayout> {
     final session = ref.watch(authSessionProvider);
     final isActiveDriver =
         session.driverAccessState == DriverAccessState.active;
-    final activeOrder = isActiveDriver
-        ? ref.watch(driverActiveOrderProvider)
-        : null;
+    final ordersState = isActiveDriver ? ref.watch(driverOrdersProvider) : null;
+    final activeOrder = ordersState?.maybeWhen(
+      data: (value) => value.running.isEmpty ? null : value.running.first,
+      orElse: () => null,
+    );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;

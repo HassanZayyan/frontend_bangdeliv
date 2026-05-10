@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'config/app_env.dart';
 import 'config/app_theme.dart';
 import 'config/app_router.dart';
+import 'providers/app_realtime_bootstrap_provider.dart';
 import 'providers/auth_session_provider.dart';
 
 void main() {
@@ -32,6 +33,7 @@ class _MyAppState extends ConsumerState<MyApp> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(appRealtimeBootstrapProvider);
     final router = ref.watch(appRouterProvider);
 
     return MaterialApp.router(

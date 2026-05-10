@@ -6,7 +6,7 @@ import '../models/customer_order_model.dart';
 import '../utils/order_status.dart';
 import 'api_providers.dart';
 import 'auth_session_provider.dart';
-import 'customer_order_realtime_provider.dart';
+import 'order_realtime_hub_provider.dart';
 
 final customerOrdersProvider =
     AsyncNotifierProvider<CustomerOrdersNotifier, List<CustomerOrderSummaryModel>>(
@@ -35,10 +35,10 @@ final customerOrdersAutoRefreshProvider = Provider.autoDispose<void>((ref) {
 
 class CustomerOrdersNotifier
     extends AsyncNotifier<List<CustomerOrderSummaryModel>> {
-  StreamSubscription<CustomerOrderRealtimeEvent>? _realtimeSub;
+  StreamSubscription<OrderRealtimeEvent>? _realtimeSub;
   final Set<int> _retainedOrderIds = <int>{};
   Timer? _reconcileDebounce;
-  CustomerOrderRealtimeHub? _hub;
+  OrderRealtimeHub? _hub;
   bool _disposeRegistered = false;
   bool _disposed = false;
   bool _silentRefreshInFlight = false;
@@ -131,13 +131,13 @@ class CustomerOrdersNotifier
     return service.fetchOrders(page: 1, perPage: 50);
   }
 
-  CustomerOrderRealtimeHub _readRealtimeHub() {
+  OrderRealtimeHub _readRealtimeHub() {
     final existingHub = _hub;
     if (existingHub != null) {
       return existingHub;
     }
 
-    final hub = ref.read(customerOrderRealtimeHubProvider);
+    final hub = ref.read(orderRealtimeHubProvider);
     _hub = hub;
     return hub;
   }
@@ -147,12 +147,12 @@ class CustomerOrdersNotifier
     _realtimeSub ??= hub.events.listen(_handleRealtimeEvent);
   }
 
-  void _handleRealtimeEvent(CustomerOrderRealtimeEvent event) {
+  void _handleRealtimeEvent(OrderRealtimeEvent event) {
     if (!_isMounted) {
       return;
     }
 
-    if (event.type != CustomerOrderRealtimeEventType.status) {
+    if (event.type != OrderRealtimeEventType.status) {
       return;
     }
 

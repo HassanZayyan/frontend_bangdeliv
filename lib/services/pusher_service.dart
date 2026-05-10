@@ -48,12 +48,36 @@ class _RawRealtimeEvent {
   final Map<String, dynamic> payload;
 }
 
+abstract class OrderRealtimeClient {
+  Future<void> connect();
+
+  StreamSubscription<Map<String, dynamic>> subscribeOrderTracking(
+    int orderId, {
+    void Function(double lat, double lng, double heading, DateTime updatedAt)?
+    onLocation,
+    void Function(OrderStatusRealtimeEvent event)? onStatusChanged,
+    void Function(OrderChatMessageModel message)? onChatMessage,
+    VoidCallback? onSubscribed,
+    void Function(Object error)? onConnectionIssue,
+  });
+
+  StreamSubscription<Map<String, dynamic>> subscribeDriverOrders(
+    int userId, {
+    void Function(DriverOrderModel order)? onOrderAvailable,
+    void Function(String orderId, String? reason)? onOrderRemoved,
+    VoidCallback? onSubscribed,
+    void Function(Object error)? onConnectionIssue,
+  });
+
+  Future<void> disconnect();
+}
+
 /// Pusher protocol client for Laravel Reverb.
 ///
 /// This implementation connects to Reverb's Pusher-compatible WebSocket
 /// endpoint directly so the configured host, port, and scheme are honored on
 /// every Flutter platform.
-class PusherService {
+class PusherService implements OrderRealtimeClient {
   PusherService._();
 
   static final PusherService instance = PusherService._();
@@ -65,6 +89,8 @@ class PusherService {
   static const _driverOrderAvailableEvent = 'driver.order.available';
   static const _driverOrderRemovedEvent = 'driver.order.removed';
   static const _protocolVersion = '7';
+  static const _connectTimeout = Duration(seconds: 8);
+  static const _idleDisconnectDelay = Duration(seconds: 10);
 
   WebSocketChannel? _socket;
   StreamSubscription<dynamic>? _socketSub;
@@ -73,6 +99,7 @@ class PusherService {
   bool _connected = false;
   bool _manualDisconnect = false;
   Timer? _reconnectTimer;
+  Timer? _idleDisconnectTimer;
   int _reconnectAttempts = 0;
 
   final Map<String, StreamController<_RawRealtimeEvent>> _channelControllers =
@@ -80,6 +107,8 @@ class PusherService {
   final Map<String, int> _channelRetainCounts = <String, int>{};
   final Set<String> _subscribedChannels = <String>{};
   final Set<String> _pendingChannels = <String>{};
+  final Map<String, Completer<void>> _subscriptionAcks =
+      <String, Completer<void>>{};
 
   static Uri get _reverbUri {
     return Uri(
@@ -100,6 +129,7 @@ class PusherService {
     return '${AppEnv.backendOrigin}/broadcasting/auth';
   }
 
+  @override
   Future<void> connect() {
     if (_connected && _socketId != null) {
       return Future<void>.value();
@@ -127,6 +157,8 @@ class PusherService {
 
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
+    _idleDisconnectTimer?.cancel();
+    _idleDisconnectTimer = null;
 
     final connected = Completer<void>();
     _log('connecting to $_reverbUri');
@@ -141,6 +173,7 @@ class PusherService {
           return;
         }
 
+        _logProtocolMessage(message);
         _handleProtocolMessage(message, connected);
       },
       onError: (error, stackTrace) {
@@ -163,22 +196,39 @@ class PusherService {
     );
 
     try {
-      await socket.ready.timeout(const Duration(seconds: 8));
-      await connected.future.timeout(const Duration(seconds: 8));
+      _log('waiting for WebSocket ready');
+      await socket.ready.timeout(
+        _connectTimeout,
+        onTimeout: () => throw TimeoutException(
+          'Reverb tidak reachable di $_reverbUri. Pastikan reverb:start '
+          'berjalan di 0.0.0.0:${AppEnv.wsPort} dan firewall membuka port.',
+          _connectTimeout,
+        ),
+      );
+      _log('WebSocket ready; waiting for pusher:connection_established');
+      await connected.future.timeout(
+        _connectTimeout,
+        onTimeout: () => throw TimeoutException(
+          'Handshake Reverb tidak diterima dari $_reverbUri.',
+          _connectTimeout,
+        ),
+      );
       _connected = true;
       _reconnectAttempts = 0;
       _log('connected as socket $_socketId');
-    } catch (_) {
+    } catch (error, stackTrace) {
+      _log(_connectFailureMessage(error));
       await _socketSub?.cancel();
       await socket.sink.close();
       _socket = null;
       _socketSub = null;
       _connected = false;
       _socketId = null;
-      rethrow;
+      Error.throwWithStackTrace(error, stackTrace);
     }
   }
 
+  @override
   StreamSubscription<Map<String, dynamic>> subscribeOrderTracking(
     int orderId, {
     void Function(double lat, double lng, double heading, DateTime updatedAt)?
@@ -189,6 +239,7 @@ class PusherService {
     void Function(Object error)? onConnectionIssue,
   }) {
     final channelName = 'private-order.tracking.$orderId';
+    _log('order tracking subscribe requested orderId=$orderId channel=$channelName');
     final controller = _retainChannel(channelName);
 
     unawaited(
@@ -223,6 +274,7 @@ class PusherService {
     );
   }
 
+  @override
   StreamSubscription<Map<String, dynamic>> subscribeDriverOrders(
     int userId, {
     void Function(DriverOrderModel order)? onOrderAvailable,
@@ -231,6 +283,7 @@ class PusherService {
     void Function(Object error)? onConnectionIssue,
   }) {
     final channelName = 'private-driver.orders.user.$userId';
+    _log('driver orders subscribe requested userId=$userId channel=$channelName');
     final controller = _retainChannel(channelName);
 
     unawaited(
@@ -265,6 +318,8 @@ class PusherService {
     final existing = _channelControllers[channelName];
     _channelRetainCounts[channelName] =
         (_channelRetainCounts[channelName] ?? 0) + 1;
+    _idleDisconnectTimer?.cancel();
+    _idleDisconnectTimer = null;
 
     if (existing != null && !existing.isClosed) {
       return existing;
@@ -295,17 +350,24 @@ class PusherService {
     }
 
     if (_channelControllers.isEmpty) {
-      unawaited(disconnect());
+      _scheduleIdleDisconnect();
     }
   }
 
   Future<void> _subscribeChannel(String channelName) async {
-    if (_subscribedChannels.contains(channelName) ||
-        _pendingChannels.contains(channelName)) {
+    if (_subscribedChannels.contains(channelName)) {
       return;
     }
 
+    final existingAck = _subscriptionAcks[channelName];
+    if (_pendingChannels.contains(channelName) && existingAck != null) {
+      return existingAck.future;
+    }
+
     _pendingChannels.add(channelName);
+    final ack = Completer<void>();
+    _subscriptionAcks[channelName] = ack;
+    unawaited(ack.future.catchError((_) {}));
     try {
       await connect();
 
@@ -318,12 +380,18 @@ class PusherService {
         'channel': channelName,
         ...authPayload,
       });
-      _log('subscribing $channelName');
+      _log('subscribe sent $channelName');
+
+      await ack.future.timeout(const Duration(seconds: 8));
     } catch (error) {
       _log('subscribe failed for $channelName: $error');
+      if (!ack.isCompleted) {
+        ack.completeError(error);
+      }
       rethrow;
     } finally {
       _pendingChannels.remove(channelName);
+      _subscriptionAcks.remove(channelName);
     }
   }
 
@@ -333,18 +401,27 @@ class PusherService {
       throw StateError('Realtime socket belum memiliki socket_id.');
     }
 
+    _log('auth request for $channelName socket_id=$socketId');
     final response = await http
         .post(
           Uri.parse(_broadcastAuthEndpoint),
-          headers: await AuthService.authorizedHeaders(),
-          body: jsonEncode(<String, dynamic>{
+          headers: await AuthService.authorizedHeaders(
+            includeJsonContentType: false,
+          ),
+          body: <String, String>{
             'socket_id': socketId,
             'channel_name': channelName,
-          }),
+          },
         )
         .timeout(const Duration(seconds: 8));
 
+    _log('auth status for $channelName: HTTP ${response.statusCode}');
+
     if (response.statusCode < 200 || response.statusCode >= 300) {
+      _log(
+        'auth failed for $channelName: HTTP ${response.statusCode}; '
+        'body=${_responsePreview(response.body)}',
+      );
       throw StateError(
         'Auth realtime gagal untuk $channelName (${response.statusCode}).',
       );
@@ -355,6 +432,7 @@ class PusherService {
       throw StateError('Respons auth realtime tidak valid.');
     }
 
+    _log('auth succeeded for $channelName');
     return decoded;
   }
 
@@ -376,6 +454,7 @@ class PusherService {
       }
 
       _socketId = socketId;
+      _log('connection established; socket_id=$socketId');
       if (!connected.isCompleted) {
         connected.complete();
       }
@@ -397,6 +476,10 @@ class PusherService {
       final channelName = message.channelName;
       if (channelName != null) {
         _subscribedChannels.add(channelName);
+        final ack = _subscriptionAcks[channelName];
+        if (ack != null && !ack.isCompleted) {
+          ack.complete();
+        }
         _log('subscription succeeded $channelName');
       }
       return;
@@ -417,7 +500,7 @@ class PusherService {
       return;
     }
 
-    _log('event $eventName on $channelName: $payload');
+    _log('event $eventName on $channelName');
     _channelControllers[channelName]?.add(
       _RawRealtimeEvent(eventName: eventName, payload: payload),
     );
@@ -440,8 +523,16 @@ class PusherService {
     _socketSub = null;
     _connected = false;
     _socketId = null;
+    _idleDisconnectTimer?.cancel();
+    _idleDisconnectTimer = null;
     _subscribedChannels.clear();
     _pendingChannels.clear();
+    for (final ack in _subscriptionAcks.values) {
+      if (!ack.isCompleted) {
+        ack.completeError(StateError('Realtime socket terputus.'));
+      }
+    }
+    _subscriptionAcks.clear();
 
     if (!_manualDisconnect && _channelControllers.isNotEmpty) {
       _scheduleReconnect();
@@ -476,6 +567,25 @@ class PusherService {
           _scheduleReconnect();
         }),
       );
+    });
+  }
+
+  void _scheduleIdleDisconnect() {
+    if (_idleDisconnectTimer != null) {
+      return;
+    }
+
+    _log(
+      'no retained channels; disconnecting in '
+      '${_idleDisconnectDelay.inSeconds}s if still idle',
+    );
+    _idleDisconnectTimer = Timer(_idleDisconnectDelay, () {
+      _idleDisconnectTimer = null;
+      if (_channelControllers.isNotEmpty) {
+        return;
+      }
+
+      unawaited(disconnect());
     });
   }
 
@@ -742,10 +852,13 @@ class PusherService {
     return null;
   }
 
+  @override
   Future<void> disconnect() async {
     _manualDisconnect = true;
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
+    _idleDisconnectTimer?.cancel();
+    _idleDisconnectTimer = null;
     _reconnectAttempts = 0;
     _connected = false;
     _socketId = null;
@@ -760,11 +873,41 @@ class PusherService {
     _log('disconnected');
   }
 
+  String _connectFailureMessage(Object error) {
+    if (error is TimeoutException) {
+      return 'connect timeout: ${error.message ?? error.toString()}';
+    }
+
+    return 'connect failed: $error';
+  }
+
+  String _responsePreview(String body) {
+    final compact = body.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (compact.isEmpty) {
+      return '<empty>';
+    }
+
+    const limit = 240;
+    if (compact.length <= limit) {
+      return compact;
+    }
+
+    return '${compact.substring(0, limit)}...';
+  }
+
+  void _logProtocolMessage(_PusherProtocolMessage message) {
+    final channel = message.channelName == null
+        ? ''
+        : ' channel=${message.channelName}';
+    _log('protocol ${message.eventName}$channel');
+  }
+
   void _log(String message) {
-    assert(() {
-      debugPrint('[PusherService] $message');
-      return true;
-    }());
+    if (!AppEnv.realtimeDiagnostics) {
+      return;
+    }
+
+    debugPrint('[PusherService] $message');
   }
 }
 

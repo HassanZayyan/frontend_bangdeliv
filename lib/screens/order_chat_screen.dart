@@ -23,6 +23,7 @@ class OrderChatScreen extends ConsumerStatefulWidget {
 class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
   late final TextEditingController _inputController;
   late final ScrollController _scrollController;
+  int _lastMarkedReadMessageId = 0;
 
   @override
   void initState() {
@@ -77,6 +78,20 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
         );
   }
 
+  void _markVisibleMessagesRead(List<OrderChatMessageModel> messages) {
+    final latestMessageId = _latestServerMessageId(messages);
+    if (latestMessageId <= 0 || latestMessageId <= _lastMarkedReadMessageId) {
+      return;
+    }
+
+    _lastMarkedReadMessageId = latestMessageId;
+    unawaited(
+      ref
+          .read(orderChatUnreadCountProvider(widget.orderId).notifier)
+          .markReadThrough(latestMessageId),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final chatAsync = ref.watch(orderChatProvider(widget.orderId));
@@ -90,12 +105,8 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
       final nextMessages =
           next.asData?.value.messages ?? const <OrderChatMessageModel>[];
       final nextLength = nextMessages.length;
+      _markVisibleMessagesRead(nextMessages);
       if (nextLength > previousLength) {
-        unawaited(
-          ref
-              .read(orderChatUnreadCountProvider(widget.orderId).notifier)
-              .markReadThrough(_latestServerMessageId(nextMessages)),
-        );
         _scrollToBottom();
       }
     });
@@ -124,85 +135,90 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
           message: error.toString(),
           onRetry: () => ref.invalidate(orderChatProvider(widget.orderId)),
         ),
-        data: (chat) => Column(
-          children: [
-            if (chat.realtimeUnavailable)
-              const _InfoBanner(
-                text: 'Realtime belum stabil. Chat tetap disinkronkan berkala.',
-              ),
-            if ((chat.errorMessage ?? '').isNotEmpty)
-              _InfoBanner(text: chat.errorMessage!),
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: () async {
-                  ref.invalidate(orderChatProvider(widget.orderId));
-                  await ref.read(orderChatProvider(widget.orderId).future);
-                  final messages =
-                      ref
-                          .read(orderChatProvider(widget.orderId))
-                          .asData
-                          ?.value
-                          .messages ??
-                      const <OrderChatMessageModel>[];
-                  await ref
-                      .read(
-                        orderChatUnreadCountProvider(widget.orderId).notifier,
-                      )
-                      .markReadThrough(_latestServerMessageId(messages));
-                },
-                child: ListView(
-                  controller: _scrollController,
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
-                  children: [
-                    if (chat.hasMore)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Center(
-                          child: OutlinedButton.icon(
-                            onPressed: chat.isLoadingOlder
-                                ? null
-                                : () => ref
-                                      .read(
-                                        orderChatProvider(
-                                          widget.orderId,
-                                        ).notifier,
-                                      )
-                                      .loadOlder(),
-                            icon: chat.isLoadingOlder
-                                ? const SizedBox(
-                                    width: 14,
-                                    height: 14,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.history, size: 16),
-                            label: const Text('Muat pesan lama'),
+        data: (chat) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _markVisibleMessagesRead(chat.messages);
+            }
+          });
+
+          return Column(
+            children: [
+              if (chat.realtimeUnavailable) const _SyncStatusPill(),
+              if ((chat.errorMessage ?? '').isNotEmpty)
+                _InfoBanner(text: chat.errorMessage!),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: () async {
+                    ref.invalidate(orderChatProvider(widget.orderId));
+                    await ref.read(orderChatProvider(widget.orderId).future);
+                    final messages =
+                        ref
+                            .read(orderChatProvider(widget.orderId))
+                            .asData
+                            ?.value
+                            .messages ??
+                        const <OrderChatMessageModel>[];
+                    await ref
+                        .read(
+                          orderChatUnreadCountProvider(widget.orderId).notifier,
+                        )
+                        .markReadThrough(_latestServerMessageId(messages));
+                  },
+                  child: ListView(
+                    controller: _scrollController,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+                    children: [
+                      if (chat.hasMore)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Center(
+                            child: OutlinedButton.icon(
+                              onPressed: chat.isLoadingOlder
+                                  ? null
+                                  : () => ref
+                                        .read(
+                                          orderChatProvider(
+                                            widget.orderId,
+                                          ).notifier,
+                                        )
+                                        .loadOlder(),
+                              icon: chat.isLoadingOlder
+                                  ? const SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.history, size: 16),
+                              label: const Text('Muat pesan lama'),
+                            ),
                           ),
                         ),
-                      ),
-                    if (chat.messages.isEmpty)
-                      const _EmptyChat()
-                    else
-                      ...chat.messages.map(
-                        (message) => _MessageBubble(
-                          message: message,
-                          isMine: message.senderUserId == currentUserId,
+                      if (chat.messages.isEmpty)
+                        const _EmptyChat()
+                      else
+                        ...chat.messages.map(
+                          (message) => _MessageBubble(
+                            message: message,
+                            isMine: message.senderUserId == currentUserId,
+                          ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-            _Composer(
-              controller: _inputController,
-              enabled: chat.canSend,
-              isSending: chat.isSending,
-              onSend: _sendMessage,
-            ),
-          ],
-        ),
+              _Composer(
+                controller: _inputController,
+                enabled: chat.canSend,
+                isSending: chat.isSending,
+                onSend: _sendMessage,
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -394,6 +410,49 @@ class _Composer extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SyncStatusPill extends StatelessWidget {
+  const _SyncStatusPill();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: AppColors.background,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 10,
+                height: 10,
+                child: CircularProgressIndicator(strokeWidth: 1.6),
+              ),
+              SizedBox(width: 6),
+              Text(
+                'Menyinkronkan berkala',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

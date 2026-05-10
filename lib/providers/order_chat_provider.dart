@@ -4,9 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/order_chat_model.dart';
 import '../services/api_exception.dart';
-import '../services/pusher_service.dart';
 import 'api_providers.dart';
 import 'auth_session_provider.dart';
+import 'order_realtime_hub_provider.dart';
 
 final orderChatProvider = AsyncNotifierProvider.family
     .autoDispose<OrderChatNotifier, OrderChatState, int>(OrderChatNotifier.new);
@@ -21,6 +21,8 @@ class OrderChatState {
     this.isLoadingOlder = false,
     this.sendingCount = 0,
     this.realtimeUnavailable = false,
+    this.unreadCount = 0,
+    this.lastReadMessageId = 0,
     this.errorMessage,
   });
 
@@ -32,6 +34,8 @@ class OrderChatState {
   final bool isLoadingOlder;
   final int sendingCount;
   final bool realtimeUnavailable;
+  final int unreadCount;
+  final int lastReadMessageId;
   final String? errorMessage;
   bool get isSending => sendingCount > 0;
 
@@ -44,6 +48,8 @@ class OrderChatState {
     bool? isLoadingOlder,
     int? sendingCount,
     bool? realtimeUnavailable,
+    int? unreadCount,
+    int? lastReadMessageId,
     String? errorMessage,
     bool clearErrorMessage = false,
   }) {
@@ -58,6 +64,8 @@ class OrderChatState {
       isLoadingOlder: isLoadingOlder ?? this.isLoadingOlder,
       sendingCount: sendingCount ?? this.sendingCount,
       realtimeUnavailable: realtimeUnavailable ?? this.realtimeUnavailable,
+      unreadCount: unreadCount ?? this.unreadCount,
+      lastReadMessageId: lastReadMessageId ?? this.lastReadMessageId,
       errorMessage: clearErrorMessage
           ? null
           : (errorMessage ?? this.errorMessage),
@@ -68,11 +76,17 @@ class OrderChatState {
 class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
   OrderChatNotifier(this.orderId);
 
+  static const _fallbackActivationDelay = Duration(seconds: 12);
+  static const _fallbackPollInterval = Duration(seconds: 15);
+
   final int orderId;
 
-  StreamSubscription<Map<String, dynamic>>? _realtimeSub;
+  StreamSubscription<OrderRealtimeEvent>? _hubSub;
+  Timer? _fallbackActivationTimer;
   Timer? _degradedSyncTimer;
+  OrderRealtimeHub? _hub;
   bool _disposed = false;
+  bool _retainedOrder = false;
 
   bool get _isMounted => !_disposed && ref.mounted;
 
@@ -102,6 +116,8 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
         canSend: page.canSend,
         hasMore: page.hasMore,
         nextBeforeId: page.nextBeforeId,
+        unreadCount: page.unreadCount,
+        lastReadMessageId: page.lastReadMessageId,
       );
     }
 
@@ -113,6 +129,8 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
       canSend: page.canSend,
       hasMore: page.hasMore,
       nextBeforeId: page.nextBeforeId,
+      unreadCount: page.unreadCount,
+      lastReadMessageId: page.lastReadMessageId,
     );
   }
 
@@ -161,6 +179,8 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
           canSend: page.canSend,
           hasMore: page.hasMore,
           nextBeforeId: page.nextBeforeId,
+          unreadCount: page.unreadCount,
+          lastReadMessageId: page.lastReadMessageId,
           clearNextBeforeId: page.nextBeforeId == null,
           isLoadingOlder: false,
           clearErrorMessage: true,
@@ -297,33 +317,62 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
       return;
     }
 
-    _realtimeSub?.cancel();
-    _realtimeSub = PusherService.instance.subscribeOrderTracking(
-      orderId,
-      onSubscribed: _markRealtimeHealthy,
-      onConnectionIssue: (_) => _markRealtimeDegraded(),
-      onChatMessage: (message) {
-        if (!_isMounted) {
-          return;
-        }
+    _cancelRealtime();
+    final hub = ref.read(orderRealtimeHubProvider);
+    _hub = hub;
+    _hubSub = hub.events
+        .where((event) => event.orderId == orderId)
+        .listen(_handleRealtimeEvent);
+    _retainedOrder = true;
+    unawaited(hub.retainOrder(orderId));
+  }
 
-        final current = state.asData?.value;
-        if (current == null || message.orderId != orderId) {
-          return;
-        }
+  void _handleRealtimeEvent(OrderRealtimeEvent event) {
+    if (!_isMounted) {
+      return;
+    }
 
-        state = AsyncData(
-          current.copyWith(
-            messages: _mergeMessages(current.messages, <OrderChatMessageModel>[
-              message,
-            ]),
-            realtimeUnavailable: false,
-            clearErrorMessage: true,
-          ),
-        );
+    switch (event.type) {
+      case OrderRealtimeEventType.connected:
         _markRealtimeHealthy();
-      },
+        unawaited(_pollNewMessages());
+        break;
+      case OrderRealtimeEventType.chat:
+        final message = event.chatMessage;
+        if (message != null) {
+          _handleRealtimeMessage(message);
+        }
+        break;
+      case OrderRealtimeEventType.connectionIssue:
+        _markRealtimeDegraded();
+        unawaited(_pollNewMessages());
+        break;
+      case OrderRealtimeEventType.status:
+      case OrderRealtimeEventType.location:
+        break;
+    }
+  }
+
+  void _handleRealtimeMessage(OrderChatMessageModel message) {
+    if (!_isMounted) {
+      return;
+    }
+
+    final current = state.asData?.value;
+    if (current == null || message.orderId != orderId) {
+      return;
+    }
+
+    state = AsyncData(
+      current.copyWith(
+        messages: _mergeMessages(current.messages, <OrderChatMessageModel>[
+          message,
+        ]),
+        realtimeUnavailable: false,
+        clearErrorMessage: true,
+      ),
     );
+    _markRealtimeHealthy();
   }
 
   void _markRealtimeHealthy() {
@@ -345,17 +394,25 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
       return;
     }
 
-    final current = state.asData?.value;
-    if (current != null && !current.realtimeUnavailable) {
-      state = AsyncData(current.copyWith(realtimeUnavailable: true));
-    }
-
-    if (_degradedSyncTimer != null) {
+    if (_fallbackActivationTimer != null || _degradedSyncTimer != null) {
       return;
     }
 
-    _degradedSyncTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+    _fallbackActivationTimer = Timer(_fallbackActivationDelay, () {
+      _fallbackActivationTimer = null;
+      if (!_isMounted) {
+        return;
+      }
+
+      final current = state.asData?.value;
+      if (current != null && !current.realtimeUnavailable) {
+        state = AsyncData(current.copyWith(realtimeUnavailable: true));
+      }
+
       unawaited(_pollNewMessages());
+      _degradedSyncTimer = Timer.periodic(_fallbackPollInterval, (_) {
+        unawaited(_pollNewMessages());
+      });
     });
   }
 
@@ -397,6 +454,8 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
         latest.copyWith(
           messages: _mergeMessages(latest.messages, page.messages),
           canSend: page.canSend,
+          unreadCount: page.unreadCount,
+          lastReadMessageId: page.lastReadMessageId,
           clearErrorMessage: true,
         ),
       );
@@ -469,6 +528,8 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
         latest.copyWith(
           messages: _mergeMessages(latest.messages, page.messages),
           canSend: page.canSend,
+          unreadCount: page.unreadCount,
+          lastReadMessageId: page.lastReadMessageId,
           sendingCount: _decrementSending(latest.sendingCount),
           clearErrorMessage: true,
         ),
@@ -572,14 +633,26 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
   }
 
   void _cancelRealtime() {
-    final subscription = _realtimeSub;
-    _realtimeSub = null;
-    unawaited(subscription?.cancel());
+    final hubSubscription = _hubSub;
+    _hubSub = null;
+    unawaited(hubSubscription?.cancel());
+    _releaseRetainedOrder();
   }
 
   void _stopDegradedSync() {
+    _fallbackActivationTimer?.cancel();
+    _fallbackActivationTimer = null;
     _degradedSyncTimer?.cancel();
     _degradedSyncTimer = null;
+  }
+
+  void _releaseRetainedOrder() {
+    if (!_retainedOrder) {
+      return;
+    }
+
+    _hub?.releaseOrder(orderId);
+    _retainedOrder = false;
   }
 
   void _dispose() {

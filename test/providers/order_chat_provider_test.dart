@@ -9,10 +9,34 @@ import 'package:frontend_bangdeliv/models/user_profile_model.dart';
 import 'package:frontend_bangdeliv/providers/api_providers.dart';
 import 'package:frontend_bangdeliv/providers/auth_session_provider.dart';
 import 'package:frontend_bangdeliv/providers/order_chat_provider.dart';
+import 'package:frontend_bangdeliv/providers/order_chat_unread_provider.dart';
 import 'package:frontend_bangdeliv/screens/order_chat_screen.dart';
 import 'package:frontend_bangdeliv/services/api_client.dart';
 import 'package:frontend_bangdeliv/services/api_exception.dart';
 import 'package:frontend_bangdeliv/services/order_chat_api_service.dart';
+import '../fakes/fake_order_realtime_client.dart';
+
+ProviderSubscription<AsyncValue<OrderChatState>> _keepChatProviderAlive(
+  ProviderContainer container,
+  int orderId,
+) {
+  return container.listen<AsyncValue<OrderChatState>>(
+    orderChatProvider(orderId),
+    (_, _) {},
+    fireImmediately: true,
+  );
+}
+
+ProviderSubscription<AsyncValue<int>> _keepUnreadProviderAlive(
+  ProviderContainer container,
+  int orderId,
+) {
+  return container.listen<AsyncValue<int>>(
+    orderChatUnreadCountProvider(orderId),
+    (_, _) {},
+    fireImmediately: true,
+  );
+}
 
 void main() {
   test('orderChatProvider loads messages from API', () async {
@@ -25,6 +49,8 @@ void main() {
         canSend: true,
         hasMore: false,
         nextBeforeId: null,
+        unreadCount: 1,
+        lastReadMessageId: 0,
       ),
     );
 
@@ -32,6 +58,7 @@ void main() {
       overrides: [
         authSessionProvider.overrideWith(() => fakeAuth),
         orderChatApiServiceProvider.overrideWithValue(fakeService),
+        orderRealtimeClientProvider.overrideWithValue(FakeOrderRealtimeClient()),
       ],
     );
     addTearDown(container.dispose);
@@ -45,6 +72,161 @@ void main() {
     expect(fakeService.fetchCalls, 1);
   });
 
+  test('orderChatProvider appends realtime chat messages', () async {
+    final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
+    final fakeService = _FakeOrderChatApiService(
+      initialPage: const OrderChatMessagesPage(
+        messages: <OrderChatMessageModel>[],
+        canSend: true,
+        hasMore: false,
+        nextBeforeId: null,
+        unreadCount: 0,
+        lastReadMessageId: 0,
+      ),
+    );
+    final fakeRealtime = FakeOrderRealtimeClient();
+
+    final container = ProviderContainer(
+      overrides: [
+        authSessionProvider.overrideWith(() => fakeAuth),
+        orderChatApiServiceProvider.overrideWithValue(fakeService),
+        orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+      ],
+    );
+    addTearDown(container.dispose);
+    final chatSubscription = _keepChatProviderAlive(container, 99);
+    addTearDown(chatSubscription.close);
+
+    await container.read(orderChatProvider(99).future);
+    expect(fakeRealtime.orderTrackingSubscriptions, contains(99));
+
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    fakeRealtime.emitOrderChatMessage(
+      99,
+      _message(id: 24, senderUserId: 8, body: 'Pesan realtime.'),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    final chat = container.read(orderChatProvider(99)).asData!.value;
+    expect(chat.messages.map((message) => message.body), ['Pesan realtime.']);
+  });
+
+  test('orderChatProvider appends customer realtime chat for driver session', () async {
+    final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+    final fakeService = _FakeOrderChatApiService(
+      initialPage: const OrderChatMessagesPage(
+        messages: <OrderChatMessageModel>[],
+        canSend: true,
+        hasMore: false,
+        nextBeforeId: null,
+        unreadCount: 0,
+        lastReadMessageId: 0,
+      ),
+    );
+    final fakeRealtime = FakeOrderRealtimeClient();
+
+    final container = ProviderContainer(
+      overrides: [
+        authSessionProvider.overrideWith(() => fakeAuth),
+        orderChatApiServiceProvider.overrideWithValue(fakeService),
+        orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+      ],
+    );
+    addTearDown(container.dispose);
+    final chatSubscription = _keepChatProviderAlive(container, 99);
+    addTearDown(chatSubscription.close);
+
+    await container.read(orderChatProvider(99).future);
+    expect(fakeRealtime.orderTrackingSubscriptions, contains(99));
+
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    fakeRealtime.emitOrderChatMessage(
+      99,
+      _message(id: 26, senderUserId: 7, body: 'Customer realtime.'),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    final chat = container.read(orderChatProvider(99)).asData!.value;
+    expect(chat.messages.map((message) => message.body), [
+      'Customer realtime.',
+    ]);
+  });
+
+  test('orderChatUnreadCountProvider ignores realtime messages from self', () async {
+    final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+    final fakeService = _FakeOrderChatApiService(
+      initialPage: const OrderChatMessagesPage(
+        messages: <OrderChatMessageModel>[],
+        canSend: true,
+        hasMore: false,
+        nextBeforeId: null,
+        unreadCount: 0,
+        lastReadMessageId: 0,
+      ),
+      unreadCount: 0,
+      lastReadMessageId: 0,
+    );
+    final fakeRealtime = FakeOrderRealtimeClient();
+
+    final container = ProviderContainer(
+      overrides: [
+        authSessionProvider.overrideWith(() => fakeAuth),
+        orderChatApiServiceProvider.overrideWithValue(fakeService),
+        orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+      ],
+    );
+    addTearDown(container.dispose);
+    final unreadSubscription = _keepUnreadProviderAlive(container, 99);
+    addTearDown(unreadSubscription.close);
+
+    await container.read(orderChatUnreadCountProvider(99).future);
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    fakeRealtime.emitOrderChatMessage(
+      99,
+      _message(id: 27, senderUserId: 77, body: 'Pesan sendiri.'),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(container.read(orderChatUnreadCountProvider(99)).asData!.value, 0);
+  });
+
+  test('orderChatProvider polls once immediately when realtime subscribe fails', () async {
+    final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+    final fakeService = _FakeOrderChatApiService(
+      initialPage: const OrderChatMessagesPage(
+        messages: <OrderChatMessageModel>[],
+        canSend: true,
+        hasMore: false,
+        nextBeforeId: null,
+        unreadCount: 0,
+        lastReadMessageId: 0,
+      ),
+    );
+    final fakeRealtime = FakeOrderRealtimeClient()
+      ..failOrderTrackingSubscribeAttempts = 1;
+
+    final container = ProviderContainer(
+      overrides: [
+        authSessionProvider.overrideWith(() => fakeAuth),
+        orderChatApiServiceProvider.overrideWithValue(fakeService),
+        orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(orderChatProvider(99).future);
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(fakeService.fetchCalls, greaterThanOrEqualTo(2));
+  });
+
   test(
     'sendMessage shows optimistic item then replaces it with API result',
     () async {
@@ -56,6 +238,8 @@ void main() {
           canSend: true,
           hasMore: false,
           nextBeforeId: null,
+          unreadCount: 0,
+          lastReadMessageId: 0,
         ),
         sendCompleter: sendCompleter,
       );
@@ -64,6 +248,7 @@ void main() {
         overrides: [
           authSessionProvider.overrideWith(() => fakeAuth),
           orderChatApiServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(FakeOrderRealtimeClient()),
         ],
       );
       addTearDown(container.dispose);
@@ -111,6 +296,8 @@ void main() {
           canSend: true,
           hasMore: false,
           nextBeforeId: null,
+          unreadCount: 0,
+          lastReadMessageId: 0,
         ),
         sendError: const ApiException(
           'Pusher error: realtime offline',
@@ -123,6 +310,7 @@ void main() {
         overrides: [
           authSessionProvider.overrideWith(() => fakeAuth),
           orderChatApiServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(FakeOrderRealtimeClient()),
         ],
       );
       addTearDown(container.dispose);
@@ -140,7 +328,7 @@ void main() {
       expect(recovered.messages.single.body, 'Tetap tersimpan');
       expect(recovered.messages.single.isPending, isFalse);
       expect(recovered.messages.single.isFailed, isFalse);
-      expect(recovered.realtimeUnavailable, isTrue);
+      expect(recovered.realtimeUnavailable, isFalse);
     },
   );
 
@@ -152,6 +340,8 @@ void main() {
         canSend: true,
         hasMore: false,
         nextBeforeId: null,
+        unreadCount: 0,
+        lastReadMessageId: 0,
       ),
       sendError: const ApiException(
         'Pusher error: cURL error 7',
@@ -163,6 +353,7 @@ void main() {
       overrides: [
         authSessionProvider.overrideWith(() => fakeAuth),
         orderChatApiServiceProvider.overrideWithValue(fakeService),
+        orderRealtimeClientProvider.overrideWithValue(FakeOrderRealtimeClient()),
       ],
     );
     addTearDown(container.dispose);
@@ -180,7 +371,7 @@ void main() {
   });
 
   test(
-    'sendMessage keeps realtime unavailable tied to connection state',
+    'sendMessage does not show degraded notice during realtime grace period',
     () async {
       final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
       final fakeService = _FakeOrderChatApiService(
@@ -189,6 +380,8 @@ void main() {
           canSend: true,
           hasMore: false,
           nextBeforeId: null,
+          unreadCount: 0,
+          lastReadMessageId: 0,
         ),
       );
 
@@ -196,6 +389,7 @@ void main() {
         overrides: [
           authSessionProvider.overrideWith(() => fakeAuth),
           orderChatApiServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(FakeOrderRealtimeClient()),
         ],
       );
       addTearDown(container.dispose);
@@ -209,10 +403,159 @@ void main() {
       expect(error, isNull);
       expect(
         container.read(orderChatProvider(99)).asData!.value.realtimeUnavailable,
-        isTrue,
+        isFalse,
       );
     },
   );
+
+  test('orderChatUnreadCountProvider loads unread count from API', () async {
+    final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
+    final fakeService = _FakeOrderChatApiService(
+      initialPage: const OrderChatMessagesPage(
+        messages: <OrderChatMessageModel>[],
+        canSend: true,
+        hasMore: false,
+        nextBeforeId: null,
+        unreadCount: 0,
+        lastReadMessageId: 0,
+      ),
+      unreadCount: 3,
+      lastReadMessageId: 11,
+    );
+
+    final container = ProviderContainer(
+      overrides: [
+        authSessionProvider.overrideWith(() => fakeAuth),
+        orderChatApiServiceProvider.overrideWithValue(fakeService),
+        orderRealtimeClientProvider.overrideWithValue(FakeOrderRealtimeClient()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final unread = await container.read(orderChatUnreadCountProvider(99).future);
+
+    expect(unread, 3);
+    expect(fakeService.fetchUnreadCalls, 1);
+  });
+
+  test('orderChatUnreadCountProvider increments from realtime message', () async {
+    final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
+    final fakeService = _FakeOrderChatApiService(
+      initialPage: const OrderChatMessagesPage(
+        messages: <OrderChatMessageModel>[],
+        canSend: true,
+        hasMore: false,
+        nextBeforeId: null,
+        unreadCount: 0,
+        lastReadMessageId: 0,
+      ),
+      unreadCount: 0,
+      lastReadMessageId: 0,
+    );
+    final fakeRealtime = FakeOrderRealtimeClient();
+
+    final container = ProviderContainer(
+      overrides: [
+        authSessionProvider.overrideWith(() => fakeAuth),
+        orderChatApiServiceProvider.overrideWithValue(fakeService),
+        orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+      ],
+    );
+    addTearDown(container.dispose);
+    final unreadSubscription = _keepUnreadProviderAlive(container, 99);
+    addTearDown(unreadSubscription.close);
+
+    final initial = await container.read(
+      orderChatUnreadCountProvider(99).future,
+    );
+    expect(initial, 0);
+
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    fakeRealtime.emitOrderChatMessage(
+      99,
+      _message(id: 25, senderUserId: 8, body: 'Badge masuk.'),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(container.read(orderChatUnreadCountProvider(99)).asData!.value, 1);
+
+    await container
+        .read(orderChatUnreadCountProvider(99).notifier)
+        .markReadThrough(25);
+
+    expect(fakeService.markedReadMessageId, 25);
+    expect(container.read(orderChatUnreadCountProvider(99)).asData!.value, 0);
+  });
+
+  test('orderChatUnreadCountProvider refreshes immediately when realtime fails', () async {
+    final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+    final fakeService = _FakeOrderChatApiService(
+      initialPage: const OrderChatMessagesPage(
+        messages: <OrderChatMessageModel>[],
+        canSend: true,
+        hasMore: false,
+        nextBeforeId: null,
+        unreadCount: 0,
+        lastReadMessageId: 0,
+      ),
+      unreadCount: 2,
+      lastReadMessageId: 9,
+    );
+    final fakeRealtime = FakeOrderRealtimeClient()
+      ..failOrderTrackingSubscribeAttempts = 1;
+
+    final container = ProviderContainer(
+      overrides: [
+        authSessionProvider.overrideWith(() => fakeAuth),
+        orderChatApiServiceProvider.overrideWithValue(fakeService),
+        orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final unread = await container.read(orderChatUnreadCountProvider(99).future);
+    expect(unread, 2);
+
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(fakeService.fetchUnreadCalls, greaterThanOrEqualTo(2));
+  });
+
+  test('markReadThrough persists read state through API', () async {
+    final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
+    final fakeService = _FakeOrderChatApiService(
+      initialPage: const OrderChatMessagesPage(
+        messages: <OrderChatMessageModel>[],
+        canSend: true,
+        hasMore: false,
+        nextBeforeId: null,
+        unreadCount: 0,
+        lastReadMessageId: 0,
+      ),
+      unreadCount: 2,
+      lastReadMessageId: 9,
+    );
+
+    final container = ProviderContainer(
+      overrides: [
+        authSessionProvider.overrideWith(() => fakeAuth),
+        orderChatApiServiceProvider.overrideWithValue(fakeService),
+        orderRealtimeClientProvider.overrideWithValue(FakeOrderRealtimeClient()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(orderChatUnreadCountProvider(99).future);
+    await container
+        .read(orderChatUnreadCountProvider(99).notifier)
+        .markReadThrough(15);
+
+    expect(fakeService.markedReadMessageId, 15);
+    expect(container.read(orderChatUnreadCountProvider(99)).asData!.value, 0);
+  });
 
   test(
     'sendMessage ignores late response after provider is disposed',
@@ -225,6 +568,8 @@ void main() {
           canSend: true,
           hasMore: false,
           nextBeforeId: null,
+          unreadCount: 0,
+          lastReadMessageId: 0,
         ),
         sendCompleter: sendCompleter,
       );
@@ -233,6 +578,7 @@ void main() {
         overrides: [
           authSessionProvider.overrideWith(() => fakeAuth),
           orderChatApiServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(FakeOrderRealtimeClient()),
         ],
       );
 
@@ -271,6 +617,8 @@ void main() {
         canSend: false,
         hasMore: false,
         nextBeforeId: null,
+        unreadCount: 1,
+        lastReadMessageId: 0,
       ),
     );
 
@@ -279,6 +627,7 @@ void main() {
         overrides: [
           authSessionProvider.overrideWith(() => fakeAuth),
           orderChatApiServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(FakeOrderRealtimeClient()),
         ],
         child: const MaterialApp(home: OrderChatScreen(orderId: 99)),
       ),
@@ -298,13 +647,19 @@ class _FakeOrderChatApiService extends OrderChatApiService {
     this.sendCompleter,
     this.sendError,
     this.recoverFailedSend = false,
+    this.unreadCount = 0,
+    this.lastReadMessageId = 0,
   }) : super(ApiClient());
 
   final OrderChatMessagesPage initialPage;
   final Completer<OrderChatSendResult>? sendCompleter;
   final Object? sendError;
   final bool recoverFailedSend;
+  int unreadCount;
+  int lastReadMessageId;
   int fetchCalls = 0;
+  int fetchUnreadCalls = 0;
+  int? markedReadMessageId;
   String? lastClientMessageId;
   String? lastBody;
 
@@ -329,15 +684,19 @@ class _FakeOrderChatApiService extends OrderChatApiService {
         canSend: true,
         hasMore: false,
         nextBeforeId: null,
+        unreadCount: 0,
+        lastReadMessageId: 0,
       );
     }
 
     if (afterId != null) {
-      return const OrderChatMessagesPage(
+      return OrderChatMessagesPage(
         messages: <OrderChatMessageModel>[],
-        canSend: true,
-        hasMore: false,
+        canSend: initialPage.canSend,
+        hasMore: initialPage.hasMore,
         nextBeforeId: null,
+        unreadCount: unreadCount,
+        lastReadMessageId: lastReadMessageId,
       );
     }
     return initialPage;
@@ -371,6 +730,29 @@ class _FakeOrderChatApiService extends OrderChatApiService {
       canSend: true,
     );
   }
+
+  @override
+  Future<OrderChatUnreadSummary> fetchUnread({required int orderId}) async {
+    fetchUnreadCalls += 1;
+    return OrderChatUnreadSummary(
+      unreadCount: unreadCount,
+      lastReadMessageId: lastReadMessageId,
+    );
+  }
+
+  @override
+  Future<OrderChatUnreadSummary> markRead({
+    required int orderId,
+    required int messageId,
+  }) async {
+    markedReadMessageId = messageId;
+    unreadCount = 0;
+    lastReadMessageId = messageId;
+    return OrderChatUnreadSummary(
+      unreadCount: unreadCount,
+      lastReadMessageId: lastReadMessageId,
+    );
+  }
 }
 
 class _FakeAuthSessionNotifier extends AuthSessionNotifier {
@@ -398,6 +780,37 @@ AuthSessionState _customerSession(int userId) {
       stats: const UserStatsModel(totalOrders: 0, totalPaid: 0, rating: 0),
       addresses: const <SavedAddressModel>[],
     ),
+  );
+}
+
+AuthSessionState _driverSession(int userId) {
+  return AuthSessionState.fromProfile(
+    UserProfileModel(
+      id: userId,
+      name: 'Driver $userId',
+      phone: '08234$userId',
+      email: 'driver$userId@example.com',
+      avatar: null,
+      avatarUrl: null,
+      role: 'driver',
+      driverProfile: _activeDriverProfile(),
+      stats: const UserStatsModel(totalOrders: 0, totalPaid: 0, rating: 0),
+      addresses: const <SavedAddressModel>[],
+    ),
+  );
+}
+
+DriverProfileModel _activeDriverProfile() {
+  return const DriverProfileModel(
+    registrationStatus: 'active',
+    status: 'active',
+    vehicleType: 'Motor Matic',
+    vehicleBrand: 'Honda',
+    vehicleModel: 'Beat',
+    vehiclePlate: 'BG 1234 DL',
+    licenseNumber: 'SIM-DRIVER-001',
+    avgRating: 5,
+    totalDeliveries: 12,
   );
 }
 
