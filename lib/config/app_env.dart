@@ -90,6 +90,11 @@ class AppEnv {
     defaultValue: 'mt1',
   );
 
+  static const bool realtimeDiagnostics = bool.fromEnvironment(
+    'REALTIME_DIAGNOSTICS',
+    defaultValue: false,
+  );
+
   static void logDebugSummary() {
     if (!kDebugMode) {
       return;
@@ -100,6 +105,7 @@ class AppEnv {
     debugPrint('[AppEnv] WS=$normalizedWsScheme://$wsHost:$wsPort');
     debugPrint('[AppEnv] GOOGLE_MAPS_API_KEY configured=$hasGoogleMapsApiKey');
     debugPrint('[AppEnv] PUSHER_APP_KEY configured=$hasPusherAppKey');
+    debugPrint('[AppEnv] REALTIME_DIAGNOSTICS=$realtimeDiagnostics');
   }
 
   static String _withoutTrailingSlash(String value) {

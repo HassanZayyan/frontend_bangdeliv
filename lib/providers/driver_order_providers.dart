@@ -4,9 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/driver_order_model.dart';
 import '../services/driver_order_service.dart';
-import '../services/pusher_service.dart';
 import '../utils/order_formatters.dart';
 import '../utils/order_status.dart';
+import 'api_providers.dart';
 import 'auth_session_provider.dart';
 
 final driverOrderServiceProvider = Provider<DriverOrderService>((ref) {
@@ -42,8 +42,13 @@ class DriverOrdersState {
 class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
   StreamSubscription<Map<String, dynamic>>? _driverRealtimeSub;
   Timer? _degradedRefreshTimer;
+  Timer? _driverRealtimeRetryTimer;
+  int? _targetDriverUserId;
+  int _driverRealtimeRetryAttempt = 0;
+  bool _driverRealtimeSubscribed = false;
   bool _disposed = false;
   bool _silentRefreshInFlight = false;
+  bool _refreshedAfterRealtimeSubscribe = false;
 
   bool get _isMounted => !_disposed && ref.mounted;
 
@@ -140,31 +145,55 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       return;
     }
 
-    final availability = ref.read(driverAvailabilityProvider).asData?.value;
-    final fallbackStatus = profile.driverProfile?.status ?? 'offline';
-    final status = (availability?.status ?? fallbackStatus)
-        .trim()
-        .toLowerCase();
-    final canReceiveIncoming = status == 'available' || status == 'online';
-
-    if (!canReceiveIncoming) {
-      _cancelRealtime();
-      _stopDegradedRefresh();
-      _clearIncomingIfNeeded();
+    final driverUserId = profile.id;
+    if (_driverRealtimeSub != null && _targetDriverUserId == driverUserId) {
+      if (!_driverRealtimeSubscribed) {
+        _scheduleRealtimeRetry(driverUserId);
+      }
       return;
     }
 
     if (_driverRealtimeSub != null) {
+      _cancelRealtimeSubscription(keepTarget: true);
+    }
+
+    _refreshedAfterRealtimeSubscribe = false;
+    _targetDriverUserId = driverUserId;
+    _driverRealtimeSubscribed = false;
+    _driverRealtimeSub = ref
+        .read(orderRealtimeClientProvider)
+        .subscribeDriverOrders(
+          driverUserId,
+          onOrderAvailable: _handleRealtimeOrderAvailable,
+          onOrderRemoved: (orderId, _) => _handleRealtimeOrderRemoved(orderId),
+          onSubscribed: () => _handleRealtimeSubscribed(driverUserId),
+          onConnectionIssue: _handleRealtimeConnectionIssue,
+        );
+  }
+
+  void _handleRealtimeSubscribed(int driverUserId) {
+    if (!_isMounted || _targetDriverUserId != driverUserId) {
       return;
     }
 
-    _driverRealtimeSub = PusherService.instance.subscribeDriverOrders(
-      profile.id,
-      onOrderAvailable: _handleRealtimeOrderAvailable,
-      onOrderRemoved: (orderId, _) => _handleRealtimeOrderRemoved(orderId),
-      onSubscribed: _markRealtimeHealthy,
-      onConnectionIssue: (_) => _markRealtimeDegraded(),
-    );
+    _driverRealtimeSubscribed = true;
+    _driverRealtimeRetryAttempt = 0;
+    _markRealtimeHealthy();
+    _refreshAfterRealtimeSubscribe();
+  }
+
+  void _handleRealtimeConnectionIssue(Object error) {
+    if (!_isMounted) {
+      return;
+    }
+
+    final retryUserId = _targetDriverUserId;
+    _cancelRealtimeSubscription(keepTarget: true);
+    _markRealtimeDegraded();
+
+    if (retryUserId != null && retryUserId > 0) {
+      _scheduleRealtimeRetry(retryUserId);
+    }
   }
 
   void _handleRealtimeOrderAvailable(DriverOrderModel order) {
@@ -223,17 +252,9 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     return next.toList(growable: false);
   }
 
-  void _clearIncomingIfNeeded() {
-    final current = state.asData?.value;
-    if (current == null || current.incoming.isEmpty) {
-      return;
-    }
-
-    state = AsyncData(current.copyWith(incoming: const <DriverOrderModel>[]));
-  }
-
   void _markRealtimeHealthy() {
     _stopDegradedRefresh();
+    _stopRealtimeRetry();
   }
 
   void _markRealtimeDegraded() {
@@ -244,6 +265,38 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     _degradedRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       unawaited(refresh(showLoading: false));
     });
+  }
+
+  void _scheduleRealtimeRetry(int driverUserId) {
+    if (!_isMounted || _driverRealtimeRetryTimer != null) {
+      return;
+    }
+
+    _driverRealtimeRetryAttempt += 1;
+    final delaySeconds = switch (_driverRealtimeRetryAttempt) {
+      1 => 1,
+      2 => 2,
+      3 => 5,
+      _ => 15,
+    };
+
+    _driverRealtimeRetryTimer = Timer(Duration(seconds: delaySeconds), () {
+      _driverRealtimeRetryTimer = null;
+      if (!_isMounted || _targetDriverUserId != driverUserId) {
+        return;
+      }
+
+      _syncRealtimeSubscription(ref.read(authSessionProvider));
+    });
+  }
+
+  void _refreshAfterRealtimeSubscribe() {
+    if (!_isMounted || _refreshedAfterRealtimeSubscribe) {
+      return;
+    }
+
+    _refreshedAfterRealtimeSubscribe = true;
+    unawaited(refresh(showLoading: false));
   }
 
   void _refreshAvailabilityThenSyncRealtime() {
@@ -329,8 +382,6 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
 
       ref.invalidate(driverOrderDetailProvider(id));
       ref.invalidate(driverAvailabilityProvider);
-      _cancelRealtime();
-      _stopDegradedRefresh();
 
       return null;
     } catch (error) {
@@ -562,14 +613,30 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
   }
 
   void _cancelRealtime() {
+    _cancelRealtimeSubscription();
+    _stopRealtimeRetry();
+  }
+
+  void _cancelRealtimeSubscription({bool keepTarget = false}) {
     final subscription = _driverRealtimeSub;
     _driverRealtimeSub = null;
+    _driverRealtimeSubscribed = false;
+    if (!keepTarget) {
+      _targetDriverUserId = null;
+      _driverRealtimeRetryAttempt = 0;
+    }
+    _refreshedAfterRealtimeSubscribe = false;
     unawaited(subscription?.cancel());
   }
 
   void _stopDegradedRefresh() {
     _degradedRefreshTimer?.cancel();
     _degradedRefreshTimer = null;
+  }
+
+  void _stopRealtimeRetry() {
+    _driverRealtimeRetryTimer?.cancel();
+    _driverRealtimeRetryTimer = null;
   }
 
   void _dispose() {

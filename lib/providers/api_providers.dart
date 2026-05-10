@@ -6,6 +6,7 @@ import '../services/chatbot_api_service.dart';
 import '../services/customer_order_api_service.dart';
 import '../services/home_api_service.dart';
 import '../services/order_chat_api_service.dart';
+import '../services/pusher_service.dart';
 import '../services/ride_order_api_service.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) {
@@ -37,6 +38,10 @@ final customerOrderApiServiceProvider = Provider<CustomerOrderApiService>((
 final orderChatApiServiceProvider = Provider<OrderChatApiService>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   return OrderChatApiService(apiClient);
+});
+
+final orderRealtimeClientProvider = Provider<OrderRealtimeClient>((ref) {
+  return PusherService.instance;
 });
 
 class HomeSearchQueryNotifier extends Notifier<String> {

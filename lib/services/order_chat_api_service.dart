@@ -75,4 +75,56 @@ class OrderChatApiService {
 
     return OrderChatSendResult.fromApiJson(response);
   }
+
+  Future<OrderChatUnreadSummary> fetchUnread({required int orderId}) async {
+    Map<String, dynamic> response;
+    try {
+      response = await _apiClient.get(
+        '/v1/orders/$orderId/chat/unread',
+        headers: await AuthService.authorizedHeaders(
+          includeJsonContentType: false,
+        ),
+        timeout: _chatTimeout,
+      );
+    } on AuthException catch (error) {
+      throw ApiException(error.message);
+    }
+
+    final success = response['success'] == true;
+    if (!success) {
+      throw ApiException(
+        response['message']?.toString() ??
+            'Gagal mengambil jumlah pesan belum dibaca.',
+      );
+    }
+
+    return OrderChatUnreadSummary.fromApiJson(response);
+  }
+
+  Future<OrderChatUnreadSummary> markRead({
+    required int orderId,
+    required int messageId,
+  }) async {
+    Map<String, dynamic> response;
+    try {
+      response = await _apiClient.post(
+        '/v1/orders/$orderId/chat/read',
+        body: <String, dynamic>{'message_id': messageId},
+        headers: await AuthService.authorizedHeaders(),
+        timeout: _chatTimeout,
+      );
+    } on AuthException catch (error) {
+      throw ApiException(error.message);
+    }
+
+    final success = response['success'] == true;
+    if (!success) {
+      throw ApiException(
+        response['message']?.toString() ??
+            'Gagal menandai pesan chat sudah dibaca.',
+      );
+    }
+
+    return OrderChatUnreadSummary.fromApiJson(response);
+  }
 }

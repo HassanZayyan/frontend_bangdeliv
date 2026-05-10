@@ -1,12 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/order_chat_model.dart';
-import '../services/pusher_service.dart';
 import 'api_providers.dart';
 import 'auth_session_provider.dart';
+import 'order_realtime_hub_provider.dart';
 
 final orderChatUnreadCountProvider = AsyncNotifierProvider.family
     .autoDispose<OrderChatUnreadNotifier, int, int>(
@@ -16,9 +15,17 @@ final orderChatUnreadCountProvider = AsyncNotifierProvider.family
 class OrderChatUnreadNotifier extends AsyncNotifier<int> {
   OrderChatUnreadNotifier(this.orderId);
 
+  static const _fallbackActivationDelay = Duration(seconds: 15);
+  static const _fallbackRefreshInterval = Duration(seconds: 30);
+
   final int orderId;
+  Timer? _fallbackActivationTimer;
   Timer? _degradedRefreshTimer;
-  StreamSubscription<Map<String, dynamic>>? _realtimeSub;
+  StreamSubscription<OrderRealtimeEvent>? _realtimeSub;
+  OrderRealtimeHub? _hub;
+  bool _retainedOrder = false;
+  int _lastReadMessageId = 0;
+  final Set<int> _countedRealtimeMessageIds = <int>{};
   bool _disposed = false;
 
   bool get _isMounted => !_disposed && ref.mounted;
@@ -26,6 +33,7 @@ class OrderChatUnreadNotifier extends AsyncNotifier<int> {
   @override
   Future<int> build() async {
     _disposed = false;
+    _cancelRealtime();
     ref.onDispose(_dispose);
 
     final session = ref.watch(authSessionProvider);
@@ -34,7 +42,12 @@ class OrderChatUnreadNotifier extends AsyncNotifier<int> {
     }
 
     _subscribeRealtime();
-    return _computeUnreadCount();
+    final summary = await _fetchUnreadSummary();
+    _applySummary(summary);
+    final realtimeCount = _countedRealtimeMessageIds.length;
+    return summary.unreadCount > realtimeCount
+        ? summary.unreadCount
+        : realtimeCount;
   }
 
   Future<void> refreshUnread() async {
@@ -51,9 +64,10 @@ class OrderChatUnreadNotifier extends AsyncNotifier<int> {
     }
 
     try {
-      final unreadCount = await _computeUnreadCount();
+      final summary = await _fetchUnreadSummary();
       if (_isMounted) {
-        state = AsyncData(unreadCount);
+        _applySummary(summary);
+        state = AsyncData(summary.unreadCount);
       }
     } catch (_) {
       // Keep previous value when refresh fails.
@@ -66,47 +80,32 @@ class OrderChatUnreadNotifier extends AsyncNotifier<int> {
     }
 
     final session = ref.read(authSessionProvider);
-    final profile = session.profile;
-    if (!_isEligibleSession(session) || profile == null) {
+    if (!_isEligibleSession(session)) {
       return;
     }
 
-    await _writeLastSeenMessageId(
-      userId: profile.id,
-      role: session.role,
-      messageId: messageId,
-    );
-
-    if (_isMounted) {
-      state = const AsyncData(0);
+    try {
+      final summary = await ref
+          .read(orderChatApiServiceProvider)
+          .markRead(orderId: orderId, messageId: messageId);
+      if (_isMounted) {
+        _applySummary(summary);
+        state = AsyncData(summary.unreadCount);
+      }
+    } catch (_) {
+      if (_isMounted) {
+        await refreshUnread();
+      }
     }
   }
 
-  Future<int> _computeUnreadCount() async {
+  Future<OrderChatUnreadSummary> _fetchUnreadSummary() async {
     final session = ref.read(authSessionProvider);
-    final profile = session.profile;
-    if (!_isEligibleSession(session) || profile == null) {
-      return 0;
+    if (!_isEligibleSession(session)) {
+      return const OrderChatUnreadSummary(unreadCount: 0, lastReadMessageId: 0);
     }
 
-    final lastSeenMessageId = await _readLastSeenMessageId(
-      userId: profile.id,
-      role: session.role,
-    );
-    final myRoleToken = _sessionRoleToken(session.role);
-    final page = await ref
-        .read(orderChatApiServiceProvider)
-        .fetchMessages(
-          orderId: orderId,
-          limit: 100,
-          afterId: lastSeenMessageId > 0 ? lastSeenMessageId : null,
-        );
-
-    return page.messages.where((message) {
-      if (!message.hasServerId) return false;
-      if (message.id <= lastSeenMessageId) return false;
-      return message.senderRole.trim().toLowerCase() != myRoleToken;
-    }).length;
+    return ref.read(orderChatApiServiceProvider).fetchUnread(orderId: orderId);
   }
 
   bool _isEligibleSession(AuthSessionState session) {
@@ -116,50 +115,45 @@ class OrderChatUnreadNotifier extends AsyncNotifier<int> {
             session.role == SessionUserRole.driver);
   }
 
-  String _sessionRoleToken(SessionUserRole role) {
-    return role == SessionUserRole.driver ? 'driver' : 'customer';
-  }
-
-  String _lastSeenStorageKey({
-    required int userId,
-    required SessionUserRole role,
-  }) {
-    final roleToken = _sessionRoleToken(role);
-    return 'order_chat_last_seen_${roleToken}_${userId}_$orderId';
-  }
-
-  Future<int> _readLastSeenMessageId({
-    required int userId,
-    required SessionUserRole role,
-  }) async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(_lastSeenStorageKey(userId: userId, role: role)) ?? 0;
-  }
-
-  Future<void> _writeLastSeenMessageId({
-    required int userId,
-    required SessionUserRole role,
-    required int messageId,
-  }) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(
-      _lastSeenStorageKey(userId: userId, role: role),
-      messageId,
-    );
-  }
-
   void _subscribeRealtime() {
     if (!_isMounted) {
       return;
     }
 
-    _realtimeSub?.cancel();
-    _realtimeSub = PusherService.instance.subscribeOrderTracking(
-      orderId,
-      onSubscribed: _markRealtimeHealthy,
-      onConnectionIssue: (_) => _markRealtimeDegraded(),
-      onChatMessage: _handleRealtimeMessage,
-    );
+    _cancelRealtime();
+    final hub = ref.read(orderRealtimeHubProvider);
+    _hub = hub;
+    _realtimeSub = hub.events
+        .where((event) => event.orderId == orderId)
+        .listen(_handleRealtimeEvent);
+    _retainedOrder = true;
+    unawaited(hub.retainOrder(orderId));
+  }
+
+  void _handleRealtimeEvent(OrderRealtimeEvent event) {
+    if (!_isMounted) {
+      return;
+    }
+
+    switch (event.type) {
+      case OrderRealtimeEventType.connected:
+        _markRealtimeHealthy();
+        unawaited(refreshUnread());
+        break;
+      case OrderRealtimeEventType.chat:
+        final message = event.chatMessage;
+        if (message != null) {
+          _handleRealtimeMessage(message);
+        }
+        break;
+      case OrderRealtimeEventType.connectionIssue:
+        _markRealtimeDegraded();
+        unawaited(refreshUnread());
+        break;
+      case OrderRealtimeEventType.status:
+      case OrderRealtimeEventType.location:
+        break;
+    }
   }
 
   void _handleRealtimeMessage(OrderChatMessageModel message) {
@@ -175,34 +169,72 @@ class OrderChatUnreadNotifier extends AsyncNotifier<int> {
 
     _markRealtimeHealthy();
 
-    if (message.senderUserId == profile.id) {
+    if (!message.hasServerId ||
+        message.id <= _lastReadMessageId ||
+        message.senderUserId == profile.id ||
+        _countedRealtimeMessageIds.contains(message.id)) {
       return;
     }
 
+    _countedRealtimeMessageIds.add(message.id);
     final current = state.asData?.value ?? 0;
     state = AsyncData(current + 1);
   }
 
   void _markRealtimeHealthy() {
+    _fallbackActivationTimer?.cancel();
+    _fallbackActivationTimer = null;
     _degradedRefreshTimer?.cancel();
     _degradedRefreshTimer = null;
   }
 
   void _markRealtimeDegraded() {
-    if (!_isMounted || _degradedRefreshTimer != null) {
+    if (!_isMounted ||
+        _fallbackActivationTimer != null ||
+        _degradedRefreshTimer != null) {
       return;
     }
 
-    _degradedRefreshTimer = Timer.periodic(const Duration(seconds: 12), (_) {
+    _fallbackActivationTimer = Timer(_fallbackActivationDelay, () {
+      _fallbackActivationTimer = null;
+      if (!_isMounted || _degradedRefreshTimer != null) {
+        return;
+      }
+
       unawaited(refreshUnread());
+      _degradedRefreshTimer = Timer.periodic(_fallbackRefreshInterval, (_) {
+        unawaited(refreshUnread());
+      });
     });
   }
 
   void _dispose() {
     _disposed = true;
+    _fallbackActivationTimer?.cancel();
+    _fallbackActivationTimer = null;
     _degradedRefreshTimer?.cancel();
     _degradedRefreshTimer = null;
-    unawaited(_realtimeSub?.cancel());
+    _cancelRealtime();
+  }
+
+  void _cancelRealtime() {
+    final subscription = _realtimeSub;
     _realtimeSub = null;
+    unawaited(subscription?.cancel());
+    _releaseRetainedOrder();
+  }
+
+  void _applySummary(OrderChatUnreadSummary summary) {
+    _lastReadMessageId = summary.lastReadMessageId;
+    _countedRealtimeMessageIds.removeWhere((id) => id <= _lastReadMessageId);
+  }
+
+  void _releaseRetainedOrder() {
+    if (!_retainedOrder) {
+      return;
+    }
+
+    _hub?.releaseOrder(orderId);
+    _retainedOrder = false;
   }
 }
