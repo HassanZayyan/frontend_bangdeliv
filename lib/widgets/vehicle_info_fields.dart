@@ -111,7 +111,7 @@ class VehicleInfoFields extends StatelessWidget {
             textInputAction: TextInputAction.next,
             keyboardType: TextInputType.text,
             decoration: _decoration(
-              hintText: 'Tipe motor (contoh: Vario 160)',
+              hintText: 'Contoh: Vario 160',
               icon: Icons.directions_bike_outlined,
             ),
             validator: (value) {

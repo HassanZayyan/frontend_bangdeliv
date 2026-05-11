@@ -296,13 +296,6 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 6),
-        Text(
-          'Format: huruf - angka - huruf (contoh: H 1234 ABC)',
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
-        ),
       ],
     );
   }
