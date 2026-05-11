@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -13,6 +15,8 @@ import 'package:frontend_bangdeliv/providers/order_chat_unread_provider.dart';
 import 'package:frontend_bangdeliv/services/api_client.dart';
 import 'package:frontend_bangdeliv/services/driver_order_service.dart';
 import 'package:frontend_bangdeliv/services/order_chat_api_service.dart';
+import 'package:frontend_bangdeliv/services/pusher_service.dart';
+import 'package:frontend_bangdeliv/utils/order_status.dart';
 import '../fakes/fake_order_realtime_client.dart';
 
 void main() {
@@ -122,42 +126,223 @@ void main() {
     expect(state.running, isEmpty);
   });
 
-  test('driverOrdersProvider applies realtime incoming order without refresh', () async {
-    final fakeService = _FakeDriverOrderService(
-      payload: const DriverOrdersPayload(incoming: [], running: []),
-    );
-    final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
-    final fakeRealtime = FakeOrderRealtimeClient();
-    final container = ProviderContainer(
-      overrides: [
-        authSessionProvider.overrideWith(() => fakeAuth),
-        driverOrderServiceProvider.overrideWithValue(fakeService),
-        orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
-      ],
-    );
-    addTearDown(container.dispose);
+  test(
+    'rejectOrder success suppresses stale fetch and realtime reinsert',
+    () async {
+      final fakeService = _FakeDriverOrderService(payload: seededPayload());
+      final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+      final fakeRealtime = FakeOrderRealtimeClient();
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          driverOrderServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+        ],
+      );
+      addTearDown(container.dispose);
 
-    final initial = await container.read(driverOrdersProvider.future);
-    expect(initial.incoming, isEmpty);
-    expect(fakeRealtime.driverOrderSubscriptions, contains(77));
+      await container.read(driverOrdersProvider.future);
 
-    await Future<void>.delayed(Duration.zero);
-    await Future<void>.delayed(Duration.zero);
+      final error = await container
+          .read(driverOrdersProvider.notifier)
+          .rejectOrder('ORD-1');
+      expect(error, isNull);
+      expect(
+        container.read(driverOrdersProvider).asData!.value.incoming,
+        isEmpty,
+      );
 
-    final realtimeOrder = const DriverOrderModel(
-      id: 'RT-1',
-      customerName: 'Customer Realtime',
-      pickupAddress: 'Pickup',
-      dropoffAddress: 'Dropoff',
-      etaMinutes: 8,
-      fee: 9000,
-      itemCount: 1,
-    );
-    fakeRealtime.emitDriverOrderAvailable(77, realtimeOrder);
+      fakeService.payload = seededPayload();
+      await container
+          .read(driverOrdersProvider.notifier)
+          .refresh(showLoading: false);
+      expect(
+        container.read(driverOrdersProvider).asData!.value.incoming,
+        isEmpty,
+      );
 
-    final state = container.read(driverOrdersProvider).asData!.value;
-    expect(state.incoming.map((order) => order.id), ['RT-1']);
-  });
+      fakeRealtime.emitDriverOrderAvailable(
+        77,
+        seededPayload().incoming.single,
+      );
+      expect(
+        container.read(driverOrdersProvider).asData!.value.incoming,
+        isEmpty,
+      );
+    },
+  );
+
+  test(
+    'terminal transition removes running order and refreshes history',
+    () async {
+      final fakeService = _FakeDriverOrderService(
+        payload: DriverOrdersPayload(
+          incoming: const <DriverOrderModel>[],
+          running: <DriverOrderModel>[_runningOrder('99')],
+        ),
+      );
+      final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+      final fakeRealtime = FakeOrderRealtimeClient();
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          driverOrderServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(driverOrdersProvider.future);
+
+      final error = await container
+          .read(driverOrdersProvider.notifier)
+          .transitionOrderStatus(
+            orderId: '99',
+            actionCode: 'COMPLETE',
+            targetStatusCode: OrderStatusCodes.completed,
+          );
+      await Future<void>.delayed(Duration.zero);
+
+      final state = container.read(driverOrdersProvider).asData!.value;
+      expect(error, isNull);
+      expect(state.running, isEmpty);
+      expect(fakeService.transitionedOrderIds, ['99']);
+      expect(fakeService.fetchHistoryCalls, greaterThanOrEqualTo(1));
+    },
+  );
+
+  test(
+    'terminal realtime status removes running order and refreshes history',
+    () async {
+      final fakeService = _FakeDriverOrderService(
+        payload: DriverOrdersPayload(
+          incoming: const <DriverOrderModel>[],
+          running: <DriverOrderModel>[_runningOrder('99')],
+        ),
+      );
+      final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+      final fakeRealtime = FakeOrderRealtimeClient();
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          driverOrderServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(driverOrdersProvider.future);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(fakeRealtime.orderTrackingSubscriptions, contains(99));
+
+      fakeRealtime.emitOrderStatus(
+        99,
+        OrderStatusRealtimeEvent(
+          statusCode: OrderStatusCodes.completed,
+          statusLabel: 'Selesai',
+          changedAt: DateTime.utc(2026, 5, 10, 12),
+          isTerminal: true,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final state = container.read(driverOrdersProvider).asData!.value;
+      expect(state.running, isEmpty);
+      expect(fakeService.fetchHistoryCalls, greaterThanOrEqualTo(1));
+    },
+  );
+
+  test(
+    'driverOrdersProvider applies realtime incoming order without refresh',
+    () async {
+      final fakeService = _FakeDriverOrderService(
+        payload: const DriverOrdersPayload(incoming: [], running: []),
+      );
+      final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+      final fakeRealtime = FakeOrderRealtimeClient();
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          driverOrderServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final initial = await container.read(driverOrdersProvider.future);
+      expect(initial.incoming, isEmpty);
+      expect(fakeRealtime.driverOrderSubscriptions, contains(77));
+
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      final realtimeOrder = const DriverOrderModel(
+        id: 'RT-1',
+        customerName: 'Customer Realtime',
+        pickupAddress: 'Pickup',
+        dropoffAddress: 'Dropoff',
+        etaMinutes: 8,
+        fee: 9000,
+        itemCount: 1,
+      );
+      fakeRealtime.emitDriverOrderAvailable(77, realtimeOrder);
+
+      final state = container.read(driverOrdersProvider).asData!.value;
+      expect(state.incoming.map((order) => order.id), ['RT-1']);
+    },
+  );
+
+  test(
+    'driverOrdersProvider reconciles missed incoming order when realtime broadcast fails',
+    () async {
+      final previousInterval = driverOrdersReconciliationInterval;
+      driverOrdersReconciliationInterval = const Duration(milliseconds: 20);
+      addTearDown(() {
+        driverOrdersReconciliationInterval = previousInterval;
+      });
+
+      final fakeService = _FakeDriverOrderService(
+        payload: const DriverOrdersPayload(incoming: [], running: []),
+      );
+      final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+      final fakeRealtime = FakeOrderRealtimeClient();
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          driverOrderServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final initial = await container.read(driverOrdersProvider.future);
+      expect(initial.incoming, isEmpty);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      fakeService.payload = const DriverOrdersPayload(
+        incoming: [
+          DriverOrderModel(
+            id: 'MISSED-1',
+            customerName: 'Customer Missed',
+            pickupAddress: 'Pickup',
+            dropoffAddress: 'Dropoff',
+            etaMinutes: 8,
+            fee: 9000,
+            itemCount: 1,
+          ),
+        ],
+        running: [],
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 70));
+
+      final state = container.read(driverOrdersProvider).asData!.value;
+      expect(state.incoming.map((order) => order.id), ['MISSED-1']);
+      expect(fakeService.fetchCalls, greaterThanOrEqualTo(2));
+    },
+  );
 
   test(
     'appRealtimeBootstrapProvider keeps driver realtime alive outside driver shell',
@@ -196,6 +381,101 @@ void main() {
       expect(bootstrap.driverBootstrapActive, isTrue);
       expect(bootstrap.retainedDriverUnreadOrderIds, contains(99));
       expect(fakeRealtime.driverOrderSubscriptions, contains(77));
+      expect(fakeRealtime.orderTrackingSubscriptions, contains(99));
+    },
+  );
+
+  test(
+    'driver realtime bootstrap waits until accept completes before retaining chat',
+    () async {
+      final acceptCompleter = Completer<void>();
+      final fakeService = _FakeDriverOrderService(
+        payload: const DriverOrdersPayload(
+          incoming: [
+            DriverOrderModel(
+              id: '99',
+              customerName: 'Customer Courier',
+              pickupAddress: 'Pickup',
+              dropoffAddress: 'Dropoff',
+              etaMinutes: 8,
+              fee: 9000,
+              itemCount: 1,
+            ),
+          ],
+          running: [],
+        ),
+        acceptCompleter: acceptCompleter,
+      );
+      final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+      final fakeRealtime = FakeOrderRealtimeClient();
+      final fakeChatService = _FakeOrderChatApiService();
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          driverOrderServiceProvider.overrideWithValue(fakeService),
+          orderChatApiServiceProvider.overrideWithValue(fakeChatService),
+          orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final bootstrapSubscription = container.listen<AppRealtimeBootstrapState>(
+        appRealtimeBootstrapProvider,
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(bootstrapSubscription.close);
+
+      await container.read(driverOrdersProvider.future);
+      final acceptFuture = container
+          .read(driverOrdersProvider.notifier)
+          .acceptOrder('99');
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(fakeRealtime.orderTrackingSubscriptions, isNot(contains(99)));
+
+      acceptCompleter.complete();
+      expect(await acceptFuture, isNull);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(fakeRealtime.orderTrackingSubscriptions, contains(99));
+    },
+  );
+
+  test(
+    'running order tracking retries quickly after transient auth failure',
+    () async {
+      final fakeService = _FakeDriverOrderService(
+        payload: DriverOrdersPayload(
+          incoming: const <DriverOrderModel>[],
+          running: <DriverOrderModel>[_runningOrder('99')],
+        ),
+      );
+      final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+      final fakeRealtime = FakeOrderRealtimeClient()
+        ..failOrderTrackingSubscribeAttempts = 1;
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          driverOrderServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(driverOrdersProvider.future);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(fakeRealtime.orderTrackingSubscribeCalls, 1);
+      expect(fakeRealtime.orderTrackingSubscriptions, isNot(contains(99)));
+
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(fakeRealtime.orderTrackingSubscribeCalls, greaterThanOrEqualTo(2));
       expect(fakeRealtime.orderTrackingSubscriptions, contains(99));
     },
   );
@@ -352,13 +632,18 @@ class _FakeDriverOrderService extends DriverOrderService {
   DriverOrdersPayload payload;
   final bool failAccept;
   final bool failReject;
+  final Completer<void>? acceptCompleter;
   final List<String> acceptedOrderIds = <String>[];
   int fetchCalls = 0;
+  int fetchHistoryCalls = 0;
+  final List<String> transitionedOrderIds = <String>[];
+  List<DriverHistoryOrderModel> history = const <DriverHistoryOrderModel>[];
 
   _FakeDriverOrderService({
     required this.payload,
     this.failAccept = false,
     this.failReject = false,
+    this.acceptCompleter,
   });
 
   @override
@@ -378,6 +663,10 @@ class _FakeDriverOrderService extends DriverOrderService {
   Future<void> acceptOrder(String orderId) async {
     if (failAccept) {
       throw const DriverOrderApiException('accept failed', statusCode: 500);
+    }
+    final completer = acceptCompleter;
+    if (completer != null) {
+      await completer.future;
     }
     acceptedOrderIds.add(orderId);
     DriverOrderModel? acceptedOrder;
@@ -416,8 +705,34 @@ class _FakeDriverOrderService extends DriverOrderService {
   }
 
   @override
+  Future<DriverOrderModel> transitionStatus({
+    required String orderId,
+    required String actionCode,
+    String? targetStatusCode,
+    String? note,
+    double? latitude,
+    double? longitude,
+  }) async {
+    transitionedOrderIds.add(orderId);
+    final updated = payload.running
+        .firstWhere((order) => order.id == orderId)
+        .copyWith(
+          statusCode: targetStatusCode ?? OrderStatusCodes.completed,
+          statusDisplayName: 'Selesai',
+        );
+    payload = DriverOrdersPayload(
+      incoming: payload.incoming,
+      running: payload.running
+          .where((order) => order.id != orderId)
+          .toList(growable: false),
+    );
+    return updated;
+  }
+
+  @override
   Future<List<DriverHistoryOrderModel>> fetchHistory() async {
-    return const <DriverHistoryOrderModel>[];
+    fetchHistoryCalls += 1;
+    return history;
   }
 }
 

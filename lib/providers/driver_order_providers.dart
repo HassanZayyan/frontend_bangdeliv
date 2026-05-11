@@ -8,31 +8,39 @@ import '../utils/order_formatters.dart';
 import '../utils/order_status.dart';
 import 'api_providers.dart';
 import 'auth_session_provider.dart';
+import 'order_realtime_hub_provider.dart';
 
 final driverOrderServiceProvider = Provider<DriverOrderService>((ref) {
   return DriverOrderService();
 });
 
+Duration driverOrdersReconciliationInterval = const Duration(seconds: 2);
+
 class DriverOrdersState {
   final List<DriverOrderModel> incoming;
   final List<DriverOrderModel> running;
   final Set<String> processingOrderIds;
+  final Set<String> suppressedIncomingOrderIds;
 
   const DriverOrdersState({
     required this.incoming,
     required this.running,
     this.processingOrderIds = const <String>{},
+    this.suppressedIncomingOrderIds = const <String>{},
   });
 
   DriverOrdersState copyWith({
     List<DriverOrderModel>? incoming,
     List<DriverOrderModel>? running,
     Set<String>? processingOrderIds,
+    Set<String>? suppressedIncomingOrderIds,
   }) {
     return DriverOrdersState(
       incoming: incoming ?? this.incoming,
       running: running ?? this.running,
       processingOrderIds: processingOrderIds ?? this.processingOrderIds,
+      suppressedIncomingOrderIds:
+          suppressedIncomingOrderIds ?? this.suppressedIncomingOrderIds,
     );
   }
 
@@ -41,8 +49,12 @@ class DriverOrdersState {
 
 class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
   StreamSubscription<Map<String, dynamic>>? _driverRealtimeSub;
+  StreamSubscription<OrderRealtimeEvent>? _runningOrderRealtimeSub;
+  OrderRealtimeHub? _runningOrderRealtimeHub;
   Timer? _degradedRefreshTimer;
   Timer? _driverRealtimeRetryTimer;
+  Timer? _incomingReconciliationTimer;
+  final Set<int> _retainedRunningOrderIds = <int>{};
   int? _targetDriverUserId;
   int _driverRealtimeRetryAttempt = 0;
   bool _driverRealtimeSubscribed = false;
@@ -56,7 +68,9 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
   Future<DriverOrdersState> build() async {
     _disposed = false;
     _cancelRealtime();
+    _releaseRunningOrderRealtime();
     _stopDegradedRefresh();
+    _stopIncomingReconciliation();
     ref.onDispose(_dispose);
 
     final session = ref.watch(authSessionProvider);
@@ -64,6 +78,8 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         session.role != SessionUserRole.driver ||
         session.profile == null) {
       _cancelRealtime();
+      _releaseRunningOrderRealtime();
+      _stopIncomingReconciliation();
       return const DriverOrdersState(
         incoming: <DriverOrderModel>[],
         running: <DriverOrderModel>[],
@@ -72,12 +88,15 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
 
     final payload = await ref.read(driverOrderServiceProvider).fetchOrders();
     _syncRealtimeSubscription(session);
+    _startIncomingReconciliation();
 
-    return DriverOrdersState(
+    final next = DriverOrdersState(
       incoming: payload.incoming,
       running: payload.running,
       processingOrderIds: const <String>{},
     );
+    _syncRunningOrderRealtime(next);
+    return next;
   }
 
   Future<void> refresh({bool showLoading = true}) async {
@@ -94,7 +113,9 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         session.role != SessionUserRole.driver ||
         session.profile == null) {
       _cancelRealtime();
+      _releaseRunningOrderRealtime();
       _stopDegradedRefresh();
+      _stopIncomingReconciliation();
       state = const AsyncData(
         DriverOrdersState(
           incoming: <DriverOrderModel>[],
@@ -103,6 +124,8 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       );
       return;
     }
+
+    final previous = state.asData?.value;
 
     if (showLoading) {
       state = const AsyncLoading<DriverOrdersState>();
@@ -113,15 +136,31 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         _silentRefreshInFlight = true;
       }
 
+      final suppressedIncomingOrderIds =
+          previous?.suppressedIncomingOrderIds ?? const <String>{};
+      final processingOrderIds =
+          previous?.processingOrderIds ?? const <String>{};
       final payload = await ref.read(driverOrderServiceProvider).fetchOrders();
       _syncRealtimeSubscription(session);
-      state = AsyncData(
-        DriverOrdersState(
-          incoming: payload.incoming,
-          running: payload.running,
-          processingOrderIds: const <String>{},
+      _startIncomingReconciliation();
+      final latest = state.asData?.value;
+      final effectiveSuppressedIncomingOrderIds = <String>{
+        ...suppressedIncomingOrderIds,
+        ...?latest?.suppressedIncomingOrderIds,
+      };
+      final effectiveProcessingOrderIds =
+          latest?.processingOrderIds ?? processingOrderIds;
+      final next = DriverOrdersState(
+        incoming: _filterSuppressedIncomingOrders(
+          payload.incoming,
+          effectiveSuppressedIncomingOrderIds,
         ),
+        running: payload.running,
+        processingOrderIds: effectiveProcessingOrderIds,
+        suppressedIncomingOrderIds: effectiveSuppressedIncomingOrderIds,
       );
+      state = AsyncData(next);
+      _syncRunningOrderRealtime(next);
     } catch (error, stackTrace) {
       if (!showLoading && state.asData != null) {
         return;
@@ -165,7 +204,8 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         .subscribeDriverOrders(
           driverUserId,
           onOrderAvailable: _handleRealtimeOrderAvailable,
-          onOrderRemoved: (orderId, _) => _handleRealtimeOrderRemoved(orderId),
+          onOrderRemoved: (orderId, reason) =>
+              _handleRealtimeOrderRemoved(orderId, reason: reason),
           onSubscribed: () => _handleRealtimeSubscribed(driverUserId),
           onConnectionIssue: _handleRealtimeConnectionIssue,
         );
@@ -206,6 +246,10 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       return;
     }
 
+    if (current.suppressedIncomingOrderIds.contains(order.id)) {
+      return;
+    }
+
     if (current.running.any((item) => item.id == order.id)) {
       return;
     }
@@ -216,7 +260,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     _markRealtimeHealthy();
   }
 
-  void _handleRealtimeOrderRemoved(String orderId) {
+  void _handleRealtimeOrderRemoved(String orderId, {String? reason}) {
     if (!_isMounted) {
       return;
     }
@@ -229,11 +273,19 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     final incoming = current.incoming
         .where((order) => order.id != orderId)
         .toList(growable: false);
-    if (incoming.length == current.incoming.length) {
+    final shouldSuppress = _isRejectedByCurrentDriver(reason);
+    if (incoming.length == current.incoming.length && !shouldSuppress) {
       return;
     }
 
-    state = AsyncData(current.copyWith(incoming: incoming));
+    state = AsyncData(
+      current.copyWith(
+        incoming: incoming,
+        suppressedIncomingOrderIds: shouldSuppress
+            ? <String>{...current.suppressedIncomingOrderIds, orderId}
+            : current.suppressedIncomingOrderIds,
+      ),
+    );
     _markRealtimeHealthy();
   }
 
@@ -265,6 +317,32 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     _degradedRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       unawaited(refresh(showLoading: false));
     });
+  }
+
+  void _startIncomingReconciliation() {
+    if (!_isMounted || _incomingReconciliationTimer != null) {
+      return;
+    }
+
+    _incomingReconciliationTimer = Timer.periodic(
+      driverOrdersReconciliationInterval,
+      (_) {
+        if (!_isMounted) {
+          _stopIncomingReconciliation();
+          return;
+        }
+
+        final session = ref.read(authSessionProvider);
+        if (!session.isAuthenticated ||
+            session.role != SessionUserRole.driver ||
+            session.profile == null) {
+          _stopIncomingReconciliation();
+          return;
+        }
+
+        unawaited(refresh(showLoading: false));
+      },
+    );
   }
 
   void _scheduleRealtimeRetry(int driverUserId) {
@@ -351,6 +429,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         processingOrderIds: processingOrderIds,
       ),
     );
+    _syncRunningOrderRealtime(state.asData!.value);
 
     try {
       await ref.read(driverOrderServiceProvider).acceptOrder(id);
@@ -379,6 +458,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
           processingOrderIds: cleanedProcessingIds,
         ),
       );
+      _syncRunningOrderRealtime(state.asData!.value);
 
       ref.invalidate(driverOrderDetailProvider(id));
       ref.invalidate(driverAvailabilityProvider);
@@ -390,6 +470,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       state = AsyncData(
         current.copyWith(processingOrderIds: rollbackProcessingIds),
       );
+      _syncRunningOrderRealtime(state.asData!.value);
       return error.toString();
     }
   }
@@ -413,11 +494,16 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     }
 
     final processingOrderIds = <String>{...current.processingOrderIds, id};
+    final suppressedIncomingOrderIds = <String>{
+      ...current.suppressedIncomingOrderIds,
+      id,
+    };
 
     state = AsyncData(
       current.copyWith(
         incoming: incoming,
         processingOrderIds: processingOrderIds,
+        suppressedIncomingOrderIds: suppressedIncomingOrderIds,
       ),
     );
 
@@ -488,7 +574,8 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
 
       final cleanedProcessingIds = <String>{...latest.processingOrderIds}
         ..remove(orderId);
-      final syncedRunning = _isTerminalStatus(updated.statusCode)
+      final isTerminal = isTerminalOrderStatus(updated.statusCode);
+      final syncedRunning = isTerminal
           ? _removeRunningOrder(latest.running, orderId)
           : _upsertRunningOrder(latest.running, updated);
 
@@ -498,9 +585,15 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
           processingOrderIds: cleanedProcessingIds,
         ),
       );
+      _syncRunningOrderRealtime(state.asData!.value);
 
       ref.invalidate(driverOrderDetailProvider(orderId));
       ref.invalidate(driverAvailabilityProvider);
+      if (isTerminal) {
+        unawaited(
+          ref.read(driverHistoryProvider.notifier).refresh(showLoading: false),
+        );
+      }
       _refreshAvailabilityThenSyncRealtime();
       return null;
     } catch (error) {
@@ -514,6 +607,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       state = AsyncData(
         latest.copyWith(processingOrderIds: rollbackProcessingIds),
       );
+      _syncRunningOrderRealtime(state.asData!.value);
       return error.toString();
     }
   }
@@ -558,6 +652,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
           processingOrderIds: cleanedProcessingIds,
         ),
       );
+      _syncRunningOrderRealtime(state.asData!.value);
 
       ref.invalidate(driverOrderDetailProvider(orderId));
       return null;
@@ -601,11 +696,116 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         .toList(growable: false);
   }
 
-  bool _isTerminalStatus(String code) {
-    final normalized = code.toUpperCase();
-    return normalized == 'COMPLETED' ||
-        normalized == 'CANCELLED' ||
-        normalized == 'CANCELLED_WITH_FEE';
+  List<DriverOrderModel> _filterSuppressedIncomingOrders(
+    List<DriverOrderModel> incoming,
+    Set<String> suppressedOrderIds,
+  ) {
+    if (suppressedOrderIds.isEmpty) {
+      return incoming;
+    }
+
+    return incoming
+        .where((order) => !suppressedOrderIds.contains(order.id))
+        .toList(growable: false);
+  }
+
+  bool _isRejectedByCurrentDriver(String? reason) {
+    final normalized = (reason ?? '').trim().toLowerCase();
+    return normalized == 'rejected_by_driver' ||
+        normalized == 'driver_rejected' ||
+        normalized == 'rejected';
+  }
+
+  void _syncRunningOrderRealtime(DriverOrdersState current) {
+    if (!_isMounted) {
+      return;
+    }
+
+    final nextIds = current.running
+        .where((order) => !current.processingOrderIds.contains(order.id))
+        .map((order) => int.tryParse(order.id.trim()))
+        .whereType<int>()
+        .where((orderId) => orderId > 0)
+        .toSet();
+
+    final hub = ref.read(orderRealtimeHubProvider);
+    _runningOrderRealtimeHub = hub;
+
+    for (final orderId in _retainedRunningOrderIds.difference(nextIds)) {
+      hub.releaseOrder(orderId);
+    }
+
+    for (final orderId in nextIds.difference(_retainedRunningOrderIds)) {
+      unawaited(hub.retainOrder(orderId));
+    }
+
+    _retainedRunningOrderIds
+      ..clear()
+      ..addAll(nextIds);
+
+    if (_retainedRunningOrderIds.isEmpty) {
+      final subscription = _runningOrderRealtimeSub;
+      _runningOrderRealtimeSub = null;
+      unawaited(subscription?.cancel());
+      return;
+    }
+
+    _runningOrderRealtimeSub ??= hub.events
+        .where((event) => _retainedRunningOrderIds.contains(event.orderId))
+        .listen(_handleRunningOrderRealtimeEvent);
+  }
+
+  void _handleRunningOrderRealtimeEvent(OrderRealtimeEvent event) {
+    if (!_isMounted || event.type != OrderRealtimeEventType.status) {
+      return;
+    }
+
+    final statusEvent = event.status;
+    if (statusEvent == null) {
+      return;
+    }
+
+    final orderId = event.orderId.toString();
+    final current = state.asData?.value;
+    if (current == null ||
+        !current.running.any((order) => order.id == orderId)) {
+      return;
+    }
+
+    final statusCode = normalizeOrderStatusCode(statusEvent.statusCode);
+    if (statusCode.isEmpty) {
+      return;
+    }
+
+    final statusLabel = (statusEvent.statusLabel ?? '').trim().isEmpty
+        ? orderStatusLabel(statusCode)
+        : statusEvent.statusLabel!.trim();
+    final isTerminal =
+        statusEvent.isTerminal ?? isTerminalOrderStatus(statusCode);
+    final running = isTerminal
+        ? _removeRunningOrder(current.running, orderId)
+        : _upsertRunningOrder(
+            current.running,
+            current.running
+                .firstWhere((order) => order.id == orderId)
+                .copyWith(
+                  statusCode: statusCode,
+                  statusDisplayName: statusLabel,
+                ),
+          );
+
+    final next = current.copyWith(running: running);
+    state = AsyncData(next);
+    _syncRunningOrderRealtime(next);
+
+    ref.invalidate(driverOrderDetailProvider(orderId));
+    if (isTerminal) {
+      ref.invalidate(driverAvailabilityProvider);
+      unawaited(
+        ref.read(driverHistoryProvider.notifier).refresh(showLoading: false),
+      );
+      _refreshAvailabilityThenSyncRealtime();
+    }
   }
 
   String _currentHourMinute() {
@@ -615,6 +815,21 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
   void _cancelRealtime() {
     _cancelRealtimeSubscription();
     _stopRealtimeRetry();
+  }
+
+  void _releaseRunningOrderRealtime() {
+    final subscription = _runningOrderRealtimeSub;
+    _runningOrderRealtimeSub = null;
+    unawaited(subscription?.cancel());
+
+    final hub = _runningOrderRealtimeHub;
+    if (hub != null) {
+      for (final orderId in _retainedRunningOrderIds) {
+        hub.releaseOrder(orderId);
+      }
+    }
+    _retainedRunningOrderIds.clear();
+    _runningOrderRealtimeHub = null;
   }
 
   void _cancelRealtimeSubscription({bool keepTarget = false}) {
@@ -639,10 +854,17 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     _driverRealtimeRetryTimer = null;
   }
 
+  void _stopIncomingReconciliation() {
+    _incomingReconciliationTimer?.cancel();
+    _incomingReconciliationTimer = null;
+  }
+
   void _dispose() {
     _disposed = true;
     _cancelRealtime();
+    _releaseRunningOrderRealtime();
     _stopDegradedRefresh();
+    _stopIncomingReconciliation();
   }
 }
 
@@ -792,18 +1014,80 @@ final driverOrderDetailProvider =
       return ref.read(driverOrderServiceProvider).fetchOrderDetail(orderId);
     });
 
-final driverHistoryProvider = FutureProvider<List<DriverHistoryOrderModel>>((
-  ref,
-) async {
-  final session = ref.watch(authSessionProvider);
-  if (!session.isAuthenticated ||
-      session.role != SessionUserRole.driver ||
-      session.profile == null) {
-    return const <DriverHistoryOrderModel>[];
+class DriverHistoryNotifier
+    extends AsyncNotifier<List<DriverHistoryOrderModel>> {
+  bool _disposed = false;
+  bool _silentRefreshInFlight = false;
+
+  bool get _isMounted => !_disposed && ref.mounted;
+
+  @override
+  Future<List<DriverHistoryOrderModel>> build() async {
+    _disposed = false;
+    ref.onDispose(() => _disposed = true);
+
+    final session = ref.watch(authSessionProvider);
+    if (!_isEligibleSession(session)) {
+      return const <DriverHistoryOrderModel>[];
+    }
+
+    return ref.read(driverOrderServiceProvider).fetchHistory();
   }
 
-  return ref.read(driverOrderServiceProvider).fetchHistory();
-});
+  Future<void> refresh({bool showLoading = true}) async {
+    if (!_isMounted) {
+      return;
+    }
+
+    final session = ref.read(authSessionProvider);
+    if (!_isEligibleSession(session)) {
+      state = const AsyncData(<DriverHistoryOrderModel>[]);
+      return;
+    }
+
+    if (!showLoading && _silentRefreshInFlight) {
+      return;
+    }
+
+    if (showLoading) {
+      state = const AsyncLoading<List<DriverHistoryOrderModel>>();
+    }
+
+    try {
+      if (!showLoading) {
+        _silentRefreshInFlight = true;
+      }
+
+      final history = await ref.read(driverOrderServiceProvider).fetchHistory();
+      if (_isMounted) {
+        state = AsyncData(history);
+      }
+    } catch (error, stackTrace) {
+      if (!showLoading && state.asData != null) {
+        return;
+      }
+
+      if (_isMounted) {
+        state = AsyncError(error, stackTrace);
+      }
+    } finally {
+      if (!showLoading) {
+        _silentRefreshInFlight = false;
+      }
+    }
+  }
+
+  bool _isEligibleSession(AuthSessionState session) {
+    return session.isAuthenticated &&
+        session.role == SessionUserRole.driver &&
+        session.profile != null;
+  }
+}
+
+final driverHistoryProvider =
+    AsyncNotifierProvider<DriverHistoryNotifier, List<DriverHistoryOrderModel>>(
+      DriverHistoryNotifier.new,
+    );
 
 final driverActiveOrderProvider = Provider<DriverOrderModel?>((ref) {
   final state = ref.watch(driverOrdersProvider);

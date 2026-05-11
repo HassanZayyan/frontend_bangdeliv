@@ -332,7 +332,6 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
   };
 
   final _formKey = GlobalKey<FormState>();
-  final _scrollController = ScrollController();
   final _recipientController = TextEditingController();
   final _phoneController = TextEditingController();
   final _fullAddressController = TextEditingController();
@@ -589,7 +588,6 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
                   ).bottom;
 
                   return SingleChildScrollView(
-                    controller: _scrollController,
                     keyboardDismissBehavior:
                         ScrollViewKeyboardDismissBehavior.onDrag,
                     padding: EdgeInsets.fromLTRB(
@@ -1304,7 +1302,9 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        (value ?? '').trim().isNotEmpty ? value!.trim() : hintText,
+                        (value ?? '').trim().isNotEmpty
+                            ? value!.trim()
+                            : hintText,
                         style: TextStyle(
                           color: (value ?? '').trim().isNotEmpty
                               ? AppColors.textPrimary
@@ -1346,9 +1346,13 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
       return Future.value(null);
     }
 
-    final overlayBox = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final overlayBox =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
     final fieldBox = fieldContext.findRenderObject() as RenderBox;
-    final fieldTopLeft = fieldBox.localToGlobal(Offset.zero, ancestor: overlayBox);
+    final fieldTopLeft = fieldBox.localToGlobal(
+      Offset.zero,
+      ancestor: overlayBox,
+    );
     final fieldBottomRight = fieldBox.localToGlobal(
       fieldBox.size.bottomRight(Offset.zero),
       ancestor: overlayBox,
@@ -1642,7 +1646,6 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
 
   @override
   void dispose() {
-    _scrollController.dispose();
     _recipientController.dispose();
     _phoneController.dispose();
     _fullAddressController.dispose();

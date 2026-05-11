@@ -12,21 +12,25 @@ final orderChatUnreadCountProvider = AsyncNotifierProvider.family
       OrderChatUnreadNotifier.new,
     );
 
+Duration orderChatUnreadReconciliationInterval = const Duration(seconds: 4);
+
 class OrderChatUnreadNotifier extends AsyncNotifier<int> {
   OrderChatUnreadNotifier(this.orderId);
 
-  static const _fallbackActivationDelay = Duration(seconds: 15);
-  static const _fallbackRefreshInterval = Duration(seconds: 30);
+  static const _fallbackActivationDelay = Duration(seconds: 4);
+  static const _fallbackRefreshInterval = Duration(seconds: 8);
 
   final int orderId;
   Timer? _fallbackActivationTimer;
   Timer? _degradedRefreshTimer;
+  Timer? _reconciliationTimer;
   StreamSubscription<OrderRealtimeEvent>? _realtimeSub;
   OrderRealtimeHub? _hub;
   bool _retainedOrder = false;
   int _lastReadMessageId = 0;
   final Set<int> _countedRealtimeMessageIds = <int>{};
   bool _disposed = false;
+  bool _refreshInFlight = false;
 
   bool get _isMounted => !_disposed && ref.mounted;
 
@@ -42,6 +46,7 @@ class OrderChatUnreadNotifier extends AsyncNotifier<int> {
     }
 
     _subscribeRealtime();
+    _startReconciliation();
     final summary = await _fetchUnreadSummary();
     _applySummary(summary);
     final realtimeCount = _countedRealtimeMessageIds.length;
@@ -51,7 +56,7 @@ class OrderChatUnreadNotifier extends AsyncNotifier<int> {
   }
 
   Future<void> refreshUnread() async {
-    if (!_isMounted) {
+    if (!_isMounted || _refreshInFlight) {
       return;
     }
 
@@ -64,6 +69,7 @@ class OrderChatUnreadNotifier extends AsyncNotifier<int> {
     }
 
     try {
+      _refreshInFlight = true;
       final summary = await _fetchUnreadSummary();
       if (_isMounted) {
         _applySummary(summary);
@@ -71,6 +77,8 @@ class OrderChatUnreadNotifier extends AsyncNotifier<int> {
       }
     } catch (_) {
       // Keep previous value when refresh fails.
+    } finally {
+      _refreshInFlight = false;
     }
   }
 
@@ -208,12 +216,25 @@ class OrderChatUnreadNotifier extends AsyncNotifier<int> {
     });
   }
 
+  void _startReconciliation() {
+    if (!_isMounted || _reconciliationTimer != null) {
+      return;
+    }
+
+    _reconciliationTimer = Timer.periodic(
+      orderChatUnreadReconciliationInterval,
+      (_) => unawaited(refreshUnread()),
+    );
+  }
+
   void _dispose() {
     _disposed = true;
     _fallbackActivationTimer?.cancel();
     _fallbackActivationTimer = null;
     _degradedRefreshTimer?.cancel();
     _degradedRefreshTimer = null;
+    _reconciliationTimer?.cancel();
+    _reconciliationTimer = null;
     _cancelRealtime();
   }
 

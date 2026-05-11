@@ -14,8 +14,9 @@ class DriverRealtimeBootstrapState {
   final Set<int> retainedUnreadOrderIds;
 }
 
-final driverRealtimeBootstrapProvider =
-    Provider<DriverRealtimeBootstrapState>((ref) {
+final driverRealtimeBootstrapProvider = Provider<DriverRealtimeBootstrapState>((
+  ref,
+) {
   final session = ref.watch(authSessionProvider);
   final isActiveDriver =
       session.isAuthenticated &&
@@ -32,11 +33,14 @@ final driverRealtimeBootstrapProvider =
 
   final orders = ref.watch(driverOrdersProvider);
   final runningOrderIds = orders.maybeWhen(
-    data: (value) => value.running
-        .map((order) => int.tryParse(order.id.trim()))
-        .whereType<int>()
-        .where((orderId) => orderId > 0)
-        .toSet(),
+    data: (value) {
+      return value.running
+          .where((order) => !value.processingOrderIds.contains(order.id))
+          .map((order) => int.tryParse(order.id.trim()))
+          .whereType<int>()
+          .where((orderId) => orderId > 0)
+          .toSet();
+    },
     orElse: () => <int>{},
   );
 

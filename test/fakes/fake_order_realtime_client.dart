@@ -15,11 +15,13 @@ class FakeOrderRealtimeClient implements OrderRealtimeClient {
   final Set<int> orderTrackingSubscriptions = <int>{};
 
   final Map<int, void Function(DriverOrderModel)>
-      _driverOrderAvailableHandlers = <int, void Function(DriverOrderModel)>{};
+  _driverOrderAvailableHandlers = <int, void Function(DriverOrderModel)>{};
   final Map<int, void Function(String, String?)> _driverOrderRemovedHandlers =
       <int, void Function(String, String?)>{};
   final Map<int, void Function(OrderChatMessageModel)> _orderChatHandlers =
       <int, void Function(OrderChatMessageModel)>{};
+  final Map<int, void Function(OrderStatusRealtimeEvent)> _orderStatusHandlers =
+      <int, void Function(OrderStatusRealtimeEvent)>{};
 
   @override
   Future<void> connect() async {
@@ -84,12 +86,16 @@ class FakeOrderRealtimeClient implements OrderRealtimeClient {
     if (onChatMessage != null) {
       _orderChatHandlers[orderId] = onChatMessage;
     }
+    if (onStatusChanged != null) {
+      _orderStatusHandlers[orderId] = onStatusChanged;
+    }
     Future<void>.microtask(() => onSubscribed?.call());
 
     return _subscription(
       onCancel: () {
         orderTrackingSubscriptions.remove(orderId);
         _orderChatHandlers.remove(orderId);
+        _orderStatusHandlers.remove(orderId);
       },
     );
   }
@@ -98,16 +104,16 @@ class FakeOrderRealtimeClient implements OrderRealtimeClient {
     _driverOrderAvailableHandlers[userId]?.call(order);
   }
 
-  void emitDriverOrderRemoved(
-    int userId,
-    String orderId, {
-    String? reason,
-  }) {
+  void emitDriverOrderRemoved(int userId, String orderId, {String? reason}) {
     _driverOrderRemovedHandlers[userId]?.call(orderId, reason);
   }
 
   void emitOrderChatMessage(int orderId, OrderChatMessageModel message) {
     _orderChatHandlers[orderId]?.call(message);
+  }
+
+  void emitOrderStatus(int orderId, OrderStatusRealtimeEvent event) {
+    _orderStatusHandlers[orderId]?.call(event);
   }
 
   @override

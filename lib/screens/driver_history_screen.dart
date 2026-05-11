@@ -41,7 +41,7 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
         error: (error, stackTrace) {
           return _ErrorState(
             message: error.toString(),
-            onRetry: () => ref.invalidate(driverHistoryProvider),
+            onRetry: () => ref.read(driverHistoryProvider.notifier).refresh(),
           );
         },
         data: (orders) {
@@ -96,8 +96,9 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
                     ? const _EmptyHistoryState()
                     : RefreshIndicator(
                         onRefresh: () async {
-                          ref.invalidate(driverHistoryProvider);
-                          await ref.read(driverHistoryProvider.future);
+                          await ref
+                              .read(driverHistoryProvider.notifier)
+                              .refresh(showLoading: false);
                         },
                         child: ListView.separated(
                           physics: const AlwaysScrollableScrollPhysics(),
@@ -178,7 +179,6 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
 
     return orders;
   }
-
 }
 
 class _SummaryCard extends StatelessWidget {

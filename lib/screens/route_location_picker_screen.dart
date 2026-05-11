@@ -1,14 +1,11 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:http/http.dart' as http;
 
 import '../config/app_colors.dart';
-import '../config/app_env.dart';
 import '../models/route_location_picker_result.dart';
+import '../services/google_maps_lookup_service.dart';
 
 class RouteLocationPickerScreen extends StatefulWidget {
   const RouteLocationPickerScreen({super.key, required this.args});
@@ -24,6 +21,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
   static const LatLng _fallbackCenter = LatLng(-7.3294948, 110.5080427);
 
   GoogleMapController? _mapController;
+  final _mapsLookup = const GoogleMapsLookupService();
   late LatLng _cameraTarget;
   late double _initialZoom;
   late String _activeTarget;
@@ -176,27 +174,24 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                   );
                 },
                 suggestionsBuilder:
-                    (
-                      BuildContext context,
-                      SearchController controller,
-                    ) async {
+                    (BuildContext context, SearchController controller) async {
                       final query = controller.text;
                       if (query.isEmpty) {
                         return const Iterable<Widget>.empty();
                       }
-                      final results = await _searchPlaces(query);
+                      final results = await _mapsLookup.searchPlaces(query);
                       return results.map((prediction) {
                         return ListTile(
                           leading: const Icon(
                             Icons.location_on,
                             color: AppColors.primary,
                           ),
-                          title: Text(prediction['description']),
+                          title: Text(prediction.description),
                           onTap: () async {
-                            controller.closeView(prediction['description']);
+                            controller.closeView(prediction.description);
                             await _goToPlace(
-                              placeId: prediction['place_id']?.toString(),
-                              fallbackQuery: prediction['description']?.toString(),
+                              placeId: prediction.placeId,
+                              fallbackQuery: prediction.description,
                             );
                             FocusManager.instance.primaryFocus?.unfocus();
                           },
@@ -286,12 +281,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
   }) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.fromLTRB(
-        16,
-        showMapPanel ? 0 : 4,
-        16,
-        16,
-      ),
+      padding: EdgeInsets.fromLTRB(16, showMapPanel ? 0 : 4, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -310,10 +300,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
             const Text(
               'Pilih tujuan dari pencarian atau pilih lewat peta.',
               key: Key('route_picker_hidden_map_hint'),
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12,
-              ),
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
             ),
           if ((activeAddress ?? '').isNotEmpty) ...[
             const SizedBox(height: 4),
@@ -445,7 +432,8 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     return _destinationPoint != null || _isDestinationMapVisible;
   }
 
-  bool get _canConfirmRoute => _pickupPoint != null && _destinationPoint != null;
+  bool get _canConfirmRoute =>
+      _pickupPoint != null && _destinationPoint != null;
 
   bool get _isManualDestinationSelectionMode =>
       _activeTarget == _destinationTarget &&
@@ -523,7 +511,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
       _statusHint = 'Mencari alamat titik peta...';
     });
 
-    final address = await _reverseGeocode(target);
+    final address = await _mapsLookup.reverseGeocode(target);
     if (!mounted || requestId != _mapAddressRequestId) return;
 
     if (_activePoint != null) {
@@ -597,7 +585,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
       final target = LatLng(position.latitude, position.longitude);
       _cameraTarget = target;
       await _animateCameraSafely(target, 18);
-      final address = await _reverseGeocode(target);
+      final address = await _mapsLookup.reverseGeocode(target);
       if (!mounted) return;
 
       _saveActivePoint('gps', address: address);
@@ -626,13 +614,16 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
   }
 
   Future<void> _saveDestinationFromMapCenter() async {
-    if (_isSavingManualDestination || _activeTarget != _destinationTarget) return;
+    if (_isSavingManualDestination || _activeTarget != _destinationTarget) {
+      return;
+    }
 
     final manualTarget = _cameraTarget;
     setState(() => _isSavingManualDestination = true);
 
     try {
-      final address = _mapCenterAddress ?? await _reverseGeocode(manualTarget);
+      final address =
+          _mapCenterAddress ?? await _mapsLookup.reverseGeocode(manualTarget);
       if (!mounted) return;
 
       _cameraTarget = manualTarget;
@@ -646,7 +637,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
   }
 
   void _saveActivePoint(String source, {String? address}) {
-    final cleanedAddress = _cleanAddress(address);
+    final cleanedAddress = _mapsLookup.cleanAddress(address);
     final point = _RoutePoint(
       target: _activeTarget,
       latitude: _cameraTarget.latitude,
@@ -708,105 +699,22 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     context.pop(RouteLocationPickerResult(locations: locations));
   }
 
-  Future<List<Map<String, dynamic>>> _searchPlaces(String query) async {
-    if (query.isEmpty) return [];
-    final apiKey = AppEnv.googleMapsApiKey.trim();
-    if (apiKey.isEmpty) return [];
-
-    final url = Uri.https(
-      'maps.googleapis.com',
-      '/maps/api/place/autocomplete/json',
-      <String, String>{
-        'input': query,
-        'key': apiKey,
-        'components': 'country:id',
-        'language': 'id',
-      },
-    );
-
-    try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['status'] == 'OK') {
-          return List<Map<String, dynamic>>.from(data['predictions']);
-        }
-      }
-    } catch (_) {}
-    return [];
-  }
-
   Future<void> _goToPlace({String? placeId, String? fallbackQuery}) async {
-    final apiKey = AppEnv.googleMapsApiKey.trim();
-    if (apiKey.isEmpty) {
+    if (!_mapsLookup.isConfigured) {
       _showMessage('Google Maps API key belum dikonfigurasi.');
       return;
     }
 
-    var isResolved = false;
-
-    if ((placeId ?? '').isNotEmpty) {
-      final placeDetailsUrl = Uri.https(
-        'maps.googleapis.com',
-        '/maps/api/place/details/json',
-        <String, String>{
-          'place_id': placeId!,
-          'key': apiKey,
-          'language': 'id',
-        },
-      );
-
-      try {
-        final response = await http.get(placeDetailsUrl);
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          if (data is Map<String, dynamic> && data['status'] == 'OK') {
-            final result = data['result'];
-            if (result is Map<String, dynamic>) {
-              final geometry = result['geometry'];
-              final location = geometry is Map<String, dynamic>
-                  ? geometry['location']
-                  : null;
-              final lat = location is Map<String, dynamic>
-                  ? location['lat']
-                  : null;
-              final lng = location is Map<String, dynamic>
-                  ? location['lng']
-                  : null;
-              if (lat is num && lng is num) {
-                await _applyPlaceSelection(
-                  LatLng(lat.toDouble(), lng.toDouble()),
-                  address:
-                      _cleanAddress(result['formatted_address']) ??
-                      _cleanAddress(result['name']) ??
-                      _cleanAddress(fallbackQuery),
-                );
-                isResolved = true;
-              }
-            }
-          }
-        }
-      } catch (_) {}
-    }
-
-    if (!isResolved && (fallbackQuery ?? '').isNotEmpty) {
-      final geocoded = await _geocodePlaceQuery(fallbackQuery!, apiKey);
-      if (geocoded != null) {
-        final target = geocoded['target'];
-        if (target is LatLng) {
-          await _applyPlaceSelection(
-            target,
-            address:
-                _cleanAddress(geocoded['address']) ?? _cleanAddress(fallbackQuery),
-          );
-          isResolved = true;
-        }
-      }
-    }
-
-    if (!isResolved) {
+    final resolved = await _mapsLookup.resolvePlace(
+      placeId: placeId,
+      fallbackQuery: fallbackQuery,
+    );
+    if (resolved == null) {
       _showMessage('Gagal mengambil detail lokasi.');
+      return;
     }
+
+    await _applyPlaceSelection(resolved.target, address: resolved.address);
   }
 
   Future<void> _applyPlaceSelection(LatLng target, {String? address}) async {
@@ -828,88 +736,6 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
       // Map can be temporarily unmounted (hidden state). Ignore stale controller.
       _mapController = null;
     }
-  }
-
-  Future<Map<String, dynamic>?> _geocodePlaceQuery(
-    String query,
-    String apiKey,
-  ) async {
-    final url = Uri.https(
-      'maps.googleapis.com',
-      '/maps/api/geocode/json',
-      <String, String>{'address': query, 'key': apiKey, 'language': 'id'},
-    );
-
-    try {
-      final response = await http.get(url);
-      if (response.statusCode != 200) return null;
-
-      final data = json.decode(response.body);
-      if (data is! Map<String, dynamic> || data['status'] != 'OK') return null;
-
-      final results = data['results'];
-      if (results is! List || results.isEmpty) return null;
-
-      final first = results.first;
-      if (first is! Map<String, dynamic>) return null;
-
-      final geometry = first['geometry'];
-      final location = geometry is Map<String, dynamic>
-          ? geometry['location']
-          : null;
-      final lat = location is Map<String, dynamic> ? location['lat'] : null;
-      final lng = location is Map<String, dynamic> ? location['lng'] : null;
-      if (lat is! num || lng is! num) return null;
-
-      return <String, dynamic>{
-        'target': LatLng(lat.toDouble(), lng.toDouble()),
-        'address': _cleanAddress(first['formatted_address']),
-      };
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<String?> _reverseGeocode(LatLng target) async {
-    final apiKey = AppEnv.googleMapsApiKey.trim();
-    if (apiKey.isEmpty) return null;
-
-    final url = Uri.https('maps.googleapis.com', '/maps/api/geocode/json', <
-      String,
-      String
-    >{
-      'latlng':
-          '${target.latitude.toStringAsFixed(6)},${target.longitude.toStringAsFixed(6)}',
-      'key': apiKey,
-      'language': 'id',
-    });
-
-    try {
-      final response = await http.get(url);
-      if (response.statusCode != 200) return null;
-
-      final data = json.decode(response.body);
-      if (data['status'] != 'OK') return null;
-
-      final results = data['results'];
-      if (results is! List || results.isEmpty) return null;
-
-      final first = results.first;
-      if (first is! Map<String, dynamic>) return null;
-
-      return _cleanAddress(first['formatted_address']);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  String? _cleanAddress(dynamic value) {
-    final text = value?.toString().trim();
-    if (text == null || text.isEmpty) return null;
-    if (RegExp(r'^pin\s+-?\d', caseSensitive: false).hasMatch(text)) {
-      return null;
-    }
-    return text;
   }
 
   String _activeLabelLower() {

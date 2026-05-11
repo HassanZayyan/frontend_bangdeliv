@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/chatbot_model.dart';
+import '../services/api_exception.dart';
 import '../services/chatbot_api_service.dart';
 import '../utils/order_formatters.dart';
 import 'auth_session_provider.dart';
@@ -380,6 +381,18 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       );
 
       await refreshSessions(serviceType: serviceType);
+    } on ApiException catch (error) {
+      final message = error.message.trim().isEmpty
+          ? 'Gagal mengirim pesan.'
+          : error.message.trim();
+      state = state.copyWith(
+        isSending: false,
+        messages: <ChatbotConversationMessage>[
+          ...state.messages,
+          _botMessage(text: message, timestamp: _nowLabel()),
+        ],
+        errorMessage: message,
+      );
     } catch (_) {
       state = state.copyWith(
         isSending: false,
