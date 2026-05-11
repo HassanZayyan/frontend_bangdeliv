@@ -29,9 +29,13 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
   late String _activeTarget;
   _RoutePoint? _pickupPoint;
   _RoutePoint? _destinationPoint;
+  bool _isDestinationMapVisible = false;
   bool _pickupChanged = false;
   bool _isResolvingCurrentLocation = false;
-  bool _isResolvingMapPinAddress = false;
+  bool _showLocationButtonLoading = false;
+  bool _isSavingManualDestination = false;
+  int _mapAddressRequestId = 0;
+  String? _mapCenterAddress;
   bool _isLocationPermissionGranted = false;
   String? _statusHint;
 
@@ -70,7 +74,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     }
 
     _activeTarget = pickupInitial != null
-        ? _pickupTarget
+        ? _destinationTarget
         : (destinationInitial != null ? _destinationTarget : _pickupTarget);
     _cameraTarget = pickupInitial ?? destinationInitial ?? _fallbackCenter;
     _initialZoom = (pickupInitial ?? destinationInitial) == null ? 13.0 : 17.0;
@@ -104,10 +108,12 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final activeLabel = _activeTarget == _pickupTarget
-        ? widget.args.pickupLabel
-        : widget.args.destinationLabel;
     final activeAddress = _activePoint?.displayAddress;
+    final displayAddress =
+        activeAddress ??
+        (_isManualDestinationSelectionMode ? _mapCenterAddress : null);
+    final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+    final showMapPanel = _shouldShowMap && !keyboardOpen;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -143,217 +149,262 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                 },
               ),
             ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Stack(
-                    children: [
-                      GoogleMap(
-                        initialCameraPosition: CameraPosition(
-                          target: _cameraTarget,
-                          zoom: _initialZoom,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: SearchAnchor(
+                builder: (BuildContext context, SearchController controller) {
+                  return SearchBar(
+                    controller: controller,
+                    padding: const WidgetStatePropertyAll<EdgeInsets>(
+                      EdgeInsets.symmetric(horizontal: 16),
+                    ),
+                    onTap: controller.openView,
+                    onChanged: (_) => controller.openView(),
+                    onSubmitted: (value) async {
+                      final query = value.trim();
+                      if (query.isEmpty) return;
+                      controller.closeView(query);
+                      await _goToPlace(fallbackQuery: query);
+                      FocusManager.instance.primaryFocus?.unfocus();
+                    },
+                    leading: const Icon(Icons.search),
+                    hintText: 'Cari alamat / lokasi...',
+                    backgroundColor: WidgetStatePropertyAll(
+                      AppColors.white.withValues(alpha: 0.95),
+                    ),
+                    elevation: const WidgetStatePropertyAll(2),
+                  );
+                },
+                suggestionsBuilder:
+                    (
+                      BuildContext context,
+                      SearchController controller,
+                    ) async {
+                      final query = controller.text;
+                      if (query.isEmpty) {
+                        return const Iterable<Widget>.empty();
+                      }
+                      final results = await _searchPlaces(query);
+                      return results.map((prediction) {
+                        return ListTile(
+                          leading: const Icon(
+                            Icons.location_on,
+                            color: AppColors.primary,
+                          ),
+                          title: Text(prediction['description']),
+                          onTap: () async {
+                            controller.closeView(prediction['description']);
+                            await _goToPlace(
+                              placeId: prediction['place_id']?.toString(),
+                              fallbackQuery: prediction['description']?.toString(),
+                            );
+                            FocusManager.instance.primaryFocus?.unfocus();
+                          },
+                        );
+                      });
+                    },
+              ),
+            ),
+            if (!showMapPanel) const SizedBox(height: 12),
+            if (showMapPanel)
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Stack(
+                      children: [
+                        GoogleMap(
+                          initialCameraPosition: CameraPosition(
+                            target: _cameraTarget,
+                            zoom: _initialZoom,
+                          ),
+                          myLocationEnabled: _isLocationPermissionGranted,
+                          myLocationButtonEnabled: false,
+                          mapToolbarEnabled: false,
+                          zoomControlsEnabled: false,
+                          compassEnabled: true,
+                          markers: _markers(),
+                          onMapCreated: (controller) {
+                            _mapController = controller;
+                          },
+                          onCameraMove: (position) {
+                            _cameraTarget = position.target;
+                            if (_isMapSelectionActive &&
+                                _mapCenterAddress != null) {
+                              setState(() => _mapCenterAddress = null);
+                            }
+                          },
+                          onCameraIdle: _handleMapCameraIdle,
                         ),
-                        myLocationEnabled: _isLocationPermissionGranted,
-                        myLocationButtonEnabled: false,
-                        mapToolbarEnabled: false,
-                        zoomControlsEnabled: false,
-                        compassEnabled: true,
-                        markers: _markers(),
-                        onMapCreated: (controller) {
-                          _mapController = controller;
-                        },
-                        onCameraMove: (position) {
-                          _cameraTarget = position.target;
-                        },
-                        onCameraIdle: () {
-                          if (mounted) setState(() {});
-                        },
-                      ),
-                      IgnorePointer(
-                        child: Center(
-                          child: Padding(
-                            padding: const EdgeInsets.only(bottom: 44),
-                            child: Icon(
-                              _activeTarget == _pickupTarget
-                                  ? Icons.trip_origin
-                                  : Icons.location_pin,
-                              color: _activeTarget == _pickupTarget
-                                  ? AppColors.success
-                                  : AppColors.error,
-                              size: 44,
+                        IgnorePointer(
+                          child: Center(
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 44),
+                              child: Icon(
+                                _activeTarget == _pickupTarget
+                                    ? Icons.trip_origin
+                                    : Icons.location_pin,
+                                color: _activeTarget == _pickupTarget
+                                    ? AppColors.success
+                                    : AppColors.error,
+                                size: 44,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      Positioned(
-                        left: 12,
-                        right: 12,
-                        top: 12,
-                        child: SearchAnchor(
-                          builder:
-                              (
-                                BuildContext context,
-                                SearchController controller,
-                              ) {
-                                return SearchBar(
-                                  controller: controller,
-                                  padding:
-                                      const WidgetStatePropertyAll<EdgeInsets>(
-                                        EdgeInsets.symmetric(horizontal: 16),
-                                      ),
-                                  onTap: controller.openView,
-                                  onChanged: (_) => controller.openView(),
-                                  leading: const Icon(Icons.search),
-                                  hintText: 'Cari alamat / lokasi...',
-                                  backgroundColor: WidgetStatePropertyAll(
-                                    AppColors.white.withValues(alpha: 0.95),
-                                  ),
-                                  elevation: const WidgetStatePropertyAll(2),
-                                );
-                              },
-                          suggestionsBuilder:
-                              (
-                                BuildContext context,
-                                SearchController controller,
-                              ) async {
-                                final query = controller.text;
-                                if (query.isEmpty) {
-                                  return const Iterable<Widget>.empty();
-                                }
-                                final results = await _searchPlaces(query);
-                                return results.map((prediction) {
-                                  return ListTile(
-                                    leading: const Icon(
-                                      Icons.location_on,
-                                      color: AppColors.primary,
-                                    ),
-                                    title: Text(prediction['description']),
-                                    onTap: () {
-                                      controller.closeView(
-                                        prediction['description'],
-                                      );
-                                      _goToPlace(prediction['place_id']);
-                                    },
-                                  );
-                                });
-                              },
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
+            if (showMapPanel)
+              _buildBottomSection(displayAddress, showMapPanel: showMapPanel)
+            else
+              Expanded(
+                child: SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: EdgeInsets.only(
+                    bottom: MediaQuery.of(context).viewInsets.bottom,
+                  ),
+                  child: _buildBottomSection(
+                    displayAddress,
+                    showMapPanel: showMapPanel,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomSection(
+    String? activeAddress, {
+    required bool showMapPanel,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(
+        16,
+        showMapPanel ? 0 : 4,
+        16,
+        16,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildPointSummary(),
+          const SizedBox(height: 12),
+          if (showMapPanel)
+            Text(
+              'Peta aktif: ${_activeTarget == _pickupTarget ? widget.args.pickupLabel : widget.args.destinationLabel}',
+              key: const Key('route_picker_active_label'),
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+              ),
+            )
+          else
+            const Text(
+              'Pilih tujuan dari pencarian atau pilih lewat peta.',
+              key: Key('route_picker_hidden_map_hint'),
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+              ),
             ),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildPointSummary(),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Peta aktif: $activeLabel',
-                    key: const Key('route_picker_active_label'),
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                    ),
-                  ),
-                  if ((activeAddress ?? '').isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      activeAddress!,
-                      key: const Key('route_picker_active_address'),
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                  if ((_statusHint ?? '').isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      _statusHint!,
-                      key: const Key('route_picker_status_hint'),
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SizedBox(
-                          height: 48,
-                          child: OutlinedButton.icon(
-                            onPressed: _isResolvingCurrentLocation
-                                ? null
-                                : _moveToCurrentLocation,
-                            icon: _isResolvingCurrentLocation
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.my_location, size: 18),
-                            label: const Text('Lokasi Saya'),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: SizedBox(
-                          height: 48,
-                          child: OutlinedButton.icon(
-                            onPressed:
-                                _isResolvingMapPinAddress ||
-                                    _isResolvingCurrentLocation
-                                ? null
-                                : _saveActivePointFromMap,
-                            icon: _isResolvingMapPinAddress
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.add_location_alt, size: 18),
-                            label: Text('Set $activeLabel'),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 50,
-                    child: ElevatedButton.icon(
-                      onPressed: _confirmRoute,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: AppColors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      icon: const Icon(Icons.check_circle_outline, size: 18),
-                      label: Text(widget.args.confirmLabel),
-                    ),
-                  ),
-                ],
+          if ((activeAddress ?? '').isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              activeAddress!,
+              key: const Key('route_picker_active_address'),
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
               ),
             ),
           ],
-        ),
+          if ((_statusHint ?? '').isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              _statusHint!,
+              key: const Key('route_picker_status_hint'),
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 48,
+            child: OutlinedButton.icon(
+              onPressed: _handleLocationButtonPressed,
+              icon: _showLocationButtonLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      _isDestinationMapEntryMode
+                          ? Icons.map_outlined
+                          : Icons.my_location,
+                      size: 18,
+                    ),
+              label: Text(
+                _isDestinationMapEntryMode ? 'Pilih lewat peta' : 'Lokasi Saya',
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (!_canConfirmRoute) ...[
+            Text(
+              _isManualDestinationSelectionMode
+                  ? 'Geser peta lalu pilih "Gunakan titik ini" untuk menetapkan ${widget.args.destinationLabel}.'
+                  : 'Pilih ${widget.args.destinationLabel} terlebih dahulu agar rute bisa disimpan.',
+              key: const Key('route_picker_confirm_hint'),
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+          SizedBox(
+            height: 50,
+            child: ElevatedButton(
+              onPressed: _canConfirmRoute
+                  ? _confirmRoute
+                  : (_isManualDestinationSelectionMode &&
+                            !_isSavingManualDestination
+                        ? _saveDestinationFromMapCenter
+                        : null),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.white,
+                disabledBackgroundColor: AppColors.border,
+                disabledForegroundColor: AppColors.textSecondary,
+                elevation: 0,
+                padding: EdgeInsets.zero,
+                alignment: Alignment.center,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text(
+                _canConfirmRoute
+                    ? widget.args.confirmLabel
+                    : (_isManualDestinationSelectionMode
+                          ? 'Gunakan titik ini'
+                          : 'Pilih ${widget.args.destinationLabel}'),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -370,7 +421,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
             onTap: () => _selectTarget(_pickupTarget),
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 12),
         Expanded(
           child: _PointCard(
             label: widget.args.destinationLabel,
@@ -387,6 +438,25 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
   _RoutePoint? get _activePoint =>
       _activeTarget == _pickupTarget ? _pickupPoint : _destinationPoint;
 
+  bool get _shouldShowMap {
+    if (_activeTarget == _pickupTarget) {
+      return _pickupPoint != null;
+    }
+    return _destinationPoint != null || _isDestinationMapVisible;
+  }
+
+  bool get _canConfirmRoute => _pickupPoint != null && _destinationPoint != null;
+
+  bool get _isManualDestinationSelectionMode =>
+      _activeTarget == _destinationTarget &&
+      _shouldShowMap &&
+      _destinationPoint == null;
+
+  bool get _isMapSelectionActive => _shouldShowMap;
+
+  bool get _isDestinationMapEntryMode =>
+      _activeTarget == _destinationTarget && !_shouldShowMap;
+
   void _selectTarget(String target) {
     if (target != _pickupTarget && target != _destinationTarget) {
       return;
@@ -395,6 +465,9 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     setState(() {
       _activeTarget = target;
       _statusHint = null;
+      if (target != _destinationTarget) {
+        _mapCenterAddress = null;
+      }
     });
     _focusSelectedPoint(target);
   }
@@ -433,13 +506,51 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
 
     final latLng = LatLng(point.latitude, point.longitude);
     _cameraTarget = latLng;
-    await _mapController?.animateCamera(CameraUpdate.newLatLngZoom(latLng, 17));
+    await _animateCameraSafely(latLng, 17);
+  }
+
+  Future<void> _handleMapCameraIdle() async {
+    if (!mounted) return;
+    if (!_isMapSelectionActive || _isResolvingCurrentLocation) {
+      setState(() {});
+      return;
+    }
+
+    final requestId = ++_mapAddressRequestId;
+    final target = _cameraTarget;
+
+    setState(() {
+      _statusHint = 'Mencari alamat titik peta...';
+    });
+
+    final address = await _reverseGeocode(target);
+    if (!mounted || requestId != _mapAddressRequestId) return;
+
+    if (_activePoint != null) {
+      _cameraTarget = target;
+      _saveActivePoint('map_pin', address: address);
+    }
+
+    setState(() {
+      _mapCenterAddress = address;
+      _statusHint = address == null
+          ? 'Alamat belum ditemukan, kamu tetap bisa gunakan titik ini.'
+          : null;
+    });
   }
 
   Future<void> _moveToCurrentLocation() async {
+    if (_isResolvingCurrentLocation) return;
+
+    final showButtonLoading = !_isDestinationMapEntryMode;
     setState(() {
       _isResolvingCurrentLocation = true;
+      _showLocationButtonLoading = showButtonLoading;
       _statusHint = null;
+      if (_activeTarget == _destinationTarget && _destinationPoint == null) {
+        // Show map instantly for destination flow while GPS resolves.
+        _isDestinationMapVisible = true;
+      }
     });
 
     try {
@@ -485,9 +596,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
 
       final target = LatLng(position.latitude, position.longitude);
       _cameraTarget = target;
-      await _mapController?.animateCamera(
-        CameraUpdate.newLatLngZoom(target, 18),
-      );
+      await _animateCameraSafely(target, 18);
       final address = await _reverseGeocode(target);
       if (!mounted) return;
 
@@ -504,27 +613,34 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
       });
     } finally {
       if (mounted) {
-        setState(() => _isResolvingCurrentLocation = false);
+        setState(() {
+          _isResolvingCurrentLocation = false;
+          _showLocationButtonLoading = false;
+        });
       }
     }
   }
 
-  Future<void> _saveActivePointFromMap() async {
-    setState(() => _isResolvingMapPinAddress = true);
+  void _handleLocationButtonPressed() {
+    _moveToCurrentLocation();
+  }
+
+  Future<void> _saveDestinationFromMapCenter() async {
+    if (_isSavingManualDestination || _activeTarget != _destinationTarget) return;
+
+    final manualTarget = _cameraTarget;
+    setState(() => _isSavingManualDestination = true);
 
     try {
-      final address = await _reverseGeocode(_cameraTarget);
+      final address = _mapCenterAddress ?? await _reverseGeocode(manualTarget);
       if (!mounted) return;
 
+      _cameraTarget = manualTarget;
       _saveActivePoint('map_pin', address: address);
-      setState(() {
-        _statusHint = address == null
-            ? 'Titik dipilih di peta untuk ${_activeLabelLower()}.'
-            : null;
-      });
+      setState(() => _statusHint = null);
     } finally {
       if (mounted) {
-        setState(() => _isResolvingMapPinAddress = false);
+        setState(() => _isSavingManualDestination = false);
       }
     }
   }
@@ -545,6 +661,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
         _pickupChanged = true;
       } else {
         _destinationPoint = point;
+        _mapCenterAddress = null;
       }
     });
   }
@@ -619,40 +736,137 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     return [];
   }
 
-  Future<void> _goToPlace(String placeId) async {
+  Future<void> _goToPlace({String? placeId, String? fallbackQuery}) async {
     final apiKey = AppEnv.googleMapsApiKey.trim();
     if (apiKey.isEmpty) {
       _showMessage('Google Maps API key belum dikonfigurasi.');
       return;
     }
 
+    var isResolved = false;
+
+    if ((placeId ?? '').isNotEmpty) {
+      final placeDetailsUrl = Uri.https(
+        'maps.googleapis.com',
+        '/maps/api/place/details/json',
+        <String, String>{
+          'place_id': placeId!,
+          'key': apiKey,
+          'language': 'id',
+        },
+      );
+
+      try {
+        final response = await http.get(placeDetailsUrl);
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          if (data is Map<String, dynamic> && data['status'] == 'OK') {
+            final result = data['result'];
+            if (result is Map<String, dynamic>) {
+              final geometry = result['geometry'];
+              final location = geometry is Map<String, dynamic>
+                  ? geometry['location']
+                  : null;
+              final lat = location is Map<String, dynamic>
+                  ? location['lat']
+                  : null;
+              final lng = location is Map<String, dynamic>
+                  ? location['lng']
+                  : null;
+              if (lat is num && lng is num) {
+                await _applyPlaceSelection(
+                  LatLng(lat.toDouble(), lng.toDouble()),
+                  address:
+                      _cleanAddress(result['formatted_address']) ??
+                      _cleanAddress(result['name']) ??
+                      _cleanAddress(fallbackQuery),
+                );
+                isResolved = true;
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (!isResolved && (fallbackQuery ?? '').isNotEmpty) {
+      final geocoded = await _geocodePlaceQuery(fallbackQuery!, apiKey);
+      if (geocoded != null) {
+        final target = geocoded['target'];
+        if (target is LatLng) {
+          await _applyPlaceSelection(
+            target,
+            address:
+                _cleanAddress(geocoded['address']) ?? _cleanAddress(fallbackQuery),
+          );
+          isResolved = true;
+        }
+      }
+    }
+
+    if (!isResolved) {
+      _showMessage('Gagal mengambil detail lokasi.');
+    }
+  }
+
+  Future<void> _applyPlaceSelection(LatLng target, {String? address}) async {
+    _cameraTarget = target;
+    await _animateCameraSafely(target, 18);
+    _saveActivePoint('search', address: address);
+    if (mounted) {
+      setState(() => _statusHint = null);
+    }
+  }
+
+  Future<void> _animateCameraSafely(LatLng target, double zoom) async {
+    final controller = _mapController;
+    if (controller == null) return;
+
+    try {
+      await controller.animateCamera(CameraUpdate.newLatLngZoom(target, zoom));
+    } catch (_) {
+      // Map can be temporarily unmounted (hidden state). Ignore stale controller.
+      _mapController = null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> _geocodePlaceQuery(
+    String query,
+    String apiKey,
+  ) async {
     final url = Uri.https(
       'maps.googleapis.com',
-      '/maps/api/place/details/json',
-      <String, String>{'place_id': placeId, 'key': apiKey, 'language': 'id'},
+      '/maps/api/geocode/json',
+      <String, String>{'address': query, 'key': apiKey, 'language': 'id'},
     );
 
     try {
       final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['status'] == 'OK') {
-          final location = data['result']['geometry']['location'];
-          final target = LatLng(location['lat'], location['lng']);
-          _cameraTarget = target;
-          await _mapController?.animateCamera(
-            CameraUpdate.newLatLngZoom(target, 18),
-          );
-          _saveActivePoint(
-            'search',
-            address:
-                _cleanAddress(data['result']['formatted_address']) ??
-                _cleanAddress(data['result']['name']),
-          );
-        }
-      }
+      if (response.statusCode != 200) return null;
+
+      final data = json.decode(response.body);
+      if (data is! Map<String, dynamic> || data['status'] != 'OK') return null;
+
+      final results = data['results'];
+      if (results is! List || results.isEmpty) return null;
+
+      final first = results.first;
+      if (first is! Map<String, dynamic>) return null;
+
+      final geometry = first['geometry'];
+      final location = geometry is Map<String, dynamic>
+          ? geometry['location']
+          : null;
+      final lat = location is Map<String, dynamic> ? location['lat'] : null;
+      final lng = location is Map<String, dynamic> ? location['lng'] : null;
+      if (lat is! num || lng is! num) return null;
+
+      return <String, dynamic>{
+        'target': LatLng(lat.toDouble(), lng.toDouble()),
+        'address': _cleanAddress(first['formatted_address']),
+      };
     } catch (_) {
-      _showMessage('Gagal mengambil detail lokasi.');
+      return null;
     }
   }
 
@@ -744,8 +958,8 @@ class _PointCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       onTap: onTap,
       child: Container(
-        height: 78,
-        padding: const EdgeInsets.all(10),
+        height: 84,
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: isActive ? color.withValues(alpha: 0.08) : AppColors.white,
           borderRadius: BorderRadius.circular(12),
@@ -767,7 +981,7 @@ class _PointCard extends StatelessWidget {
                 fontSize: 12,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
               point == null ? 'Belum dipilih' : point.displayAddress,
               maxLines: 2,
