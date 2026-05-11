@@ -332,6 +332,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
   };
 
   final _formKey = GlobalKey<FormState>();
+  final _scrollController = ScrollController();
   final _recipientController = TextEditingController();
   final _phoneController = TextEditingController();
   final _fullAddressController = TextEditingController();
@@ -588,6 +589,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
                   ).bottom;
 
                   return SingleChildScrollView(
+                    controller: _scrollController,
                     keyboardDismissBehavior:
                         ScrollViewKeyboardDismissBehavior.onDrag,
                     padding: EdgeInsets.fromLTRB(
@@ -643,6 +645,8 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
                               },
                             ),
                             SizedBox(height: fieldSpacing),
+                            _buildCoverageSelectorCard(),
+                            SizedBox(height: fieldSpacing),
                             _buildTextField(
                               label: 'Detail Alamat',
                               controller: _fullAddressController,
@@ -656,8 +660,6 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
                                 return null;
                               },
                             ),
-                            SizedBox(height: fieldSpacing),
-                            _buildCoverageSelectorCard(),
                             SizedBox(height: fieldSpacing),
                             _buildLocationPickerCard(),
                             SizedBox(height: fieldSpacing),
@@ -1248,6 +1250,8 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
     required List<String> items,
     required ValueChanged<String?>? onChanged,
   }) {
+    final isEnabled = onChanged != null && items.isNotEmpty;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1260,36 +1264,127 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
           ),
         ),
         const SizedBox(height: 4),
-        DropdownButtonFormField<String>(
-          initialValue: items.contains(value) ? value : null,
-          hint: Text(hintText),
-          items: items
-              .map(
-                (item) =>
-                    DropdownMenuItem<String>(value: item, child: Text(item)),
-              )
-              .toList(),
-          onChanged: onChanged,
-          isExpanded: true,
-          decoration: InputDecoration(
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 12,
-            ),
-            filled: true,
-            fillColor: AppColors.white,
-            border: OutlineInputBorder(
+        Builder(
+          builder: (fieldContext) {
+            return InkWell(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-          ),
+              onTap: !isEnabled
+                  ? null
+                  : () async {
+                      await _scrollDropdownFieldIntoView(fieldContext);
+                      if (!mounted || !fieldContext.mounted) return;
+                      final pickedValue = await _showAreaOptionsMenu(
+                        fieldContext: fieldContext,
+                        items: items,
+                      );
+                      if (pickedValue != null) {
+                        onChanged(pickedValue);
+                      }
+                    },
+              child: InputDecorator(
+                isEmpty: (value ?? '').trim().isEmpty,
+                decoration: InputDecoration(
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
+                  filled: true,
+                  fillColor: AppColors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        (value ?? '').trim().isNotEmpty ? value!.trim() : hintText,
+                        style: TextStyle(
+                          color: (value ?? '').trim().isNotEmpty
+                              ? AppColors.textPrimary
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: isEnabled
+                          ? AppColors.textSecondary
+                          : AppColors.textSecondary.withValues(alpha: 0.6),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
         ),
       ],
+    );
+  }
+
+  Future<void> _scrollDropdownFieldIntoView(BuildContext fieldContext) async {
+    await Scrollable.ensureVisible(
+      fieldContext,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+      alignment: 0.12,
+      alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
+    );
+  }
+
+  Future<String?> _showAreaOptionsMenu({
+    required BuildContext fieldContext,
+    required List<String> items,
+  }) {
+    if (!mounted || !fieldContext.mounted) {
+      return Future.value(null);
+    }
+
+    final overlayBox = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final fieldBox = fieldContext.findRenderObject() as RenderBox;
+    final fieldTopLeft = fieldBox.localToGlobal(Offset.zero, ancestor: overlayBox);
+    final fieldBottomRight = fieldBox.localToGlobal(
+      fieldBox.size.bottomRight(Offset.zero),
+      ancestor: overlayBox,
+    );
+    final position = RelativeRect.fromLTRB(
+      fieldTopLeft.dx,
+      fieldBottomRight.dy + 4,
+      overlayBox.size.width - fieldBottomRight.dx,
+      overlayBox.size.height - fieldBottomRight.dy,
+    );
+
+    return showMenu<String>(
+      context: context,
+      position: position,
+      color: AppColors.white,
+      surfaceTintColor: AppColors.white,
+      shadowColor: Colors.black26,
+      constraints: const BoxConstraints(minWidth: 220, maxHeight: 300),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      items: items
+          .map(
+            (item) => PopupMenuItem<String>(
+              value: item,
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Text(
+                item,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ),
+          )
+          .toList(growable: false),
     );
   }
 
@@ -1547,6 +1642,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _recipientController.dispose();
     _phoneController.dispose();
     _fullAddressController.dispose();
