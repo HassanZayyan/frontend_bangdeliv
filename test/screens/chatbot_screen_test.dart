@@ -100,7 +100,27 @@ void main() {
 
     await _sendMessage(tester, 'trigger error');
 
-    expect(find.textContaining('belum bisa digunakan'), findsOneWidget);
+    expect(find.text('Chatbot timeout'), findsWidgets);
+    expect(find.textContaining('belum bisa digunakan'), findsNothing);
+  });
+
+  testWidgets('show order created response after confirmation', (
+    WidgetTester tester,
+  ) async {
+    await _pumpChatbot(
+      tester,
+      serviceType: 'antar_jemput',
+      chatbotApiService: _FakeChatbotApiService(),
+    );
+
+    await _sendMessage(tester, 'Konfirmasi');
+
+    expect(
+      find.textContaining('order antar jemput berhasil dibuat'),
+      findsOneWidget,
+    );
+    expect(find.text('Lacak Pesanan'), findsOneWidget);
+    expect(find.textContaining('belum bisa digunakan'), findsNothing);
   });
 
   testWidgets('show courier map picker action when backend asks for pin', (
@@ -419,6 +439,36 @@ class _FakeChatbotApiService extends ChatbotApiService {
     final normalized = message.trim().toLowerCase();
     if (normalized == 'trigger error') {
       throw const ApiException('Chatbot timeout');
+    }
+
+    if (normalized == 'konfirmasi') {
+      return ChatbotResult.fromApiJson({
+        'status': 'success',
+        'session_id': sessionId,
+        'service_context': {'service_type': serviceType},
+        'model_used': 'deterministic-command',
+        'data': {
+          'intent': serviceType == 'antar_jemput'
+              ? 'ride_order'
+              : 'courier_order',
+          'assistant_text':
+              'Siap, order antar jemput berhasil dibuat.\n'
+              'Nomor order: BD-20260511-0001\n'
+              'Ongkir: Rp 9.000.',
+          'validation': {
+            'is_valid_order': true,
+            'rejection_reasons': [],
+            'missing_fields': [],
+            'next_actions': [],
+          },
+          'order': {
+            'created': true,
+            'id': 33,
+            'order_number': 'BD-20260511-0001',
+            'status': 'PENDING',
+          },
+        },
+      });
     }
 
     if (normalized.contains('alamat')) {

@@ -6,6 +6,7 @@ import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../models/driver_order_model.dart';
 import '../providers/driver_order_providers.dart';
+import '../utils/courier_package_formatter.dart';
 import '../utils/order_formatters.dart';
 import '../utils/service_type.dart';
 
@@ -331,18 +332,7 @@ class _OrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final serviceLabel = serviceTypeLabel(order.serviceTypeCode);
-    final isCourier =
-        normalizeServiceTypeCode(order.serviceTypeCode) ==
-        ServiceTypeCodes.courier;
-    final packageDescription = (order.packageDescription ?? '').trim();
-    final packageSizeLine = _buildPackageSizeLine();
-    final packageSafetyLine = _buildPackageSafetyLine();
-    final packagePackingNote = (order.packagePackingNote ?? '').trim();
-    final hasCourierDetails =
-        packageDescription.isNotEmpty ||
-        packageSizeLine.isNotEmpty ||
-        packageSafetyLine.isNotEmpty ||
-        packagePackingNote.isNotEmpty;
+    final packageDetails = buildCourierPackageDetails(order);
     final rejectButtonStyle = OutlinedButton.styleFrom(
       foregroundColor: AppColors.error,
       side: const BorderSide(color: AppColors.error),
@@ -439,7 +429,7 @@ class _OrderCard extends StatelessWidget {
               ],
             ),
           ],
-          if (isIncoming && isCourier) ...[
+          if (isIncoming && packageDetails.isCourier) ...[
             const SizedBox(height: 10),
             Container(
               width: double.infinity,
@@ -447,7 +437,9 @@ class _OrderCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.primary.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                border: Border.all(
+                  color: AppColors.primary.withValues(alpha: 0.2),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -461,7 +453,7 @@ class _OrderCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  if (!hasCourierDetails)
+                  if (!packageDetails.hasDetails)
                     const Text(
                       'Detail barang belum tersedia.',
                       style: TextStyle(
@@ -470,14 +462,14 @@ class _OrderCard extends StatelessWidget {
                         height: 1.3,
                       ),
                     ),
-                  if (packageDescription.isNotEmpty)
-                    _courierInfoLine('Barang', packageDescription),
-                  if (packageSizeLine.isNotEmpty)
-                    _courierInfoLine('Ukuran', packageSizeLine),
-                  if (packageSafetyLine.isNotEmpty)
-                    _courierInfoLine('Keamanan', packageSafetyLine),
-                  if (packagePackingNote.isNotEmpty)
-                    _courierInfoLine('Catatan', packagePackingNote),
+                  if (packageDetails.description.isNotEmpty)
+                    _courierInfoLine('Barang', packageDetails.description),
+                  if (packageDetails.sizeLine.isNotEmpty)
+                    _courierInfoLine('Ukuran', packageDetails.sizeLine),
+                  if (packageDetails.safetyLine.isNotEmpty)
+                    _courierInfoLine('Keamanan', packageDetails.safetyLine),
+                  if (packageDetails.packingNote.isNotEmpty)
+                    _courierInfoLine('Catatan', packageDetails.packingNote),
                 ],
               ),
             ),
@@ -625,103 +617,6 @@ class _OrderCard extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _buildPackageSizeLine() {
-    final parts = <String>[];
-
-    if (order.packageEstimatedWeightKg != null) {
-      parts.add('${_formatWeight(order.packageEstimatedWeightKg!)} kg');
-    }
-
-    final length = order.packageLengthCm;
-    final width = order.packageWidthCm;
-    final height = order.packageHeightCm;
-    if (length != null && width != null && height != null) {
-      parts.add('${length}x${width}x$height cm');
-    }
-
-    final sizeClass = (order.packageSizeClass ?? '').trim();
-    if (sizeClass.isNotEmpty) {
-      parts.add(_localizeSizeClass(sizeClass));
-    }
-
-    return parts.join(' • ');
-  }
-
-  String _buildPackageSafetyLine() {
-    final status = (order.packageSafetyStatus ?? '').trim();
-    final reason = (order.packageSafetyReason ?? '').trim();
-
-    if (status.isEmpty) return _localizeSafetyReason(reason);
-
-    final localizedStatus = _localizeSafetyStatus(status);
-    final localizedReason = _localizeSafetyReason(reason);
-    if (localizedReason.isEmpty) return localizedStatus;
-    return '$localizedStatus • $localizedReason';
-  }
-
-  String _formatWeight(double value) {
-    if (value == value.roundToDouble()) {
-      return value.round().toString();
-    }
-    return value.toStringAsFixed(1);
-  }
-
-  String _localizeSizeClass(String raw) {
-    switch (raw.trim().toUpperCase()) {
-      case 'SMALL':
-        return 'Kecil';
-      case 'MEDIUM':
-        return 'Sedang';
-      case 'LARGE':
-        return 'Besar';
-      case 'XL':
-      case 'EXTRA_LARGE':
-        return 'Sangat Besar';
-      default:
-        return raw.trim();
-    }
-  }
-
-  String _localizeSafetyStatus(String raw) {
-    switch (raw.trim().toUpperCase()) {
-      case 'ALLOWED':
-      case 'SAFE':
-        return 'Aman';
-      case 'RESTRICTED':
-      case 'LIMITED':
-        return 'Terbatas';
-      case 'FORBIDDEN':
-      case 'PROHIBITED':
-      case 'NOT_ALLOWED':
-        return 'Dilarang';
-      case 'CHECK_REQUIRED':
-      case 'REVIEW_REQUIRED':
-        return 'Perlu Pemeriksaan';
-      default:
-        return raw
-            .trim()
-            .replaceAll('_', ' ')
-            .toLowerCase()
-            .split(' ')
-            .where((part) => part.isNotEmpty)
-            .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
-            .join(' ');
-    }
-  }
-
-  String _localizeSafetyReason(String raw) {
-    final text = raw.trim();
-    if (text.isEmpty) return '';
-
-    switch (text.toUpperCase()) {
-      case 'PACKAGE IS SAFE FOR MOTORBIKE COURIER SERVICE.':
-      case 'PACKAGE IS SAFE FOR COURIER SERVICE.':
-        return 'Paket aman untuk layanan kurir.';
-      default:
-        return text;
-    }
   }
 }
 

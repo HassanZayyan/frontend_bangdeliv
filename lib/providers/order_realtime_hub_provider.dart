@@ -81,20 +81,10 @@ class OrderRealtimeHub {
           );
         },
         onStatusChanged: (event) {
-          _emit(
-            OrderRealtimeEvent.status(
-              orderId: orderId,
-              status: event,
-            ),
-          );
+          _emit(OrderRealtimeEvent.status(orderId: orderId, status: event));
         },
         onChatMessage: (message) {
-          _emit(
-            OrderRealtimeEvent.chat(
-              orderId: orderId,
-              message: message,
-            ),
-          );
+          _emit(OrderRealtimeEvent.chat(orderId: orderId, message: message));
         },
       );
 
@@ -148,9 +138,9 @@ class OrderRealtimeHub {
     _retryTimers.remove(orderId)?.cancel();
     final attempt = (_retryAttempts[orderId] ?? 0) + 1;
     _retryAttempts[orderId] = attempt;
-    final delaySeconds = (attempt * 5).clamp(5, 30).toInt();
+    final delay = _retryDelayForAttempt(attempt);
 
-    _retryTimers[orderId] = Timer(Duration(seconds: delaySeconds), () {
+    _retryTimers[orderId] = Timer(delay, () {
       _retryTimers.remove(orderId);
       if (_disposed ||
           (_retainCounts[orderId] ?? 0) <= 0 ||
@@ -166,6 +156,17 @@ class OrderRealtimeHub {
         }),
       );
     });
+  }
+
+  Duration _retryDelayForAttempt(int attempt) {
+    return switch (attempt) {
+      1 => const Duration(milliseconds: 250),
+      2 => const Duration(milliseconds: 500),
+      3 => const Duration(seconds: 1),
+      4 => const Duration(seconds: 5),
+      5 => const Duration(seconds: 10),
+      _ => const Duration(seconds: 30),
+    };
   }
 
   void _emit(OrderRealtimeEvent event) {

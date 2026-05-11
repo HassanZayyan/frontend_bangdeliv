@@ -11,6 +11,8 @@ import 'order_realtime_hub_provider.dart';
 final orderChatProvider = AsyncNotifierProvider.family
     .autoDispose<OrderChatNotifier, OrderChatState, int>(OrderChatNotifier.new);
 
+Duration orderChatReconciliationInterval = const Duration(seconds: 2);
+
 class OrderChatState {
   const OrderChatState({
     required this.orderId,
@@ -76,17 +78,19 @@ class OrderChatState {
 class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
   OrderChatNotifier(this.orderId);
 
-  static const _fallbackActivationDelay = Duration(seconds: 12);
-  static const _fallbackPollInterval = Duration(seconds: 15);
+  static const _fallbackActivationDelay = Duration(seconds: 4);
+  static const _fallbackPollInterval = Duration(seconds: 4);
 
   final int orderId;
 
   StreamSubscription<OrderRealtimeEvent>? _hubSub;
   Timer? _fallbackActivationTimer;
   Timer? _degradedSyncTimer;
+  Timer? _reconciliationTimer;
   OrderRealtimeHub? _hub;
   bool _disposed = false;
   bool _retainedOrder = false;
+  bool _pollInFlight = false;
 
   bool get _isMounted => !_disposed && ref.mounted;
 
@@ -122,6 +126,7 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
     }
 
     _subscribeRealtime();
+    _startReconciliation();
 
     return OrderChatState(
       orderId: orderId,
@@ -416,8 +421,19 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
     });
   }
 
+  void _startReconciliation() {
+    if (!_isMounted || _reconciliationTimer != null) {
+      return;
+    }
+
+    _reconciliationTimer = Timer.periodic(
+      orderChatReconciliationInterval,
+      (_) => unawaited(_pollNewMessages()),
+    );
+  }
+
   Future<void> _pollNewMessages() async {
-    if (!_isMounted) {
+    if (!_isMounted || _pollInFlight) {
       return;
     }
 
@@ -429,6 +445,7 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
     final afterId = _latestServerMessageId(current.messages);
 
     try {
+      _pollInFlight = true;
       if (!_isMounted) {
         return;
       }
@@ -467,6 +484,8 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
       final latest = state.asData?.value;
       if (latest == null) return;
       state = AsyncData(latest.copyWith(realtimeUnavailable: true));
+    } finally {
+      _pollInFlight = false;
     }
   }
 
@@ -646,6 +665,11 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
     _degradedSyncTimer = null;
   }
 
+  void _stopReconciliation() {
+    _reconciliationTimer?.cancel();
+    _reconciliationTimer = null;
+  }
+
   void _releaseRetainedOrder() {
     if (!_retainedOrder) {
       return;
@@ -659,5 +683,6 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
     _disposed = true;
     _cancelRealtime();
     _stopDegradedSync();
+    _stopReconciliation();
   }
 }

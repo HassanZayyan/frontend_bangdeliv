@@ -13,6 +13,7 @@ import '../providers/order_chat_unread_provider.dart';
 import '../providers/driver_order_providers.dart';
 import '../services/driver_order_service.dart';
 import '../utils/currency_formatter.dart';
+import '../utils/courier_package_formatter.dart';
 import '../utils/order_formatters.dart' hide formatCurrency;
 import '../utils/service_type.dart';
 import '../widgets/order_chat_badge_icon.dart';
@@ -323,6 +324,7 @@ class _OrderMetaCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final serviceLabel = serviceTypeLabel(order.serviceTypeCode);
+    final packageDetails = buildCourierPackageDetails(order);
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -368,7 +370,7 @@ class _OrderMetaCard extends StatelessWidget {
           _row('Jemput', order.pickupAddress),
           const SizedBox(height: 6),
           _row('Tujuan', order.dropoffAddress),
-          ..._buildCourierPackageRows(),
+          ..._buildCourierPackageRows(packageDetails),
           if ((trackingState.message ?? '').trim().isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
@@ -433,8 +435,8 @@ class _OrderMetaCard extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildCourierPackageRows() {
-    if (!_isCourier) {
+  List<Widget> _buildCourierPackageRows(CourierPackageDetails details) {
+    if (!details.isCourier) {
       return const [];
     }
 
@@ -450,9 +452,10 @@ class _OrderMetaCard extends StatelessWidget {
         ..add(_row(title, value));
     }
 
-    addRow('Barang', _packageDescription);
-    addRow('Ukuran', _packageSizeLine);
-    addRow('Safety', _packageSafetyLine);
+    addRow('Barang', details.description);
+    addRow('Ukuran', details.sizeLine);
+    addRow('Keamanan', details.safetyLine);
+    addRow('Catatan', details.packingNote);
 
     return rows;
   }
@@ -499,53 +502,6 @@ class _OrderMetaCard extends StatelessWidget {
 
   String _formatCurrency(int amount) {
     return formatRupiah(amount);
-  }
-
-  bool get _isCourier =>
-      normalizeServiceTypeCode(order.serviceTypeCode) ==
-      ServiceTypeCodes.courier;
-
-  String get _packageDescription => (order.packageDescription ?? '').trim();
-
-  String get _packageSizeLine {
-    final parts = <String>[];
-    if (order.packageEstimatedWeightKg != null) {
-      parts.add('${_formatWeight(order.packageEstimatedWeightKg!)} kg');
-    }
-
-    final length = order.packageLengthCm;
-    final width = order.packageWidthCm;
-    final height = order.packageHeightCm;
-    if (length != null && width != null && height != null) {
-      parts.add('${length}x${width}x$height cm');
-    }
-
-    final sizeClass = (order.packageSizeClass ?? '').trim();
-    if (sizeClass.isNotEmpty) {
-      parts.add(sizeClass.toUpperCase());
-    }
-
-    return parts.join(' - ');
-  }
-
-  String get _packageSafetyLine {
-    final status = (order.packageSafetyStatus ?? '').trim();
-    final reason = (order.packageSafetyReason ?? '').trim();
-    if (status.isEmpty) {
-      return reason;
-    }
-
-    return reason.isEmpty
-        ? status.toUpperCase()
-        : '${status.toUpperCase()} - $reason';
-  }
-
-  String _formatWeight(double value) {
-    if (value == value.roundToDouble()) {
-      return value.round().toString();
-    }
-
-    return value.toStringAsFixed(1);
   }
 }
 

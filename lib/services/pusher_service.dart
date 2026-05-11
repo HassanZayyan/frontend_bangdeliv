@@ -239,16 +239,29 @@ class PusherService implements OrderRealtimeClient {
     void Function(Object error)? onConnectionIssue,
   }) {
     final channelName = 'private-order.tracking.$orderId';
-    _log('order tracking subscribe requested orderId=$orderId channel=$channelName');
+    _log(
+      'order tracking subscribe requested orderId=$orderId channel=$channelName',
+    );
+    final startedAt = DateTime.now();
     final controller = _retainChannel(channelName);
 
     unawaited(
-      _subscribeChannel(
-        channelName,
-      ).then((_) => onSubscribed?.call()).catchError((Object error) {
-        _log('subscribe failed for $channelName: $error');
-        onConnectionIssue?.call(error);
-      }),
+      _subscribeChannel(channelName)
+          .then((_) {
+            _log(
+              'subscribe succeeded for $channelName '
+              'elapsed_ms=${DateTime.now().difference(startedAt).inMilliseconds}',
+            );
+            onSubscribed?.call();
+          })
+          .catchError((Object error) {
+            _log(
+              'subscribe failed for $channelName '
+              'elapsed_ms=${DateTime.now().difference(startedAt).inMilliseconds}: '
+              '$error',
+            );
+            onConnectionIssue?.call(error);
+          }),
     );
 
     final rawSubscription = controller.stream.listen((rawEvent) {
@@ -283,16 +296,29 @@ class PusherService implements OrderRealtimeClient {
     void Function(Object error)? onConnectionIssue,
   }) {
     final channelName = 'private-driver.orders.user.$userId';
-    _log('driver orders subscribe requested userId=$userId channel=$channelName');
+    _log(
+      'driver orders subscribe requested userId=$userId channel=$channelName',
+    );
+    final startedAt = DateTime.now();
     final controller = _retainChannel(channelName);
 
     unawaited(
-      _subscribeChannel(
-        channelName,
-      ).then((_) => onSubscribed?.call()).catchError((Object error) {
-        _log('subscribe failed for $channelName: $error');
-        onConnectionIssue?.call(error);
-      }),
+      _subscribeChannel(channelName)
+          .then((_) {
+            _log(
+              'subscribe succeeded for $channelName '
+              'elapsed_ms=${DateTime.now().difference(startedAt).inMilliseconds}',
+            );
+            onSubscribed?.call();
+          })
+          .catchError((Object error) {
+            _log(
+              'subscribe failed for $channelName '
+              'elapsed_ms=${DateTime.now().difference(startedAt).inMilliseconds}: '
+              '$error',
+            );
+            onConnectionIssue?.call(error);
+          }),
     );
 
     final rawSubscription = controller.stream.listen((rawEvent) {

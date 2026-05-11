@@ -1,13 +1,11 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:http/http.dart' as http;
 
 import '../config/app_colors.dart';
-import '../config/app_env.dart';
 import '../models/address_location_picker_result.dart';
+import '../services/google_maps_lookup_service.dart';
 
 class AddressLocationPickerScreen extends StatefulWidget {
   const AddressLocationPickerScreen({
@@ -29,6 +27,7 @@ class _AddressLocationPickerScreenState
   static const LatLng _fallbackCenter = LatLng(-7.3294948, 110.5080427);
 
   GoogleMapController? _mapController;
+  final _mapsLookup = const GoogleMapsLookupService();
   late LatLng _cameraTarget;
   late double _initialZoom;
   bool _isResolvingCurrentLocation = false;
@@ -183,19 +182,21 @@ class _AddressLocationPickerScreenState
                                 if (query.isEmpty) {
                                   return const Iterable<Widget>.empty();
                                 }
-                                final results = await _searchPlaces(query);
+                                final results = await _mapsLookup.searchPlaces(
+                                  query,
+                                );
                                 return results.map((prediction) {
                                   return ListTile(
                                     leading: const Icon(
                                       Icons.location_on,
                                       color: AppColors.primary,
                                     ),
-                                    title: Text(prediction['description']),
+                                    title: Text(prediction.description),
                                     onTap: () {
                                       controller.closeView(
-                                        prediction['description'],
+                                        prediction.description,
                                       );
-                                      _goToPlace(prediction['place_id']);
+                                      _goToPlace(prediction.placeId);
                                     },
                                   );
                                 });
@@ -410,73 +411,31 @@ class _AddressLocationPickerScreenState
     );
   }
 
-  Future<List<Map<String, dynamic>>> _searchPlaces(String query) async {
-    if (query.isEmpty) return [];
-    final apiKey = AppEnv.googleMapsApiKey.trim();
-    if (apiKey.isEmpty) return [];
-
-    final url = Uri.https(
-      'maps.googleapis.com',
-      '/maps/api/place/autocomplete/json',
-      <String, String>{
-        'input': query,
-        'key': apiKey,
-        'components': 'country:id',
-        'language': 'id',
-      },
-    );
-
-    try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['status'] == 'OK') {
-          return List<Map<String, dynamic>>.from(data['predictions']);
-        }
-      }
-    } catch (_) {}
-    return [];
-  }
-
-  Future<void> _goToPlace(String placeId) async {
-    final apiKey = AppEnv.googleMapsApiKey.trim();
-    if (apiKey.isEmpty) {
+  Future<void> _goToPlace(String? placeId) async {
+    if (!_mapsLookup.isConfigured) {
       _showMessage('Google Maps API key belum dikonfigurasi.');
       return;
     }
 
-    final url = Uri.https(
-      'maps.googleapis.com',
-      '/maps/api/place/details/json',
-      <String, String>{'place_id': placeId, 'key': apiKey, 'language': 'id'},
-    );
-
-    try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['status'] == 'OK') {
-          final location = data['result']['geometry']['location'];
-          final target = LatLng(location['lat'], location['lng']);
-          _cameraTarget = target;
-
-          final controller = _mapController;
-          if (controller != null) {
-            await controller.animateCamera(
-              CameraUpdate.newLatLngZoom(target, 18),
-            );
-          }
-
-          if (!mounted) return;
-          setState(() {
-            _selectedSource = 'search';
-            _locationHint =
-                data['result']['formatted_address'] ?? 'Lokasi ditemukan.';
-          });
-        }
-      }
-    } catch (_) {
+    final resolved = await _mapsLookup.resolvePlace(placeId: placeId);
+    if (resolved == null) {
       _showMessage('Gagal mengambil detail lokasi.');
+      return;
     }
+
+    _cameraTarget = resolved.target;
+
+    final controller = _mapController;
+    if (controller != null) {
+      await controller.animateCamera(
+        CameraUpdate.newLatLngZoom(resolved.target, 18),
+      );
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _selectedSource = 'search';
+      _locationHint = resolved.address ?? 'Lokasi ditemukan.';
+    });
   }
 }

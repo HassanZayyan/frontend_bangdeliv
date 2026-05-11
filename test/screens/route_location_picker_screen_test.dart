@@ -15,7 +15,7 @@ void main() {
     GoogleMapsFlutterPlatform.instance = _FakeGoogleMapsFlutterPlatform();
   });
 
-  testWidgets('active map description follows selected route point', (
+  testWidgets('pickup prefill starts destination flow with hidden map', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
@@ -39,23 +39,13 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Peta aktif: Ambil'), findsOneWidget);
     expect(
-      _activeAddressFinder('Jalan Mawar No 1, Sraten, Kabupaten Semarang'),
+      find.text('Pilih tujuan dari pencarian atau pilih lewat peta.'),
       findsOneWidget,
     );
-
-    await tester.tap(find.text('Tujuan').first);
-    await tester.pump();
-
-    expect(find.text('Peta aktif: Tujuan'), findsOneWidget);
+    expect(find.text('Pilih Tujuan'), findsOneWidget);
+    expect(find.text('Peta aktif: Tujuan'), findsNothing);
     expect(find.byKey(const Key('route_picker_active_address')), findsNothing);
-
-    await tester.tap(find.text('Set Tujuan'));
-    await tester.pump();
-
-    expect(find.text('Peta aktif: Tujuan'), findsOneWidget);
-    expect(_activeAddressFinder('Titik dipilih di peta'), findsOneWidget);
 
     await tester.tap(find.text('Ambil').first);
     await tester.pump();
