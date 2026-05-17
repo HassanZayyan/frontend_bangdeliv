@@ -9,9 +9,10 @@ import 'auth_session_provider.dart';
 import 'order_realtime_hub_provider.dart';
 
 final customerOrdersProvider =
-    AsyncNotifierProvider<CustomerOrdersNotifier, List<CustomerOrderSummaryModel>>(
-      CustomerOrdersNotifier.new,
-    );
+    AsyncNotifierProvider<
+      CustomerOrdersNotifier,
+      List<CustomerOrderSummaryModel>
+    >(CustomerOrdersNotifier.new);
 
 final customerOrdersAutoRefreshProvider = Provider.autoDispose<void>((ref) {
   final orders = ref.watch(customerOrdersProvider).asData?.value;
@@ -152,6 +153,11 @@ class CustomerOrdersNotifier
       return;
     }
 
+    if (event.type == OrderRealtimeEventType.content) {
+      _scheduleListReconciliation();
+      return;
+    }
+
     if (event.type != OrderRealtimeEventType.status) {
       return;
     }
@@ -226,9 +232,7 @@ class CustomerOrdersNotifier
     }
   }
 
-  void _syncRealtimeSubscriptions(
-    List<CustomerOrderSummaryModel> orders,
-  ) {
+  void _syncRealtimeSubscriptions(List<CustomerOrderSummaryModel> orders) {
     final activeOrderIds = orders
         .where((order) => !order.isTerminalStatus)
         .map((order) => order.id)
@@ -237,10 +241,12 @@ class CustomerOrdersNotifier
 
     final hub = _readRealtimeHub();
 
-    final orderIdsToRetain =
-        activeOrderIds.difference(_retainedOrderIds).toList(growable: false);
-    final orderIdsToRelease =
-        _retainedOrderIds.difference(activeOrderIds).toList(growable: false);
+    final orderIdsToRetain = activeOrderIds
+        .difference(_retainedOrderIds)
+        .toList(growable: false);
+    final orderIdsToRelease = _retainedOrderIds
+        .difference(activeOrderIds)
+        .toList(growable: false);
 
     for (final orderId in orderIdsToRetain) {
       _retainedOrderIds.add(orderId);

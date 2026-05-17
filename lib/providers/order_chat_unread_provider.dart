@@ -159,6 +159,7 @@ class OrderChatUnreadNotifier extends AsyncNotifier<int> {
         unawaited(refreshUnread());
         break;
       case OrderRealtimeEventType.status:
+      case OrderRealtimeEventType.content:
       case OrderRealtimeEventType.location:
         break;
     }

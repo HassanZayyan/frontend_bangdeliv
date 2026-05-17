@@ -313,6 +313,9 @@ class CustomerOrderDetailModel {
   final DateTime? driverLocationUpdatedAt;
   final String? deliveryDistanceText;
   final List<OrderStatusSnapshot> timeline;
+  final List<CustomerShoppingItemModel> shoppingItems;
+  final List<CustomerShoppingStopModel> shoppingStops;
+  final CustomerShoppingPricingModel? shoppingPricing;
 
   const CustomerOrderDetailModel({
     required this.summary,
@@ -332,7 +335,39 @@ class CustomerOrderDetailModel {
     required this.driverLocationUpdatedAt,
     required this.deliveryDistanceText,
     required this.timeline,
+    this.shoppingItems = const <CustomerShoppingItemModel>[],
+    this.shoppingStops = const <CustomerShoppingStopModel>[],
+    this.shoppingPricing,
   });
+
+  bool get isShoppingOrder =>
+      service_type.normalizeServiceTypeCode(summary.serviceTypeCode) ==
+      service_type.ServiceTypeCodes.shopping;
+
+  bool get canEditShoppingItems {
+    if (!isShoppingOrder) {
+      return false;
+    }
+
+    final normalized = order_status.normalizeOrderStatusCode(
+      summary.statusCode,
+    );
+    return normalized == order_status.OrderStatusCodes.pending ||
+        normalized == order_status.OrderStatusCodes.driverAssigned ||
+        normalized == order_status.OrderStatusCodes.arrivedMerchant;
+  }
+
+  bool get canAddShoppingMerchant {
+    if (!isShoppingOrder) {
+      return false;
+    }
+
+    final normalized = order_status.normalizeOrderStatusCode(
+      summary.statusCode,
+    );
+    return normalized == order_status.OrderStatusCodes.pending ||
+        normalized == order_status.OrderStatusCodes.driverAssigned;
+  }
 
   CustomerOrderDetailModel copyWith({
     CustomerOrderSummaryModel? summary,
@@ -352,6 +387,9 @@ class CustomerOrderDetailModel {
     DateTime? driverLocationUpdatedAt,
     String? deliveryDistanceText,
     List<OrderStatusSnapshot>? timeline,
+    List<CustomerShoppingItemModel>? shoppingItems,
+    List<CustomerShoppingStopModel>? shoppingStops,
+    CustomerShoppingPricingModel? shoppingPricing,
   }) {
     return CustomerOrderDetailModel(
       summary: summary ?? this.summary,
@@ -372,6 +410,9 @@ class CustomerOrderDetailModel {
           driverLocationUpdatedAt ?? this.driverLocationUpdatedAt,
       deliveryDistanceText: deliveryDistanceText ?? this.deliveryDistanceText,
       timeline: timeline ?? this.timeline,
+      shoppingItems: shoppingItems ?? this.shoppingItems,
+      shoppingStops: shoppingStops ?? this.shoppingStops,
+      shoppingPricing: shoppingPricing ?? this.shoppingPricing,
     );
   }
 
@@ -473,6 +514,25 @@ class CustomerOrderDetailModel {
             return a.historyId.compareTo(b.historyId);
           });
 
+    final rawItems = (json['items'] is List)
+        ? (json['items'] as List).whereType<Map<String, dynamic>>().toList(
+            growable: false,
+          )
+        : const <Map<String, dynamic>>[];
+    final rawStops = (json['shopping_stops'] is List)
+        ? (json['shopping_stops'] as List)
+              .whereType<Map<String, dynamic>>()
+              .toList(growable: false)
+        : const <Map<String, dynamic>>[];
+    final shoppingItems = rawItems
+        .map(CustomerShoppingItemModel.fromJson)
+        .toList(growable: false);
+    final shoppingOrder = (json['shopping_order'] is Map<String, dynamic>)
+        ? json['shopping_order'] as Map<String, dynamic>
+        : (json['shoppingOrder'] is Map<String, dynamic>)
+        ? json['shoppingOrder'] as Map<String, dynamic>
+        : const <String, dynamic>{};
+
     return CustomerOrderDetailModel(
       summary: summary,
       paymentStatus: json['payment_status']?.toString(),
@@ -513,6 +573,19 @@ class CustomerOrderDetailModel {
       ),
       deliveryDistanceText: json['delivery_distance_text']?.toString(),
       timeline: timeline,
+      shoppingItems: shoppingItems,
+      shoppingStops: rawStops.isEmpty
+          ? CustomerShoppingStopModel.fallbackFromItems(
+              summary.restaurantName,
+              shoppingItems,
+            )
+          : rawStops
+                .map(CustomerShoppingStopModel.fromJson)
+                .toList(growable: false),
+      shoppingPricing: CustomerShoppingPricingModel.fromJson(
+        json,
+        shoppingOrder,
+      ),
     );
   }
 
@@ -575,5 +648,182 @@ class CustomerOrderDetailModel {
     }
 
     return double.tryParse(raw);
+  }
+}
+
+class CustomerShoppingItemModel {
+  final int id;
+  final int? pickupLocationId;
+  final int? menuId;
+  final String itemSource;
+  final String name;
+  final int quantity;
+  final double unitPrice;
+  final double subtotal;
+  final bool isAvailable;
+  final bool isHeavy;
+  final String? notes;
+  final String? priceStatus;
+
+  const CustomerShoppingItemModel({
+    required this.id,
+    this.pickupLocationId,
+    this.menuId,
+    required this.itemSource,
+    required this.name,
+    required this.quantity,
+    required this.unitPrice,
+    required this.subtotal,
+    required this.isAvailable,
+    required this.isHeavy,
+    this.notes,
+    this.priceStatus,
+  });
+
+  bool get isManual => itemSource.toUpperCase() == 'MANUAL';
+  bool get isPricePending => isManual && isAvailable && unitPrice <= 0;
+
+  factory CustomerShoppingItemModel.fromJson(Map<String, dynamic> json) {
+    return CustomerShoppingItemModel(
+      id: CustomerOrderSummaryModel._asInt(json['id']),
+      pickupLocationId: int.tryParse(
+        json['pickup_location_id']?.toString() ?? '',
+      ),
+      menuId: int.tryParse(json['menu_id']?.toString() ?? ''),
+      itemSource: (json['item_source'] ?? 'MANUAL').toString(),
+      name: (json['menu_name'] ?? json['name'] ?? '-').toString(),
+      quantity: CustomerOrderSummaryModel._asInt(json['quantity']),
+      unitPrice: CustomerOrderSummaryModel._asDouble(json['unit_price']),
+      subtotal: CustomerOrderSummaryModel._asDouble(json['subtotal']),
+      isAvailable: json['is_available'] != false,
+      isHeavy: json['is_heavy'] == true,
+      notes: json['notes']?.toString(),
+      priceStatus: json['price_status']?.toString(),
+    );
+  }
+}
+
+class CustomerShoppingStopModel {
+  final int pickupLocationId;
+  final int sequenceNo;
+  final CustomerShoppingMerchantModel merchant;
+  final List<CustomerShoppingItemModel> items;
+
+  const CustomerShoppingStopModel({
+    required this.pickupLocationId,
+    required this.sequenceNo,
+    required this.merchant,
+    required this.items,
+  });
+
+  factory CustomerShoppingStopModel.fromJson(Map<String, dynamic> json) {
+    final merchantJson = (json['merchant'] is Map<String, dynamic>)
+        ? json['merchant'] as Map<String, dynamic>
+        : const <String, dynamic>{};
+    final rawItems = (json['items'] is List)
+        ? (json['items'] as List).whereType<Map<String, dynamic>>().toList(
+            growable: false,
+          )
+        : const <Map<String, dynamic>>[];
+
+    return CustomerShoppingStopModel(
+      pickupLocationId: CustomerOrderSummaryModel._asInt(
+        json['pickup_location_id'],
+      ),
+      sequenceNo: CustomerOrderSummaryModel._asInt(json['sequence_no']),
+      merchant: CustomerShoppingMerchantModel.fromJson(merchantJson),
+      items: rawItems
+          .map(CustomerShoppingItemModel.fromJson)
+          .toList(growable: false),
+    );
+  }
+
+  static List<CustomerShoppingStopModel> fallbackFromItems(
+    String merchantName,
+    List<CustomerShoppingItemModel> items,
+  ) {
+    if (items.isEmpty) {
+      return const <CustomerShoppingStopModel>[];
+    }
+
+    return [
+      CustomerShoppingStopModel(
+        pickupLocationId: items.first.pickupLocationId ?? 0,
+        sequenceNo: 1,
+        merchant: CustomerShoppingMerchantModel(
+          id: null,
+          name: merchantName,
+          merchantType: null,
+          address: null,
+        ),
+        items: items,
+      ),
+    ];
+  }
+}
+
+class CustomerShoppingMerchantModel {
+  final int? id;
+  final String name;
+  final String? merchantType;
+  final String? address;
+
+  const CustomerShoppingMerchantModel({
+    required this.id,
+    required this.name,
+    required this.merchantType,
+    required this.address,
+  });
+
+  factory CustomerShoppingMerchantModel.fromJson(Map<String, dynamic> json) {
+    return CustomerShoppingMerchantModel(
+      id: int.tryParse(json['id']?.toString() ?? ''),
+      name: (json['name'] ?? '-').toString(),
+      merchantType: json['merchant_type']?.toString(),
+      address: json['address']?.toString(),
+    );
+  }
+}
+
+class CustomerShoppingPricingModel {
+  final double subtotal;
+  final double deliveryFee;
+  final double serviceFee;
+  final double totalPrice;
+  final double itemSurcharge;
+  final double overweightSurcharge;
+  final double cancellationPenalty;
+
+  const CustomerShoppingPricingModel({
+    required this.subtotal,
+    required this.deliveryFee,
+    required this.serviceFee,
+    required this.totalPrice,
+    required this.itemSurcharge,
+    required this.overweightSurcharge,
+    required this.cancellationPenalty,
+  });
+
+  factory CustomerShoppingPricingModel.fromJson(
+    Map<String, dynamic> orderJson,
+    Map<String, dynamic> shoppingJson,
+  ) {
+    return CustomerShoppingPricingModel(
+      subtotal: CustomerOrderSummaryModel._asDouble(orderJson['subtotal']),
+      deliveryFee: CustomerOrderSummaryModel._asDouble(
+        orderJson['delivery_fee'],
+      ),
+      serviceFee: CustomerOrderSummaryModel._asDouble(orderJson['service_fee']),
+      totalPrice: CustomerOrderSummaryModel._asDouble(orderJson['total_price']),
+      itemSurcharge: CustomerOrderSummaryModel._asDouble(
+        shoppingJson['item_surcharge'],
+      ),
+      overweightSurcharge: CustomerOrderSummaryModel._asDouble(
+        shoppingJson['overweight_surcharge'],
+      ),
+      cancellationPenalty: CustomerOrderSummaryModel._asDouble(
+        shoppingJson['cancellation_penalty'],
+      ),
+    );
   }
 }

@@ -18,6 +18,7 @@ import '../screens/home_screen.dart';
 import '../screens/chatbot_screen.dart';
 import '../screens/order_history_screen.dart';
 import '../screens/order_chat_screen.dart';
+import '../screens/shopping_add_item_screen.dart';
 import '../screens/track_order_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/edit_profile_screen.dart';
@@ -30,6 +31,7 @@ import '../models/user_profile_model.dart';
 import '../models/route_location_picker_result.dart';
 import '../models/food_model.dart';
 import '../models/merchant_model.dart';
+import '../models/customer_order_model.dart';
 import '../providers/api_providers.dart';
 import '../providers/auth_session_provider.dart';
 import '../providers/customer_order_providers.dart';
@@ -106,6 +108,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.track,
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const TrackOrderScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.shoppingAddItem,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final orderId = int.tryParse(state.pathParameters['orderId'] ?? '');
+          final extra = state.extra;
+          final detail = extra is ShoppingAddItemRouteArgs
+              ? extra.detail
+              : extra is CustomerOrderDetailModel
+              ? extra
+              : null;
+
+          return ShoppingAddItemScreen(orderId: orderId, initialDetail: detail);
+        },
       ),
       GoRoute(
         path: AppRoutes.orderChat,
@@ -453,6 +470,7 @@ const Set<String> _customerOnlyRoutes = {
   AppRoutes.activity,
   AppRoutes.history,
   AppRoutes.track,
+  AppRoutes.shoppingAddItem,
   AppRoutes.addresses,
   AppRoutes.addAddress,
   AppRoutes.registerDriver,

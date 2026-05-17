@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/chatbot_model.dart';
 import '../services/api_exception.dart';
 import '../services/chatbot_api_service.dart';
+import '../utils/address_readiness.dart';
 import '../utils/order_formatters.dart';
 import 'auth_session_provider.dart';
 import 'api_providers.dart';
@@ -558,6 +559,43 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     );
   }
 
+  void ensureAddressGuardMessage({
+    required String serviceType,
+    required String message,
+  }) {
+    _ensureService(serviceType);
+
+    if (_hasSavedAddressInProfile()) {
+      return;
+    }
+
+    final hasAddressAction = state.messages.any(
+      (item) => item.actionHints.any(
+        (hint) => hint.type == ChatbotMessageActionType.openAddresses,
+      ),
+    );
+    if (hasAddressAction) {
+      return;
+    }
+
+    state = state.copyWith(
+      messages: <ChatbotConversationMessage>[
+        ...state.messages,
+        _botMessage(
+          text: message,
+          timestamp: _nowLabel(),
+          actionHints: const <ChatbotMessageActionHint>[
+            ChatbotMessageActionHint(
+              type: ChatbotMessageActionType.openAddresses,
+              label: 'Isi Alamat Saya',
+            ),
+          ],
+        ),
+      ],
+      clearErrorMessage: true,
+    );
+  }
+
   ChatbotConversationMessage _messageFromHistoryEntry(
     ChatbotHistoryMessage entry,
     String serviceType,
@@ -991,10 +1029,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
   }
 
   List<ChatbotMessageActionHint> _bootstrapActionHints(String serviceType) {
-    if (serviceType != 'antar_jemput' && serviceType != 'kurir') {
-      return const <ChatbotMessageActionHint>[];
-    }
-
     final hasSavedAddress = _hasSavedAddressInProfile();
 
     final hints = <ChatbotMessageActionHint>[];
@@ -1009,6 +1043,14 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       return hints;
     }
 
+    if (serviceType == 'nitip') {
+      return const <ChatbotMessageActionHint>[];
+    }
+
+    if (serviceType != 'antar_jemput' && serviceType != 'kurir') {
+      return const <ChatbotMessageActionHint>[];
+    }
+
     hints.addAll(_serviceMapActionHints(serviceType));
 
     return hints;
@@ -1018,7 +1060,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     final authState = ref.read(authSessionProvider);
     final addresses = authState.profile?.addresses ?? const [];
 
-    return addresses.any((item) => item.fullAddress.trim().isNotEmpty);
+    return hasUsableSavedAddress(addresses);
   }
 
   List<ChatbotMessageActionHint> _serviceMapActionHints(String serviceType) {

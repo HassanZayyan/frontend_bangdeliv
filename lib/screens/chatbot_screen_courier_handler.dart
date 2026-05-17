@@ -5,7 +5,7 @@ extension _CourierChatHandler on _ChatbotScreenState {
     final authState = ref.read(authSessionProvider);
     final addresses = authState.profile?.addresses ?? const [];
 
-    return addresses.any((item) => item.fullAddress.trim().isNotEmpty);
+    return hasUsableSavedAddress(addresses);
   }
 
   Future<void> _handleActionHint(ChatbotMessageActionHint actionHint) async {
@@ -65,7 +65,8 @@ extension _CourierChatHandler on _ChatbotScreenState {
     ChatbotMessageActionHint actionHint,
   ) async {
     if ((_serviceContext.serviceType == 'antar_jemput' ||
-            _serviceContext.serviceType == 'kurir') &&
+            _serviceContext.serviceType == 'kurir' ||
+            _serviceContext.serviceType == 'nitip') &&
         !_hasSavedAddressInProfile()) {
       await _handleOpenAddressesAction();
       return;
@@ -206,28 +207,10 @@ extension _CourierChatHandler on _ChatbotScreenState {
     final addresses =
         ref.read(authSessionProvider).profile?.addresses ??
         const <SavedAddressModel>[];
-    final validAddresses = addresses
-        .where((address) => address.fullAddress.trim().isNotEmpty)
-        .where(_hasValidCoordinate)
-        .toList(growable: false);
-    if (validAddresses.isEmpty) {
-      return null;
-    }
-
-    for (final address in validAddresses) {
-      if (address.isDefault) {
-        return address;
-      }
-    }
-
-    return validAddresses.first;
+    return defaultUsableSavedAddress(addresses);
   }
 
   bool _hasValidCoordinate(SavedAddressModel address) {
-    return address.latitude >= -90 &&
-        address.latitude <= 90 &&
-        address.longitude >= -180 &&
-        address.longitude <= 180 &&
-        !(address.latitude == 0 && address.longitude == 0);
+    return isUsableSavedAddress(address);
   }
 }

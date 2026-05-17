@@ -9,6 +9,7 @@ import '../models/route_location_picker_result.dart';
 import '../models/user_profile_model.dart';
 import '../providers/auth_session_provider.dart';
 import '../providers/chatbot_conversation_provider.dart';
+import '../utils/address_readiness.dart';
 
 part 'chatbot_screen_courier_handler.dart';
 
@@ -23,6 +24,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   late final TextEditingController _inputController;
   late final ScrollController _scrollController;
   String? _bootstrappedServiceType;
+  bool _didAutoOpenAddressBook = false;
 
   @override
   void initState() {
@@ -45,6 +47,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     }
 
     _bootstrappedServiceType = serviceType;
+    _didAutoOpenAddressBook = false;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
@@ -72,7 +75,9 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           title: 'BangBot AI - Antar Jemput',
           subtitle: 'Mode perjalanan aktif',
           welcomeMessage:
-              'Halo! Saya BangBot untuk layanan Antar Jemput. Kamu bisa kirim tujuan lewat chat atau atur titik jemput dan tujuan di map. Jika belum punya alamat, isi Alamat Saya dulu.',
+              'Halo! Saya BangBot untuk layanan Antar Jemput. Kamu bisa kirim tujuan lewat chat atau atur titik jemput dan tujuan di map.',
+          addressRequiredMessage:
+              'Sebelum pesan Antar Jemput, isi Alamat Saya dulu supaya titik jemput utama kamu siap dipakai.',
           suggestions: [
             'Antar ke Stasiun Tawang',
             'Tujuan ke Jalan Sudirman No 10',
@@ -86,31 +91,62 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           subtitle: 'Mode pengiriman paket aktif',
           welcomeMessage:
               'Halo! Saya BangBot untuk layanan Kurir. Tulis tujuan kirim dan isi paket lewat chat, atau atur titik ambil dan tujuan di map.',
+          addressRequiredMessage:
+              'Sebelum pesan Kurir, isi Alamat Saya dulu supaya titik ambil utama kamu siap dipakai.',
           suggestions: ['Isi paket kunci', 'Kirim kunci', 'Kirim dokumen'],
         );
       default:
         return const _ServiceContext(
           serviceType: 'nitip',
-          title: 'BangBot AI - Nitip',
+          title: 'BangBot AI - Titip Belanja',
           subtitle: 'Mode titip belanja aktif',
           welcomeMessage:
-              'Halo! Saya BangBot untuk layanan Nitip. Setelah menu siap, kamu bisa pilih titik antar custom di map.',
-          suggestions: ['Mie Ayam', 'Ayam Geprek', 'Minuman dingin'],
+              'Halo! Saya BangBot untuk layanan Titip Belanja. Tulis merchant dan item, lalu pilih titik antar di map.',
+          addressRequiredMessage:
+              'Sebelum titip belanja, isi Alamat Saya dulu supaya titik antar pesanan kamu siap dipakai.',
+          suggestions: [
+            'Alfamart telur 1 kg',
+            'Warung Madura gula',
+            'Ayam Geprek 2',
+          ],
         );
     }
   }
 
   Future<void> _bootstrapConversation() async {
+    final hasSavedAddress = _hasSavedAddressInProfile();
+    final welcomeMessage = _serviceContext.welcomeMessageFor(hasSavedAddress);
+
     await ref
         .read(chatbotConversationProvider.notifier)
         .bootstrap(
           serviceType: _serviceContext.serviceType,
-          welcomeMessage: _serviceContext.welcomeMessage,
+          welcomeMessage: welcomeMessage,
         );
+
+    if (!hasSavedAddress) {
+      ref
+          .read(chatbotConversationProvider.notifier)
+          .ensureAddressGuardMessage(
+            serviceType: _serviceContext.serviceType,
+            message: _serviceContext.addressRequiredMessage,
+          );
+    }
+
     _scrollToBottom();
+
+    if (!_didAutoOpenAddressBook && !_hasSavedAddressInProfile()) {
+      _didAutoOpenAddressBook = true;
+      await _handleOpenAddressesAction();
+    }
   }
 
   Future<void> _sendMessage([String? presetText]) async {
+    if (!_hasSavedAddressInProfile()) {
+      await _handleOpenAddressesAction();
+      return;
+    }
+
     final raw = (presetText ?? _inputController.text).trim();
     if (raw.isEmpty) {
       return;
@@ -203,13 +239,22 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                               : null,
                           onTap: () async {
                             Navigator.of(context).pop();
+                            final hasSavedAddress = _hasSavedAddressInProfile();
                             await notifier.selectSession(
                               session.sessionId,
                               serviceType: _serviceContext.serviceType,
-                              welcomeMessage: _serviceContext.welcomeMessage,
+                              welcomeMessage: _serviceContext.welcomeMessageFor(
+                                hasSavedAddress,
+                              ),
                             );
                             if (!mounted) {
                               return;
+                            }
+                            if (!hasSavedAddress) {
+                              notifier.ensureAddressGuardMessage(
+                                serviceType: _serviceContext.serviceType,
+                                message: _serviceContext.addressRequiredMessage,
+                              );
                             }
                             _scrollToBottom();
                           },
@@ -890,6 +935,7 @@ class _ServiceContext {
   final String title;
   final String subtitle;
   final String welcomeMessage;
+  final String addressRequiredMessage;
   final List<String> suggestions;
 
   const _ServiceContext({
@@ -897,6 +943,11 @@ class _ServiceContext {
     required this.title,
     required this.subtitle,
     required this.welcomeMessage,
+    required this.addressRequiredMessage,
     required this.suggestions,
   });
+
+  String welcomeMessageFor(bool hasSavedAddress) {
+    return hasSavedAddress ? welcomeMessage : addressRequiredMessage;
+  }
 }

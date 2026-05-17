@@ -10,9 +10,11 @@ import 'auth_session_provider.dart';
 import 'order_realtime_hub_provider.dart';
 
 final customerOrderTrackingProvider = AsyncNotifierProvider.family
-    .autoDispose<CustomerOrderTrackingNotifier, CustomerOrderTrackingState, int>(
-  CustomerOrderTrackingNotifier.new,
-);
+    .autoDispose<
+      CustomerOrderTrackingNotifier,
+      CustomerOrderTrackingState,
+      int
+    >(CustomerOrderTrackingNotifier.new);
 
 class CustomerOrderTrackingState {
   const CustomerOrderTrackingState({
@@ -131,6 +133,9 @@ class CustomerOrderTrackingNotifier
         if (status != null) {
           _applyStatusEvent(status);
         }
+        break;
+      case OrderRealtimeEventType.content:
+        _scheduleDetailReconciliation();
         break;
       case OrderRealtimeEventType.location:
         _applyLocationEvent(event);
@@ -285,7 +290,8 @@ class CustomerOrderTrackingNotifier
     OrderStatusSnapshot snapshot,
   ) {
     return items.any((item) {
-      final sameStatus = normalizeOrderStatusCode(item.code) ==
+      final sameStatus =
+          normalizeOrderStatusCode(item.code) ==
           normalizeOrderStatusCode(snapshot.code);
       final itemTime = item.changedAt?.millisecondsSinceEpoch;
       final snapshotTime = snapshot.changedAt?.millisecondsSinceEpoch;
@@ -293,10 +299,7 @@ class CustomerOrderTrackingNotifier
     });
   }
 
-  int _compareTimelineItems(
-    OrderStatusSnapshot a,
-    OrderStatusSnapshot b,
-  ) {
+  int _compareTimelineItems(OrderStatusSnapshot a, OrderStatusSnapshot b) {
     final aTime = a.changedAt?.millisecondsSinceEpoch ?? 0;
     final bTime = b.changedAt?.millisecondsSinceEpoch ?? 0;
     final byTime = aTime.compareTo(bTime);

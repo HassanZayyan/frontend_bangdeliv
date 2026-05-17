@@ -96,6 +96,22 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                 const SizedBox(height: 12),
                 _OrderMetaCard(order: order, trackingState: trackingState),
                 const SizedBox(height: 12),
+                if (order.shoppingItems.isNotEmpty) ...[
+                  _ShoppingItemsCard(
+                    order: order,
+                    isProcessing: isProcessing,
+                    onSave: (items, receiptNote) async {
+                      return ref
+                          .read(driverOrdersProvider.notifier)
+                          .updateShoppingItems(
+                            orderId: order.id,
+                            items: items,
+                            receiptNote: receiptNote,
+                          );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 _TimelineCard(timeline: order.statusTimeline),
                 const SizedBox(height: 12),
                 _ActionCard(
@@ -502,6 +518,295 @@ class _OrderMetaCard extends StatelessWidget {
 
   String _formatCurrency(int amount) {
     return formatRupiah(amount);
+  }
+}
+
+class _ShoppingItemsCard extends StatefulWidget {
+  final DriverOrderModel order;
+  final bool isProcessing;
+  final Future<String?> Function(
+    List<Map<String, dynamic>> items,
+    String? receiptNote,
+  )
+  onSave;
+
+  const _ShoppingItemsCard({
+    required this.order,
+    required this.isProcessing,
+    required this.onSave,
+  });
+
+  @override
+  State<_ShoppingItemsCard> createState() => _ShoppingItemsCardState();
+}
+
+class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
+  final Map<int, TextEditingController> _priceControllers = {};
+  final TextEditingController _receiptNoteController = TextEditingController();
+  final Map<int, bool> _availability = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _syncControllers();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ShoppingItemsCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.order.shoppingItems != widget.order.shoppingItems) {
+      _syncControllers();
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _priceControllers.values) {
+      controller.dispose();
+    }
+    _receiptNoteController.dispose();
+    super.dispose();
+  }
+
+  void _syncControllers() {
+    final activeIds = widget.order.shoppingItems.map((item) => item.id).toSet();
+    final staleIds = _priceControllers.keys
+        .where((id) => !activeIds.contains(id))
+        .toList(growable: false);
+    for (final id in staleIds) {
+      _priceControllers.remove(id)?.dispose();
+      _availability.remove(id);
+    }
+
+    for (final item in widget.order.shoppingItems) {
+      _availability[item.id] = item.isAvailable;
+      _priceControllers.putIfAbsent(
+        item.id,
+        () => TextEditingController(
+          text: item.unitPrice > 0 ? item.unitPrice.round().toString() : '',
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pendingCount = widget.order.shoppingItems
+        .where((item) => item.isPricePending)
+        .length;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Daftar Belanja',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              if (pendingCount > 0)
+                Text(
+                  '$pendingCount harga pending',
+                  style: const TextStyle(
+                    color: AppColors.error,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (widget.order.shoppingStops.isEmpty)
+            ...widget.order.shoppingItems.map(_buildItemEditor)
+          else
+            ...widget.order.shoppingStops.map(_buildStopSection),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _receiptNoteController,
+            minLines: 1,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'Catatan nota',
+              hintText: 'Contoh: satu item kosong, diganti ukuran lain',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: widget.isProcessing ? null : _save,
+              icon: widget.isProcessing
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.white,
+                      ),
+                    )
+                  : const Icon(Icons.receipt_long, size: 18),
+              label: const Text('Simpan Harga Nota'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItemEditor(DriverShoppingItemModel item) {
+    final isAvailable = _availability[item.id] ?? item.isAvailable;
+    final controller = _priceControllers[item.id]!;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  '${item.quantity}x ${item.name}',
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Checkbox(
+                value: isAvailable,
+                onChanged: (value) {
+                  setState(() {
+                    _availability[item.id] = value ?? true;
+                  });
+                },
+              ),
+            ],
+          ),
+          if ((item.notes ?? '').trim().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                item.notes!.trim(),
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          TextField(
+            controller: controller,
+            enabled: isAvailable,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              labelText: item.isManual ? 'Harga aktual' : 'Harga item',
+              prefixText: 'Rp ',
+              border: const OutlineInputBorder(),
+              isDense: true,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStopSection(DriverShoppingStopModel stop) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${stop.sequenceNo <= 0 ? 1 : stop.sequenceNo}',
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  stop.merchant.name,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...stop.items.map(_buildItemEditor),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _save() async {
+    final payload = widget.order.shoppingItems
+        .map((item) {
+          final rawPrice = _priceControllers[item.id]?.text.trim() ?? '';
+          final unitPrice = double.tryParse(rawPrice.replaceAll('.', '')) ?? 0;
+
+          return <String, dynamic>{
+            'id': item.id,
+            'quantity': item.quantity,
+            'unit_price': unitPrice,
+            'is_available': _availability[item.id] ?? item.isAvailable,
+            'notes': item.notes,
+            'is_heavy': item.isHeavy,
+          };
+        })
+        .toList(growable: false);
+
+    final error = await widget.onSave(
+      payload,
+      _receiptNoteController.text.trim(),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error ?? 'Harga nota berhasil disimpan.'),
+        backgroundColor: error == null ? null : AppColors.error,
+      ),
+    );
   }
 }
 

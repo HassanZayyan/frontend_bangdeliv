@@ -56,6 +56,7 @@ abstract class OrderRealtimeClient {
     void Function(double lat, double lng, double heading, DateTime updatedAt)?
     onLocation,
     void Function(OrderStatusRealtimeEvent event)? onStatusChanged,
+    void Function(Map<String, dynamic> payload)? onContentUpdated,
     void Function(OrderChatMessageModel message)? onChatMessage,
     VoidCallback? onSubscribed,
     void Function(Object error)? onConnectionIssue,
@@ -84,6 +85,8 @@ class PusherService implements OrderRealtimeClient {
   static const _driverLocationUpdatedEvent =
       'App\\Events\\DriverLocationUpdated';
   static const _orderStatusChangedEvent = 'App\\Events\\OrderStatusChanged';
+  static const _orderContentUpdatedEvent = 'App\\Events\\OrderContentUpdated';
+  static const _orderContentUpdatedAlias = 'order.content.updated';
   static const _orderChatMessageSentEvent = 'App\\Events\\OrderChatMessageSent';
   static const _orderChatMessageSentAlias = 'order.chat.message.sent';
   static const _driverOrderAvailableEvent = 'driver.order.available';
@@ -234,6 +237,7 @@ class PusherService implements OrderRealtimeClient {
     void Function(double lat, double lng, double heading, DateTime updatedAt)?
     onLocation,
     void Function(OrderStatusRealtimeEvent event)? onStatusChanged,
+    void Function(Map<String, dynamic> payload)? onContentUpdated,
     void Function(OrderChatMessageModel message)? onChatMessage,
     VoidCallback? onSubscribed,
     void Function(Object error)? onConnectionIssue,
@@ -272,6 +276,12 @@ class PusherService implements OrderRealtimeClient {
 
       if (_isOrderStatusEvent(rawEvent.eventName) && onStatusChanged != null) {
         _handleStatusPayload(rawEvent.payload, onStatusChanged);
+        return;
+      }
+
+      if (_isOrderContentEvent(rawEvent.eventName) &&
+          onContentUpdated != null) {
+        onContentUpdated(rawEvent.payload);
         return;
       }
 
@@ -516,6 +526,7 @@ class PusherService implements OrderRealtimeClient {
         !_channelControllers.containsKey(channelName) ||
         (!_isDriverLocationEvent(eventName) &&
             !_isOrderStatusEvent(eventName) &&
+            !_isOrderContentEvent(eventName) &&
             !_isOrderChatMessageEvent(eventName) &&
             !_isDriverOrderEvent(eventName))) {
       return;
@@ -665,6 +676,11 @@ class PusherService implements OrderRealtimeClient {
   bool _isOrderStatusEvent(String eventName) {
     return _matchesEvent(eventName, _orderStatusChangedEvent) ||
         _matchesEvent(eventName, 'order.status.changed');
+  }
+
+  bool _isOrderContentEvent(String eventName) {
+    return _matchesEvent(eventName, _orderContentUpdatedEvent) ||
+        _matchesEvent(eventName, _orderContentUpdatedAlias);
   }
 
   bool _isOrderChatMessageEvent(String eventName) {

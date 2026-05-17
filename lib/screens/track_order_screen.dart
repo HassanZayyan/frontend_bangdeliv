@@ -5,9 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../models/customer_order_model.dart';
+import '../providers/api_providers.dart';
 import '../providers/customer_order_providers.dart';
 import '../providers/customer_order_tracking_provider.dart';
 import '../providers/order_chat_unread_provider.dart';
+import '../screens/shopping_add_item_screen.dart';
 import '../utils/order_formatters.dart';
 import '../utils/order_status.dart';
 import '../utils/order_ui_helpers.dart';
@@ -393,6 +395,13 @@ class TrackOrderScreen extends ConsumerWidget {
                                 showEta: _shouldShowEta(order),
                               ),
                               const SizedBox(height: 12),
+                              if (detail.isShoppingOrder) ...[
+                                _ShoppingOrderItemsCard(
+                                  detail: detail,
+                                  onChanged: onRefresh,
+                                ),
+                                const SizedBox(height: 12),
+                              ],
                               _buildPaymentCard(order, detail),
                               const SizedBox(height: 12),
                               _buildTimelineCard(
@@ -466,6 +475,10 @@ class TrackOrderScreen extends ConsumerWidget {
               const SizedBox(height: 12),
               _buildSummaryCard(order, detail, showEta: _shouldShowEta(order)),
               const SizedBox(height: 12),
+              if (detail.isShoppingOrder) ...[
+                _ShoppingOrderItemsCard(detail: detail, onChanged: onRefresh),
+                const SizedBox(height: 12),
+              ],
               _buildPaymentCard(order, detail),
               const SizedBox(height: 12),
               _buildCard(
@@ -1466,6 +1479,274 @@ class TrackOrderScreen extends ConsumerWidget {
   String? _driverVehiclePlate(CustomerOrderDetailModel detail) {
     final plate = (detail.driverVehiclePlate ?? '').trim().toUpperCase();
     return plate.isEmpty ? null : plate;
+  }
+}
+
+class _ShoppingOrderItemsCard extends ConsumerWidget {
+  final CustomerOrderDetailModel detail;
+  final Future<void> Function()? onChanged;
+
+  const _ShoppingOrderItemsCard({required this.detail, this.onChanged});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final items = detail.shoppingItems;
+    final stops = detail.shoppingStops;
+    final pricing = detail.shoppingPricing;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.shopping_bag_outlined,
+                size: 18,
+                color: AppColors.primary,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Item Titip Belanja',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              if (detail.canEditShoppingItems)
+                TextButton.icon(
+                  onPressed: () => _openAddItemScreen(context, ref),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Tambah'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (items.isEmpty)
+            const Text(
+              'Belum ada item belanja.',
+              style: TextStyle(color: AppColors.textSecondary),
+            )
+          else
+            ...stops.map((stop) => _stopSection(context, ref, stop)),
+          if (pricing != null) ...[
+            const Divider(height: 18, color: AppColors.border),
+            _pricingRow('Subtotal barang', pricing.subtotal),
+            _pricingRow('Ongkir', pricing.deliveryFee),
+            _pricingRow('Service fee', pricing.serviceFee),
+            const SizedBox(height: 4),
+            _pricingRow('Total COD', pricing.totalPrice, isTotal: true),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _stopSection(
+    BuildContext context,
+    WidgetRef ref,
+    CustomerShoppingStopModel stop,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 22,
+                height: 22,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Text(
+                  '${stop.sequenceNo <= 0 ? 1 : stop.sequenceNo}',
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  stop.merchant.name,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...stop.items.map((item) => _itemRow(context, ref, item)),
+        ],
+      ),
+    );
+  }
+
+  Widget _itemRow(
+    BuildContext context,
+    WidgetRef ref,
+    CustomerShoppingItemModel item,
+  ) {
+    final priceText = item.isPricePending
+        ? 'Harga menunggu nota'
+        : formatCurrency(item.subtotal);
+    final statusColor = item.isPricePending
+        ? AppColors.error
+        : AppColors.textSecondary;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${item.quantity <= 0 ? 1 : item.quantity}x ${item.name}',
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if ((item.notes ?? '').trim().isNotEmpty)
+                  Text(
+                    item.notes!.trim(),
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            priceText,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              color: statusColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (detail.canEditShoppingItems && detail.shoppingItems.length > 1)
+            IconButton(
+              tooltip: 'Hapus item',
+              visualDensity: VisualDensity.compact,
+              onPressed: () => _removeItem(context, ref, item),
+              icon: const Icon(
+                Icons.delete_outline,
+                color: AppColors.error,
+                size: 20,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pricingRow(String label, double value, {bool isTotal = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: isTotal
+                    ? AppColors.textPrimary
+                    : AppColors.textSecondary,
+                fontWeight: isTotal ? FontWeight.w800 : FontWeight.w600,
+              ),
+            ),
+          ),
+          Text(
+            formatCurrency(value),
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: isTotal ? FontWeight.w800 : FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openAddItemScreen(BuildContext context, WidgetRef ref) async {
+    final result = await context.push<ShoppingAddItemResult>(
+      AppRoutes.shoppingAddItemPath(detail.summary.id),
+      extra: ShoppingAddItemRouteArgs(detail: detail),
+    );
+
+    if (result == null || !context.mounted) {
+      return;
+    }
+
+    ref.invalidate(customerOrderTrackingProvider(detail.summary.id));
+    ref.invalidate(customerOrdersProvider);
+    await onChanged?.call();
+    if (!context.mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result.message),
+        backgroundColor: result.deliveryFeeChanged
+            ? AppColors.success
+            : null,
+      ),
+    );
+  }
+
+  Future<void> _removeItem(
+    BuildContext context,
+    WidgetRef ref,
+    CustomerShoppingItemModel item,
+  ) async {
+    try {
+      await ref
+          .read(customerOrderApiServiceProvider)
+          .removeShoppingItem(detail.summary.id, item.id);
+      ref.invalidate(customerOrderTrackingProvider(detail.summary.id));
+      ref.invalidate(customerOrdersProvider);
+      await onChanged?.call();
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Item belanja berhasil dihapus.')),
+      );
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString()),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 }
 
