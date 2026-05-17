@@ -70,3 +70,16 @@ Color serviceTypeColor(String code) {
       return AppColors.primary;
   }
 }
+
+bool isPaymentPaid(String? status) {
+  return (status ?? '').trim().toLowerCase() == 'paid';
+}
+
+String paymentStatusLabel(String? status) {
+  return isPaymentPaid(status) ? 'Sudah dibayar' : 'Belum dibayar';
+}
+
+String paymentMethodLabel(String? method) {
+  final normalized = (method ?? 'COD').trim().toUpperCase();
+  return normalized.isEmpty ? 'COD' : normalized;
+}

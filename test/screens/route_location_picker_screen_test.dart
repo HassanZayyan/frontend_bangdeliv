@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 // Imported directly to provide a fake Google Maps platform for this widget test.
 // ignore: depend_on_referenced_packages
 import 'package:google_maps_flutter_platform_interface/google_maps_flutter_platform_interface.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:frontend_bangdeliv/models/route_location_picker_result.dart';
 import 'package:frontend_bangdeliv/screens/route_location_picker_screen.dart';
@@ -39,32 +40,23 @@ void main() {
     );
     await tester.pump();
 
+    expect(find.text('Pilih lewat peta'), findsOneWidget);
+    expect(find.text('Tujuan'), findsOneWidget);
+    expect(find.byType(GoogleMap), findsNothing);
     expect(
-      find.text('Pilih tujuan dari pencarian atau pilih lewat peta.'),
-      findsOneWidget,
+      find.text('Jalan Mawar No 1, Sraten, Kabupaten Semarang'),
+      findsNothing,
     );
-    expect(find.text('Pilih Tujuan'), findsOneWidget);
-    expect(find.text('Peta aktif: Tujuan'), findsNothing);
-    expect(find.byKey(const Key('route_picker_active_address')), findsNothing);
 
     await tester.tap(find.text('Ambil').first);
     await tester.pump();
 
-    expect(find.text('Peta aktif: Ambil'), findsOneWidget);
     expect(
-      _activeAddressFinder('Jalan Mawar No 1, Sraten, Kabupaten Semarang'),
+      find.text('Jalan Mawar No 1, Sraten, Kabupaten Semarang'),
       findsOneWidget,
     );
+    expect(find.text('Lokasi Saya'), findsOneWidget);
   });
-}
-
-Finder _activeAddressFinder(String text) {
-  return find.byWidgetPredicate(
-    (widget) =>
-        widget is Text &&
-        widget.key == const Key('route_picker_active_address') &&
-        widget.data == text,
-  );
 }
 
 class _FakeGoogleMapsFlutterPlatform extends GoogleMapsFlutterPlatform {

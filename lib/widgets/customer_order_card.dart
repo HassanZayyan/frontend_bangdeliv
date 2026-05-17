@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../config/app_colors.dart';
 import '../models/customer_order_model.dart';
@@ -40,156 +41,166 @@ class CustomerOrderCard extends StatelessWidget {
         serviceCode == 'RIDE' &&
         order.itemsSummary.trim().toLowerCase() == 'tanpa item';
 
-    return Material(
-      color: AppColors.cardYellow,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
-        child: Ink(
-          decoration: BoxDecoration(
-            color: AppColors.cardYellow,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 16,
+            spreadRadius: 2,
+            offset: const Offset(0, 4),
           ),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      order.orderNumber,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _buildStatusChip(statusColor),
-                ],
-              ),
-              const SizedBox(height: 10),
-              _buildServiceTypeChip(order),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: Icon(
-                      serviceTypeLeadingIcon(serviceCode),
-                      size: 18,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          order.restaurantName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        if (!hideItemsSummary) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            order.itemsSummary,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Divider(color: AppColors.border, height: 1),
-              ),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final shouldStackActions =
-                      _hasAnyAction && constraints.maxWidth < 380;
-
-                  if (shouldStackActions) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildOrderMeta(),
-                        const SizedBox(height: 10),
-                        _buildActionButtons(
-                          context: context,
-                          horizontal: _actionCount == 2,
-                          compact: true,
-                        ),
-                      ],
-                    );
-                  }
-
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: _buildOrderMeta()),
-                      if (_hasAnyAction) ...[
-                        const SizedBox(width: 12),
-                        _buildActionButtons(context: context, compact: true),
-                      ],
-                    ],
-                  );
-                },
-              ),
-              if (showDetailHint && onTap != null) ...[
-                const SizedBox(height: 10),
-                const Divider(color: AppColors.border, height: 1),
-                const SizedBox(height: 8),
+        ],
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Row(
-                  children: const [
-                    Icon(
-                      Icons.touch_app_outlined,
-                      size: 14,
-                      color: AppColors.textSecondary,
-                    ),
-                    SizedBox(width: 6),
+                  children: [
                     Expanded(
                       child: Text(
-                        'Ketuk kartu untuk lihat detail transaksi',
-                        style: TextStyle(
+                        order.orderNumber,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
                           color: AppColors.textSecondary,
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w500,
+                          fontSize: 12,
                         ),
                       ),
                     ),
-                    Icon(
-                      Icons.chevron_right,
-                      size: 16,
-                      color: AppColors.textSecondary,
+                    const SizedBox(width: 8),
+                    _buildStatusChip(statusColor),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                _buildServiceTypeChip(order),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Icon(
+                        serviceTypeLeadingIcon(serviceCode),
+                        size: 18,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            order.restaurantName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          if (!hideItemsSummary) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              order.itemsSummary,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 8),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Divider(color: AppColors.border, height: 1),
+                ),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final shouldStackActions =
+                        _hasAnyAction && constraints.maxWidth < 380;
+
+                    if (shouldStackActions) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildOrderMeta(),
+                          const SizedBox(height: 10),
+                          _buildActionButtons(
+                            context: context,
+                            horizontal: _actionCount == 2,
+                            compact: true,
+                          ),
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: _buildOrderMeta()),
+                        if (_hasAnyAction) ...[
+                          const SizedBox(width: 12),
+                          _buildActionButtons(context: context, compact: true),
+                        ],
+                      ],
+                    );
+                  },
+                ),
+                if (showDetailHint && onTap != null) ...[
+                  const SizedBox(height: 10),
+                  const Divider(color: AppColors.border, height: 1),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: const [
+                      Icon(
+                        Icons.touch_app_outlined,
+                        size: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                      SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Ketuk kartu untuk lihat detail transaksi',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right,
+                        size: 16,
+                        color: AppColors.textSecondary,
+                      ),
+                    ],
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -216,7 +227,7 @@ class CustomerOrderCard extends StatelessWidget {
       children: [
         Text(
           formatCurrency(order.totalAmount),
-          style: const TextStyle(
+          style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
             fontSize: 16,
             color: AppColors.primaryDark,
@@ -225,14 +236,11 @@ class CustomerOrderCard extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           formatDateTime(order.createdAt),
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 12,
-          ),
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
         ),
         const SizedBox(height: 2),
         Text(
-          '${_paymentMethodLabel(order.paymentMethod)} - ${_paymentStatusLabel(order.paymentStatus)}',
+          '${paymentMethodLabel(order.paymentMethod)} - ${paymentStatusLabel(order.paymentStatus)}',
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
@@ -252,14 +260,14 @@ class CustomerOrderCard extends StatelessWidget {
   }) {
     final buttons = <Widget>[];
     final buttonHeight = compact ? 40.0 : 44.0;
-    final buttonTextStyle = Theme.of(context).textTheme.labelLarge?.copyWith(
-      fontSize: 16,
+    final buttonTextStyle = GoogleFonts.poppins(
+      fontSize: 15,
       fontWeight: FontWeight.w700,
       height: 1.1,
     );
-    final trackTextStyle = buttonTextStyle?.copyWith(color: AppColors.primary);
-    final dangerTextStyle = buttonTextStyle?.copyWith(color: AppColors.white);
-    final neutralTextStyle = buttonTextStyle?.copyWith(
+    final trackTextStyle = buttonTextStyle.copyWith(color: AppColors.primary);
+    final dangerTextStyle = buttonTextStyle.copyWith(color: AppColors.white);
+    final neutralTextStyle = buttonTextStyle.copyWith(
       color: AppColors.textSecondary,
     );
 
@@ -411,7 +419,7 @@ class CustomerOrderCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: AppColors.white,
+        color: AppColors.background,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: AppColors.border),
       ),
@@ -431,18 +439,5 @@ class CustomerOrderCard extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  bool _isPaymentPaid(String? status) {
-    return (status ?? '').trim().toLowerCase() == 'paid';
-  }
-
-  String _paymentStatusLabel(String? status) {
-    return _isPaymentPaid(status) ? 'Sudah dibayar' : 'Belum dibayar';
-  }
-
-  String _paymentMethodLabel(String? method) {
-    final normalized = (method ?? 'COD').trim().toUpperCase();
-    return normalized.isEmpty ? 'COD' : normalized;
   }
 }
