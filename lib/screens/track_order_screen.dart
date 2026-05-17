@@ -310,7 +310,7 @@ class TrackOrderScreen extends ConsumerWidget {
                   ? TrackingMapSection(
                       dropoffAddress: order.deliveryAddress,
                       pickupStops: _shoppingPickupStops(detail),
-                      encodedPolyline: detail.shoppingRoute?.encodedPolyline,
+                      encodedPolyline: detail.route?.encodedPolyline,
                       pickupLatitude: detail.pickupLatitude,
                       pickupLongitude: detail.pickupLongitude,
                       dropoffLatitude: detail.dropoffLatitude,
@@ -577,7 +577,7 @@ class TrackOrderScreen extends ConsumerWidget {
         .toList(growable: false);
     stops.sort((a, b) {
       final orderedIds =
-          detail.shoppingRoute?.orderedPickupLocationIds ?? const <int>[];
+          detail.route?.orderedPickupLocationIds ?? const <int>[];
       final aIndex = orderedIds.indexOf(a.pickupLocationId);
       final bIndex = orderedIds.indexOf(b.pickupLocationId);
       if (aIndex >= 0 || bIndex >= 0) {

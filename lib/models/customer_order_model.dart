@@ -1,6 +1,7 @@
 import '../utils/order_status.dart' as order_status;
 import '../utils/order_formatters.dart';
 import '../utils/service_type.dart' as service_type;
+import 'order_route_model.dart';
 
 class OrderStatusSnapshot {
   final String code;
@@ -317,7 +318,7 @@ class CustomerOrderDetailModel {
   final List<OrderStatusSnapshot> timeline;
   final List<CustomerShoppingItemModel> shoppingItems;
   final List<CustomerShoppingStopModel> shoppingStops;
-  final CustomerShoppingRouteModel? shoppingRoute;
+  final OrderRouteModel? route;
   final CustomerShoppingPricingModel? shoppingPricing;
 
   const CustomerOrderDetailModel({
@@ -340,9 +341,12 @@ class CustomerOrderDetailModel {
     required this.timeline,
     this.shoppingItems = const <CustomerShoppingItemModel>[],
     this.shoppingStops = const <CustomerShoppingStopModel>[],
-    this.shoppingRoute,
+    OrderRouteModel? route,
+    OrderRouteModel? shoppingRoute,
     this.shoppingPricing,
-  });
+  }) : route = route ?? shoppingRoute;
+
+  OrderRouteModel? get shoppingRoute => route;
 
   bool get isShoppingOrder =>
       service_type.normalizeServiceTypeCode(summary.serviceTypeCode) ==
@@ -393,7 +397,8 @@ class CustomerOrderDetailModel {
     List<OrderStatusSnapshot>? timeline,
     List<CustomerShoppingItemModel>? shoppingItems,
     List<CustomerShoppingStopModel>? shoppingStops,
-    CustomerShoppingRouteModel? shoppingRoute,
+    OrderRouteModel? route,
+    OrderRouteModel? shoppingRoute,
     CustomerShoppingPricingModel? shoppingPricing,
   }) {
     return CustomerOrderDetailModel(
@@ -417,7 +422,7 @@ class CustomerOrderDetailModel {
       timeline: timeline ?? this.timeline,
       shoppingItems: shoppingItems ?? this.shoppingItems,
       shoppingStops: shoppingStops ?? this.shoppingStops,
-      shoppingRoute: shoppingRoute ?? this.shoppingRoute,
+      route: route ?? shoppingRoute ?? this.route,
       shoppingPricing: shoppingPricing ?? this.shoppingPricing,
     );
   }
@@ -599,8 +604,8 @@ class CustomerOrderDetailModel {
           : rawStops
                 .map(CustomerShoppingStopModel.fromJson)
                 .toList(growable: false),
-      shoppingRoute: CustomerShoppingRouteModel.fromRaw(
-        json['shopping_route'],
+      route: OrderRouteModel.fromRaw(
+        json['route'] ?? json['shopping_route'],
         shoppingOrder,
       ),
       shoppingPricing: CustomerShoppingPricingModel.fromJson(
@@ -808,44 +813,7 @@ class CustomerShoppingStopModel {
   }
 }
 
-class CustomerShoppingRouteModel {
-  final List<int> orderedPickupLocationIds;
-  final String? encodedPolyline;
-
-  const CustomerShoppingRouteModel({
-    this.orderedPickupLocationIds = const <int>[],
-    this.encodedPolyline,
-  });
-
-  factory CustomerShoppingRouteModel.fromJson(Map<String, dynamic> json) {
-    return CustomerShoppingRouteModel(
-      orderedPickupLocationIds: (json['ordered_pickup_location_ids'] is List)
-          ? (json['ordered_pickup_location_ids'] as List)
-                .map((value) => int.tryParse(value?.toString() ?? '') ?? 0)
-                .where((value) => value > 0)
-                .toList(growable: false)
-          : const <int>[],
-      encodedPolyline: (json['encoded_polyline'] ?? json['encodedPolyline'])
-          ?.toString(),
-    );
-  }
-
-  static CustomerShoppingRouteModel? fromRaw(
-    dynamic raw,
-    Map<String, dynamic> shoppingOrder,
-  ) {
-    final direct = raw is Map<String, dynamic> ? raw : null;
-    final snapshot = shoppingOrder['pricing_snapshot'] is Map<String, dynamic>
-        ? shoppingOrder['pricing_snapshot'] as Map<String, dynamic>
-        : const <String, dynamic>{};
-    final nested = snapshot['shopping_route'] is Map<String, dynamic>
-        ? snapshot['shopping_route'] as Map<String, dynamic>
-        : null;
-    final source = direct ?? nested;
-
-    return source == null ? null : CustomerShoppingRouteModel.fromJson(source);
-  }
-}
+typedef CustomerShoppingRouteModel = OrderRouteModel;
 
 class CustomerShoppingMerchantModel {
   final int? id;
