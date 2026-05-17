@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../config/app_colors.dart';
@@ -187,8 +188,16 @@ class _MapCard extends StatelessWidget {
         height: 220,
         decoration: BoxDecoration(
           color: AppColors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 16,
+              spreadRadius: 2,
+              offset: const Offset(0, 4),
+            ),
+          ],
+          border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
         ),
         child: const Center(
           child: Text(
@@ -327,24 +336,57 @@ class _OrderMetaCard extends StatelessWidget {
     final packageDetails = buildCourierPackageDetails(order);
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 16,
+            spreadRadius: 2,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '${order.orderNumber.isEmpty ? order.id : order.orderNumber} • ${order.customerName}',
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w700,
-              fontSize: 15,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _buildAvatar(order.customerName),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      order.customerName,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 18,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Order ID: ${order.orderNumber.isEmpty ? order.id : order.orderNumber}',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 14),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -356,31 +398,212 @@ class _OrderMetaCard extends StatelessWidget {
               ),
               _pill(
                 order.statusDisplayName ?? order.statusCode,
-                AppColors.success.withValues(alpha: 0.1),
+                AppColors.success.withValues(alpha: 0.12),
                 AppColors.success,
               ),
-              _pill(
-                'COD ${order.paymentStatus.toUpperCase()}',
-                AppColors.darkBlue.withValues(alpha: 0.08),
-                AppColors.darkBlue,
+              if (order.paymentStatus.isNotEmpty)
+                _pill(
+                  'COD ${order.paymentStatus.toUpperCase()}',
+                  AppColors.darkBlue.withValues(alpha: 0.08),
+                  AppColors.darkBlue,
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _routeVisualizer(order.pickupAddress, order.dropoffAddress),
+          ..._buildCourierPackageRows(packageDetails),
+          if ((trackingState.message ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    color: AppColors.error,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      trackingState.message!.trim(),
+                      style: const TextStyle(
+                        color: AppColors.error,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          _buildPricingSummary(),
+        ],
+      ),
+    );
+  }
+
+  Widget _routeVisualizer(String pickup, String dropoff) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 2),
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.storefront_rounded,
+                  size: 14,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Jemput',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      pickup,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          _row('Jemput', order.pickupAddress),
-          const SizedBox(height: 6),
-          _row('Tujuan', order.dropoffAddress),
-          ..._buildCourierPackageRows(packageDetails),
-          if ((trackingState.message ?? '').trim().isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              trackingState.message!.trim(),
-              style: const TextStyle(color: AppColors.error, fontSize: 12),
+          Padding(
+            padding: const EdgeInsets.only(left: 11),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: List.generate(
+                  5,
+                  (index) => Container(
+                    width: 2,
+                    height: 4,
+                    margin: const EdgeInsets.symmetric(vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: AppColors.textSecondary.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(1),
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ],
-          const SizedBox(height: 8),
-          _buildPricingSummary(),
+          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 2),
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2563EB).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.location_on_rounded,
+                  size: 14,
+                  color: Color(0xFF2563EB),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Tujuan',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      dropoff,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAvatar(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    final initials = parts.isEmpty || parts.first.isEmpty
+        ? '?'
+        : parts.length == 1
+            ? parts.first.characters.first.toUpperCase()
+            : '${parts.first.characters.first}${parts.last.characters.first}'.toUpperCase();
+
+    return Container(
+      width: 48,
+      height: 48,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primaryLight,
+            AppColors.primary.withValues(alpha: 0.2),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        initials,
+        style: const TextStyle(
+          color: AppColors.primaryDark,
+          fontWeight: FontWeight.w800,
+          fontSize: 16,
+        ),
       ),
     );
   }
@@ -463,40 +686,80 @@ class _OrderMetaCard extends StatelessWidget {
   Widget _buildPricingSummary() {
     final fee = order.fee;
     final total = order.totalPrice.round();
-    final isSameAmount = fee == total;
 
-    if (isSameAmount) {
-      return Text(
-        'Total Pembayaran ${_formatCurrency(total)}',
-        style: const TextStyle(
-          color: AppColors.textPrimary,
-          fontWeight: FontWeight.w700,
-          fontSize: 15,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.cardYellow,
+            AppColors.primaryLight.withValues(alpha: 0.3),
+          ],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
         ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Fee Driver ${_formatCurrency(fee)}',
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (fee != total) ...[
+                  const Text(
+                    'Fee Driver',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    _formatCurrency(fee),
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                const Text(
+                  'Total Pembayaran',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  _formatCurrency(total),
+                  style: const TextStyle(
+                    color: AppColors.primaryDark,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          'Total Pembayaran ${_formatCurrency(total)}',
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w700,
-            fontSize: 15,
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.payments_rounded,
+              color: AppColors.primaryDark.withValues(alpha: 0.8),
+              size: 28,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -513,21 +776,36 @@ class _TimelineCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 16,
+            spreadRadius: 2,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Riwayat Status',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
+          Row(
+            children: [
+              Icon(Icons.history_rounded, size: 20, color: AppColors.primary),
+              const SizedBox(width: 8),
+              const Text(
+                'Riwayat Status',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           if (timeline.isEmpty)
@@ -552,14 +830,17 @@ class _TimelineCard extends StatelessWidget {
                     child: Column(
                       children: [
                         Container(
-                          width: 10,
-                          height: 10,
+                          width: 14,
+                          height: 14,
                           decoration: BoxDecoration(
                             color: isLast
-                                ? AppColors.primary
+                                ? AppColors.white
                                 : AppColors.textSecondary.withValues(
-                                    alpha: 0.7,
+                                    alpha: 0.2,
                                   ),
+                            border: isLast
+                                ? Border.all(color: AppColors.primary, width: 4)
+                                : null,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -569,7 +850,7 @@ class _TimelineCard extends StatelessWidget {
                             height: 34,
                             margin: const EdgeInsets.symmetric(vertical: 2),
                             decoration: BoxDecoration(
-                              color: AppColors.border,
+                              color: AppColors.textSecondary.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(2),
                             ),
                           ),
@@ -647,23 +928,38 @@ class _ActionCard extends StatelessWidget {
         : 'Tagih COD sebesar ${formatRupiah(order.totalPrice)} sebelum menyelesaikan order.';
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 16,
+            spreadRadius: 2,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Aksi Driver',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
+          Row(
+            children: [
+              Icon(Icons.touch_app_rounded, size: 20, color: AppColors.primary),
+              const SizedBox(width: 8),
+              const Text(
+                'Aksi Driver',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 16),
           if (hasCodCollection) ...[
             Container(
               width: double.infinity,
@@ -698,7 +994,21 @@ class _ActionCard extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: SizedBox(
                   width: double.infinity,
-                  child: ElevatedButton(
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.white,
+                      elevation: 4,
+                      shadowColor: AppColors.primary.withValues(alpha: 0.4),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      textStyle: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
                     onPressed: isProcessing || action.blocked
                         ? null
                         : () async {

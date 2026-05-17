@@ -157,8 +157,10 @@ extension _CourierChatHandler on _ChatbotScreenState {
         defaultPickupLongitude: defaultPickup.longitude,
         pickupInitialLatitude: pickupPoint?.initialLatitude,
         pickupInitialLongitude: pickupPoint?.initialLongitude,
+        pickupInitialAddress: pickupPoint?.address,
         destinationInitialLatitude: destinationPoint?.initialLatitude,
         destinationInitialLongitude: destinationPoint?.initialLongitude,
+        destinationInitialAddress: destinationPoint?.address,
       ),
     );
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../config/app_colors.dart';
 import '../models/customer_order_model.dart';
@@ -40,22 +41,30 @@ class CustomerOrderCard extends StatelessWidget {
         serviceCode == 'RIDE' &&
         order.itemsSummary.trim().toLowerCase() == 'tanpa item';
 
-    return Material(
-      color: AppColors.cardYellow,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
-        child: Ink(
-          decoration: BoxDecoration(
-            color: AppColors.cardYellow,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 16,
+            spreadRadius: 2,
+            offset: const Offset(0, 4),
           ),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        ],
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               Row(
                 children: [
                   Expanded(
@@ -100,9 +109,10 @@ class CustomerOrderCard extends StatelessWidget {
                           order.restaurantName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w700,
                             fontSize: 16,
+                            color: AppColors.textPrimary,
                           ),
                         ),
                         if (!hideItemsSummary) ...[
@@ -193,8 +203,9 @@ class CustomerOrderCard extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   bool get _hasAnyAction {
     return (showTrackAction && onTrack != null) ||
@@ -216,7 +227,7 @@ class CustomerOrderCard extends StatelessWidget {
       children: [
         Text(
           formatCurrency(order.totalAmount),
-          style: const TextStyle(
+          style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
             fontSize: 16,
             color: AppColors.primaryDark,
@@ -252,14 +263,14 @@ class CustomerOrderCard extends StatelessWidget {
   }) {
     final buttons = <Widget>[];
     final buttonHeight = compact ? 40.0 : 44.0;
-    final buttonTextStyle = Theme.of(context).textTheme.labelLarge?.copyWith(
-      fontSize: 16,
+    final buttonTextStyle = GoogleFonts.poppins(
+      fontSize: 15,
       fontWeight: FontWeight.w700,
       height: 1.1,
     );
-    final trackTextStyle = buttonTextStyle?.copyWith(color: AppColors.primary);
-    final dangerTextStyle = buttonTextStyle?.copyWith(color: AppColors.white);
-    final neutralTextStyle = buttonTextStyle?.copyWith(
+    final trackTextStyle = buttonTextStyle.copyWith(color: AppColors.primary);
+    final dangerTextStyle = buttonTextStyle.copyWith(color: AppColors.white);
+    final neutralTextStyle = buttonTextStyle.copyWith(
       color: AppColors.textSecondary,
     );
 
@@ -411,7 +422,7 @@ class CustomerOrderCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: AppColors.white,
+        color: AppColors.background,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: AppColors.border),
       ),

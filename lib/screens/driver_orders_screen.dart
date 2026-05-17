@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
@@ -62,63 +63,56 @@ class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen>
       availabilityStatus,
     );
 
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        backgroundColor: AppColors.background,
-        appBar: AppBar(
-          title: const Text(
-            'Orderan Driver',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-          ),
-          backgroundColor: AppColors.white,
-          elevation: 0,
-          automaticallyImplyLeading: false,
-          bottom: TabBar(
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text(
+          'Orderan Driver',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+        backgroundColor: AppColors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0.5,
+        automaticallyImplyLeading: false,
+        bottom: ordersState.maybeWhen(
+          data: (data) => _DriverOrdersTabBar(
             controller: _tabController,
-            labelColor: AppColors.primary,
-            unselectedLabelColor: AppColors.textSecondary,
-            indicatorColor: AppColors.primary,
-            indicatorWeight: 3,
-            tabs: const [
-              Tab(text: 'Masuk'),
-              Tab(text: 'Berjalan'),
-            ],
+            incomingCount: data.incoming.length,
+            runningCount: data.running.length,
+          ),
+          orElse: () => _DriverOrdersTabBar(
+            controller: _tabController,
+            incomingCount: 0,
+            runningCount: 0,
           ),
         ),
-        body: ordersState.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stackTrace) {
-            return _ErrorState(
-              message: error.toString(),
-              onRetry: () {
-                ref.read(driverOrdersProvider.notifier).refresh();
-              },
-            );
-          },
-          data: (data) {
-            _syncInitialTab(data);
-            return Column(
-              children: [
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _IncomingOrdersTab(
-                        orders: data.incoming,
-                        processingOrderIds: data.processingOrderIds,
-                        canReceiveIncomingOrders: canReceiveIncomingOrders,
-                        availabilityStatus: availabilityStatus,
-                        onAcceptSuccess: _goToRunningTab,
-                      ),
-                      _RunningOrdersTab(orders: data.running),
-                    ],
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
+      ),
+      body: ordersState.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stackTrace) {
+          return _ErrorState(
+            message: error.toString(),
+            onRetry: () {
+              ref.read(driverOrdersProvider.notifier).refresh();
+            },
+          );
+        },
+        data: (data) {
+          _syncInitialTab(data);
+          return TabBarView(
+            controller: _tabController,
+            children: [
+              _IncomingOrdersTab(
+                orders: data.incoming,
+                processingOrderIds: data.processingOrderIds,
+                canReceiveIncomingOrders: canReceiveIncomingOrders,
+                availabilityStatus: availabilityStatus,
+                onAcceptSuccess: _goToRunningTab,
+              ),
+              _RunningOrdersTab(orders: data.running),
+            ],
+          );
+        },
       ),
     );
   }
@@ -126,6 +120,78 @@ class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen>
   bool _canReceiveIncomingOrders(String status) {
     final normalized = status.trim().toLowerCase();
     return normalized == 'available' || normalized == 'online';
+  }
+}
+
+class _DriverOrdersTabBar extends StatelessWidget implements PreferredSizeWidget {
+  final TabController controller;
+  final int incomingCount;
+  final int runningCount;
+
+  const _DriverOrdersTabBar({
+    required this.controller,
+    required this.incomingCount,
+    required this.runningCount,
+  });
+
+  @override
+  Size get preferredSize => const Size.fromHeight(48);
+
+  @override
+  Widget build(BuildContext context) {
+    return TabBar(
+      controller: controller,
+      labelColor: AppColors.primary,
+      unselectedLabelColor: AppColors.textSecondary,
+      indicatorColor: AppColors.primary,
+      indicatorWeight: 3,
+      indicatorSize: TabBarIndicatorSize.label,
+      labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+      unselectedLabelStyle: const TextStyle(
+        fontWeight: FontWeight.w600,
+        fontSize: 14,
+      ),
+      tabs: [
+        _TabWithBadge(label: 'Masuk', count: incomingCount),
+        _TabWithBadge(label: 'Berjalan', count: runningCount),
+      ],
+    );
+  }
+}
+
+class _TabWithBadge extends StatelessWidget {
+  final String label;
+  final int count;
+
+  const _TabWithBadge({required this.label, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tab(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label),
+          if (count > 0) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '$count',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
 
@@ -164,21 +230,30 @@ class _IncomingOrdersTab extends ConsumerWidget {
                   : 'Aktifkan status kerja untuk menerima order masuk.'),
         action: canReceiveIncomingOrders || isBusy
             ? null
-            : OutlinedButton.icon(
+            : FilledButton.icon(
                 onPressed: () => context.go(AppRoutes.driverHome),
-                icon: const Icon(Icons.toggle_on_outlined),
+                icon: const Icon(Icons.toggle_on_outlined, size: 18),
                 label: const Text('Atur Status Kerja'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                ),
               ),
       );
     }
 
     return RefreshIndicator(
+      color: AppColors.primary,
       onRefresh: () => ref.read(driverOrdersProvider.notifier).refresh(),
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         itemCount: orders.length,
-        separatorBuilder: (context, index) => const SizedBox(height: 12),
+        separatorBuilder: (context, index) => const SizedBox(height: 14),
         itemBuilder: (context, index) {
           final order = orders[index];
           final isProcessing = processingOrderIds.contains(order.id);
@@ -261,12 +336,13 @@ class _RunningOrdersTab extends ConsumerWidget {
     }
 
     return RefreshIndicator(
+      color: AppColors.primary,
       onRefresh: () => ref.read(driverOrdersProvider.notifier).refresh(),
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         itemCount: orders.length,
-        separatorBuilder: (context, index) => const SizedBox(height: 12),
+        separatorBuilder: (context, index) => const SizedBox(height: 14),
         itemBuilder: (context, index) {
           final order = orders[index];
           return _OrderCard(
@@ -329,241 +405,310 @@ class _OrderCard extends StatelessWidget {
     this.onContact,
   });
 
+  String get _displayOrderId {
+    final number = order.orderNumber.trim();
+    if (number.isNotEmpty) {
+      return number.startsWith('#') ? number : '#$number';
+    }
+    return '#${order.id}';
+  }
+
+  String get _etaLabel {
+    if (!isIncoming) {
+      return 'Diterima ${formatBackendTimeText(order.acceptedAt)}';
+    }
+    if (order.etaMinutes <= 0) {
+      return 'Order baru';
+    }
+    return 'Estimasi ${order.etaMinutes} menit';
+  }
+
   @override
   Widget build(BuildContext context) {
     final serviceLabel = serviceTypeLabel(order.serviceTypeCode);
     final packageDetails = buildCourierPackageDetails(order);
-    final rejectButtonStyle = OutlinedButton.styleFrom(
-      foregroundColor: AppColors.error,
-      side: const BorderSide(color: AppColors.error),
-      minimumSize: const Size(0, 48),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      textStyle: Theme.of(
-        context,
-      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-    );
-    final acceptButtonStyle = ElevatedButton.styleFrom(
-      minimumSize: const Size(0, 48),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      textStyle: Theme.of(
-        context,
-      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-    );
 
     return Container(
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isIncoming
+              ? AppColors.primary.withValues(alpha: 0.3)
+              : AppColors.border.withValues(alpha: 0.5),
+          width: isIncoming ? 1.5 : 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isIncoming 
+                ? AppColors.primary.withValues(alpha: 0.08) 
+                : Colors.black.withValues(alpha: 0.03),
+            blurRadius: 16,
+            spreadRadius: 2,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Text(
-                order.id,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: isIncoming
-                      ? AppColors.primary.withValues(alpha: 0.12)
-                      : AppColors.success.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  isIncoming
-                      ? 'Accept ${order.etaMinutes} menit'
-                      : 'Diterima ${formatBackendTimeText(order.acceptedAt)}',
-                  style: TextStyle(
-                    color: isIncoming
-                        ? AppColors.primaryDark
-                        : AppColors.success,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            '${order.customerName} • ${order.itemCount} item',
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          if (order.serviceTypeCode.isNotEmpty ||
-              order.statusCode.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                if (order.serviceTypeCode.isNotEmpty)
-                  _metaChip(
-                    serviceLabel,
-                    AppColors.primary.withValues(alpha: 0.1),
-                    AppColors.primaryDark,
-                  ),
-                if (order.statusCode.isNotEmpty)
-                  _metaChip(
-                    order.statusDisplayName ?? order.statusCode,
-                    AppColors.success.withValues(alpha: 0.12),
-                    AppColors.success,
-                  ),
-              ],
-            ),
-          ],
-          if (isIncoming && packageDetails.isCourier) ...[
-            const SizedBox(height: 10),
+          if (isIncoming)
             Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.primary.withValues(alpha: 0.2),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Detail Barang',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (!packageDetails.hasDetails)
-                    const Text(
-                      'Detail barang belum tersedia.',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 13,
-                        height: 1.3,
+              height: 3,
+              color: AppColors.primary,
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Text(
+                        _displayOrderId,
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11.5,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
-                  if (packageDetails.description.isNotEmpty)
-                    _courierInfoLine('Barang', packageDetails.description),
-                  if (packageDetails.sizeLine.isNotEmpty)
-                    _courierInfoLine('Ukuran', packageDetails.sizeLine),
-                  if (packageDetails.safetyLine.isNotEmpty)
-                    _courierInfoLine('Keamanan', packageDetails.safetyLine),
-                  if (packageDetails.packingNote.isNotEmpty)
-                    _courierInfoLine('Catatan', packageDetails.packingNote),
+                    _StatusPill(
+                      label: _etaLabel,
+                      background: isIncoming
+                          ? AppColors.primaryLight
+                          : AppColors.success.withValues(alpha: 0.12),
+                      foreground: isIncoming
+                          ? AppColors.primaryDark
+                          : AppColors.success,
+                      icon: isIncoming
+                          ? Icons.schedule_rounded
+                          : Icons.check_circle_outline_rounded,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    _CustomerAvatar(name: order.customerName),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            order.customerName,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              height: 1.2,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            '${order.itemCount} item',
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                if (order.serviceTypeCode.isNotEmpty ||
+                    order.statusCode.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      if (order.serviceTypeCode.isNotEmpty)
+                        _metaChip(
+                          serviceLabel,
+                          AppColors.primary.withValues(alpha: 0.1),
+                          AppColors.primaryDark,
+                        ),
+                      if (order.statusCode.isNotEmpty)
+                        _metaChip(
+                          order.statusDisplayName ?? order.statusCode,
+                          AppColors.success.withValues(alpha: 0.12),
+                          AppColors.success,
+                        ),
+                    ],
+                  ),
                 ],
-              ),
-            ),
-          ],
-          const SizedBox(height: 8),
-          _addressLine(Icons.storefront_outlined, order.pickupAddress),
-          const SizedBox(height: 6),
-          _addressLine(Icons.location_on_outlined, order.dropoffAddress),
-          const SizedBox(height: 10),
-          Text(
-            'Fee: ${formatCurrency(order.fee)}',
-            style: const TextStyle(
-              color: AppColors.primaryDark,
-              fontWeight: FontWeight.bold,
-              fontSize: 15,
+                if (isIncoming && packageDetails.isCourier) ...[
+                  const SizedBox(height: 12),
+                  _CourierPackageSection(packageDetails: packageDetails),
+                ],
+                const SizedBox(height: 14),
+                _OrderRouteSection(
+                  pickupAddress: order.pickupAddress,
+                  dropoffAddress: order.dropoffAddress,
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 12),
-          if (isIncoming)
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: isProcessing ? null : onReject,
-                    style: rejectButtonStyle,
-                    child: const Text('Tolak'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: isProcessing ? null : onAccept,
-                    style: acceptButtonStyle,
-                    child: isProcessing
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.white,
-                            ),
-                          )
-                        : const Text('Terima'),
-                  ),
-                ),
-              ],
-            )
-          else
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onNavigate,
-                    icon: const Icon(Icons.navigation_outlined, size: 18),
-                    label: const Text(
-                      'Detail',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      softWrap: false,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onContact,
-                    icon: const Icon(Icons.call_outlined, size: 18),
-                    label: const Text('Hubungi'),
-                  ),
-                ),
-              ],
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.cardYellow,
+                  AppColors.primaryLight.withValues(alpha: 0.3),
+                ],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.1),
+              ),
             ),
-        ],
-      ),
-    );
-  }
-
-  Widget _addressLine(IconData icon, String text) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 16, color: AppColors.textSecondary),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 13,
-              height: 1.3,
+            child: Row(
+              children: [
+                Icon(
+                  Icons.payments_outlined,
+                  size: 18,
+                  color: AppColors.primaryDark.withValues(alpha: 0.9),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Fee driver',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  formatCurrency(order.fee),
+                  style: const TextStyle(
+                    color: AppColors.primaryDark,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-      ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: isIncoming
+                ? Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: isProcessing ? null : onReject,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.textPrimary,
+                            side: BorderSide(
+                              color: AppColors.border.withValues(alpha: 0.8),
+                              width: 1.5,
+                            ),
+                            minimumSize: const Size(0, 48),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            textStyle: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                            ),
+                          ),
+                          child: const Text('Tolak'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        flex: 2,
+                        child: FilledButton(
+                          onPressed: isProcessing ? null : onAccept,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: AppColors.white,
+                            elevation: 4,
+                            shadowColor: AppColors.primary.withValues(alpha: 0.4),
+                            minimumSize: const Size(0, 48),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            textStyle: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                            ),
+                          ),
+                          child: isProcessing
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.white,
+                                  ),
+                                )
+                              : const Text('Terima Order'),
+                        ),
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: onNavigate,
+                          icon: const Icon(Icons.navigation_rounded, size: 18),
+                          label: const Text('Rute'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: AppColors.white,
+                            minimumSize: const Size(0, 48),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: onContact,
+                          icon: const Icon(Icons.call_outlined, size: 18),
+                          label: const Text('Hubungi'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.textPrimary,
+                            side: const BorderSide(color: AppColors.border),
+                            minimumSize: const Size(0, 48),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -581,6 +726,305 @@ class _OrderCard extends StatelessWidget {
           fontSize: 11,
           fontWeight: FontWeight.w700,
         ),
+      ),
+    );
+  }
+}
+
+class _CustomerAvatar extends StatelessWidget {
+  final String name;
+
+  const _CustomerAvatar({required this.name});
+
+  String get _initials {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts.first.isEmpty) {
+      return '?';
+    }
+    if (parts.length == 1) {
+      return parts.first.characters.first.toUpperCase();
+    }
+    return '${parts.first.characters.first}${parts.last.characters.first}'
+        .toUpperCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 44,
+      height: 44,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primaryLight,
+            AppColors.primary.withValues(alpha: 0.2),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        _initials,
+        style: const TextStyle(
+          color: AppColors.primaryDark,
+          fontWeight: FontWeight.w800,
+          fontSize: 15,
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  final String label;
+  final Color background;
+  final Color foreground;
+  final IconData icon;
+
+  const _StatusPill({
+    required this.label,
+    required this.background,
+    required this.foreground,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(100),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: foreground),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: foreground,
+                fontWeight: FontWeight.w700,
+                fontSize: 11,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.end,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrderRouteSection extends StatefulWidget {
+  final String pickupAddress;
+  final String dropoffAddress;
+
+  const _OrderRouteSection({
+    required this.pickupAddress,
+    required this.dropoffAddress,
+  });
+
+  @override
+  State<_OrderRouteSection> createState() => _OrderRouteSectionState();
+}
+
+class _OrderRouteSectionState extends State<_OrderRouteSection> {
+  bool _expanded = false;
+
+  static const int _collapsedMaxLines = 2;
+
+  bool get _needsExpansion {
+    return widget.pickupAddress.length > 80 ||
+        widget.dropoffAddress.length > 80;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.8)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _routeStop(
+            icon: Icons.storefront_rounded,
+            iconColor: AppColors.primary,
+            label: 'Jemput',
+            address: widget.pickupAddress,
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 11),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: List.generate(5, (index) => Container(
+                  width: 2,
+                  height: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: AppColors.textSecondary.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(1),
+                  ),
+                )),
+              ),
+            ),
+          ),
+          _routeStop(
+            icon: Icons.location_on_rounded,
+            iconColor: const Color(0xFF2563EB),
+            label: 'Antar',
+            address: widget.dropoffAddress,
+          ),
+          if (_needsExpansion) ...[
+            const SizedBox(height: 6),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                onPressed: () => setState(() => _expanded = !_expanded),
+                icon: Icon(
+                  _expanded
+                      ? Icons.expand_less_rounded
+                      : Icons.expand_more_rounded,
+                  size: 18,
+                ),
+                label: Text(_expanded ? 'Tutup alamat' : 'Lihat alamat lengkap'),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.05),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _routeStop({
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+    required String address,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: iconColor.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 14, color: iconColor),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.3,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                address,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  height: 1.35,
+                ),
+                maxLines: _expanded ? null : _collapsedMaxLines,
+                overflow: _expanded ? null : TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CourierPackageSection extends StatelessWidget {
+  final CourierPackageDetails packageDetails;
+
+  const _CourierPackageSection({required this.packageDetails});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.inventory_2_outlined,
+                size: 16,
+                color: AppColors.primaryDark.withValues(alpha: 0.9),
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                'Detail Barang',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (!packageDetails.hasDetails)
+            const Text(
+              'Detail barang belum tersedia.',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+                height: 1.3,
+              ),
+            ),
+          if (packageDetails.description.isNotEmpty)
+            _courierInfoLine('Barang', packageDetails.description),
+          if (packageDetails.sizeLine.isNotEmpty)
+            _courierInfoLine('Ukuran', packageDetails.sizeLine),
+          if (packageDetails.safetyLine.isNotEmpty)
+            _courierInfoLine('Keamanan', packageDetails.safetyLine),
+          if (packageDetails.packingNote.isNotEmpty)
+            _courierInfoLine('Catatan', packageDetails.packingNote),
+        ],
       ),
     );
   }
@@ -637,31 +1081,41 @@ class _EmptyOrderState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
+        padding: const EdgeInsets.symmetric(horizontal: 36),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 46, color: AppColors.textSecondary),
-            const SizedBox(height: 12),
+            Container(
+              width: 72,
+              height: 72,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 36, color: AppColors.primary),
+            ),
+            const SizedBox(height: 16),
             Text(
               title,
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: AppColors.textPrimary,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                fontSize: 17,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
               subtitle,
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: AppColors.textSecondary,
-                fontSize: 13,
+                fontSize: 14,
+                height: 1.4,
               ),
             ),
-            if (action != null) ...[const SizedBox(height: 14), action!],
+            if (action != null) ...[const SizedBox(height: 20), action!],
           ],
         ),
       ),
@@ -679,22 +1133,52 @@ class _ErrorState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, color: AppColors.error, size: 30),
-            const SizedBox(height: 8),
+            Container(
+              width: 56,
+              height: 56,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.error_outline_rounded,
+                color: AppColors.error,
+                size: 28,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Gagal memuat order',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 6),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.textSecondary),
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+                height: 1.4,
+              ),
             ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
+            const SizedBox(height: 16),
+            FilledButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
+              icon: const Icon(Icons.refresh_rounded, size: 18),
               label: const Text('Coba Lagi'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.white,
+              ),
             ),
           ],
         ),
