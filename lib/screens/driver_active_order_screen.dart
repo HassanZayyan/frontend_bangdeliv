@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -15,10 +17,12 @@ import '../providers/driver_order_providers.dart';
 import '../services/driver_order_service.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/courier_package_formatter.dart';
+import '../utils/map_marker_icons.dart';
 import '../utils/order_formatters.dart' hide formatCurrency;
 import '../utils/order_status.dart';
 import '../utils/service_type.dart';
 import '../widgets/order_chat_badge_icon.dart';
+import '../widgets/shopping_fee_breakdown.dart';
 
 class DriverActiveOrderScreen extends ConsumerWidget {
   final String orderId;
@@ -217,18 +221,45 @@ class DriverActiveOrderScreen extends ConsumerWidget {
   }
 }
 
-class _MapCard extends StatelessWidget {
+class _MapCard extends StatefulWidget {
   final DriverOrderModel order;
   final DriverLocationTrackingState trackingState;
 
   const _MapCard({required this.order, required this.trackingState});
 
   @override
+  State<_MapCard> createState() => _MapCardState();
+}
+
+class _MapCardState extends State<_MapCard> {
+  BitmapDescriptor? _driverMarkerIcon;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadDriverMarkerIcon());
+  }
+
+  Future<void> _loadDriverMarkerIcon() async {
+    final icon = await buildMotorDriverMarker();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _driverMarkerIcon = icon);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final pickupPoints = _pickupPoints();
     final pickup = pickupPoints.isEmpty ? null : pickupPoints.first.position;
-    final dropoff = _latLng(order.dropoffLatitude, order.dropoffLongitude);
-    final driver = _latLng(trackingState.latitude, trackingState.longitude);
+    final dropoff = _latLng(
+      widget.order.dropoffLatitude,
+      widget.order.dropoffLongitude,
+    );
+    final driver = _latLng(
+      widget.trackingState.latitude,
+      widget.trackingState.longitude,
+    );
 
     if (pickupPoints.isEmpty && dropoff == null && driver == null) {
       return Container(
@@ -261,9 +292,9 @@ class _MapCard extends StatelessWidget {
         Marker(
           markerId: const MarkerId('driver'),
           position: driver,
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueOrange,
-          ),
+          icon:
+              _driverMarkerIcon ??
+              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
           infoWindow: const InfoWindow(title: 'Posisi Anda'),
         ),
       for (final pickupPoint in pickupPoints)
@@ -310,7 +341,7 @@ class _MapCard extends StatelessWidget {
               top: 10,
               left: 10,
               right: 10,
-              child: _TrackingBadge(state: trackingState),
+              child: _TrackingBadge(state: widget.trackingState),
             ),
           ],
         ),
@@ -326,7 +357,7 @@ class _MapCard extends StatelessWidget {
   }
 
   List<_DriverPickupPoint> _pickupPoints() {
-    final stopPoints = order.shoppingStops
+    final stopPoints = widget.order.shoppingStops
         .where(
           (stop) =>
               stop.merchant.latitude != null && stop.merchant.longitude != null,
@@ -345,7 +376,10 @@ class _MapCard extends StatelessWidget {
       return stopPoints;
     }
 
-    final fallback = _latLng(order.pickupLatitude, order.pickupLongitude);
+    final fallback = _latLng(
+      widget.order.pickupLatitude,
+      widget.order.pickupLongitude,
+    );
     if (fallback == null) {
       return const <_DriverPickupPoint>[];
     }
@@ -502,7 +536,7 @@ class _OrderMetaCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          _routeVisualizer(order.pickupAddress, order.dropoffAddress),
+          _routeVisualizer(order),
           ..._buildCourierPackageRows(packageDetails),
           if ((trackingState.message ?? '').trim().isNotEmpty) ...[
             const SizedBox(height: 12),
@@ -541,7 +575,11 @@ class _OrderMetaCard extends StatelessWidget {
     );
   }
 
-  Widget _routeVisualizer(String pickup, String dropoff) {
+  Widget _routeVisualizer(DriverOrderModel order) {
+    final pickupStops = order.shoppingStops.isNotEmpty
+        ? order.shoppingStops
+        : <DriverShoppingStopModel>[];
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -552,50 +590,38 @@ class _OrderMetaCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                margin: const EdgeInsets.only(top: 2),
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
+          if (pickupStops.isEmpty)
+            _routeStop(
+              icon: Icons.storefront_rounded,
+              iconColor: AppColors.primary,
+              title: 'Jemput',
+              value: order.pickupAddress,
+            )
+          else
+            ...pickupStops.map((stop) {
+              final sequence = stop.sequenceNo <= 0 ? 1 : stop.sequenceNo;
+              final address = (stop.merchant.address ?? '').trim();
+              final status = stop.isFailed
+                  ? 'Tutup/gagal pickup'
+                  : stop.isSkipped
+                  ? 'Dilewati'
+                  : null;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _routeStop(
+                  icon: Icons.storefront_rounded,
+                  iconColor: stop.isFailed
+                      ? AppColors.error
+                      : AppColors.primary,
+                  title: 'Merchant $sequence',
+                  value: [
+                    stop.merchant.name,
+                    if (address.isNotEmpty) address,
+                    ?status,
+                  ].join('\n'),
                 ),
-                child: const Icon(
-                  Icons.storefront_rounded,
-                  size: 14,
-                  color: AppColors.primary,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Jemput',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      pickup,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        height: 1.35,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+              );
+            }),
           Padding(
             padding: const EdgeInsets.only(left: 11),
             child: Align(
@@ -617,52 +643,62 @@ class _OrderMetaCard extends StatelessWidget {
               ),
             ),
           ),
-          Row(
+          _routeStop(
+            icon: Icons.location_on_rounded,
+            iconColor: const Color(0xFF2563EB),
+            title: 'Tujuan',
+            value: order.dropoffAddress,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _routeStop({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String value,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          margin: const EdgeInsets.only(top: 2),
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: iconColor.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 14, color: iconColor),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                margin: const EdgeInsets.only(top: 2),
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2563EB).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.location_on_rounded,
-                  size: 14,
-                  color: Color(0xFF2563EB),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Tujuan',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      dropoff,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        height: 1.35,
-                      ),
-                    ),
-                  ],
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  height: 1.35,
                 ),
               ),
             ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -779,6 +815,7 @@ class _OrderMetaCard extends StatelessWidget {
   Widget _buildPricingSummary() {
     final fee = order.fee;
     final total = order.totalPrice.round();
+    final pricing = order.shoppingPricing;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -836,6 +873,20 @@ class _OrderMetaCard extends StatelessWidget {
                     fontWeight: FontWeight.w800,
                   ),
                 ),
+                if (pricing != null && pricing.feeBreakdown.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  ShoppingFeeBreakdown(
+                    items: pricing.feeBreakdown
+                        .map(
+                          (item) => ShoppingFeeBreakdownItem(
+                            label: item.label,
+                            description: item.description,
+                            amount: item.amount,
+                          ),
+                        )
+                        .toList(growable: false),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1031,9 +1082,12 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
               Expanded(
                 child: Text(
                   '${item.quantity}x ${item.name}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textPrimary,
                     fontWeight: FontWeight.w700,
+                    decoration: isAvailable
+                        ? TextDecoration.none
+                        : TextDecoration.lineThrough,
                   ),
                 ),
               ),
@@ -1133,8 +1187,55 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
                   ),
                 ),
               ),
+              if (stop.isFailed || stop.isSkipped)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    stop.isFailed ? 'Gagal' : 'Dilewati',
+                    style: const TextStyle(
+                      color: AppColors.error,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
             ],
           ),
+          if ((stop.merchant.address ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.only(left: 32),
+              child: Text(
+                stop.merchant.address!.trim(),
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
+          if ((stop.failureReason ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.only(left: 32),
+              child: Text(
+                stop.failureReason!.trim(),
+                style: const TextStyle(
+                  color: AppColors.error,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           ...stop.items.map(_buildItemEditor),
         ],
@@ -1505,7 +1606,9 @@ class _ActionCard extends StatelessWidget {
     if (onReportPickupFailed == null ||
         normalizeServiceTypeCode(order.serviceTypeCode) !=
             ServiceTypeCodes.shopping ||
-        order.shoppingStops.isEmpty ||
+        order.shoppingStops
+            .where((stop) => !stop.isFailed && !stop.isSkipped)
+            .isEmpty ||
         order.shoppingPricing?.canCancelWithFee == true) {
       return false;
     }
@@ -1518,7 +1621,11 @@ class _ActionCard extends StatelessWidget {
   Future<_FailedPickupReport?> _showFailedPickupDialog(BuildContext context) {
     return showDialog<_FailedPickupReport>(
       context: context,
-      builder: (context) => _FailedPickupDialog(stops: order.shoppingStops),
+      builder: (context) => _FailedPickupDialog(
+        stops: order.shoppingStops
+            .where((stop) => !stop.isFailed && !stop.isSkipped)
+            .toList(growable: false),
+      ),
     );
   }
 }

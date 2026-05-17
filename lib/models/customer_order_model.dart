@@ -719,15 +719,28 @@ class CustomerShoppingItemModel {
 class CustomerShoppingStopModel {
   final int pickupLocationId;
   final int sequenceNo;
+  final String fulfillmentStatus;
+  final int failedAttemptCount;
+  final String? failureReason;
+  final DateTime? failedAt;
+  final DateTime? resolvedAt;
   final CustomerShoppingMerchantModel merchant;
   final List<CustomerShoppingItemModel> items;
 
   const CustomerShoppingStopModel({
     required this.pickupLocationId,
     required this.sequenceNo,
+    this.fulfillmentStatus = 'PENDING',
+    this.failedAttemptCount = 0,
+    this.failureReason,
+    this.failedAt,
+    this.resolvedAt,
     required this.merchant,
     required this.items,
   });
+
+  bool get isFailed => fulfillmentStatus.toUpperCase() == 'FAILED';
+  bool get isSkipped => fulfillmentStatus.toUpperCase() == 'SKIPPED';
 
   factory CustomerShoppingStopModel.fromJson(Map<String, dynamic> json) {
     final merchantJson = (json['merchant'] is Map<String, dynamic>)
@@ -744,6 +757,15 @@ class CustomerShoppingStopModel {
         json['pickup_location_id'],
       ),
       sequenceNo: CustomerOrderSummaryModel._asInt(json['sequence_no']),
+      fulfillmentStatus: (json['fulfillment_status'] ?? 'PENDING')
+          .toString()
+          .toUpperCase(),
+      failedAttemptCount: CustomerOrderSummaryModel._asInt(
+        json['failed_attempt_count'],
+      ),
+      failureReason: json['failure_reason']?.toString(),
+      failedAt: CustomerOrderSummaryModel._asDateTime(json['failed_at']),
+      resolvedAt: CustomerOrderSummaryModel._asDateTime(json['resolved_at']),
       merchant: CustomerShoppingMerchantModel.fromJson(merchantJson),
       items: rawItems
           .map(CustomerShoppingItemModel.fromJson)
@@ -763,6 +785,7 @@ class CustomerShoppingStopModel {
       CustomerShoppingStopModel(
         pickupLocationId: items.first.pickupLocationId ?? 0,
         sequenceNo: 1,
+        fulfillmentStatus: 'PENDING',
         merchant: CustomerShoppingMerchantModel(
           id: null,
           name: merchantName,
@@ -815,6 +838,7 @@ class CustomerShoppingPricingModel {
   final int failedAttemptCount;
   final int failedAttemptThreshold;
   final bool canCancelWithFee;
+  final List<CustomerShoppingFeeBreakdownModel> feeBreakdown;
 
   const CustomerShoppingPricingModel({
     required this.subtotal,
@@ -827,12 +851,32 @@ class CustomerShoppingPricingModel {
     this.failedAttemptCount = 0,
     this.failedAttemptThreshold = 3,
     this.canCancelWithFee = false,
+    this.feeBreakdown = const <CustomerShoppingFeeBreakdownModel>[],
   });
 
   factory CustomerShoppingPricingModel.fromJson(
     Map<String, dynamic> orderJson,
     Map<String, dynamic> shoppingJson,
   ) {
+    final itemSurcharge = CustomerOrderSummaryModel._asDouble(
+      shoppingJson['item_surcharge'],
+    );
+    final overweightSurcharge = CustomerOrderSummaryModel._asDouble(
+      shoppingJson['overweight_surcharge'],
+    );
+    final cancellationPenalty = CustomerOrderSummaryModel._asDouble(
+      shoppingJson['cancellation_penalty'],
+    );
+    final rawSnapshot = shoppingJson['pricing_snapshot'] is Map<String, dynamic>
+        ? shoppingJson['pricing_snapshot'] as Map<String, dynamic>
+        : const <String, dynamic>{};
+    final feeBreakdown = _parseFeeBreakdown(
+      shoppingJson['fee_breakdown'] ?? rawSnapshot['fee_breakdown'],
+      itemSurcharge: itemSurcharge,
+      overweightSurcharge: overweightSurcharge,
+      cancellationPenalty: cancellationPenalty,
+    );
+
     return CustomerShoppingPricingModel(
       subtotal: CustomerOrderSummaryModel._asDouble(orderJson['subtotal']),
       deliveryFee: CustomerOrderSummaryModel._asDouble(
@@ -840,15 +884,9 @@ class CustomerShoppingPricingModel {
       ),
       serviceFee: CustomerOrderSummaryModel._asDouble(orderJson['service_fee']),
       totalPrice: CustomerOrderSummaryModel._asDouble(orderJson['total_price']),
-      itemSurcharge: CustomerOrderSummaryModel._asDouble(
-        shoppingJson['item_surcharge'],
-      ),
-      overweightSurcharge: CustomerOrderSummaryModel._asDouble(
-        shoppingJson['overweight_surcharge'],
-      ),
-      cancellationPenalty: CustomerOrderSummaryModel._asDouble(
-        shoppingJson['cancellation_penalty'],
-      ),
+      itemSurcharge: itemSurcharge,
+      overweightSurcharge: overweightSurcharge,
+      cancellationPenalty: cancellationPenalty,
       failedAttemptCount: CustomerOrderSummaryModel._asInt(
         shoppingJson['failed_attempt_count'],
       ),
@@ -862,6 +900,86 @@ class CustomerShoppingPricingModel {
               shoppingJson['failed_attempt_threshold'],
             ),
       canCancelWithFee: shoppingJson['can_cancel_with_fee'] == true,
+      feeBreakdown: feeBreakdown,
     );
+  }
+
+  static List<CustomerShoppingFeeBreakdownModel> _parseFeeBreakdown(
+    dynamic raw, {
+    required double itemSurcharge,
+    required double overweightSurcharge,
+    required double cancellationPenalty,
+  }) {
+    if (raw is List) {
+      final parsed = raw
+          .whereType<Map<String, dynamic>>()
+          .map(CustomerShoppingFeeBreakdownModel.fromJson)
+          .where((row) => row.amount > 0)
+          .toList(growable: false);
+      if (parsed.isNotEmpty) {
+        return parsed;
+      }
+    }
+
+    return CustomerShoppingFeeBreakdownModel.fallback(
+      itemSurcharge: itemSurcharge,
+      overweightSurcharge: overweightSurcharge,
+      cancellationPenalty: cancellationPenalty,
+    );
+  }
+}
+
+class CustomerShoppingFeeBreakdownModel {
+  final String code;
+  final String label;
+  final String description;
+  final double amount;
+
+  const CustomerShoppingFeeBreakdownModel({
+    required this.code,
+    required this.label,
+    required this.description,
+    required this.amount,
+  });
+
+  factory CustomerShoppingFeeBreakdownModel.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return CustomerShoppingFeeBreakdownModel(
+      code: (json['code'] ?? '').toString(),
+      label: (json['label'] ?? 'Service fee').toString(),
+      description: (json['description'] ?? '').toString(),
+      amount: CustomerOrderSummaryModel._asDouble(json['amount']),
+    );
+  }
+
+  static List<CustomerShoppingFeeBreakdownModel> fallback({
+    required double itemSurcharge,
+    required double overweightSurcharge,
+    required double cancellationPenalty,
+  }) {
+    return [
+      if (itemSurcharge > 0)
+        CustomerShoppingFeeBreakdownModel(
+          code: 'ITEM_BLOCK_SURCHARGE',
+          label: 'Biaya banyak item',
+          description: 'Tambahan saat jumlah item melewati batas gratis',
+          amount: itemSurcharge,
+        ),
+      if (overweightSurcharge > 0)
+        CustomerShoppingFeeBreakdownModel(
+          code: 'OVERWEIGHT_FLAT_SURCHARGE',
+          label: 'Item berat',
+          description: 'Dikenakan sekali per order',
+          amount: overweightSurcharge,
+        ),
+      if (cancellationPenalty > 0)
+        CustomerShoppingFeeBreakdownModel(
+          code: 'CANCELLATION_PENALTY_AFTER_FAILED_ATTEMPTS',
+          label: 'Penalty merchant gagal',
+          description: '50% ongkir setelah batas percobaan gagal',
+          amount: cancellationPenalty,
+        ),
+    ];
   }
 }

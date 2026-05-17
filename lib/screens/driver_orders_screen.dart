@@ -123,7 +123,8 @@ class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen>
   }
 }
 
-class _DriverOrdersTabBar extends StatelessWidget implements PreferredSizeWidget {
+class _DriverOrdersTabBar extends StatelessWidget
+    implements PreferredSizeWidget {
   final TabController controller;
   final int incomingCount;
   final int runningCount;
@@ -210,6 +211,10 @@ class _IncomingOrdersTab extends ConsumerWidget {
     required this.onAcceptSuccess,
   });
 
+  bool _isServerOrderId(String orderId) {
+    return RegExp(r'^\d+$').hasMatch(orderId.trim());
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (orders.isEmpty) {
@@ -274,10 +279,14 @@ class _IncomingOrdersTab extends ConsumerWidget {
                     }
 
                     if (error == null) {
-                      onAcceptSuccess();
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Order diterima.')),
                       );
+                      if (_isServerOrderId(order.id)) {
+                        context.go(AppRoutes.driverOrderActivePath(order.id));
+                      } else {
+                        onAcceptSuccess();
+                      }
                       return;
                     }
 
@@ -453,11 +462,7 @@ class _OrderCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (isIncoming)
-            Container(
-              height: 3,
-              color: AppColors.primary,
-            ),
+          if (isIncoming) Container(height: 3, color: AppColors.primary),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
             child: Column(
@@ -467,7 +472,10 @@ class _OrderCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.background,
                         borderRadius: BorderRadius.circular(6),
@@ -647,7 +655,9 @@ class _OrderCard extends StatelessWidget {
                             backgroundColor: AppColors.primary,
                             foregroundColor: AppColors.white,
                             elevation: 4,
-                            shadowColor: AppColors.primary.withValues(alpha: 0.4),
+                            shadowColor: AppColors.primary.withValues(
+                              alpha: 0.4,
+                            ),
                             minimumSize: const Size(0, 48),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -869,15 +879,18 @@ class _OrderRouteSectionState extends State<_OrderRouteSection> {
               alignment: Alignment.centerLeft,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: List.generate(5, (index) => Container(
-                  width: 2,
-                  height: 4,
-                  margin: const EdgeInsets.symmetric(vertical: 1.5),
-                  decoration: BoxDecoration(
-                    color: AppColors.textSecondary.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(1),
+                children: List.generate(
+                  5,
+                  (index) => Container(
+                    width: 2,
+                    height: 4,
+                    margin: const EdgeInsets.symmetric(vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: AppColors.textSecondary.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(1),
+                    ),
                   ),
-                )),
+                ),
               ),
             ),
           ),
@@ -899,7 +912,9 @@ class _OrderRouteSectionState extends State<_OrderRouteSection> {
                       : Icons.expand_more_rounded,
                   size: 18,
                 ),
-                label: Text(_expanded ? 'Tutup alamat' : 'Lihat alamat lengkap'),
+                label: Text(
+                  _expanded ? 'Tutup alamat' : 'Lihat alamat lengkap',
+                ),
                 style: TextButton.styleFrom(
                   foregroundColor: AppColors.primary,
                   backgroundColor: AppColors.primary.withValues(alpha: 0.05),
@@ -981,9 +996,7 @@ class _CourierPackageSection extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.primary.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.primary.withValues(alpha: 0.2),
-        ),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

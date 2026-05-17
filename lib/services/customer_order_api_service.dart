@@ -210,6 +210,20 @@ class CustomerOrderApiService {
     return CustomerOrderDetailModel.fromJson(response);
   }
 
+  Future<CustomerOrderDetailModel> skipFailedShoppingStop(
+    int orderId,
+    int pickupLocationId,
+  ) async {
+    final response = await _shoppingItemRequest(
+      () async => _apiClient.post(
+        '/v1/orders/$orderId/shopping-stops/$pickupLocationId/skip',
+        headers: await AuthService.authorizedHeaders(),
+      ),
+    );
+
+    return CustomerOrderDetailModel.fromJson(response);
+  }
+
   Future<Map<String, dynamic>> _shoppingItemRequest(
     Future<Map<String, dynamic>> Function() request,
   ) async {

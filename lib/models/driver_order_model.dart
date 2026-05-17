@@ -279,6 +279,10 @@ class DriverOrderModel {
     if (value is num) return value.toInt();
     return int.tryParse(value.toString());
   }
+
+  static DateTime? _asDateTime(dynamic value) {
+    return parseBackendDateTime(value);
+  }
 }
 
 class DriverShoppingItemModel {
@@ -336,15 +340,28 @@ class DriverShoppingItemModel {
 class DriverShoppingStopModel {
   final int pickupLocationId;
   final int sequenceNo;
+  final String fulfillmentStatus;
+  final int failedAttemptCount;
+  final String? failureReason;
+  final DateTime? failedAt;
+  final DateTime? resolvedAt;
   final DriverShoppingMerchantModel merchant;
   final List<DriverShoppingItemModel> items;
 
   const DriverShoppingStopModel({
     required this.pickupLocationId,
     required this.sequenceNo,
+    this.fulfillmentStatus = 'PENDING',
+    this.failedAttemptCount = 0,
+    this.failureReason,
+    this.failedAt,
+    this.resolvedAt,
     required this.merchant,
     required this.items,
   });
+
+  bool get isFailed => fulfillmentStatus.toUpperCase() == 'FAILED';
+  bool get isSkipped => fulfillmentStatus.toUpperCase() == 'SKIPPED';
 
   factory DriverShoppingStopModel.fromJson(Map<String, dynamic> json) {
     final merchantJson = (json['merchant'] is Map<String, dynamic>)
@@ -362,6 +379,16 @@ class DriverShoppingStopModel {
         fallback: 0,
       ),
       sequenceNo: DriverOrderModel._asInt(json['sequence_no'], fallback: 0),
+      fulfillmentStatus: (json['fulfillment_status'] ?? 'PENDING')
+          .toString()
+          .toUpperCase(),
+      failedAttemptCount: DriverOrderModel._asInt(
+        json['failed_attempt_count'],
+        fallback: 0,
+      ),
+      failureReason: json['failure_reason']?.toString(),
+      failedAt: DriverOrderModel._asDateTime(json['failed_at']),
+      resolvedAt: DriverOrderModel._asDateTime(json['resolved_at']),
       merchant: DriverShoppingMerchantModel.fromJson(merchantJson),
       items: rawItems
           .map(DriverShoppingItemModel.fromJson)
@@ -377,6 +404,7 @@ class DriverShoppingStopModel {
       DriverShoppingStopModel(
         pickupLocationId: items.first.pickupLocationId ?? 0,
         sequenceNo: 1,
+        fulfillmentStatus: 'PENDING',
         merchant: DriverShoppingMerchantModel.fromJson(merchantJson),
         items: items,
       ),
@@ -426,6 +454,7 @@ class DriverShoppingPricingModel {
   final int failedAttemptCount;
   final int failedAttemptThreshold;
   final bool canCancelWithFee;
+  final List<DriverShoppingFeeBreakdownModel> feeBreakdown;
 
   const DriverShoppingPricingModel({
     required this.subtotal,
@@ -440,21 +469,25 @@ class DriverShoppingPricingModel {
     this.failedAttemptCount = 0,
     this.failedAttemptThreshold = 3,
     this.canCancelWithFee = false,
+    this.feeBreakdown = const <DriverShoppingFeeBreakdownModel>[],
   });
 
   factory DriverShoppingPricingModel.fromJson(Map<String, dynamic> json) {
+    final itemSurcharge = DriverOrderModel._asDouble(json['item_surcharge']);
+    final overweightSurcharge = DriverOrderModel._asDouble(
+      json['overweight_surcharge'],
+    );
+    final cancellationPenalty = DriverOrderModel._asDouble(
+      json['cancellation_penalty'],
+    );
     return DriverShoppingPricingModel(
       subtotal: DriverOrderModel._asDouble(json['subtotal']),
       deliveryFee: DriverOrderModel._asDouble(json['delivery_fee']),
       serviceFee: DriverOrderModel._asDouble(json['service_fee']),
       totalPrice: DriverOrderModel._asDouble(json['total_price']),
-      itemSurcharge: DriverOrderModel._asDouble(json['item_surcharge']),
-      overweightSurcharge: DriverOrderModel._asDouble(
-        json['overweight_surcharge'],
-      ),
-      cancellationPenalty: DriverOrderModel._asDouble(
-        json['cancellation_penalty'],
-      ),
+      itemSurcharge: itemSurcharge,
+      overweightSurcharge: overweightSurcharge,
+      cancellationPenalty: cancellationPenalty,
       recalculationVersion: DriverOrderModel._asInt(
         json['recalculation_version'],
         fallback: 0,
@@ -469,7 +502,78 @@ class DriverShoppingPricingModel {
         fallback: 3,
       ),
       canCancelWithFee: json['can_cancel_with_fee'] == true,
+      feeBreakdown: DriverShoppingFeeBreakdownModel.parse(
+        json['fee_breakdown'],
+        itemSurcharge: itemSurcharge,
+        overweightSurcharge: overweightSurcharge,
+        cancellationPenalty: cancellationPenalty,
+      ),
     );
+  }
+}
+
+class DriverShoppingFeeBreakdownModel {
+  final String code;
+  final String label;
+  final String description;
+  final double amount;
+
+  const DriverShoppingFeeBreakdownModel({
+    required this.code,
+    required this.label,
+    required this.description,
+    required this.amount,
+  });
+
+  factory DriverShoppingFeeBreakdownModel.fromJson(Map<String, dynamic> json) {
+    return DriverShoppingFeeBreakdownModel(
+      code: (json['code'] ?? '').toString(),
+      label: (json['label'] ?? 'Service fee').toString(),
+      description: (json['description'] ?? '').toString(),
+      amount: DriverOrderModel._asDouble(json['amount']),
+    );
+  }
+
+  static List<DriverShoppingFeeBreakdownModel> parse(
+    dynamic raw, {
+    required double itemSurcharge,
+    required double overweightSurcharge,
+    required double cancellationPenalty,
+  }) {
+    if (raw is List) {
+      final parsed = raw
+          .whereType<Map<String, dynamic>>()
+          .map(DriverShoppingFeeBreakdownModel.fromJson)
+          .where((row) => row.amount > 0)
+          .toList(growable: false);
+      if (parsed.isNotEmpty) {
+        return parsed;
+      }
+    }
+
+    return [
+      if (itemSurcharge > 0)
+        DriverShoppingFeeBreakdownModel(
+          code: 'ITEM_BLOCK_SURCHARGE',
+          label: 'Biaya banyak item',
+          description: 'Tambahan saat jumlah item melewati batas gratis',
+          amount: itemSurcharge,
+        ),
+      if (overweightSurcharge > 0)
+        DriverShoppingFeeBreakdownModel(
+          code: 'OVERWEIGHT_FLAT_SURCHARGE',
+          label: 'Item berat',
+          description: 'Dikenakan sekali per order',
+          amount: overweightSurcharge,
+        ),
+      if (cancellationPenalty > 0)
+        DriverShoppingFeeBreakdownModel(
+          code: 'CANCELLATION_PENALTY_AFTER_FAILED_ATTEMPTS',
+          label: 'Penalty merchant gagal',
+          description: '50% ongkir setelah batas percobaan gagal',
+          amount: cancellationPenalty,
+        ),
+    ];
   }
 }
 

@@ -16,6 +16,7 @@ import '../utils/order_status.dart';
 import '../utils/order_ui_helpers.dart';
 import '../utils/service_type.dart';
 import '../widgets/order_chat_badge_icon.dart';
+import '../widgets/shopping_fee_breakdown.dart';
 import '../widgets/tracking_map_section.dart';
 
 class TrackOrderScreen extends ConsumerWidget {
@@ -1572,6 +1573,9 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
     final items = detail.shoppingItems;
     final stops = detail.shoppingStops;
     final pricing = detail.shoppingPricing;
+    final failedStops = stops
+        .where((stop) => stop.isFailed)
+        .toList(growable: false);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1609,6 +1613,10 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 8),
+          if (failedStops.isNotEmpty) ...[
+            ...failedStops.map((stop) => _failedStopNotice(context, ref, stop)),
+            const SizedBox(height: 4),
+          ],
           if (items.isEmpty)
             const Text(
               'Belum ada item belanja.',
@@ -1621,9 +1629,88 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
             _pricingRow('Subtotal barang', pricing.subtotal),
             _pricingRow('Ongkir', pricing.deliveryFee),
             _pricingRow('Service fee', pricing.serviceFee),
+            ShoppingFeeBreakdown(
+              items: pricing.feeBreakdown
+                  .map(
+                    (item) => ShoppingFeeBreakdownItem(
+                      label: item.label,
+                      description: item.description,
+                      amount: item.amount,
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
             const SizedBox(height: 4),
             _pricingRow('Total COD', pricing.totalPrice, isTotal: true),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _failedStopNotice(
+    BuildContext context,
+    WidgetRef ref,
+    CustomerShoppingStopModel stop,
+  ) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.22)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.storefront_outlined,
+                color: AppColors.error,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '${stop.merchant.name} tutup/gagal pickup',
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if ((stop.failureReason ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              stop.failureReason!.trim(),
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => _openAddItemScreen(context, ref),
+                icon: const Icon(Icons.add_business_outlined, size: 16),
+                label: const Text('Tambah pengganti'),
+              ),
+              TextButton.icon(
+                onPressed: () => _skipFailedStop(context, ref, stop),
+                icon: const Icon(Icons.done_outline, size: 16),
+                label: const Text('Lanjut tanpa ini'),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -1668,11 +1755,45 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
                   ),
                 ),
               ),
+              if (stop.isFailed || stop.isSkipped)
+                _stopStatusChip(stop.isFailed ? 'Gagal' : 'Dilewati'),
             ],
           ),
+          if ((stop.merchant.address ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.only(left: 30),
+              child: Text(
+                stop.merchant.address!.trim(),
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           ...stop.items.map((item) => _itemRow(context, ref, item)),
         ],
+      ),
+    );
+  }
+
+  Widget _stopStatusChip(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppColors.error,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
   }
@@ -1682,10 +1803,12 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
     WidgetRef ref,
     CustomerShoppingItemModel item,
   ) {
-    final priceText = item.isPricePending
+    final priceText = !item.isAvailable
+        ? 'Tidak tersedia'
+        : item.isPricePending
         ? 'Harga menunggu nota'
         : formatCurrency(item.subtotal);
-    final statusColor = item.isPricePending
+    final statusColor = !item.isAvailable || item.isPricePending
         ? AppColors.error
         : AppColors.textSecondary;
 
@@ -1700,9 +1823,12 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
               children: [
                 Text(
                   '${item.quantity <= 0 ? 1 : item.quantity}x ${item.name}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textPrimary,
                     fontWeight: FontWeight.w700,
+                    decoration: item.isAvailable
+                        ? TextDecoration.none
+                        : TextDecoration.lineThrough,
                   ),
                 ),
                 if ((item.notes ?? '').trim().isNotEmpty)
@@ -1793,6 +1919,37 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
         backgroundColor: result.deliveryFeeChanged ? AppColors.success : null,
       ),
     );
+  }
+
+  Future<void> _skipFailedStop(
+    BuildContext context,
+    WidgetRef ref,
+    CustomerShoppingStopModel stop,
+  ) async {
+    try {
+      await ref
+          .read(customerOrderApiServiceProvider)
+          .skipFailedShoppingStop(detail.summary.id, stop.pickupLocationId);
+      ref.invalidate(customerOrderTrackingProvider(detail.summary.id));
+      ref.invalidate(customerOrdersProvider);
+      await onChanged?.call();
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${stop.merchant.name} dilewati.')),
+      );
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString()),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   Future<void> _removeItem(
