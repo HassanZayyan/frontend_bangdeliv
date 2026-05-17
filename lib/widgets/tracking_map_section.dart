@@ -6,10 +6,25 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../config/app_colors.dart';
 import '../utils/order_formatters.dart';
 
+class TrackingMapPickupPoint {
+  const TrackingMapPickupPoint({
+    required this.id,
+    required this.label,
+    required this.latitude,
+    required this.longitude,
+  });
+
+  final String id;
+  final String label;
+  final double latitude;
+  final double longitude;
+}
+
 class TrackingMapSection extends StatefulWidget {
   const TrackingMapSection({
     super.key,
     required this.dropoffAddress,
+    this.pickupStops = const <TrackingMapPickupPoint>[],
     this.pickupLatitude,
     this.pickupLongitude,
     this.dropoffLatitude,
@@ -24,6 +39,7 @@ class TrackingMapSection extends StatefulWidget {
   });
 
   final String dropoffAddress;
+  final List<TrackingMapPickupPoint> pickupStops;
   final double? pickupLatitude;
   final double? pickupLongitude;
   final double? dropoffLatitude;
@@ -205,9 +221,7 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
 
     final points = <LatLng>[];
 
-    if (widget.pickupLatitude != null && widget.pickupLongitude != null) {
-      points.add(LatLng(widget.pickupLatitude!, widget.pickupLongitude!));
-    }
+    points.addAll(_pickupPoints().map((point) => point.position));
     if (widget.dropoffLatitude != null && widget.dropoffLongitude != null) {
       points.add(LatLng(widget.dropoffLatitude!, widget.dropoffLongitude!));
     }
@@ -302,11 +316,7 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
             if (widget.followDriver &&
                 _hasDriverCoordinates &&
                 !_isFollowingDriver)
-              Positioned(
-                top: 52,
-                right: 10,
-                child: _buildResumeFollowButton(),
-              ),
+              Positioned(top: 52, right: 10, child: _buildResumeFollowButton()),
             if (widget.showLegend)
               Positioned(
                 left: 10,
@@ -444,15 +454,15 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
   Set<Marker> _buildMarkers() {
     final markers = <Marker>{};
 
-    if (widget.pickupLatitude != null && widget.pickupLongitude != null) {
+    for (final point in _pickupPoints()) {
       markers.add(
         Marker(
-          markerId: const MarkerId('pickup'),
-          position: LatLng(widget.pickupLatitude!, widget.pickupLongitude!),
+          markerId: MarkerId('pickup_${point.id}'),
+          position: point.position,
           icon: BitmapDescriptor.defaultMarkerWithHue(
             BitmapDescriptor.hueGreen,
           ),
-          infoWindow: const InfoWindow(title: 'Titik Pickup'),
+          infoWindow: InfoWindow(title: point.label),
         ),
       );
     }
@@ -484,6 +494,32 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
     return markers;
   }
 
+  List<_PickupPointView> _pickupPoints() {
+    if (widget.pickupStops.isNotEmpty) {
+      return widget.pickupStops
+          .map(
+            (stop) => _PickupPointView(
+              id: stop.id,
+              label: stop.label.trim().isEmpty ? 'Merchant' : stop.label,
+              position: LatLng(stop.latitude, stop.longitude),
+            ),
+          )
+          .toList(growable: false);
+    }
+
+    if (widget.pickupLatitude == null || widget.pickupLongitude == null) {
+      return const <_PickupPointView>[];
+    }
+
+    return [
+      _PickupPointView(
+        id: 'default',
+        label: 'Titik Pickup',
+        position: LatLng(widget.pickupLatitude!, widget.pickupLongitude!),
+      ),
+    ];
+  }
+
   String _driverUpdateText() {
     final hasDriverCoordinates =
         widget.driverLatitude != null && widget.driverLongitude != null;
@@ -499,4 +535,16 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
 
     return 'Update lokasi driver terakhir ${formatTime(updatedAt)}';
   }
+}
+
+class _PickupPointView {
+  const _PickupPointView({
+    required this.id,
+    required this.label,
+    required this.position,
+  });
+
+  final String id;
+  final String label;
+  final LatLng position;
 }

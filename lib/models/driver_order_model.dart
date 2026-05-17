@@ -389,12 +389,16 @@ class DriverShoppingMerchantModel {
   final String name;
   final String? merchantType;
   final String? address;
+  final double? latitude;
+  final double? longitude;
 
   const DriverShoppingMerchantModel({
     required this.id,
     required this.name,
     required this.merchantType,
     required this.address,
+    this.latitude,
+    this.longitude,
   });
 
   factory DriverShoppingMerchantModel.fromJson(Map<String, dynamic> json) {
@@ -403,6 +407,8 @@ class DriverShoppingMerchantModel {
       name: (json['name'] ?? '-').toString(),
       merchantType: json['merchant_type']?.toString(),
       address: json['address']?.toString(),
+      latitude: DriverOrderModel._asDoubleOrNull(json['latitude']),
+      longitude: DriverOrderModel._asDoubleOrNull(json['longitude']),
     );
   }
 }
@@ -417,6 +423,9 @@ class DriverShoppingPricingModel {
   final double cancellationPenalty;
   final int recalculationVersion;
   final bool hasPendingManualPrices;
+  final int failedAttemptCount;
+  final int failedAttemptThreshold;
+  final bool canCancelWithFee;
 
   const DriverShoppingPricingModel({
     required this.subtotal,
@@ -428,6 +437,9 @@ class DriverShoppingPricingModel {
     required this.cancellationPenalty,
     required this.recalculationVersion,
     required this.hasPendingManualPrices,
+    this.failedAttemptCount = 0,
+    this.failedAttemptThreshold = 3,
+    this.canCancelWithFee = false,
   });
 
   factory DriverShoppingPricingModel.fromJson(Map<String, dynamic> json) {
@@ -448,6 +460,15 @@ class DriverShoppingPricingModel {
         fallback: 0,
       ),
       hasPendingManualPrices: json['has_pending_manual_prices'] == true,
+      failedAttemptCount: DriverOrderModel._asInt(
+        json['failed_attempt_count'],
+        fallback: 0,
+      ),
+      failedAttemptThreshold: DriverOrderModel._asInt(
+        json['failed_attempt_threshold'],
+        fallback: 3,
+      ),
+      canCancelWithFee: json['can_cancel_with_fee'] == true,
     );
   }
 }

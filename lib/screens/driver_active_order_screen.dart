@@ -15,6 +15,7 @@ import '../services/driver_order_service.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/courier_package_formatter.dart';
 import '../utils/order_formatters.dart' hide formatCurrency;
+import '../utils/order_status.dart';
 import '../utils/service_type.dart';
 import '../widgets/order_chat_badge_icon.dart';
 
@@ -32,6 +33,7 @@ class DriverActiveOrderScreen extends ConsumerWidget {
     }
 
     final detailState = ref.watch(driverOrderDetailProvider(orderId));
+    ref.watch(driverOrderDetailRealtimeProvider(orderId));
     final ordersState = ref.watch(driverOrdersProvider);
     final trackingState = ref.watch(driverLocationTrackingProvider);
 
@@ -117,6 +119,34 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                 _ActionCard(
                   order: order,
                   isProcessing: isProcessing,
+                  onReportPickupFailed:
+                      ({required pickupLocationId, required reason}) async {
+                        final error = await ref
+                            .read(driverOrdersProvider.notifier)
+                            .recordShoppingPickupFailed(
+                              orderId: order.id,
+                              pickupLocationId: pickupLocationId,
+                              reason: reason,
+                            );
+
+                        if (!context.mounted) {
+                          return;
+                        }
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              error ?? 'Merchant tutup berhasil dicatat.',
+                            ),
+                            backgroundColor: error == null
+                                ? null
+                                : AppColors.error,
+                          ),
+                        );
+                        if (error == null) {
+                          ref.invalidate(driverOrderDetailProvider(order.id));
+                        }
+                      },
                   onTapAction: (action) async {
                     final notifier = ref.read(driverOrdersProvider.notifier);
 
@@ -194,11 +224,12 @@ class _MapCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pickup = _latLng(order.pickupLatitude, order.pickupLongitude);
+    final pickupPoints = _pickupPoints();
+    final pickup = pickupPoints.isEmpty ? null : pickupPoints.first.position;
     final dropoff = _latLng(order.dropoffLatitude, order.dropoffLongitude);
     final driver = _latLng(trackingState.latitude, trackingState.longitude);
 
-    if (pickup == null && dropoff == null && driver == null) {
+    if (pickupPoints.isEmpty && dropoff == null && driver == null) {
       return Container(
         height: 220,
         decoration: BoxDecoration(
@@ -226,11 +257,14 @@ class _MapCard extends StatelessWidget {
           ),
           infoWindow: const InfoWindow(title: 'Posisi Anda'),
         ),
-      if (pickup != null)
+      for (final pickupPoint in pickupPoints)
         Marker(
-          markerId: const MarkerId('pickup'),
-          position: pickup,
-          infoWindow: const InfoWindow(title: 'Pickup'),
+          markerId: MarkerId('pickup_${pickupPoint.id}'),
+          position: pickupPoint.position,
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueGreen,
+          ),
+          infoWindow: InfoWindow(title: pickupPoint.label),
         ),
       if (dropoff != null)
         Marker(
@@ -281,6 +315,48 @@ class _MapCard extends StatelessWidget {
     }
     return LatLng(lat, lng);
   }
+
+  List<_DriverPickupPoint> _pickupPoints() {
+    final stopPoints = order.shoppingStops
+        .where(
+          (stop) =>
+              stop.merchant.latitude != null && stop.merchant.longitude != null,
+        )
+        .map(
+          (stop) => _DriverPickupPoint(
+            id: stop.pickupLocationId.toString(),
+            label:
+                'Merchant ${stop.sequenceNo <= 0 ? 1 : stop.sequenceNo}: ${stop.merchant.name}',
+            position: LatLng(stop.merchant.latitude!, stop.merchant.longitude!),
+          ),
+        )
+        .toList(growable: false);
+
+    if (stopPoints.isNotEmpty) {
+      return stopPoints;
+    }
+
+    final fallback = _latLng(order.pickupLatitude, order.pickupLongitude);
+    if (fallback == null) {
+      return const <_DriverPickupPoint>[];
+    }
+
+    return [
+      _DriverPickupPoint(id: 'default', label: 'Pickup', position: fallback),
+    ];
+  }
+}
+
+class _DriverPickupPoint {
+  const _DriverPickupPoint({
+    required this.id,
+    required this.label,
+    required this.position,
+  });
+
+  final String id;
+  final String label;
+  final LatLng position;
 }
 
 class _TrackingBadge extends StatelessWidget {
@@ -544,6 +620,7 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
   final Map<int, TextEditingController> _priceControllers = {};
   final TextEditingController _receiptNoteController = TextEditingController();
   final Map<int, bool> _availability = {};
+  final Map<int, bool> _heavy = {};
 
   @override
   void initState() {
@@ -576,10 +653,12 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
     for (final id in staleIds) {
       _priceControllers.remove(id)?.dispose();
       _availability.remove(id);
+      _heavy.remove(id);
     }
 
     for (final item in widget.order.shoppingItems) {
       _availability[item.id] = item.isAvailable;
+      _heavy[item.id] = item.isHeavy;
       _priceControllers.putIfAbsent(
         item.id,
         () => TextEditingController(
@@ -726,6 +805,30 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
               isDense: true,
             ),
           ),
+          const SizedBox(height: 6),
+          CheckboxListTile(
+            value: _heavy[item.id] ?? item.isHeavy,
+            onChanged: (value) {
+              setState(() {
+                _heavy[item.id] = value ?? false;
+              });
+            },
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            title: const Text(
+              'Item berat',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+            subtitle: const Text(
+              'Tambahan biaya Rp6.000 sekali per order',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            ),
+          ),
         ],
       ),
     );
@@ -787,7 +890,7 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
             'unit_price': unitPrice,
             'is_available': _availability[item.id] ?? item.isAvailable,
             'notes': item.notes,
-            'is_heavy': item.isHeavy,
+            'is_heavy': _heavy[item.id] ?? item.isHeavy,
           };
         })
         .toList(growable: false);
@@ -817,6 +920,10 @@ class _TimelineCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final statusTimeline = timeline
+        .where((item) => item.eventType.toUpperCase() == 'STATUS_CHANGE')
+        .toList(growable: false);
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -835,15 +942,15 @@ class _TimelineCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          if (timeline.isEmpty)
+          if (statusTimeline.isEmpty)
             const Text(
               'Belum ada histori status.',
               style: TextStyle(color: AppColors.textSecondary),
             )
           else
-            ...List.generate(timeline.length, (index) {
-              final item = timeline[index];
-              final isLast = index == timeline.length - 1;
+            ...List.generate(statusTimeline.length, (index) {
+              final item = statusTimeline[index];
+              final isLast = index == statusTimeline.length - 1;
               final statusText = item.statusDisplayName ?? item.statusCode;
               final timeText = item.createdAt == null
                   ? 'Waktu belum tersedia'
@@ -932,11 +1039,17 @@ class _TimelineCard extends StatelessWidget {
 class _ActionCard extends StatelessWidget {
   final DriverOrderModel order;
   final bool isProcessing;
+  final Future<void> Function({
+    required int pickupLocationId,
+    required String reason,
+  })?
+  onReportPickupFailed;
   final Future<void> Function(DriverOrderActionModel action) onTapAction;
 
   const _ActionCard({
     required this.order,
     required this.isProcessing,
+    required this.onReportPickupFailed,
     required this.onTapAction,
   });
 
@@ -950,6 +1063,8 @@ class _ActionCard extends StatelessWidget {
     final codMessage = isCourier
         ? 'Cek barang lebih dulu, lalu tagih ${formatRupiah(order.totalPrice)} saat pickup sebelum menekan Paket Diambil.'
         : 'Tagih COD sebesar ${formatRupiah(order.totalPrice)} sebelum menyelesaikan order.';
+    final pricing = order.shoppingPricing;
+    final canReportPickupFailed = _canReportPickupFailed();
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -969,6 +1084,42 @@ class _ActionCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
+          if (canReportPickupFailed) ...[
+            OutlinedButton.icon(
+              onPressed: isProcessing
+                  ? null
+                  : () async {
+                      final report = await _showFailedPickupDialog(context);
+                      if (report == null) {
+                        return;
+                      }
+                      await onReportPickupFailed?.call(
+                        pickupLocationId: report.pickupLocationId,
+                        reason: report.reason,
+                      );
+                    },
+              icon: const Icon(Icons.storefront_outlined, size: 18),
+              label: const Text('Merchant Tutup / Gagal Pickup'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.error,
+                side: const BorderSide(color: AppColors.error),
+              ),
+            ),
+            if (pricing != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6, bottom: 8),
+                child: Text(
+                  'Percobaan gagal ${pricing.failedAttemptCount}/${pricing.failedAttemptThreshold}. Fee cancel aktif setelah batas tercapai.',
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              )
+            else
+              const SizedBox(height: 8),
+          ],
           if (hasCodCollection) ...[
             Container(
               width: double.infinity,
@@ -1031,6 +1182,131 @@ class _ActionCard extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+
+  bool _canReportPickupFailed() {
+    if (onReportPickupFailed == null ||
+        normalizeServiceTypeCode(order.serviceTypeCode) !=
+            ServiceTypeCodes.shopping ||
+        order.shoppingStops.isEmpty ||
+        order.shoppingPricing?.canCancelWithFee == true) {
+      return false;
+    }
+
+    final status = normalizeOrderStatusCode(order.statusCode);
+    return status == OrderStatusCodes.driverAssigned ||
+        status == OrderStatusCodes.arrivedMerchant;
+  }
+
+  Future<_FailedPickupReport?> _showFailedPickupDialog(BuildContext context) {
+    return showDialog<_FailedPickupReport>(
+      context: context,
+      builder: (context) => _FailedPickupDialog(stops: order.shoppingStops),
+    );
+  }
+}
+
+class _FailedPickupReport {
+  const _FailedPickupReport({
+    required this.pickupLocationId,
+    required this.reason,
+  });
+
+  final int pickupLocationId;
+  final String reason;
+}
+
+class _FailedPickupDialog extends StatefulWidget {
+  const _FailedPickupDialog({required this.stops});
+
+  final List<DriverShoppingStopModel> stops;
+
+  @override
+  State<_FailedPickupDialog> createState() => _FailedPickupDialogState();
+}
+
+class _FailedPickupDialogState extends State<_FailedPickupDialog> {
+  final TextEditingController _reasonController = TextEditingController(
+    text: 'Merchant tutup saat driver tiba.',
+  );
+  late int _selectedPickupLocationId;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedPickupLocationId = widget.stops.first.pickupLocationId;
+  }
+
+  @override
+  void dispose() {
+    _reasonController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Merchant Tutup'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          DropdownButtonFormField<int>(
+            initialValue: _selectedPickupLocationId,
+            decoration: const InputDecoration(
+              labelText: 'Merchant',
+              border: OutlineInputBorder(),
+            ),
+            items: widget.stops
+                .map(
+                  (stop) => DropdownMenuItem<int>(
+                    value: stop.pickupLocationId,
+                    child: Text(
+                      '${stop.sequenceNo <= 0 ? 1 : stop.sequenceNo}. ${stop.merchant.name}',
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: (value) {
+              if (value == null) {
+                return;
+              }
+              setState(() => _selectedPickupLocationId = value);
+            },
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _reasonController,
+            minLines: 2,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'Alasan',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Batal'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            final reason = _reasonController.text.trim();
+            if (reason.isEmpty) {
+              return;
+            }
+            Navigator.of(context).pop(
+              _FailedPickupReport(
+                pickupLocationId: _selectedPickupLocationId,
+                reason: reason,
+              ),
+            );
+          },
+          child: const Text('Catat'),
+        ),
+      ],
     );
   }
 }

@@ -254,6 +254,110 @@ void main() {
   );
 
   test(
+    'running content event refreshes shopping items without status change',
+    () async {
+      final initialOrder = _runningOrder(
+        '99',
+      ).copyWith(statusCode: OrderStatusCodes.driverAssigned);
+      final fakeService = _FakeDriverOrderService(
+        payload: DriverOrdersPayload(
+          incoming: const <DriverOrderModel>[],
+          running: <DriverOrderModel>[
+            DriverOrderModel(
+              id: initialOrder.id,
+              customerName: initialOrder.customerName,
+              pickupAddress: initialOrder.pickupAddress,
+              dropoffAddress: initialOrder.dropoffAddress,
+              etaMinutes: initialOrder.etaMinutes,
+              fee: initialOrder.fee,
+              itemCount: 1,
+              statusCode: initialOrder.statusCode,
+              shoppingItems: const <DriverShoppingItemModel>[
+                DriverShoppingItemModel(
+                  id: 1,
+                  itemSource: 'MANUAL',
+                  name: 'Telur',
+                  quantity: 1,
+                  unitPrice: 0,
+                  subtotal: 0,
+                  isAvailable: true,
+                  isHeavy: false,
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+      final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+      final fakeRealtime = FakeOrderRealtimeClient();
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          driverOrderServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(driverOrdersProvider.future);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(fakeRealtime.orderTrackingSubscriptions, contains(99));
+
+      fakeService.payload = DriverOrdersPayload(
+        incoming: const <DriverOrderModel>[],
+        running: <DriverOrderModel>[
+          DriverOrderModel(
+            id: '99',
+            customerName: 'Customer 99',
+            pickupAddress: 'Pickup',
+            dropoffAddress: 'Dropoff',
+            etaMinutes: 8,
+            fee: 9000,
+            itemCount: 2,
+            statusCode: OrderStatusCodes.driverAssigned,
+            shoppingItems: const <DriverShoppingItemModel>[
+              DriverShoppingItemModel(
+                id: 1,
+                itemSource: 'MANUAL',
+                name: 'Telur',
+                quantity: 1,
+                unitPrice: 0,
+                subtotal: 0,
+                isAvailable: true,
+                isHeavy: false,
+              ),
+              DriverShoppingItemModel(
+                id: 2,
+                itemSource: 'MANUAL',
+                name: 'Gula',
+                quantity: 1,
+                unitPrice: 0,
+                subtotal: 0,
+                isAvailable: true,
+                isHeavy: false,
+              ),
+            ],
+          ),
+        ],
+      );
+
+      fakeRealtime.emitOrderContentUpdated(99, {
+        'change_type': 'CUSTOMER_ADD_ITEM',
+      });
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      final state = container.read(driverOrdersProvider).asData!.value;
+      expect(state.running.single.statusCode, OrderStatusCodes.driverAssigned);
+      expect(state.running.single.shoppingItems.map((item) => item.name), [
+        'Telur',
+        'Gula',
+      ]);
+    },
+  );
+
+  test(
     'driverOrdersProvider applies realtime incoming order without refresh',
     () async {
       final fakeService = _FakeDriverOrderService(

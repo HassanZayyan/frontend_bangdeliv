@@ -159,6 +159,24 @@ class DriverOrderService {
     return DriverOrderModel.fromJson(data);
   }
 
+  Future<DriverOrderModel> recordShoppingPickupFailed({
+    required String orderId,
+    required int pickupLocationId,
+    required String reason,
+  }) async {
+    await _post(
+      '/v1/orders/$orderId/attempt-failed',
+      body: <String, dynamic>{
+        'failure_type': 'PICKUP',
+        'reason': reason.trim(),
+        if (pickupLocationId > 0) 'pickup_location_id': pickupLocationId,
+      },
+      fallback: 'Gagal mencatat merchant tutup.',
+    );
+
+    return fetchOrderDetail(orderId);
+  }
+
   Future<String> fetchAvailabilityStatus() async {
     final response = await _safeGet(
       '/v1/driver/availability',

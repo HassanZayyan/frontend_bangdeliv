@@ -5,12 +5,14 @@ import '../utils/service_type.dart' as service_type;
 class OrderStatusSnapshot {
   final String code;
   final String label;
+  final String eventType;
   final DateTime? changedAt;
   final int historyId;
 
   const OrderStatusSnapshot({
     required this.code,
     required this.label,
+    this.eventType = 'STATUS_CHANGE',
     required this.changedAt,
     required this.historyId,
   });
@@ -478,6 +480,13 @@ class CustomerOrderDetailModel {
 
     final timeline =
         histories
+            .where((history) {
+              final eventType = (history['event_type'] ?? 'STATUS_CHANGE')
+                  .toString()
+                  .trim()
+                  .toUpperCase();
+              return eventType.isEmpty || eventType == 'STATUS_CHANGE';
+            })
             .map((history) {
               final status = (history['status_ref'] is Map<String, dynamic>)
                   ? history['status_ref'] as Map<String, dynamic>
@@ -496,6 +505,10 @@ class CustomerOrderDetailModel {
                 label: label.isNotEmpty
                     ? label
                     : order_status.orderStatusLabel(code),
+                eventType: (history['event_type'] ?? 'STATUS_CHANGE')
+                    .toString()
+                    .trim()
+                    .toUpperCase(),
                 changedAt: CustomerOrderSummaryModel._asDateTime(
                   history['created_at'] ?? history['updated_at'],
                 ),
@@ -767,12 +780,16 @@ class CustomerShoppingMerchantModel {
   final String name;
   final String? merchantType;
   final String? address;
+  final double? latitude;
+  final double? longitude;
 
   const CustomerShoppingMerchantModel({
     required this.id,
     required this.name,
     required this.merchantType,
     required this.address,
+    this.latitude,
+    this.longitude,
   });
 
   factory CustomerShoppingMerchantModel.fromJson(Map<String, dynamic> json) {
@@ -781,6 +798,8 @@ class CustomerShoppingMerchantModel {
       name: (json['name'] ?? '-').toString(),
       merchantType: json['merchant_type']?.toString(),
       address: json['address']?.toString(),
+      latitude: CustomerOrderDetailModel._asNullableDouble(json['latitude']),
+      longitude: CustomerOrderDetailModel._asNullableDouble(json['longitude']),
     );
   }
 }
@@ -793,6 +812,9 @@ class CustomerShoppingPricingModel {
   final double itemSurcharge;
   final double overweightSurcharge;
   final double cancellationPenalty;
+  final int failedAttemptCount;
+  final int failedAttemptThreshold;
+  final bool canCancelWithFee;
 
   const CustomerShoppingPricingModel({
     required this.subtotal,
@@ -802,6 +824,9 @@ class CustomerShoppingPricingModel {
     required this.itemSurcharge,
     required this.overweightSurcharge,
     required this.cancellationPenalty,
+    this.failedAttemptCount = 0,
+    this.failedAttemptThreshold = 3,
+    this.canCancelWithFee = false,
   });
 
   factory CustomerShoppingPricingModel.fromJson(
@@ -824,6 +849,19 @@ class CustomerShoppingPricingModel {
       cancellationPenalty: CustomerOrderSummaryModel._asDouble(
         shoppingJson['cancellation_penalty'],
       ),
+      failedAttemptCount: CustomerOrderSummaryModel._asInt(
+        shoppingJson['failed_attempt_count'],
+      ),
+      failedAttemptThreshold:
+          CustomerOrderSummaryModel._asInt(
+                shoppingJson['failed_attempt_threshold'],
+              ) <=
+              0
+          ? 3
+          : CustomerOrderSummaryModel._asInt(
+              shoppingJson['failed_attempt_threshold'],
+            ),
+      canCancelWithFee: shoppingJson['can_cancel_with_fee'] == true,
     );
   }
 }
