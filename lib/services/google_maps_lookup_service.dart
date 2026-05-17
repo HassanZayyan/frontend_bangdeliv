@@ -248,11 +248,35 @@ class GoogleMapsLookupService {
       return null;
     }
 
+    final formattedAddress = cleanAddress(result['formatted_address']);
+    final placeName = cleanAddress(result['name']);
+
     return GoogleMapsResolvedPlace(
       target: LatLng(lat.toDouble(), lng.toDouble()),
-      address:
-          cleanAddress(result['formatted_address']) ??
-          cleanAddress(result['name']),
+      address: _buildDisplayAddress(
+        placeName: placeName,
+        formattedAddress: formattedAddress,
+      ),
     );
+  }
+
+  String? _buildDisplayAddress({
+    required String? placeName,
+    required String? formattedAddress,
+  }) {
+    if (placeName == null || placeName.isEmpty) {
+      return formattedAddress;
+    }
+    if (formattedAddress == null || formattedAddress.isEmpty) {
+      return placeName;
+    }
+
+    final normalizedPlaceName = placeName.toLowerCase();
+    final normalizedFormatted = formattedAddress.toLowerCase();
+    if (normalizedFormatted.contains(normalizedPlaceName)) {
+      return formattedAddress;
+    }
+
+    return '$placeName, $formattedAddress';
   }
 }

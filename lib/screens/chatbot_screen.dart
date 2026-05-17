@@ -634,9 +634,43 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
     final parts = _tryParseDraftMessage(message.text);
     if (parts == null) {
-      return Text(
-        message.text,
-        style: TextStyle(color: textColor, height: 1.5),
+      final resetParts = _tryParseResetDestinationMessage(message.text);
+      if (resetParts == null) {
+        return Text(
+          message.text,
+          style: TextStyle(color: textColor, height: 1.5),
+        );
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            resetParts.headline,
+            style: TextStyle(
+              color: textColor,
+              height: 1.45,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _buildDraftField(
+            label: resetParts.pickupLabel,
+            value: resetParts.pickupAddress,
+            textColor: textColor,
+          ),
+          if (resetParts.instructionLine.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              resetParts.instructionLine,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ],
       );
     }
 
@@ -859,6 +893,73 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       instructionLine: instructionLine,
     );
   }
+
+  _ResetDestinationMessageParts? _tryParseResetDestinationMessage(String raw) {
+    final normalized = raw.replaceAll('\r\n', '\n').trim();
+    if (normalized.isEmpty) {
+      return null;
+    }
+
+    final lines = normalized
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
+    if (lines.length < 3) {
+      return null;
+    }
+
+    final pickupIndex = lines.indexWhere(
+      (line) =>
+          line.toLowerCase().startsWith('jemput:') ||
+          line.toLowerCase().startsWith('ambil:'),
+    );
+    if (pickupIndex < 0) {
+      return null;
+    }
+
+    final headline = lines.take(pickupIndex).join('\n').trim();
+    if (headline.isEmpty || !headline.toLowerCase().contains('tujuan')) {
+      return null;
+    }
+
+    final pickupLabel = lines[pickupIndex].toLowerCase().startsWith('ambil:')
+        ? 'Ambil'
+        : 'Jemput';
+    final pickupFirstLine = lines[pickupIndex].replaceFirst(
+      RegExp(r'^(Jemput|Ambil):\s*', caseSensitive: false),
+      '',
+    );
+
+    int instructionStartIndex = lines.length;
+    for (int i = pickupIndex + 1; i < lines.length; i++) {
+      final lower = lines[i].toLowerCase();
+      if (lower.startsWith('silakan klik tombol') ||
+          lower.startsWith('setelah itu,')) {
+        instructionStartIndex = i;
+        break;
+      }
+    }
+
+    final pickupLines = <String>[
+      if (pickupFirstLine.isNotEmpty) pickupFirstLine,
+      ...lines.sublist(pickupIndex + 1, instructionStartIndex),
+    ].where((line) => line.trim().isNotEmpty).toList(growable: false);
+    if (pickupLines.isEmpty) {
+      return null;
+    }
+
+    final instructionLine = instructionStartIndex < lines.length
+        ? lines.sublist(instructionStartIndex).join(' ').trim()
+        : '';
+
+    return _ResetDestinationMessageParts(
+      headline: headline,
+      pickupLabel: pickupLabel,
+      pickupAddress: pickupLines.join('\n'),
+      instructionLine: instructionLine,
+    );
+  }
 }
 
 class _DraftMessageParts {
@@ -882,6 +983,20 @@ class _DraftMessageParts {
   final String? packageSizeLine;
   final String? packageSafetyLine;
   final String feeLine;
+  final String instructionLine;
+}
+
+class _ResetDestinationMessageParts {
+  const _ResetDestinationMessageParts({
+    required this.headline,
+    required this.pickupLabel,
+    required this.pickupAddress,
+    required this.instructionLine,
+  });
+
+  final String headline;
+  final String pickupLabel;
+  final String pickupAddress;
   final String instructionLine;
 }
 
