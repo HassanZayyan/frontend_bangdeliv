@@ -37,6 +37,10 @@ class DriverOrderModel {
   final String? packageSafetyStatus;
   final String? packageSafetyReason;
   final String? packagePackingNote;
+  final List<DriverShoppingItemModel> shoppingItems;
+  final List<DriverShoppingStopModel> shoppingStops;
+  final DriverShoppingPricingModel? shoppingPricing;
+  final bool hasPendingShoppingPrices;
 
   const DriverOrderModel({
     required this.id,
@@ -71,6 +75,10 @@ class DriverOrderModel {
     this.packageSafetyStatus,
     this.packageSafetyReason,
     this.packagePackingNote,
+    this.shoppingItems = const <DriverShoppingItemModel>[],
+    this.shoppingStops = const <DriverShoppingStopModel>[],
+    this.shoppingPricing,
+    this.hasPendingShoppingPrices = false,
   });
 
   DriverOrderModel copyWith({
@@ -114,6 +122,10 @@ class DriverOrderModel {
       packageSafetyStatus: packageSafetyStatus,
       packageSafetyReason: packageSafetyReason,
       packagePackingNote: packagePackingNote,
+      shoppingItems: shoppingItems,
+      shoppingStops: shoppingStops,
+      shoppingPricing: shoppingPricing,
+      hasPendingShoppingPrices: hasPendingShoppingPrices,
     );
   }
 
@@ -131,6 +143,22 @@ class DriverOrderModel {
               .map(DriverOrderTimelineItemModel.fromJson)
               .toList(growable: false)
         : const <DriverOrderTimelineItemModel>[];
+
+    final shoppingItems = (json['shopping_items'] is List)
+        ? (json['shopping_items'] as List<dynamic>)
+              .whereType<Map<String, dynamic>>()
+              .map(DriverShoppingItemModel.fromJson)
+              .toList(growable: false)
+        : const <DriverShoppingItemModel>[];
+    final shoppingStops = (json['shopping_stops'] is List)
+        ? (json['shopping_stops'] as List<dynamic>)
+              .whereType<Map<String, dynamic>>()
+              .map(DriverShoppingStopModel.fromJson)
+              .toList(growable: false)
+        : const <DriverShoppingStopModel>[];
+    final pricingRaw = (json['pricing'] is Map<String, dynamic>)
+        ? json['pricing'] as Map<String, dynamic>
+        : null;
 
     return DriverOrderModel(
       id: (json['id'] ?? '').toString(),
@@ -210,6 +238,21 @@ class DriverOrderModel {
       packagePackingNote:
           (json['package_packing_note'] ?? json['packagePackingNote'])
               ?.toString(),
+      shoppingItems: shoppingItems,
+      shoppingStops: shoppingStops.isEmpty && shoppingItems.isNotEmpty
+          ? DriverShoppingStopModel.fallbackFromItems(
+              (json['merchant'] is Map<String, dynamic>)
+                  ? json['merchant'] as Map<String, dynamic>
+                  : const <String, dynamic>{},
+              shoppingItems,
+            )
+          : shoppingStops,
+      shoppingPricing: pricingRaw == null
+          ? null
+          : DriverShoppingPricingModel.fromJson(pricingRaw),
+      hasPendingShoppingPrices:
+          json['has_pending_shopping_prices'] == true ||
+          pricingRaw?['has_pending_manual_prices'] == true,
     );
   }
 
@@ -235,6 +278,177 @@ class DriverOrderModel {
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse(value.toString());
+  }
+}
+
+class DriverShoppingItemModel {
+  final int id;
+  final int? pickupLocationId;
+  final int? menuId;
+  final String itemSource;
+  final String name;
+  final int quantity;
+  final double unitPrice;
+  final double subtotal;
+  final bool isAvailable;
+  final bool isHeavy;
+  final String? notes;
+  final String? priceStatus;
+
+  const DriverShoppingItemModel({
+    required this.id,
+    this.pickupLocationId,
+    this.menuId,
+    required this.itemSource,
+    required this.name,
+    required this.quantity,
+    required this.unitPrice,
+    required this.subtotal,
+    required this.isAvailable,
+    required this.isHeavy,
+    this.notes,
+    this.priceStatus,
+  });
+
+  bool get isManual => itemSource.toUpperCase() == 'MANUAL';
+  bool get isPricePending => isManual && isAvailable && unitPrice <= 0;
+
+  factory DriverShoppingItemModel.fromJson(Map<String, dynamic> json) {
+    return DriverShoppingItemModel(
+      id: DriverOrderModel._asInt(json['id'], fallback: 0),
+      pickupLocationId: DriverOrderModel._asIntOrNull(
+        json['pickup_location_id'],
+      ),
+      menuId: DriverOrderModel._asIntOrNull(json['menu_id']),
+      itemSource: (json['item_source'] ?? 'MANUAL').toString(),
+      name: (json['name'] ?? json['menu_name'] ?? '-').toString(),
+      quantity: DriverOrderModel._asInt(json['quantity'], fallback: 1),
+      unitPrice: DriverOrderModel._asDouble(json['unit_price']),
+      subtotal: DriverOrderModel._asDouble(json['subtotal']),
+      isAvailable: json['is_available'] != false,
+      isHeavy: json['is_heavy'] == true,
+      notes: json['notes']?.toString(),
+      priceStatus: json['price_status']?.toString(),
+    );
+  }
+}
+
+class DriverShoppingStopModel {
+  final int pickupLocationId;
+  final int sequenceNo;
+  final DriverShoppingMerchantModel merchant;
+  final List<DriverShoppingItemModel> items;
+
+  const DriverShoppingStopModel({
+    required this.pickupLocationId,
+    required this.sequenceNo,
+    required this.merchant,
+    required this.items,
+  });
+
+  factory DriverShoppingStopModel.fromJson(Map<String, dynamic> json) {
+    final merchantJson = (json['merchant'] is Map<String, dynamic>)
+        ? json['merchant'] as Map<String, dynamic>
+        : const <String, dynamic>{};
+    final rawItems = (json['items'] is List)
+        ? (json['items'] as List<dynamic>)
+              .whereType<Map<String, dynamic>>()
+              .toList(growable: false)
+        : const <Map<String, dynamic>>[];
+
+    return DriverShoppingStopModel(
+      pickupLocationId: DriverOrderModel._asInt(
+        json['pickup_location_id'],
+        fallback: 0,
+      ),
+      sequenceNo: DriverOrderModel._asInt(json['sequence_no'], fallback: 0),
+      merchant: DriverShoppingMerchantModel.fromJson(merchantJson),
+      items: rawItems
+          .map(DriverShoppingItemModel.fromJson)
+          .toList(growable: false),
+    );
+  }
+
+  static List<DriverShoppingStopModel> fallbackFromItems(
+    Map<String, dynamic> merchantJson,
+    List<DriverShoppingItemModel> items,
+  ) {
+    return [
+      DriverShoppingStopModel(
+        pickupLocationId: items.first.pickupLocationId ?? 0,
+        sequenceNo: 1,
+        merchant: DriverShoppingMerchantModel.fromJson(merchantJson),
+        items: items,
+      ),
+    ];
+  }
+}
+
+class DriverShoppingMerchantModel {
+  final int? id;
+  final String name;
+  final String? merchantType;
+  final String? address;
+
+  const DriverShoppingMerchantModel({
+    required this.id,
+    required this.name,
+    required this.merchantType,
+    required this.address,
+  });
+
+  factory DriverShoppingMerchantModel.fromJson(Map<String, dynamic> json) {
+    return DriverShoppingMerchantModel(
+      id: DriverOrderModel._asIntOrNull(json['id']),
+      name: (json['name'] ?? '-').toString(),
+      merchantType: json['merchant_type']?.toString(),
+      address: json['address']?.toString(),
+    );
+  }
+}
+
+class DriverShoppingPricingModel {
+  final double subtotal;
+  final double deliveryFee;
+  final double serviceFee;
+  final double totalPrice;
+  final double itemSurcharge;
+  final double overweightSurcharge;
+  final double cancellationPenalty;
+  final int recalculationVersion;
+  final bool hasPendingManualPrices;
+
+  const DriverShoppingPricingModel({
+    required this.subtotal,
+    required this.deliveryFee,
+    required this.serviceFee,
+    required this.totalPrice,
+    required this.itemSurcharge,
+    required this.overweightSurcharge,
+    required this.cancellationPenalty,
+    required this.recalculationVersion,
+    required this.hasPendingManualPrices,
+  });
+
+  factory DriverShoppingPricingModel.fromJson(Map<String, dynamic> json) {
+    return DriverShoppingPricingModel(
+      subtotal: DriverOrderModel._asDouble(json['subtotal']),
+      deliveryFee: DriverOrderModel._asDouble(json['delivery_fee']),
+      serviceFee: DriverOrderModel._asDouble(json['service_fee']),
+      totalPrice: DriverOrderModel._asDouble(json['total_price']),
+      itemSurcharge: DriverOrderModel._asDouble(json['item_surcharge']),
+      overweightSurcharge: DriverOrderModel._asDouble(
+        json['overweight_surcharge'],
+      ),
+      cancellationPenalty: DriverOrderModel._asDouble(
+        json['cancellation_penalty'],
+      ),
+      recalculationVersion: DriverOrderModel._asInt(
+        json['recalculation_version'],
+        fallback: 0,
+      ),
+      hasPendingManualPrices: json['has_pending_manual_prices'] == true,
+    );
   }
 }
 

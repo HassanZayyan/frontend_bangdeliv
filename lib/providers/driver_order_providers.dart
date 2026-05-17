@@ -671,6 +671,64 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     }
   }
 
+  Future<String?> updateShoppingItems({
+    required String orderId,
+    required List<Map<String, dynamic>> items,
+    String? receiptNote,
+  }) async {
+    final current = state.asData?.value;
+    if (current == null) {
+      return 'Data order belum siap.';
+    }
+
+    if (current.isProcessing(orderId)) {
+      return null;
+    }
+
+    final processingOrderIds = <String>{...current.processingOrderIds, orderId};
+    state = AsyncData(current.copyWith(processingOrderIds: processingOrderIds));
+
+    try {
+      final updated = await ref
+          .read(driverOrderServiceProvider)
+          .updateShoppingItems(
+            orderId: orderId,
+            items: items,
+            receiptNote: receiptNote,
+          );
+
+      final latest = state.asData?.value;
+      if (latest == null) {
+        return null;
+      }
+
+      final cleanedProcessingIds = <String>{...latest.processingOrderIds}
+        ..remove(orderId);
+      state = AsyncData(
+        latest.copyWith(
+          running: _upsertRunningOrder(latest.running, updated),
+          processingOrderIds: cleanedProcessingIds,
+        ),
+      );
+      _syncRunningOrderRealtime(state.asData!.value);
+
+      ref.invalidate(driverOrderDetailProvider(orderId));
+      return null;
+    } catch (error) {
+      final latest = state.asData?.value;
+      if (latest == null) {
+        return error.toString();
+      }
+
+      final rollbackProcessingIds = <String>{...latest.processingOrderIds}
+        ..remove(orderId);
+      state = AsyncData(
+        latest.copyWith(processingOrderIds: rollbackProcessingIds),
+      );
+      return error.toString();
+    }
+  }
+
   List<DriverOrderModel> _upsertRunningOrder(
     List<DriverOrderModel> running,
     DriverOrderModel updated,
@@ -756,7 +814,16 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
   }
 
   void _handleRunningOrderRealtimeEvent(OrderRealtimeEvent event) {
-    if (!_isMounted || event.type != OrderRealtimeEventType.status) {
+    if (!_isMounted) {
+      return;
+    }
+
+    if (event.type == OrderRealtimeEventType.content) {
+      unawaited(_refreshRunningOrderFromServer(event.orderId.toString()));
+      return;
+    }
+
+    if (event.type != OrderRealtimeEventType.status) {
       return;
     }
 
@@ -805,6 +872,33 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         ref.read(driverHistoryProvider.notifier).refresh(showLoading: false),
       );
       _refreshAvailabilityThenSyncRealtime();
+    }
+  }
+
+  Future<void> _refreshRunningOrderFromServer(String orderId) async {
+    final current = state.asData?.value;
+    if (current == null ||
+        !current.running.any((order) => order.id == orderId)) {
+      return;
+    }
+
+    try {
+      final updated = await ref
+          .read(driverOrderServiceProvider)
+          .fetchOrderDetail(orderId);
+      final latest = state.asData?.value;
+      if (latest == null) {
+        return;
+      }
+
+      final next = latest.copyWith(
+        running: _upsertRunningOrder(latest.running, updated),
+      );
+      state = AsyncData(next);
+      _syncRunningOrderRealtime(next);
+      ref.invalidate(driverOrderDetailProvider(orderId));
+    } catch (_) {
+      // Periodic reconciliation will catch up after transient failures.
     }
   }
 

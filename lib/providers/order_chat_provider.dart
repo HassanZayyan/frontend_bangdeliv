@@ -353,6 +353,7 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
         unawaited(_pollNewMessages());
         break;
       case OrderRealtimeEventType.status:
+      case OrderRealtimeEventType.content:
       case OrderRealtimeEventType.location:
         break;
     }

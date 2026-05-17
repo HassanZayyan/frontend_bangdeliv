@@ -75,19 +75,39 @@ void main() {
     expect(find.text('Pilih Titik Tujuan'), findsNothing);
   });
 
-  testWidgets('transport bootstrap without address only shows address action', (
-    WidgetTester tester,
-  ) async {
-    await _pumpChatbot(
-      tester,
-      serviceType: 'kurir',
-      chatbotApiService: _FakeChatbotApiService(),
-      authSession: _buildAuthenticatedSessionWithoutAddress(),
-    );
+  for (final entry in const <String, String>{
+    'nitip': 'Sebelum titip belanja',
+    'antar_jemput': 'Sebelum pesan Antar Jemput',
+    'kurir': 'Sebelum pesan Kurir',
+  }.entries) {
+    testWidgets('${entry.key} without address opens Alamat Saya once', (
+      WidgetTester tester,
+    ) async {
+      final fakeService = _FakeChatbotApiService();
 
-    expect(find.text('Isi Alamat Saya'), findsOneWidget);
-    expect(find.text('Atur Titik Ambil & Tujuan'), findsNothing);
-  });
+      final router = await _pumpChatbot(
+        tester,
+        serviceType: entry.key,
+        chatbotApiService: fakeService,
+        authSession: _buildAuthenticatedSessionWithoutAddress(),
+      );
+
+      expect(find.text('Alamat Saya Screen'), findsOneWidget);
+
+      router.pop();
+      await _pumpChatbotFrame(tester);
+
+      expect(find.textContaining(entry.value), findsOneWidget);
+      expect(find.text('Isi Alamat Saya'), findsOneWidget);
+      expect(find.text('Atur Titik Ambil & Tujuan'), findsNothing);
+      expect(find.text('Atur Titik Jemput & Tujuan'), findsNothing);
+
+      await _sendMessage(tester, 'coba mulai order');
+
+      expect(fakeService.callCount, 0);
+      expect(find.text('Alamat Saya Screen'), findsOneWidget);
+    });
+  }
 
   testWidgets('show api error message from chatbot service', (
     WidgetTester tester,
@@ -269,7 +289,7 @@ void main() {
   });
 }
 
-Future<void> _pumpChatbot(
+Future<GoRouter> _pumpChatbot(
   WidgetTester tester, {
   required String serviceType,
   required ChatbotApiService chatbotApiService,
@@ -289,7 +309,9 @@ Future<void> _pumpChatbot(
       GoRoute(
         path: '/addresses',
         builder: (BuildContext context, GoRouterState state) {
-          return const Scaffold(body: SizedBox.shrink());
+          return const Scaffold(
+            body: Center(child: Text('Alamat Saya Screen')),
+          );
         },
       ),
     ],
@@ -311,6 +333,8 @@ Future<void> _pumpChatbot(
   );
 
   await _pumpChatbotFrame(tester);
+
+  return router;
 }
 
 Future<void> _sendMessage(WidgetTester tester, String message) async {
@@ -322,6 +346,7 @@ Future<void> _sendMessage(WidgetTester tester, String message) async {
 Future<void> _pumpChatbotFrame(WidgetTester tester) async {
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 350));
+  await tester.pumpAndSettle();
 }
 
 AuthSessionState _buildAuthenticatedSession() {

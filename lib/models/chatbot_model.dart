@@ -2,6 +2,7 @@ import '../utils/order_formatters.dart';
 
 enum ChatbotIntent {
   pesanMakanan,
+  shoppingOrder,
   courierOrder,
   rideOrder,
   outOfDomain,
@@ -29,6 +30,104 @@ class ChatbotMatchedItem {
     required this.restaurantId,
     required this.restaurantName,
   });
+}
+
+class ChatbotShoppingItem {
+  final int? id;
+  final int? menuId;
+  final String itemSource;
+  final String name;
+  final int quantity;
+  final double unitPrice;
+  final double subtotal;
+  final bool isAvailable;
+  final bool isHeavy;
+  final String? notes;
+
+  const ChatbotShoppingItem({
+    this.id,
+    this.menuId,
+    required this.itemSource,
+    required this.name,
+    required this.quantity,
+    required this.unitPrice,
+    required this.subtotal,
+    required this.isAvailable,
+    required this.isHeavy,
+    this.notes,
+  });
+
+  factory ChatbotShoppingItem.fromJson(Map<String, dynamic> json) {
+    return ChatbotShoppingItem(
+      id: int.tryParse(json['id']?.toString() ?? ''),
+      menuId: int.tryParse(json['menu_id']?.toString() ?? ''),
+      itemSource: (json['item_source'] ?? 'MANUAL').toString(),
+      name: (json['name'] ?? json['menu_name'] ?? '-').toString(),
+      quantity: int.tryParse(json['quantity']?.toString() ?? '') ?? 1,
+      unitPrice: _asDouble(json['unit_price']),
+      subtotal: _asDouble(json['subtotal'] ?? json['line_total']),
+      isAvailable: json['is_available'] != false,
+      isHeavy: json['is_heavy'] == true,
+      notes: json['notes']?.toString(),
+    );
+  }
+}
+
+class ChatbotShoppingDraft {
+  final Map<String, dynamic>? merchant;
+  final Map<String, dynamic>? delivery;
+  final List<ChatbotShoppingItem> items;
+  final bool readyToConfirm;
+
+  const ChatbotShoppingDraft({
+    required this.merchant,
+    required this.delivery,
+    required this.items,
+    required this.readyToConfirm,
+  });
+
+  factory ChatbotShoppingDraft.fromJson(Map<String, dynamic> json) {
+    final rawItems = (json['items'] is List<dynamic>)
+        ? json['items'] as List<dynamic>
+        : const <dynamic>[];
+
+    return ChatbotShoppingDraft(
+      merchant: (json['merchant'] is Map<String, dynamic>)
+          ? json['merchant'] as Map<String, dynamic>
+          : null,
+      delivery: (json['delivery'] is Map<String, dynamic>)
+          ? json['delivery'] as Map<String, dynamic>
+          : null,
+      items: rawItems
+          .whereType<Map<String, dynamic>>()
+          .map(ChatbotShoppingItem.fromJson)
+          .toList(growable: false),
+      readyToConfirm: json['ready_to_confirm'] == true,
+    );
+  }
+}
+
+class ChatbotPricing {
+  final double subtotal;
+  final double deliveryFee;
+  final double serviceFee;
+  final double totalPrice;
+
+  const ChatbotPricing({
+    required this.subtotal,
+    required this.deliveryFee,
+    required this.serviceFee,
+    required this.totalPrice,
+  });
+
+  factory ChatbotPricing.fromJson(Map<String, dynamic> json) {
+    return ChatbotPricing(
+      subtotal: _asDouble(json['subtotal']),
+      deliveryFee: _asDouble(json['delivery_fee']),
+      serviceFee: _asDouble(json['service_fee']),
+      totalPrice: _asDouble(json['total_price']),
+    );
+  }
 }
 
 class ChatbotValidation {
@@ -61,6 +160,8 @@ class ChatbotResult {
   final ChatbotValidation? validation;
   final Map<String, dynamic>? actionPayloads;
   final String? assistantText;
+  final ChatbotShoppingDraft? shopping;
+  final ChatbotPricing? pricing;
   final bool isOrderCreated;
   final int? createdOrderId;
   final String? createdOrderNumber;
@@ -76,6 +177,8 @@ class ChatbotResult {
     required this.validation,
     required this.actionPayloads,
     required this.assistantText,
+    required this.shopping,
+    required this.pricing,
     required this.isOrderCreated,
     required this.createdOrderId,
     required this.createdOrderNumber,
@@ -90,22 +193,34 @@ class ChatbotResult {
     final intentValue = data['intent']?.toString().toLowerCase() ?? '';
     final intent = switch (intentValue) {
       'pesan_makanan' => ChatbotIntent.pesanMakanan,
+      'shopping_order' => ChatbotIntent.shoppingOrder,
       'courier_order' => ChatbotIntent.courierOrder,
       'ride_order' => ChatbotIntent.rideOrder,
       'out_of_domain' => ChatbotIntent.outOfDomain,
       _ => ChatbotIntent.unknown,
     };
 
+    final shoppingRaw = (data['shopping'] is Map<String, dynamic>)
+        ? data['shopping'] as Map<String, dynamic>
+        : null;
+
     final rawItems = (data['items'] is List<dynamic>)
         ? data['items'] as List<dynamic>
+        : (shoppingRaw?['items'] is List<dynamic>)
+        ? shoppingRaw!['items'] as List<dynamic>
         : const <dynamic>[];
 
     final items = rawItems
         .whereType<Map<String, dynamic>>()
         .map(
           (item) => ChatbotOrderItem(
-            menu: item['menu']?.toString() ?? '-',
-            qty: int.tryParse(item['qty']?.toString() ?? '') ?? 1,
+            menu: (item['menu'] ?? item['name'] ?? item['menu_name'] ?? '-')
+                .toString(),
+            qty:
+                int.tryParse(
+                  (item['qty'] ?? item['quantity'])?.toString() ?? '',
+                ) ??
+                1,
           ),
         )
         .toList(growable: false);
@@ -142,6 +257,12 @@ class ChatbotResult {
       validation: validation,
       actionPayloads: actionPayloads,
       assistantText: data['assistant_text']?.toString(),
+      shopping: shoppingRaw == null
+          ? null
+          : ChatbotShoppingDraft.fromJson(shoppingRaw),
+      pricing: (data['pricing'] is Map<String, dynamic>)
+          ? ChatbotPricing.fromJson(data['pricing'] as Map<String, dynamic>)
+          : null,
       isOrderCreated: isOrderCreated,
       createdOrderId: int.tryParse(orderRaw['id']?.toString() ?? ''),
       createdOrderNumber: orderRaw['order_number']?.toString(),
@@ -245,8 +366,27 @@ class ChatbotResult {
       return 'Data kurir belum lengkap. Mohon isi lokasi ambil, tujuan kirim, dan isi paket.';
     }
 
+    if (intent == ChatbotIntent.shoppingOrder) {
+      if (isOrderCreated) {
+        return createdOrderNumber != null &&
+                createdOrderNumber!.trim().isNotEmpty
+            ? 'Order titip belanja berhasil dibuat dengan nomor $createdOrderNumber.'
+            : 'Order titip belanja berhasil dibuat.';
+      }
+
+      if (validation != null && validation!.rejectionReasons.isNotEmpty) {
+        final buffer = StringBuffer('Draft titip belanja belum lengkap:\n');
+        for (final reason in validation!.rejectionReasons) {
+          buffer.writeln('- $reason');
+        }
+        return buffer.toString().trimRight();
+      }
+
+      return 'Tulis merchant dan item yang ingin dibeli, lalu pilih titik antar.';
+    }
+
     if (intent == ChatbotIntent.outOfDomain) {
-      return 'Aku fokus bantu pemesanan makanan. Coba tulis menu dan jumlahnya, ya.';
+      return 'Aku fokus bantu titip belanja. Tulis merchant dan item yang ingin dibeli, ya.';
     }
 
     if (validation != null && !validation!.isValidOrder) {
@@ -421,4 +561,12 @@ DateTime? _parseIsoDateTime(dynamic raw) {
   }
 
   return parseBackendDateTime(value);
+}
+
+double _asDouble(dynamic value) {
+  if (value is num) {
+    return value.toDouble();
+  }
+
+  return double.tryParse(value?.toString() ?? '') ?? 0;
 }

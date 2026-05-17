@@ -68,6 +68,35 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> patch(
+    String path, {
+    Map<String, dynamic>? body,
+    Map<String, dynamic>? queryParams,
+    Map<String, String>? headers,
+    Duration? timeout,
+  }) async {
+    final uri = _buildUri(path, queryParams);
+    final requestTimeout = timeout ?? _timeout;
+
+    try {
+      final response = await _httpClient
+          .patch(
+            uri,
+            headers: _defaultHeaders(headers),
+            body: jsonEncode(body ?? <String, dynamic>{}),
+          )
+          .timeout(requestTimeout);
+
+      return _decodeResponse(response);
+    } on TimeoutException catch (error) {
+      _logNetworkFailure('PATCH', uri, error);
+      throw const ApiException('Permintaan timeout. Coba lagi.');
+    } on http.ClientException catch (error) {
+      _logNetworkFailure('PATCH', uri, error);
+      throw const ApiException('Tidak dapat terhubung ke server API.');
+    }
+  }
+
   Future<Map<String, dynamic>> delete(
     String path, {
     Map<String, dynamic>? body,

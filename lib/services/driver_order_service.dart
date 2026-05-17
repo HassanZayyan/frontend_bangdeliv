@@ -134,6 +134,31 @@ class DriverOrderService {
     );
   }
 
+  Future<DriverOrderModel> updateShoppingItems({
+    required String orderId,
+    required List<Map<String, dynamic>> items,
+    String? receiptNote,
+  }) async {
+    final response = await _patch(
+      '/v1/driver/orders/$orderId/shopping-items',
+      body: <String, dynamic>{
+        'items': items,
+        if ((receiptNote ?? '').trim().isNotEmpty)
+          'receipt_note': receiptNote!.trim(),
+      },
+    );
+
+    final data = _extractData(response);
+    if (data.isEmpty) {
+      throw const DriverOrderApiException(
+        'Respons update nota tidak valid.',
+        statusCode: 500,
+      );
+    }
+
+    return DriverOrderModel.fromJson(data);
+  }
+
   Future<String> fetchAvailabilityStatus() async {
     final response = await _safeGet(
       '/v1/driver/availability',

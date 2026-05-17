@@ -83,6 +83,9 @@ class OrderRealtimeHub {
         onStatusChanged: (event) {
           _emit(OrderRealtimeEvent.status(orderId: orderId, status: event));
         },
+        onContentUpdated: (payload) {
+          _emit(OrderRealtimeEvent.content(orderId: orderId, payload: payload));
+        },
         onChatMessage: (message) {
           _emit(OrderRealtimeEvent.chat(orderId: orderId, message: message));
         },
@@ -197,6 +200,7 @@ class OrderRealtimeHub {
 enum OrderRealtimeEventType {
   connected,
   status,
+  content,
   location,
   chat,
   connectionIssue,
@@ -207,6 +211,7 @@ class OrderRealtimeEvent {
     required this.type,
     required this.orderId,
     this.status,
+    this.payload,
     this.latitude,
     this.longitude,
     this.heading,
@@ -231,6 +236,17 @@ class OrderRealtimeEvent {
       type: OrderRealtimeEventType.status,
       orderId: orderId,
       status: status,
+    );
+  }
+
+  factory OrderRealtimeEvent.content({
+    required int orderId,
+    required Map<String, dynamic> payload,
+  }) {
+    return OrderRealtimeEvent._(
+      type: OrderRealtimeEventType.content,
+      orderId: orderId,
+      payload: payload,
     );
   }
 
@@ -278,6 +294,7 @@ class OrderRealtimeEvent {
   final OrderRealtimeEventType type;
   final int orderId;
   final OrderStatusRealtimeEvent? status;
+  final Map<String, dynamic>? payload;
   final double? latitude;
   final double? longitude;
   final double? heading;

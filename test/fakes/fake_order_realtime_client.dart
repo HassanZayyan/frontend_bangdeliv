@@ -69,6 +69,7 @@ class FakeOrderRealtimeClient implements OrderRealtimeClient {
     void Function(double lat, double lng, double heading, DateTime updatedAt)?
     onLocation,
     void Function(OrderStatusRealtimeEvent event)? onStatusChanged,
+    void Function(Map<String, dynamic> payload)? onContentUpdated,
     void Function(OrderChatMessageModel message)? onChatMessage,
     VoidCallback? onSubscribed,
     void Function(Object error)? onConnectionIssue,
