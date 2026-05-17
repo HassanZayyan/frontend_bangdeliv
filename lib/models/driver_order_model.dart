@@ -1,6 +1,7 @@
 import '../utils/order_status.dart';
 import '../utils/order_formatters.dart';
 import '../utils/service_type.dart';
+import 'order_route_model.dart';
 
 typedef DriverOrderAction = DriverOrderActionModel;
 
@@ -39,7 +40,7 @@ class DriverOrderModel {
   final String? packagePackingNote;
   final List<DriverShoppingItemModel> shoppingItems;
   final List<DriverShoppingStopModel> shoppingStops;
-  final DriverShoppingRouteModel? shoppingRoute;
+  final OrderRouteModel? route;
   final DriverShoppingPricingModel? shoppingPricing;
   final bool hasPendingShoppingPrices;
 
@@ -78,10 +79,13 @@ class DriverOrderModel {
     this.packagePackingNote,
     this.shoppingItems = const <DriverShoppingItemModel>[],
     this.shoppingStops = const <DriverShoppingStopModel>[],
-    this.shoppingRoute,
+    OrderRouteModel? route,
+    OrderRouteModel? shoppingRoute,
     this.shoppingPricing,
     this.hasPendingShoppingPrices = false,
-  });
+  }) : route = route ?? shoppingRoute;
+
+  OrderRouteModel? get shoppingRoute => route;
 
   DriverOrderModel copyWith({
     String? acceptedAt,
@@ -126,7 +130,7 @@ class DriverOrderModel {
       packagePackingNote: packagePackingNote,
       shoppingItems: shoppingItems,
       shoppingStops: shoppingStops,
-      shoppingRoute: shoppingRoute,
+      route: route,
       shoppingPricing: shoppingPricing,
       hasPendingShoppingPrices: hasPendingShoppingPrices,
     );
@@ -250,7 +254,7 @@ class DriverOrderModel {
               shoppingItems,
             )
           : shoppingStops,
-      shoppingRoute: DriverShoppingRouteModel.fromRaw(json['shopping_route']),
+      route: OrderRouteModel.fromRaw(json['route'] ?? json['shopping_route']),
       shoppingPricing: pricingRaw == null
           ? null
           : DriverShoppingPricingModel.fromJson(pricingRaw),
@@ -418,36 +422,7 @@ class DriverShoppingStopModel {
   }
 }
 
-class DriverShoppingRouteModel {
-  final List<int> orderedPickupLocationIds;
-  final String? encodedPolyline;
-
-  const DriverShoppingRouteModel({
-    this.orderedPickupLocationIds = const <int>[],
-    this.encodedPolyline,
-  });
-
-  factory DriverShoppingRouteModel.fromJson(Map<String, dynamic> json) {
-    return DriverShoppingRouteModel(
-      orderedPickupLocationIds: (json['ordered_pickup_location_ids'] is List)
-          ? (json['ordered_pickup_location_ids'] as List)
-                .map((value) => int.tryParse(value?.toString() ?? '') ?? 0)
-                .where((value) => value > 0)
-                .toList(growable: false)
-          : const <int>[],
-      encodedPolyline: (json['encoded_polyline'] ?? json['encodedPolyline'])
-          ?.toString(),
-    );
-  }
-
-  static DriverShoppingRouteModel? fromRaw(dynamic raw) {
-    if (raw is! Map<String, dynamic>) {
-      return null;
-    }
-
-    return DriverShoppingRouteModel.fromJson(raw);
-  }
-}
+typedef DriverShoppingRouteModel = OrderRouteModel;
 
 class DriverShoppingMerchantModel {
   final int? id;

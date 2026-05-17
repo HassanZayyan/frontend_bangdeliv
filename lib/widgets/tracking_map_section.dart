@@ -518,7 +518,7 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
 
     return {
       Polyline(
-        polylineId: const PolylineId('shopping_route'),
+        polylineId: const PolylineId('order_route'),
         points: points,
         color: AppColors.primary,
         width: 5,

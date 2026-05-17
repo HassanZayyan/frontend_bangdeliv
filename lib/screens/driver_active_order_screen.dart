@@ -359,7 +359,7 @@ class _MapCardState extends State<_MapCard> {
 
   List<_DriverPickupPoint> _pickupPoints() {
     final orderedIds =
-        widget.order.shoppingRoute?.orderedPickupLocationIds ?? const <int>[];
+        widget.order.route?.orderedPickupLocationIds ?? const <int>[];
     final activeStops = widget.order.shoppingStops
         .where((stop) => stop.isActive)
         .where(
@@ -407,14 +407,14 @@ class _MapCardState extends State<_MapCard> {
   }
 
   Set<Polyline> _buildPolylines() {
-    final points = _decodePolyline(widget.order.shoppingRoute?.encodedPolyline);
+    final points = _decodePolyline(widget.order.route?.encodedPolyline);
     if (points.length < 2) {
       return const <Polyline>{};
     }
 
     return {
       Polyline(
-        polylineId: const PolylineId('shopping_route'),
+        polylineId: const PolylineId('order_route'),
         points: points,
         color: AppColors.primary,
         width: 5,
