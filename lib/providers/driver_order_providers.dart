@@ -729,6 +729,64 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     }
   }
 
+  Future<String?> recordShoppingPickupFailed({
+    required String orderId,
+    required int pickupLocationId,
+    required String reason,
+  }) async {
+    final current = state.asData?.value;
+    if (current == null) {
+      return 'Data order belum siap.';
+    }
+
+    if (current.isProcessing(orderId)) {
+      return null;
+    }
+
+    final processingOrderIds = <String>{...current.processingOrderIds, orderId};
+    state = AsyncData(current.copyWith(processingOrderIds: processingOrderIds));
+
+    try {
+      final updated = await ref
+          .read(driverOrderServiceProvider)
+          .recordShoppingPickupFailed(
+            orderId: orderId,
+            pickupLocationId: pickupLocationId,
+            reason: reason,
+          );
+
+      final latest = state.asData?.value;
+      if (latest == null) {
+        return null;
+      }
+
+      final cleanedProcessingIds = <String>{...latest.processingOrderIds}
+        ..remove(orderId);
+      state = AsyncData(
+        latest.copyWith(
+          running: _upsertRunningOrder(latest.running, updated),
+          processingOrderIds: cleanedProcessingIds,
+        ),
+      );
+      _syncRunningOrderRealtime(state.asData!.value);
+
+      ref.invalidate(driverOrderDetailProvider(orderId));
+      return null;
+    } catch (error) {
+      final latest = state.asData?.value;
+      if (latest == null) {
+        return error.toString();
+      }
+
+      final rollbackProcessingIds = <String>{...latest.processingOrderIds}
+        ..remove(orderId);
+      state = AsyncData(
+        latest.copyWith(processingOrderIds: rollbackProcessingIds),
+      );
+      return error.toString();
+    }
+  }
+
   List<DriverOrderModel> _upsertRunningOrder(
     List<DriverOrderModel> running,
     DriverOrderModel updated,
@@ -1106,6 +1164,36 @@ final driverOrdersProvider =
 final driverOrderDetailProvider =
     FutureProvider.family<DriverOrderModel, String>((ref, orderId) async {
       return ref.read(driverOrderServiceProvider).fetchOrderDetail(orderId);
+    });
+
+final driverOrderDetailRealtimeProvider = Provider.autoDispose
+    .family<void, String>((ref, orderId) {
+      final parsedOrderId = int.tryParse(orderId.trim());
+      final session = ref.watch(authSessionProvider);
+      if (parsedOrderId == null ||
+          parsedOrderId <= 0 ||
+          !session.isAuthenticated ||
+          session.role != SessionUserRole.driver ||
+          session.profile == null) {
+        return;
+      }
+
+      final hub = ref.watch(orderRealtimeHubProvider);
+      unawaited(hub.retainOrder(parsedOrderId));
+
+      final subscription = hub.events
+          .where((event) => event.orderId == parsedOrderId)
+          .listen((event) {
+            if (event.type == OrderRealtimeEventType.content ||
+                event.type == OrderRealtimeEventType.status) {
+              ref.invalidate(driverOrderDetailProvider(orderId));
+            }
+          });
+
+      ref.onDispose(() {
+        unawaited(subscription.cancel());
+        hub.releaseOrder(parsedOrderId);
+      });
     });
 
 class DriverHistoryNotifier

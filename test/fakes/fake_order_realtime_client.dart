@@ -22,6 +22,8 @@ class FakeOrderRealtimeClient implements OrderRealtimeClient {
       <int, void Function(OrderChatMessageModel)>{};
   final Map<int, void Function(OrderStatusRealtimeEvent)> _orderStatusHandlers =
       <int, void Function(OrderStatusRealtimeEvent)>{};
+  final Map<int, void Function(Map<String, dynamic>)> _orderContentHandlers =
+      <int, void Function(Map<String, dynamic>)>{};
 
   @override
   Future<void> connect() async {
@@ -90,6 +92,9 @@ class FakeOrderRealtimeClient implements OrderRealtimeClient {
     if (onStatusChanged != null) {
       _orderStatusHandlers[orderId] = onStatusChanged;
     }
+    if (onContentUpdated != null) {
+      _orderContentHandlers[orderId] = onContentUpdated;
+    }
     Future<void>.microtask(() => onSubscribed?.call());
 
     return _subscription(
@@ -97,6 +102,7 @@ class FakeOrderRealtimeClient implements OrderRealtimeClient {
         orderTrackingSubscriptions.remove(orderId);
         _orderChatHandlers.remove(orderId);
         _orderStatusHandlers.remove(orderId);
+        _orderContentHandlers.remove(orderId);
       },
     );
   }
@@ -115,6 +121,13 @@ class FakeOrderRealtimeClient implements OrderRealtimeClient {
 
   void emitOrderStatus(int orderId, OrderStatusRealtimeEvent event) {
     _orderStatusHandlers[orderId]?.call(event);
+  }
+
+  void emitOrderContentUpdated(
+    int orderId, [
+    Map<String, dynamic> payload = const <String, dynamic>{},
+  ]) {
+    _orderContentHandlers[orderId]?.call(payload);
   }
 
   @override

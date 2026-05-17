@@ -307,6 +307,7 @@ class TrackOrderScreen extends ConsumerWidget {
               child: shouldShowMap
                   ? TrackingMapSection(
                       dropoffAddress: order.deliveryAddress,
+                      pickupStops: _shoppingPickupStops(detail),
                       pickupLatitude: detail.pickupLatitude,
                       pickupLongitude: detail.pickupLongitude,
                       dropoffLatitude: detail.dropoffLatitude,
@@ -555,6 +556,30 @@ class TrackOrderScreen extends ConsumerWidget {
     }
 
     return order.estimatedDelivery != null;
+  }
+
+  List<TrackingMapPickupPoint> _shoppingPickupStops(
+    CustomerOrderDetailModel detail,
+  ) {
+    if (!detail.isShoppingOrder) {
+      return const <TrackingMapPickupPoint>[];
+    }
+
+    return detail.shoppingStops
+        .where(
+          (stop) =>
+              stop.merchant.latitude != null && stop.merchant.longitude != null,
+        )
+        .map(
+          (stop) => TrackingMapPickupPoint(
+            id: stop.pickupLocationId.toString(),
+            label:
+                'Merchant ${stop.sequenceNo <= 0 ? 1 : stop.sequenceNo}: ${stop.merchant.name}',
+            latitude: stop.merchant.latitude!,
+            longitude: stop.merchant.longitude!,
+          ),
+        )
+        .toList(growable: false);
   }
 
   // ---------------------------------------------------------------------------
@@ -1711,9 +1736,7 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(result.message),
-        backgroundColor: result.deliveryFeeChanged
-            ? AppColors.success
-            : null,
+        backgroundColor: result.deliveryFeeChanged ? AppColors.success : null,
       ),
     );
   }
