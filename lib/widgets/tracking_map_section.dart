@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../config/app_colors.dart';
+import '../utils/map_marker_icons.dart';
 import '../utils/order_formatters.dart';
 
 class TrackingMapPickupPoint {
@@ -62,6 +65,7 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
   bool _isProgrammaticCameraMove = false;
   LatLng? _lastFocusedDriverPosition;
   DateTime? _lastFocusedDriverUpdatedAt;
+  BitmapDescriptor? _driverMarkerIcon;
 
   static const LatLng _fallbackCenter = LatLng(-7.0503, 110.4370);
   static const double _driverFollowZoom = 16;
@@ -70,6 +74,15 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
   void initState() {
     super.initState();
     _isFollowingDriver = widget.followDriver;
+    unawaited(_loadDriverMarkerIcon());
+  }
+
+  Future<void> _loadDriverMarkerIcon() async {
+    final icon = await buildMotorDriverMarker();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _driverMarkerIcon = icon);
   }
 
   @override
@@ -483,9 +496,9 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
         Marker(
           markerId: const MarkerId('driver'),
           position: LatLng(widget.driverLatitude!, widget.driverLongitude!),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueOrange,
-          ),
+          icon:
+              _driverMarkerIcon ??
+              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
           infoWindow: const InfoWindow(title: 'Posisi Driver'),
         ),
       );

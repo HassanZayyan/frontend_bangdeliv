@@ -1186,7 +1186,14 @@ final driverOrderDetailRealtimeProvider = Provider.autoDispose
           .listen((event) {
             if (event.type == OrderRealtimeEventType.content ||
                 event.type == OrderRealtimeEventType.status) {
-              ref.invalidate(driverOrderDetailProvider(orderId));
+              final delay = event.type == OrderRealtimeEventType.content
+                  ? const Duration(milliseconds: 400)
+                  : Duration.zero;
+              Timer(delay, () {
+                if (ref.mounted) {
+                  ref.invalidate(driverOrderDetailProvider(orderId));
+                }
+              });
             }
           });
 
