@@ -12,8 +12,10 @@ class RouteLocationPickerArgs {
     this.defaultPickupLongitude,
     this.pickupInitialLatitude,
     this.pickupInitialLongitude,
+    this.pickupInitialAddress,
     this.destinationInitialLatitude,
     this.destinationInitialLongitude,
+    this.destinationInitialAddress,
   });
 
   final String serviceType;
@@ -28,8 +30,10 @@ class RouteLocationPickerArgs {
   final double? defaultPickupLongitude;
   final double? pickupInitialLatitude;
   final double? pickupInitialLongitude;
+  final String? pickupInitialAddress;
   final double? destinationInitialLatitude;
   final double? destinationInitialLongitude;
+  final String? destinationInitialAddress;
 }
 
 class RouteLocationPickerPoint {

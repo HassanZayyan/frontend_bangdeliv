@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
@@ -610,89 +611,126 @@ class TrackOrderScreen extends ConsumerWidget {
     );
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      padding: const EdgeInsets.fromLTRB(8, 14, 8, 14),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 16,
+            spreadRadius: 2,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: List.generate(stepLabels.length * 2 - 1, (i) {
-          if (i.isOdd) {
-            final stepIndex = (i - 1) ~/ 2;
-            final isPastConnector = stepIndex < currentIndex;
-            return Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 9),
-                child: Container(
-                  height: 2,
-                  decoration: BoxDecoration(
-                    color: isPastConnector
-                        ? AppColors.primary
-                        : AppColors.border,
-                    borderRadius: BorderRadius.circular(1),
-                  ),
-                ),
-              ),
-            );
-          }
-
-          final stepIndex = i ~/ 2;
+        children: List.generate(stepLabels.length, (stepIndex) {
+          final isFirst = stepIndex == 0;
+          final isLast = stepIndex == stepLabels.length - 1;
           final isCurrentStep = stepIndex == currentIndex;
           final isPast =
               stepIndex < currentIndex ||
               (shouldCheckFinalStep && isCurrentStep);
           final isCurrent = isCurrentStep && !shouldCheckFinalStep;
 
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                width: isCurrent ? 22 : 18,
-                height: isCurrent ? 22 : 18,
-                decoration: BoxDecoration(
-                  color: (isPast || isCurrent)
-                      ? AppColors.primary
-                      : AppColors.border,
-                  shape: BoxShape.circle,
-                  border: isCurrent
-                      ? Border.all(
-                          color: AppColors.primary.withValues(alpha: 0.25),
-                          width: 4,
-                        )
-                      : null,
-                ),
-                child: Center(
-                  child: isPast
-                      ? const Icon(Icons.check, color: Colors.white, size: 10)
-                      : isCurrent
-                      ? Container(
-                          width: 6,
-                          height: 6,
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
+          final leftLineColor = (stepIndex <= currentIndex)
+              ? AppColors.primary
+              : AppColors.border;
+
+          final rightLineColor = (stepIndex < currentIndex)
+              ? AppColors.primary
+              : AppColors.border;
+
+          return Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  height: 22,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              height: 2,
+                              color: isFirst
+                                  ? Colors.transparent
+                                  : leftLineColor,
+                            ),
                           ),
-                        )
-                      : null,
+                          Expanded(
+                            child: Container(
+                              height: 2,
+                              color: isLast
+                                  ? Colors.transparent
+                                  : rightLineColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        width: isCurrent ? 22 : 18,
+                        height: isCurrent ? 22 : 18,
+                        decoration: BoxDecoration(
+                          color: (isPast || isCurrent)
+                              ? AppColors.primary
+                              : AppColors.border,
+                          shape: BoxShape.circle,
+                          border: isCurrent
+                              ? Border.all(
+                                  color: AppColors.primary.withValues(
+                                    alpha: 0.25,
+                                  ),
+                                  width: 4,
+                                )
+                              : null,
+                        ),
+                        child: Center(
+                          child: isPast
+                              ? const Icon(
+                                  Icons.check,
+                                  color: Colors.white,
+                                  size: 10,
+                                )
+                              : isCurrent
+                              ? Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: const BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                  ),
+                                )
+                              : null,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                stepLabels[stepIndex],
-                style: TextStyle(
-                  fontSize: 9.5,
-                  fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w500,
-                  color: isCurrent
-                      ? AppColors.primary
-                      : isPast
-                      ? AppColors.textPrimary
-                      : AppColors.textSecondary,
+                const SizedBox(height: 5),
+                Text(
+                  stepLabels[stepIndex],
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.visible,
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w500,
+                    color: isCurrent
+                        ? AppColors.primary
+                        : isPast
+                        ? AppColors.textPrimary
+                        : AppColors.textSecondary,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           );
         }),
       ),
@@ -738,7 +776,15 @@ class TrackOrderScreen extends ConsumerWidget {
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 16,
+            spreadRadius: 2,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
       ),
       child: Column(
         children: [
@@ -771,8 +817,8 @@ class TrackOrderScreen extends ConsumerWidget {
                           alignment: Alignment.centerLeft,
                           child: Text(
                             order.orderNumber,
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
+                            style: GoogleFonts.poppins(
+                              color: AppColors.primaryDark,
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
                               height: 1.1,
@@ -1007,7 +1053,15 @@ class TrackOrderScreen extends ConsumerWidget {
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 16,
+            spreadRadius: 2,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1019,22 +1073,26 @@ class TrackOrderScreen extends ConsumerWidget {
                 height: 50,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [
-                      AppColors.primary.withValues(alpha: 0.18),
-                      AppColors.primary.withValues(alpha: 0.08),
-                    ],
+                    colors: [AppColors.primary, AppColors.primaryDark],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
                 child: Center(
                   child: Text(
                     driverName[0].toUpperCase(),
-                    style: const TextStyle(
-                      color: AppColors.primary,
+                    style: GoogleFonts.poppins(
+                      color: AppColors.white,
                       fontWeight: FontWeight.bold,
-                      fontSize: 20,
+                      fontSize: 22,
                     ),
                   ),
                 ),
@@ -1049,15 +1107,16 @@ class TrackOrderScreen extends ConsumerWidget {
                       style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       driverName,
-                      style: const TextStyle(
+                      style: GoogleFonts.poppins(
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.w700,
-                        fontSize: 15,
+                        fontSize: 16,
                       ),
                     ),
                   ],
@@ -1106,8 +1165,8 @@ class TrackOrderScreen extends ConsumerWidget {
     CustomerOrderDetailModel detail, {
     bool showEta = true,
   }) {
-    final paymentMethod = _paymentMethodLabel(detail.paymentMethod);
-    final paymentStatus = _paymentStatusLabel(detail.paymentStatus);
+    final paymentMethod = paymentMethodLabel(detail.paymentMethod);
+    final paymentStatus = paymentStatusLabel(detail.paymentStatus);
     final rows = <_InfoRow>[
       _InfoRow('No. Order', order.orderNumber),
       _InfoRow('Layanan', order.serviceTypeLabel),
@@ -1169,7 +1228,7 @@ class TrackOrderScreen extends ConsumerWidget {
     CustomerOrderSummaryModel order,
     CustomerOrderDetailModel detail,
   ) {
-    final isPaid = _isPaymentPaid(detail.paymentStatus);
+    final isPaid = isPaymentPaid(detail.paymentStatus);
     final statusColor = isPaid ? AppColors.success : AppColors.primary;
     final isCourier =
         normalizeServiceTypeCode(order.serviceTypeCode) ==
@@ -1193,11 +1252,11 @@ class TrackOrderScreen extends ConsumerWidget {
             runSpacing: 8,
             children: [
               _paymentChip(
-                _paymentMethodLabel(detail.paymentMethod),
+                paymentMethodLabel(detail.paymentMethod),
                 statusColor,
               ),
               _paymentChip(
-                _paymentStatusLabel(detail.paymentStatus),
+                paymentStatusLabel(detail.paymentStatus),
                 statusColor,
               ),
             ],
@@ -1243,19 +1302,6 @@ class TrackOrderScreen extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  bool _isPaymentPaid(String? status) {
-    return (status ?? '').trim().toLowerCase() == 'paid';
-  }
-
-  String _paymentStatusLabel(String? status) {
-    return _isPaymentPaid(status) ? 'Sudah dibayar' : 'Belum dibayar';
-  }
-
-  String _paymentMethodLabel(String? method) {
-    final normalized = (method ?? 'COD').trim().toUpperCase();
-    return normalized.isEmpty ? 'COD' : normalized;
   }
 
   // ---------------------------------------------------------------------------
@@ -1442,7 +1488,15 @@ class TrackOrderScreen extends ConsumerWidget {
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 16,
+            spreadRadius: 2,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -24,12 +24,14 @@ class ChatbotRoutePointHint {
     required this.label,
     this.initialLatitude,
     this.initialLongitude,
+    this.address,
   });
 
   final String target;
   final String label;
   final double? initialLatitude;
   final double? initialLongitude;
+  final String? address;
 }
 
 class ChatbotLocationPatch {
@@ -992,6 +994,11 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         label: pointLabel,
         initialLatitude: _toDouble(source['initial_latitude']),
         initialLongitude: _toDouble(source['initial_longitude']),
+        address: (source['address']?.toString().trim() ?? '').isEmpty
+            ? (source['formatted_address']?.toString().trim() ?? '').isEmpty
+                  ? null
+                  : source['formatted_address']?.toString().trim()
+            : source['address']?.toString().trim(),
       );
     }
 

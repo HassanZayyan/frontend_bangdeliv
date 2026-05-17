@@ -19,8 +19,20 @@ class RouteLocationPickerScreen extends StatefulWidget {
 
 class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
   static const LatLng _fallbackCenter = LatLng(-7.3294948, 110.5080427);
+  static const _bodyHintStyle = TextStyle(
+    color: AppColors.textSecondary,
+    fontSize: 12,
+    height: 1.35,
+  );
+  static const _activeAddressStyle = TextStyle(
+    color: AppColors.textPrimary,
+    fontSize: 12.5,
+    fontWeight: FontWeight.w500,
+    height: 1.35,
+  );
 
   GoogleMapController? _mapController;
+  final SearchController _searchController = SearchController();
   final _mapsLookup = const GoogleMapsLookupService();
   late LatLng _cameraTarget;
   late double _initialZoom;
@@ -36,6 +48,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
   String? _mapCenterAddress;
   bool _isLocationPermissionGranted = false;
   String? _statusHint;
+  bool _skipNextCameraIdleGeocode = false;
 
   String get _pickupTarget => widget.args.pickupTarget;
   String get _destinationTarget => widget.args.destinationTarget;
@@ -48,18 +61,29 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
       widget.args.pickupInitialLatitude ?? widget.args.defaultPickupLatitude,
       widget.args.pickupInitialLongitude ?? widget.args.defaultPickupLongitude,
     );
+    final hasExplicitPickupInitial =
+        widget.args.pickupInitialLatitude != null &&
+        widget.args.pickupInitialLongitude != null;
     final destinationInitial = _validLatLng(
       widget.args.destinationInitialLatitude,
       widget.args.destinationInitialLongitude,
     );
+    final hasExplicitDestinationInitial =
+        widget.args.destinationInitialLatitude != null &&
+        widget.args.destinationInitialLongitude != null;
 
     if (pickupInitial != null) {
+      final pickupInitialAddress =
+          _mapsLookup.cleanAddress(widget.args.pickupInitialAddress) ??
+          (hasExplicitPickupInitial
+              ? null
+              : _mapsLookup.cleanAddress(widget.args.defaultPickupAddress));
       _pickupPoint = _RoutePoint(
         target: _pickupTarget,
         latitude: pickupInitial.latitude,
         longitude: pickupInitial.longitude,
-        address: widget.args.defaultPickupAddress,
-        source: 'profile_default',
+        address: pickupInitialAddress,
+        source: hasExplicitPickupInitial ? 'existing_route' : 'profile_default',
       );
     }
     if (destinationInitial != null) {
@@ -67,7 +91,8 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
         target: _destinationTarget,
         latitude: destinationInitial.latitude,
         longitude: destinationInitial.longitude,
-        source: 'map_pin',
+        address: _mapsLookup.cleanAddress(widget.args.destinationInitialAddress),
+        source: hasExplicitDestinationInitial ? 'existing_route' : 'map_pin',
       );
     }
 
@@ -82,12 +107,16 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
         _moveToCurrentLocation();
       });
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _hydrateInitialRouteAddresses();
+    });
     _checkLocationPermission();
   }
 
   @override
   void dispose() {
     _mapController?.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -120,6 +149,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
           widget.args.title,
           style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
         ),
+        centerTitle: true,
         backgroundColor: AppColors.white,
         elevation: 0,
       ),
@@ -128,28 +158,8 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: SegmentedButton<String>(
-                segments: [
-                  ButtonSegment(
-                    value: _pickupTarget,
-                    label: Text(widget.args.pickupLabel),
-                    icon: const Icon(Icons.trip_origin, size: 18),
-                  ),
-                  ButtonSegment(
-                    value: _destinationTarget,
-                    label: Text(widget.args.destinationLabel),
-                    icon: const Icon(Icons.location_on_outlined, size: 18),
-                  ),
-                ],
-                selected: {_activeTarget},
-                onSelectionChanged: (selection) {
-                  _selectTarget(selection.first);
-                },
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: SearchAnchor(
+                searchController: _searchController,
                 builder: (BuildContext context, SearchController controller) {
                   return SearchBar(
                     controller: controller,
@@ -163,14 +173,26 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                       if (query.isEmpty) return;
                       controller.closeView(query);
                       await _goToPlace(fallbackQuery: query);
+                      controller.clear();
                       FocusManager.instance.primaryFocus?.unfocus();
                     },
                     leading: const Icon(Icons.search),
                     hintText: 'Cari alamat / lokasi...',
+                    hintStyle: const WidgetStatePropertyAll(
+                      TextStyle(color: AppColors.textSecondary, fontSize: 16),
+                    ),
+                    side: const WidgetStatePropertyAll(
+                      BorderSide(color: AppColors.border),
+                    ),
+                    shape: WidgetStatePropertyAll(
+                      RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
                     backgroundColor: WidgetStatePropertyAll(
                       AppColors.white.withValues(alpha: 0.95),
                     ),
-                    elevation: const WidgetStatePropertyAll(2),
+                    elevation: const WidgetStatePropertyAll(1),
                   );
                 },
                 suggestionsBuilder:
@@ -193,6 +215,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                               placeId: prediction.placeId,
                               fallbackQuery: prediction.description,
                             );
+                            controller.clear();
                             FocusManager.instance.primaryFocus?.unfocus();
                           },
                         );
@@ -204,7 +227,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
             if (showMapPanel)
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(16),
                     child: Stack(
@@ -225,29 +248,24 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                           },
                           onCameraMove: (position) {
                             _cameraTarget = position.target;
-                            if (_isMapSelectionActive &&
-                                _mapCenterAddress != null) {
-                              setState(() => _mapCenterAddress = null);
-                            }
                           },
                           onCameraIdle: _handleMapCameraIdle,
                         ),
-                        IgnorePointer(
-                          child: Center(
-                            child: Padding(
-                              padding: const EdgeInsets.only(bottom: 44),
-                              child: Icon(
-                                _activeTarget == _pickupTarget
-                                    ? Icons.trip_origin
-                                    : Icons.location_pin,
-                                color: _activeTarget == _pickupTarget
-                                    ? AppColors.success
-                                    : AppColors.error,
-                                size: 44,
+                        if (_isMapSelectionActive)
+                          IgnorePointer(
+                            child: Center(
+                              child: Padding(
+                                padding: const EdgeInsets.only(bottom: 44),
+                                child: Icon(
+                                  Icons.location_pin,
+                                  color: _activeTarget == _pickupTarget
+                                      ? AppColors.success
+                                      : AppColors.error,
+                                  size: 44,
+                                ),
                               ),
                             ),
                           ),
-                        ),
                       ],
                     ),
                   ),
@@ -279,56 +297,61 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     String? activeAddress, {
     required bool showMapPanel,
   }) {
+    final actionButtonTextStyle = Theme.of(context).textTheme.titleMedium
+        ?.copyWith(fontWeight: FontWeight.w700, fontSize: 17);
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.fromLTRB(16, showMapPanel ? 0 : 4, 16, 16),
+      padding: EdgeInsets.fromLTRB(16, showMapPanel ? 2 : 8, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildPointSummary(),
-          const SizedBox(height: 12),
-          if (showMapPanel)
-            Text(
-              'Peta aktif: ${_activeTarget == _pickupTarget ? widget.args.pickupLabel : widget.args.destinationLabel}',
-              key: const Key('route_picker_active_label'),
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12,
-              ),
-            )
-          else
-            const Text(
-              'Pilih tujuan dari pencarian atau pilih lewat peta.',
-              key: Key('route_picker_hidden_map_hint'),
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-            ),
-          if ((activeAddress ?? '').isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              activeAddress!,
-              key: const Key('route_picker_active_address'),
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12,
-              ),
-            ),
-          ],
-          if ((_statusHint ?? '').isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              _statusHint!,
-              key: const Key('route_picker_status_hint'),
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12,
-              ),
+          const SizedBox(height: 8),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            child: showMapPanel
+                ? SizedBox(
+                    key: const ValueKey('route_picker_address_visible'),
+                    height: 54,
+                    child: Container(
+                      alignment: Alignment.topLeft,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 180),
+                        child: Text(
+                          (activeAddress ?? '').trim().isEmpty ? ' ' : activeAddress!,
+                          key: ValueKey((activeAddress ?? '').trim()),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: _activeAddressStyle,
+                        ),
+                      ),
+                    ),
+                  )
+                : const SizedBox(
+                    key: ValueKey('route_picker_address_hidden'),
+                  ),
+          ),
+          if (showMapPanel && (_statusHint ?? '').isNotEmpty) ...[
+            const SizedBox(height: 6),
+            _InfoHint(
+              icon: Icons.schedule,
+              iconColor: AppColors.primaryDark,
+              text: _statusHint!,
+              keyValue: const Key('route_picker_status_hint'),
             ),
           ],
-          const SizedBox(height: 14),
+          if (showMapPanel) const SizedBox(height: 16) else const SizedBox(height: 8),
           SizedBox(
             height: 48,
             child: OutlinedButton.icon(
               onPressed: _handleLocationButtonPressed,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primaryDark,
+                side: BorderSide(color: AppColors.primaryDark.withValues(alpha: 0.5)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
               icon: _showLocationButtonLoading
                   ? const SizedBox(
                       width: 16,
@@ -343,32 +366,19 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                     ),
               label: Text(
                 _isDestinationMapEntryMode ? 'Pilih lewat peta' : 'Lokasi Saya',
+                style: actionButtonTextStyle?.copyWith(fontSize: 16),
               ),
             ),
           ),
           const SizedBox(height: 12),
-          if (!_canConfirmRoute) ...[
-            Text(
-              _isManualDestinationSelectionMode
-                  ? 'Geser peta lalu pilih "Gunakan titik ini" untuk menetapkan ${widget.args.destinationLabel}.'
-                  : 'Pilih ${widget.args.destinationLabel} terlebih dahulu agar rute bisa disimpan.',
-              key: const Key('route_picker_confirm_hint'),
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12,
-              ),
-            ),
-            const SizedBox(height: 10),
-          ],
           SizedBox(
             height: 50,
             child: ElevatedButton(
-              onPressed: _canConfirmRoute
-                  ? _confirmRoute
-                  : (_isManualDestinationSelectionMode &&
-                            !_isSavingManualDestination
-                        ? _saveDestinationFromMapCenter
-                        : null),
+              onPressed: (_canConfirmRoute ||
+                      (_isManualDestinationSelectionMode &&
+                          !_isSavingManualDestination))
+                  ? _handlePrimaryAction
+                  : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.white,
@@ -377,16 +387,13 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                 elevation: 0,
                 padding: EdgeInsets.zero,
                 alignment: Alignment.center,
+                textStyle: actionButtonTextStyle,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
               child: Text(
-                _canConfirmRoute
-                    ? widget.args.confirmLabel
-                    : (_isManualDestinationSelectionMode
-                          ? 'Gunakan titik ini'
-                          : 'Pilih ${widget.args.destinationLabel}'),
+                widget.args.confirmLabel,
                 textAlign: TextAlign.center,
               ),
             ),
@@ -397,6 +404,10 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
   }
 
   Widget _buildPointSummary() {
+    final hasDestinationDraftSelection =
+        _destinationPoint != null ||
+        (_isManualDestinationSelectionMode &&
+            (_mapCenterAddress ?? '').trim().isNotEmpty);
     return Row(
       children: [
         Expanded(
@@ -415,6 +426,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
             point: _destinationPoint,
             isActive: _activeTarget == _destinationTarget,
             color: AppColors.primary,
+            isSelected: hasDestinationDraftSelection,
             onTap: () => _selectTarget(_destinationTarget),
           ),
         ),
@@ -453,10 +465,11 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     setState(() {
       _activeTarget = target;
       _statusHint = null;
-      if (target != _destinationTarget) {
-        _mapCenterAddress = null;
-      }
     });
+    _searchController.clear();
+    if (_searchController.isOpen) {
+      _searchController.closeView('');
+    }
     _focusSelectedPoint(target);
   }
 
@@ -464,7 +477,11 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     final markers = <Marker>{};
     final pickup = _pickupPoint;
     final destination = _destinationPoint;
-    if (pickup != null) {
+    final hideActiveMarker = _isMapSelectionActive;
+
+    if (_activeTarget == _pickupTarget &&
+        pickup != null &&
+        !(hideActiveMarker && _activeTarget == _pickupTarget)) {
       markers.add(
         Marker(
           markerId: const MarkerId('pickup'),
@@ -476,7 +493,9 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
         ),
       );
     }
-    if (destination != null) {
+    if (_activeTarget == _destinationTarget &&
+        destination != null &&
+        !(hideActiveMarker && _activeTarget == _destinationTarget)) {
       markers.add(
         Marker(
           markerId: const MarkerId('destination'),
@@ -494,7 +513,71 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
 
     final latLng = LatLng(point.latitude, point.longitude);
     _cameraTarget = latLng;
+    final hasStableAddress = (point.address ?? '').trim().isNotEmpty;
+    _skipNextCameraIdleGeocode = hasStableAddress;
     await _animateCameraSafely(latLng, 17);
+  }
+
+  Future<void> _hydrateInitialRouteAddresses() async {
+    final pickup = _pickupPoint;
+    if (pickup != null &&
+        pickup.source == 'existing_route' &&
+        (pickup.address ?? '').trim().isEmpty) {
+      final resolved = await _mapsLookup.reverseGeocode(
+        LatLng(pickup.latitude, pickup.longitude),
+      );
+      if (!mounted) return;
+
+      final latestPickup = _pickupPoint;
+      if (latestPickup == null ||
+          latestPickup.source != 'existing_route' ||
+          (latestPickup.address ?? '').trim().isNotEmpty ||
+          !_samePoint(latestPickup, pickup)) {
+        return;
+      }
+      setState(() {
+        _pickupPoint = _RoutePoint(
+          target: latestPickup.target,
+          latitude: latestPickup.latitude,
+          longitude: latestPickup.longitude,
+          address: _mapsLookup.cleanAddress(resolved),
+          source: latestPickup.source,
+        );
+      });
+    }
+
+    final destination = _destinationPoint;
+    if (destination != null &&
+        destination.source == 'existing_route' &&
+        (destination.address ?? '').trim().isEmpty) {
+      final resolved = await _mapsLookup.reverseGeocode(
+        LatLng(destination.latitude, destination.longitude),
+      );
+      if (!mounted) return;
+
+      final latestDestination = _destinationPoint;
+      if (latestDestination == null ||
+          latestDestination.source != 'existing_route' ||
+          (latestDestination.address ?? '').trim().isNotEmpty ||
+          !_samePoint(latestDestination, destination)) {
+        return;
+      }
+      setState(() {
+        _destinationPoint = _RoutePoint(
+          target: latestDestination.target,
+          latitude: latestDestination.latitude,
+          longitude: latestDestination.longitude,
+          address: _mapsLookup.cleanAddress(resolved),
+          source: latestDestination.source,
+        );
+      });
+    }
+  }
+
+  bool _samePoint(_RoutePoint a, _RoutePoint b) {
+    return a.target == b.target &&
+        a.latitude == b.latitude &&
+        a.longitude == b.longitude;
   }
 
   Future<void> _handleMapCameraIdle() async {
@@ -503,13 +586,13 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
       setState(() {});
       return;
     }
+    if (_skipNextCameraIdleGeocode) {
+      _skipNextCameraIdleGeocode = false;
+      return;
+    }
 
     final requestId = ++_mapAddressRequestId;
     final target = _cameraTarget;
-
-    setState(() {
-      _statusHint = 'Mencari alamat titik peta...';
-    });
 
     final address = await _mapsLookup.reverseGeocode(target);
     if (!mounted || requestId != _mapAddressRequestId) return;
@@ -610,7 +693,44 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
   }
 
   void _handleLocationButtonPressed() {
+    if (_isDestinationMapEntryMode) {
+      _enterDestinationMapSelectionMode();
+      return;
+    }
     _moveToCurrentLocation();
+  }
+
+  void _enterDestinationMapSelectionMode() {
+    LatLng target = _cameraTarget;
+    double zoom = 16;
+
+    final pickup = _pickupPoint;
+    if (pickup != null) {
+      target = LatLng(pickup.latitude, pickup.longitude);
+      zoom = 17;
+    }
+
+    setState(() {
+      _cameraTarget = target;
+      _initialZoom = zoom;
+      _isDestinationMapVisible = true;
+      _statusHint = null;
+    });
+  }
+
+  Future<void> _handlePrimaryAction() async {
+    if (_canConfirmRoute) {
+      _confirmRoute();
+      return;
+    }
+
+    if (_isManualDestinationSelectionMode && !_isSavingManualDestination) {
+      await _saveDestinationFromMapCenter();
+      if (!mounted) return;
+      if (_canConfirmRoute) {
+        _confirmRoute();
+      }
+    }
   }
 
   Future<void> _saveDestinationFromMapCenter() async {
@@ -719,6 +839,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
 
   Future<void> _applyPlaceSelection(LatLng target, {String? address}) async {
     _cameraTarget = target;
+    _skipNextCameraIdleGeocode = true;
     await _animateCameraSafely(target, 18);
     _saveActivePoint('search', address: address);
     if (mounted) {
@@ -762,6 +883,36 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
   }
 }
 
+class _InfoHint extends StatelessWidget {
+  const _InfoHint({
+    required this.icon,
+    required this.text,
+    required this.keyValue,
+    this.iconColor = AppColors.textSecondary,
+  });
+
+  final IconData icon;
+  final String text;
+  final Key keyValue;
+  final Color iconColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      key: keyValue,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: Icon(icon, size: 14, color: iconColor),
+        ),
+        const SizedBox(width: 6),
+        Expanded(child: Text(text, style: _RouteLocationPickerScreenState._bodyHintStyle)),
+      ],
+    );
+  }
+}
+
 class _PointCard extends StatelessWidget {
   const _PointCard({
     required this.label,
@@ -769,6 +920,7 @@ class _PointCard extends StatelessWidget {
     required this.isActive,
     required this.color,
     required this.onTap,
+    this.isSelected,
   });
 
   final String label;
@@ -776,47 +928,60 @@ class _PointCard extends StatelessWidget {
   final bool isActive;
   final Color color;
   final VoidCallback onTap;
+  final bool? isSelected;
 
   @override
   Widget build(BuildContext context) {
     final point = this.point;
+    final isChosen = isSelected ?? point != null;
+    final labelStyle = Theme.of(context).textTheme.titleSmall?.copyWith(
+          color: isActive ? color : AppColors.textPrimary,
+          fontWeight: FontWeight.w700,
+          fontSize: 14,
+        );
+    final statusStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: isChosen ? color : AppColors.textSecondary,
+          fontWeight: isChosen ? FontWeight.w600 : FontWeight.w500,
+          fontSize: 12,
+        );
     return InkWell(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(14),
       onTap: onTap,
       child: Container(
-        height: 84,
+        height: 88,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: isActive ? color.withValues(alpha: 0.08) : AppColors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isActive ? color : AppColors.border,
             width: isActive ? 1.4 : 1,
           ),
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: isActive ? color : AppColors.textPrimary,
-                fontWeight: FontWeight.w700,
-                fontSize: 12,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: labelStyle,
+                ),
+                if (isActive) ...[
+                  const SizedBox(width: 6),
+                  Icon(Icons.check_circle, size: 14, color: color),
+                ],
+              ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
-              point == null ? 'Belum dipilih' : point.displayAddress,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12,
-                height: 1.25,
-              ),
+              isChosen ? 'Sudah dipilih' : 'Belum dipilih',
+              textAlign: TextAlign.center,
+              style: statusStyle,
             ),
           ],
         ),
