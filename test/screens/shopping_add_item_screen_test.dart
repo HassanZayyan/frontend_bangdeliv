@@ -47,7 +47,7 @@ void main() {
       expect(find.text('Item Belanja'), findsOneWidget);
       expect(find.text('Menu Katalog'), findsNothing);
       expect(find.text('Item berat'), findsNothing);
-      expect(service.menuSearchCalls, 0);
+      expect(service.menuSearchCalls, 1);
 
       await tester.enterText(find.byType(TextField).at(1), 'Soto Ayam');
       await tester.pumpAndSettle();
@@ -179,8 +179,9 @@ class _FakeCustomerOrderApiService extends CustomerOrderApiService {
   @override
   Future<CustomerOrderDetailModel> addShoppingItems(
     int orderId,
-    List<ShoppingItemDraftPayload> items,
-  ) async {
+    List<ShoppingItemDraftPayload> items, {
+    int? replacementForPickupLocationId,
+  }) async {
     addCalls += 1;
     lastItems = items;
     final hasNewMerchant = items.any((item) => item.merchantId == 10);

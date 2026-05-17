@@ -310,6 +310,7 @@ class TrackOrderScreen extends ConsumerWidget {
                   ? TrackingMapSection(
                       dropoffAddress: order.deliveryAddress,
                       pickupStops: _shoppingPickupStops(detail),
+                      encodedPolyline: detail.shoppingRoute?.encodedPolyline,
                       pickupLatitude: detail.pickupLatitude,
                       pickupLongitude: detail.pickupLongitude,
                       dropoffLatitude: detail.dropoffLatitude,
@@ -567,11 +568,27 @@ class TrackOrderScreen extends ConsumerWidget {
       return const <TrackingMapPickupPoint>[];
     }
 
-    return detail.shoppingStops
+    final stops = detail.shoppingStops
+        .where((stop) => stop.isActive)
         .where(
           (stop) =>
               stop.merchant.latitude != null && stop.merchant.longitude != null,
         )
+        .toList(growable: false);
+    stops.sort((a, b) {
+      final orderedIds =
+          detail.shoppingRoute?.orderedPickupLocationIds ?? const <int>[];
+      final aIndex = orderedIds.indexOf(a.pickupLocationId);
+      final bIndex = orderedIds.indexOf(b.pickupLocationId);
+      if (aIndex >= 0 || bIndex >= 0) {
+        return (aIndex < 0 ? 1 << 20 : aIndex).compareTo(
+          bIndex < 0 ? 1 << 20 : bIndex,
+        );
+      }
+      return a.sequenceNo.compareTo(b.sequenceNo);
+    });
+
+    return stops
         .map(
           (stop) => TrackingMapPickupPoint(
             id: stop.pickupLocationId.toString(),
@@ -1570,8 +1587,10 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final items = detail.shoppingItems;
     final stops = detail.shoppingStops;
+    final activeStops = stops
+        .where((stop) => stop.isActive)
+        .toList(growable: false);
     final pricing = detail.shoppingPricing;
     final failedStops = stops
         .where((stop) => stop.isFailed)
@@ -1617,13 +1636,13 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
             ...failedStops.map((stop) => _failedStopNotice(context, ref, stop)),
             const SizedBox(height: 4),
           ],
-          if (items.isEmpty)
+          if (activeStops.isEmpty)
             const Text(
               'Belum ada item belanja.',
               style: TextStyle(color: AppColors.textSecondary),
             )
           else
-            ...stops.map((stop) => _stopSection(context, ref, stop)),
+            ...activeStops.map((stop) => _stopSection(context, ref, stop)),
           if (pricing != null) ...[
             const Divider(height: 18, color: AppColors.border),
             _pricingRow('Subtotal barang', pricing.subtotal),
@@ -1700,7 +1719,11 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
             runSpacing: 8,
             children: [
               OutlinedButton.icon(
-                onPressed: () => _openAddItemScreen(context, ref),
+                onPressed: () => _openAddItemScreen(
+                  context,
+                  ref,
+                  replacementForPickupLocationId: stop.pickupLocationId,
+                ),
                 icon: const Icon(Icons.add_business_outlined, size: 16),
                 label: const Text('Tambah pengganti'),
               ),
@@ -1896,10 +1919,17 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
     );
   }
 
-  Future<void> _openAddItemScreen(BuildContext context, WidgetRef ref) async {
+  Future<void> _openAddItemScreen(
+    BuildContext context,
+    WidgetRef ref, {
+    int? replacementForPickupLocationId,
+  }) async {
     final result = await context.push<ShoppingAddItemResult>(
       AppRoutes.shoppingAddItemPath(detail.summary.id),
-      extra: ShoppingAddItemRouteArgs(detail: detail),
+      extra: ShoppingAddItemRouteArgs(
+        detail: detail,
+        replacementForPickupLocationId: replacementForPickupLocationId,
+      ),
     );
 
     if (result == null || !context.mounted) {

@@ -35,6 +35,7 @@ class TrackingMapSection extends StatefulWidget {
     this.driverLatitude,
     this.driverLongitude,
     this.driverLocationUpdatedAt,
+    this.encodedPolyline,
     this.height = 260,
     this.borderRadius = 16,
     this.showLegend = true,
@@ -50,6 +51,7 @@ class TrackingMapSection extends StatefulWidget {
   final double? driverLatitude;
   final double? driverLongitude;
   final DateTime? driverLocationUpdatedAt;
+  final String? encodedPolyline;
   final double height;
   final double borderRadius;
   final bool showLegend;
@@ -301,6 +303,7 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
                 zoom: _initialZoom(),
               ),
               markers: markers,
+              polylines: _buildPolylines(),
               scrollGesturesEnabled: true,
               zoomGesturesEnabled: true,
               rotateGesturesEnabled: true,
@@ -507,6 +510,23 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
     return markers;
   }
 
+  Set<Polyline> _buildPolylines() {
+    final points = _decodePolyline(widget.encodedPolyline);
+    if (points.length < 2) {
+      return const <Polyline>{};
+    }
+
+    return {
+      Polyline(
+        polylineId: const PolylineId('shopping_route'),
+        points: points,
+        color: AppColors.primary,
+        width: 5,
+        geodesic: true,
+      ),
+    };
+  }
+
   List<_PickupPointView> _pickupPoints() {
     if (widget.pickupStops.isNotEmpty) {
       return widget.pickupStops
@@ -547,6 +567,43 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
     }
 
     return 'Update lokasi driver terakhir ${formatTime(updatedAt)}';
+  }
+
+  List<LatLng> _decodePolyline(String? encoded) {
+    final value = (encoded ?? '').trim();
+    if (value.isEmpty) {
+      return const <LatLng>[];
+    }
+
+    final points = <LatLng>[];
+    var index = 0;
+    var latitude = 0;
+    var longitude = 0;
+
+    while (index < value.length) {
+      var shift = 0;
+      var result = 0;
+      int byte;
+      do {
+        byte = value.codeUnitAt(index++) - 63;
+        result |= (byte & 0x1f) << shift;
+        shift += 5;
+      } while (byte >= 0x20 && index < value.length);
+      latitude += (result & 1) != 0 ? ~(result >> 1) : result >> 1;
+
+      shift = 0;
+      result = 0;
+      do {
+        byte = value.codeUnitAt(index++) - 63;
+        result |= (byte & 0x1f) << shift;
+        shift += 5;
+      } while (byte >= 0x20 && index < value.length);
+      longitude += (result & 1) != 0 ? ~(result >> 1) : result >> 1;
+
+      points.add(LatLng(latitude / 1e5, longitude / 1e5));
+    }
+
+    return points;
   }
 }
 

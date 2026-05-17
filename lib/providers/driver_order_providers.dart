@@ -47,6 +47,15 @@ class DriverOrdersState {
   bool isProcessing(String orderId) => processingOrderIds.contains(orderId);
 }
 
+class DriverOrderAcceptResult {
+  const DriverOrderAcceptResult({this.order, this.error});
+
+  final DriverOrderModel? order;
+  final String? error;
+
+  bool get isSuccess => error == null;
+}
+
 class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
   StreamSubscription<Map<String, dynamic>>? _driverRealtimeSub;
   StreamSubscription<OrderRealtimeEvent>? _runningOrderRealtimeSub;
@@ -395,19 +404,19 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     );
   }
 
-  Future<String?> acceptOrder(String id) async {
+  Future<DriverOrderAcceptResult> acceptOrder(String id) async {
     final current = state.asData?.value;
     if (current == null) {
-      return 'Data order belum siap.';
+      return const DriverOrderAcceptResult(error: 'Data order belum siap.');
     }
 
     if (current.isProcessing(id)) {
-      return null;
+      return const DriverOrderAcceptResult();
     }
 
     final index = current.incoming.indexWhere((order) => order.id == id);
     if (index < 0) {
-      return 'Order tidak ditemukan.';
+      return const DriverOrderAcceptResult(error: 'Order tidak ditemukan.');
     }
 
     final incoming = List<DriverOrderModel>.from(current.incoming);
@@ -432,26 +441,18 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     _syncRunningOrderRealtime(state.asData!.value);
 
     try {
-      await ref.read(driverOrderServiceProvider).acceptOrder(id);
-      DriverOrderModel? syncedOrder;
-      try {
-        syncedOrder = await ref
-            .read(driverOrderServiceProvider)
-            .fetchOrderDetail(id);
-      } catch (_) {
-        syncedOrder = null;
-      }
+      final syncedOrder = await ref
+          .read(driverOrderServiceProvider)
+          .acceptOrder(id);
 
       final latest = state.asData?.value;
       if (latest == null) {
-        return null;
+        return DriverOrderAcceptResult(order: syncedOrder);
       }
 
       final cleanedProcessingIds = <String>{...latest.processingOrderIds}
         ..remove(id);
-      final syncedRunning = syncedOrder == null
-          ? latest.running
-          : _upsertRunningOrder(latest.running, syncedOrder);
+      final syncedRunning = _upsertRunningOrder(latest.running, syncedOrder);
       state = AsyncData(
         latest.copyWith(
           running: syncedRunning,
@@ -463,7 +464,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       ref.invalidate(driverOrderDetailProvider(id));
       ref.invalidate(driverAvailabilityProvider);
 
-      return null;
+      return DriverOrderAcceptResult(order: syncedOrder);
     } catch (error) {
       final rollbackProcessingIds = <String>{...current.processingOrderIds}
         ..remove(id);
@@ -471,7 +472,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         current.copyWith(processingOrderIds: rollbackProcessingIds),
       );
       _syncRunningOrderRealtime(state.asData!.value);
-      return error.toString();
+      return DriverOrderAcceptResult(error: error.toString());
     }
   }
 

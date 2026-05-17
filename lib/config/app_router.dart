@@ -120,8 +120,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               : extra is CustomerOrderDetailModel
               ? extra
               : null;
+          final replacementForPickupLocationId =
+              extra is ShoppingAddItemRouteArgs
+              ? extra.replacementForPickupLocationId
+              : null;
 
-          return ShoppingAddItemScreen(orderId: orderId, initialDetail: detail);
+          return ShoppingAddItemScreen(
+            orderId: orderId,
+            initialDetail: detail,
+            replacementForPickupLocationId: replacementForPickupLocationId,
+          );
         },
       ),
       GoRoute(

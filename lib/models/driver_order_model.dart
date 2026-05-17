@@ -39,6 +39,7 @@ class DriverOrderModel {
   final String? packagePackingNote;
   final List<DriverShoppingItemModel> shoppingItems;
   final List<DriverShoppingStopModel> shoppingStops;
+  final DriverShoppingRouteModel? shoppingRoute;
   final DriverShoppingPricingModel? shoppingPricing;
   final bool hasPendingShoppingPrices;
 
@@ -77,6 +78,7 @@ class DriverOrderModel {
     this.packagePackingNote,
     this.shoppingItems = const <DriverShoppingItemModel>[],
     this.shoppingStops = const <DriverShoppingStopModel>[],
+    this.shoppingRoute,
     this.shoppingPricing,
     this.hasPendingShoppingPrices = false,
   });
@@ -124,6 +126,7 @@ class DriverOrderModel {
       packagePackingNote: packagePackingNote,
       shoppingItems: shoppingItems,
       shoppingStops: shoppingStops,
+      shoppingRoute: shoppingRoute,
       shoppingPricing: shoppingPricing,
       hasPendingShoppingPrices: hasPendingShoppingPrices,
     );
@@ -247,6 +250,7 @@ class DriverOrderModel {
               shoppingItems,
             )
           : shoppingStops,
+      shoppingRoute: DriverShoppingRouteModel.fromRaw(json['shopping_route']),
       shoppingPricing: pricingRaw == null
           ? null
           : DriverShoppingPricingModel.fromJson(pricingRaw),
@@ -362,6 +366,8 @@ class DriverShoppingStopModel {
 
   bool get isFailed => fulfillmentStatus.toUpperCase() == 'FAILED';
   bool get isSkipped => fulfillmentStatus.toUpperCase() == 'SKIPPED';
+  bool get isReplaced => fulfillmentStatus.toUpperCase() == 'REPLACED';
+  bool get isActive => !isFailed && !isSkipped && !isReplaced;
 
   factory DriverShoppingStopModel.fromJson(Map<String, dynamic> json) {
     final merchantJson = (json['merchant'] is Map<String, dynamic>)
@@ -409,6 +415,37 @@ class DriverShoppingStopModel {
         items: items,
       ),
     ];
+  }
+}
+
+class DriverShoppingRouteModel {
+  final List<int> orderedPickupLocationIds;
+  final String? encodedPolyline;
+
+  const DriverShoppingRouteModel({
+    this.orderedPickupLocationIds = const <int>[],
+    this.encodedPolyline,
+  });
+
+  factory DriverShoppingRouteModel.fromJson(Map<String, dynamic> json) {
+    return DriverShoppingRouteModel(
+      orderedPickupLocationIds: (json['ordered_pickup_location_ids'] is List)
+          ? (json['ordered_pickup_location_ids'] as List)
+                .map((value) => int.tryParse(value?.toString() ?? '') ?? 0)
+                .where((value) => value > 0)
+                .toList(growable: false)
+          : const <int>[],
+      encodedPolyline: (json['encoded_polyline'] ?? json['encodedPolyline'])
+          ?.toString(),
+    );
+  }
+
+  static DriverShoppingRouteModel? fromRaw(dynamic raw) {
+    if (raw is! Map<String, dynamic>) {
+      return null;
+    }
+
+    return DriverShoppingRouteModel.fromJson(raw);
   }
 }
 

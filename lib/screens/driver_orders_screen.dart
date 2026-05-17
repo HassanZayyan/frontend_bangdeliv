@@ -270,7 +270,7 @@ class _IncomingOrdersTab extends ConsumerWidget {
             onAccept: isProcessing
                 ? null
                 : () async {
-                    final error = await ref
+                    final result = await ref
                         .read(driverOrdersProvider.notifier)
                         .acceptOrder(order.id);
 
@@ -278,12 +278,15 @@ class _IncomingOrdersTab extends ConsumerWidget {
                       return;
                     }
 
-                    if (error == null) {
+                    if (result.isSuccess) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Order diterima.')),
                       );
-                      if (_isServerOrderId(order.id)) {
-                        context.go(AppRoutes.driverOrderActivePath(order.id));
+                      final acceptedOrderId = result.order?.id ?? order.id;
+                      if (_isServerOrderId(acceptedOrderId)) {
+                        context.go(
+                          AppRoutes.driverOrderActivePath(acceptedOrderId),
+                        );
                       } else {
                         onAcceptSuccess();
                       }
@@ -292,7 +295,7 @@ class _IncomingOrdersTab extends ConsumerWidget {
 
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text(error),
+                        content: Text(result.error ?? 'Gagal menerima order.'),
                         backgroundColor: Colors.red.shade700,
                       ),
                     );

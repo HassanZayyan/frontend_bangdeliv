@@ -317,6 +317,7 @@ class CustomerOrderDetailModel {
   final List<OrderStatusSnapshot> timeline;
   final List<CustomerShoppingItemModel> shoppingItems;
   final List<CustomerShoppingStopModel> shoppingStops;
+  final CustomerShoppingRouteModel? shoppingRoute;
   final CustomerShoppingPricingModel? shoppingPricing;
 
   const CustomerOrderDetailModel({
@@ -339,6 +340,7 @@ class CustomerOrderDetailModel {
     required this.timeline,
     this.shoppingItems = const <CustomerShoppingItemModel>[],
     this.shoppingStops = const <CustomerShoppingStopModel>[],
+    this.shoppingRoute,
     this.shoppingPricing,
   });
 
@@ -391,6 +393,7 @@ class CustomerOrderDetailModel {
     List<OrderStatusSnapshot>? timeline,
     List<CustomerShoppingItemModel>? shoppingItems,
     List<CustomerShoppingStopModel>? shoppingStops,
+    CustomerShoppingRouteModel? shoppingRoute,
     CustomerShoppingPricingModel? shoppingPricing,
   }) {
     return CustomerOrderDetailModel(
@@ -414,6 +417,7 @@ class CustomerOrderDetailModel {
       timeline: timeline ?? this.timeline,
       shoppingItems: shoppingItems ?? this.shoppingItems,
       shoppingStops: shoppingStops ?? this.shoppingStops,
+      shoppingRoute: shoppingRoute ?? this.shoppingRoute,
       shoppingPricing: shoppingPricing ?? this.shoppingPricing,
     );
   }
@@ -595,6 +599,10 @@ class CustomerOrderDetailModel {
           : rawStops
                 .map(CustomerShoppingStopModel.fromJson)
                 .toList(growable: false),
+      shoppingRoute: CustomerShoppingRouteModel.fromRaw(
+        json['shopping_route'],
+        shoppingOrder,
+      ),
       shoppingPricing: CustomerShoppingPricingModel.fromJson(
         json,
         shoppingOrder,
@@ -741,6 +749,8 @@ class CustomerShoppingStopModel {
 
   bool get isFailed => fulfillmentStatus.toUpperCase() == 'FAILED';
   bool get isSkipped => fulfillmentStatus.toUpperCase() == 'SKIPPED';
+  bool get isReplaced => fulfillmentStatus.toUpperCase() == 'REPLACED';
+  bool get isActive => !isFailed && !isSkipped && !isReplaced;
 
   factory CustomerShoppingStopModel.fromJson(Map<String, dynamic> json) {
     final merchantJson = (json['merchant'] is Map<String, dynamic>)
@@ -795,6 +805,45 @@ class CustomerShoppingStopModel {
         items: items,
       ),
     ];
+  }
+}
+
+class CustomerShoppingRouteModel {
+  final List<int> orderedPickupLocationIds;
+  final String? encodedPolyline;
+
+  const CustomerShoppingRouteModel({
+    this.orderedPickupLocationIds = const <int>[],
+    this.encodedPolyline,
+  });
+
+  factory CustomerShoppingRouteModel.fromJson(Map<String, dynamic> json) {
+    return CustomerShoppingRouteModel(
+      orderedPickupLocationIds: (json['ordered_pickup_location_ids'] is List)
+          ? (json['ordered_pickup_location_ids'] as List)
+                .map((value) => int.tryParse(value?.toString() ?? '') ?? 0)
+                .where((value) => value > 0)
+                .toList(growable: false)
+          : const <int>[],
+      encodedPolyline: (json['encoded_polyline'] ?? json['encodedPolyline'])
+          ?.toString(),
+    );
+  }
+
+  static CustomerShoppingRouteModel? fromRaw(
+    dynamic raw,
+    Map<String, dynamic> shoppingOrder,
+  ) {
+    final direct = raw is Map<String, dynamic> ? raw : null;
+    final snapshot = shoppingOrder['pricing_snapshot'] is Map<String, dynamic>
+        ? shoppingOrder['pricing_snapshot'] as Map<String, dynamic>
+        : const <String, dynamic>{};
+    final nested = snapshot['shopping_route'] is Map<String, dynamic>
+        ? snapshot['shopping_route'] as Map<String, dynamic>
+        : null;
+    final source = direct ?? nested;
+
+    return source == null ? null : CustomerShoppingRouteModel.fromJson(source);
   }
 }
 

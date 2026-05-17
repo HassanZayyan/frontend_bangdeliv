@@ -117,12 +117,17 @@ class CustomerOrderApiService {
 
   Future<CustomerOrderDetailModel> addShoppingItems(
     int orderId,
-    List<ShoppingItemDraftPayload> items,
-  ) async {
+    List<ShoppingItemDraftPayload> items, {
+    int? replacementForPickupLocationId,
+  }) async {
     final response = await _shoppingItemRequest(
       () async => _apiClient.post(
         '/v1/orders/$orderId/items/bulk',
         body: <String, dynamic>{
+          if (replacementForPickupLocationId != null &&
+              replacementForPickupLocationId > 0)
+            'replacement_for_pickup_location_id':
+                replacementForPickupLocationId,
           'items': items.map((item) => item.toJson()).toList(growable: false),
         },
         headers: await AuthService.authorizedHeaders(),
