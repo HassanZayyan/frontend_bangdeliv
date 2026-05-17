@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,9 +10,13 @@ import '../services/customer_order_api_service.dart';
 import '../utils/order_formatters.dart';
 
 class ShoppingAddItemRouteArgs {
-  const ShoppingAddItemRouteArgs({required this.detail});
+  const ShoppingAddItemRouteArgs({
+    required this.detail,
+    this.replacementForPickupLocationId,
+  });
 
   final CustomerOrderDetailModel detail;
+  final int? replacementForPickupLocationId;
 }
 
 class ShoppingAddItemResult {
@@ -68,10 +74,12 @@ class ShoppingAddItemScreen extends ConsumerStatefulWidget {
     super.key,
     required this.orderId,
     required this.initialDetail,
+    this.replacementForPickupLocationId,
   });
 
   final int? orderId;
   final CustomerOrderDetailModel? initialDetail;
+  final int? replacementForPickupLocationId;
 
   @override
   ConsumerState<ShoppingAddItemScreen> createState() =>
@@ -86,13 +94,16 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
 
   CustomerOrderDetailModel? _detail;
   List<ShoppingMerchantOption> _merchants = const <ShoppingMerchantOption>[];
+  List<ShoppingMenuOption> _menus = const <ShoppingMenuOption>[];
   List<_ShoppingItemDraft> _draftItems = const <_ShoppingItemDraft>[];
   ShoppingMerchantOption? _selectedMerchant;
   bool _isLoadingDetail = false;
   bool _isLoadingMerchants = false;
+  bool _isLoadingMenus = false;
   bool _isSubmitting = false;
   int _quantity = 1;
   String? _errorText;
+  String? _menuErrorText;
 
   @override
   void initState() {
@@ -229,9 +240,41 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       _selectedMerchant = merchant;
       _manualItemController.clear();
       _noteController.clear();
+      _menus = const <ShoppingMenuOption>[];
+      _menuErrorText = null;
       _quantity = 1;
       _errorText = null;
     });
+
+    if (_isRestaurantMerchant(merchant.merchantType)) {
+      unawaited(_loadMerchantMenus(merchant));
+    }
+  }
+
+  Future<void> _loadMerchantMenus(ShoppingMerchantOption merchant) async {
+    setState(() {
+      _isLoadingMenus = true;
+      _menuErrorText = null;
+    });
+
+    try {
+      final menus = await ref
+          .read(customerOrderApiServiceProvider)
+          .searchMerchantMenus(merchant.id, '');
+      if (!mounted || _selectedMerchant?.id != merchant.id) {
+        return;
+      }
+      setState(() => _menus = menus);
+    } catch (error) {
+      if (!mounted || _selectedMerchant?.id != merchant.id) {
+        return;
+      }
+      setState(() => _menuErrorText = error.toString());
+    } finally {
+      if (mounted && _selectedMerchant?.id == merchant.id) {
+        setState(() => _isLoadingMenus = false);
+      }
+    }
   }
 
   void _addDraftItem() {
@@ -266,6 +309,37 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
         ),
       ];
       _manualItemController.clear();
+      _noteController.clear();
+      _quantity = 1;
+      _errorText = null;
+    });
+  }
+
+  void _addMenuDraftItem(ShoppingMenuOption menu) {
+    final merchant = _selectedMerchant;
+    if (merchant == null || merchant.id <= 0) {
+      setState(() => _errorText = 'Pilih merchant terlebih dahulu.');
+      return;
+    }
+
+    if (_draftItems.length >= 30) {
+      setState(() => _errorText = 'Maksimal 30 item titipan sekali kirim.');
+      return;
+    }
+
+    setState(() {
+      _draftItems = [
+        ..._draftItems,
+        _ShoppingItemDraft(
+          id: DateTime.now().microsecondsSinceEpoch.toString(),
+          merchant: merchant,
+          name: menu.name,
+          quantity: _quantity,
+          notes: _noteController.text.trim().isEmpty
+              ? null
+              : _noteController.text.trim(),
+        ),
+      ];
       _noteController.clear();
       _quantity = 1;
       _errorText = null;
@@ -338,6 +412,8 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
                   ),
                 )
                 .toList(growable: false),
+            replacementForPickupLocationId:
+                widget.replacementForPickupLocationId,
           );
 
       final newDeliveryFee = updated.shoppingPricing?.deliveryFee ?? 0;
@@ -467,9 +543,14 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       noteController: _noteController,
       quantity: _quantity,
       isAddDisabled: _isSubmitting,
+      menus: _menus,
+      isLoadingMenus: _isLoadingMenus,
+      menuErrorText: _menuErrorText,
+      showMenus: _isRestaurantMerchant(merchant.merchantType),
       onDecrement: () => _setQuantity(_quantity - 1),
       onIncrement: () => _setQuantity(_quantity + 1),
       onAdd: _addDraftItem,
+      onAddMenu: _addMenuDraftItem,
       onChanged: () => setState(() {}),
     );
   }
@@ -669,9 +750,14 @@ class _ManualItemSection extends StatelessWidget {
     required this.noteController,
     required this.quantity,
     required this.isAddDisabled,
+    required this.menus,
+    required this.isLoadingMenus,
+    required this.menuErrorText,
+    required this.showMenus,
     required this.onDecrement,
     required this.onIncrement,
     required this.onAdd,
+    required this.onAddMenu,
     required this.onChanged,
   });
 
@@ -679,9 +765,14 @@ class _ManualItemSection extends StatelessWidget {
   final TextEditingController noteController;
   final int quantity;
   final bool isAddDisabled;
+  final List<ShoppingMenuOption> menus;
+  final bool isLoadingMenus;
+  final String? menuErrorText;
+  final bool showMenus;
   final VoidCallback onDecrement;
   final VoidCallback onIncrement;
   final VoidCallback onAdd;
+  final ValueChanged<ShoppingMenuOption> onAddMenu;
   final VoidCallback onChanged;
 
   @override
@@ -733,6 +824,15 @@ class _ManualItemSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
+        if (showMenus) ...[
+          _MenuQuickPickSection(
+            menus: menus,
+            isLoading: isLoadingMenus,
+            errorText: menuErrorText,
+            onAdd: onAddMenu,
+          ),
+          const SizedBox(height: 12),
+        ],
         TextField(
           controller: controller,
           textInputAction: TextInputAction.next,
@@ -771,6 +871,128 @@ class _ManualItemSection extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _MenuQuickPickSection extends StatelessWidget {
+  const _MenuQuickPickSection({
+    required this.menus,
+    required this.isLoading,
+    required this.errorText,
+    required this.onAdd,
+  });
+
+  final List<ShoppingMenuOption> menus;
+  final bool isLoading;
+  final String? errorText;
+  final ValueChanged<ShoppingMenuOption> onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading) {
+      return const _InlineInfoPanel(
+        icon: Icons.restaurant_menu_outlined,
+        text: 'Memuat menu resto...',
+      );
+    }
+
+    if ((errorText ?? '').trim().isNotEmpty) {
+      return _InlineInfoPanel(
+        icon: Icons.error_outline,
+        text: 'Menu belum bisa dimuat. Item manual tetap bisa ditambahkan.',
+        isError: true,
+      );
+    }
+
+    if (menus.isEmpty) {
+      return const _InlineInfoPanel(
+        icon: Icons.restaurant_menu_outlined,
+        text: 'Menu resto belum tersedia. Gunakan input manual.',
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Menu Resto',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ...menus
+            .take(8)
+            .map(
+              (menu) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: OutlinedButton.icon(
+                  onPressed: () => onAdd(menu),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          menu.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (menu.price > 0) ...[
+                        const SizedBox(width: 8),
+                        Text(formatCurrency(menu.price)),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+      ],
+    );
+  }
+}
+
+class _InlineInfoPanel extends StatelessWidget {
+  const _InlineInfoPanel({
+    required this.icon,
+    required this.text,
+    this.isError = false,
+  });
+
+  final IconData icon;
+  final String text;
+  final bool isError;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isError ? AppColors.error : AppColors.textSecondary;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1168,6 +1390,7 @@ class _ErrorState extends StatelessWidget {
 IconData _merchantIcon(String? type) {
   return switch ((type ?? '').trim().toLowerCase()) {
     'restaurant' => Icons.restaurant_outlined,
+    'resto' => Icons.restaurant_outlined,
     'warung' => Icons.storefront_outlined,
     'convenience_store' => Icons.local_convenience_store_outlined,
     _ => Icons.store_mall_directory_outlined,
@@ -1177,8 +1400,14 @@ IconData _merchantIcon(String? type) {
 String _merchantTypeLabel(String? type) {
   return switch ((type ?? '').trim().toLowerCase()) {
     'restaurant' => 'Resto',
+    'resto' => 'Resto',
     'warung' => 'Warung',
     'convenience_store' => 'Minimarket',
     _ => 'Toko',
   };
+}
+
+bool _isRestaurantMerchant(String? type) {
+  final normalized = (type ?? '').trim().toLowerCase();
+  return normalized == 'restaurant' || normalized == 'resto';
 }

@@ -12,12 +12,19 @@ class DriverOrderService {
   static const Duration _listTimeout = Duration(seconds: 8);
   static const Duration _detailTimeout = Duration(seconds: 10);
 
-  Future<void> acceptOrder(String orderId) async {
-    await _postWithFallbackPaths([
+  Future<DriverOrderModel> acceptOrder(String orderId) async {
+    final response = await _postWithFallbackPaths([
       '/v1/driver/orders/$orderId/accept',
       '/v1/driver/order/$orderId/accept',
       '/v1/driver/orders/$orderId/actions/accept',
     ]);
+    final data = _extractData(response);
+
+    if (data.isEmpty) {
+      return fetchOrderDetail(orderId);
+    }
+
+    return DriverOrderModel.fromJson(data);
   }
 
   Future<void> rejectOrder(String orderId) async {
@@ -301,13 +308,14 @@ class DriverOrderService {
     }
   }
 
-  Future<void> _postWithFallbackPaths(List<String> paths) async {
+  Future<Map<String, dynamic>> _postWithFallbackPaths(
+    List<String> paths,
+  ) async {
     DriverOrderApiException? lastError;
 
     for (final path in paths) {
       try {
-        await _post(path);
-        return;
+        return await _post(path);
       } on DriverOrderApiException catch (error) {
         if (error.statusCode == 404) {
           lastError = error;

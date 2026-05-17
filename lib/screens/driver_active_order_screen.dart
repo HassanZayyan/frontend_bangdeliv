@@ -323,6 +323,7 @@ class _MapCardState extends State<_MapCard> {
             GoogleMap(
               initialCameraPosition: CameraPosition(target: initial, zoom: 14),
               markers: markers,
+              polylines: _buildPolylines(),
               scrollGesturesEnabled: true,
               zoomGesturesEnabled: true,
               rotateGesturesEnabled: true,
@@ -357,11 +358,27 @@ class _MapCardState extends State<_MapCard> {
   }
 
   List<_DriverPickupPoint> _pickupPoints() {
-    final stopPoints = widget.order.shoppingStops
+    final orderedIds =
+        widget.order.shoppingRoute?.orderedPickupLocationIds ?? const <int>[];
+    final activeStops = widget.order.shoppingStops
+        .where((stop) => stop.isActive)
         .where(
           (stop) =>
               stop.merchant.latitude != null && stop.merchant.longitude != null,
         )
+        .toList(growable: false);
+    activeStops.sort((a, b) {
+      final aIndex = orderedIds.indexOf(a.pickupLocationId);
+      final bIndex = orderedIds.indexOf(b.pickupLocationId);
+      if (aIndex >= 0 || bIndex >= 0) {
+        return (aIndex < 0 ? 1 << 20 : aIndex).compareTo(
+          bIndex < 0 ? 1 << 20 : bIndex,
+        );
+      }
+      return a.sequenceNo.compareTo(b.sequenceNo);
+    });
+
+    final stopPoints = activeStops
         .map(
           (stop) => _DriverPickupPoint(
             id: stop.pickupLocationId.toString(),
@@ -387,6 +404,60 @@ class _MapCardState extends State<_MapCard> {
     return [
       _DriverPickupPoint(id: 'default', label: 'Pickup', position: fallback),
     ];
+  }
+
+  Set<Polyline> _buildPolylines() {
+    final points = _decodePolyline(widget.order.shoppingRoute?.encodedPolyline);
+    if (points.length < 2) {
+      return const <Polyline>{};
+    }
+
+    return {
+      Polyline(
+        polylineId: const PolylineId('shopping_route'),
+        points: points,
+        color: AppColors.primary,
+        width: 5,
+        geodesic: true,
+      ),
+    };
+  }
+
+  List<LatLng> _decodePolyline(String? encoded) {
+    final value = (encoded ?? '').trim();
+    if (value.isEmpty) {
+      return const <LatLng>[];
+    }
+
+    final points = <LatLng>[];
+    var index = 0;
+    var latitude = 0;
+    var longitude = 0;
+
+    while (index < value.length) {
+      var shift = 0;
+      var result = 0;
+      int byte;
+      do {
+        byte = value.codeUnitAt(index++) - 63;
+        result |= (byte & 0x1f) << shift;
+        shift += 5;
+      } while (byte >= 0x20 && index < value.length);
+      latitude += (result & 1) != 0 ? ~(result >> 1) : result >> 1;
+
+      shift = 0;
+      result = 0;
+      do {
+        byte = value.codeUnitAt(index++) - 63;
+        result |= (byte & 0x1f) << shift;
+        shift += 5;
+      } while (byte >= 0x20 && index < value.length);
+      longitude += (result & 1) != 0 ? ~(result >> 1) : result >> 1;
+
+      points.add(LatLng(latitude / 1e5, longitude / 1e5));
+    }
+
+    return points;
   }
 }
 
@@ -576,8 +647,11 @@ class _OrderMetaCard extends StatelessWidget {
   }
 
   Widget _routeVisualizer(DriverOrderModel order) {
-    final pickupStops = order.shoppingStops.isNotEmpty
-        ? order.shoppingStops
+    final activeStops = order.shoppingStops
+        .where((stop) => stop.isActive)
+        .toList(growable: false);
+    final pickupStops = activeStops.isNotEmpty
+        ? activeStops
         : <DriverShoppingStopModel>[];
 
     return Container(
@@ -1025,7 +1099,9 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
           if (widget.order.shoppingStops.isEmpty)
             ...widget.order.shoppingItems.map(_buildItemEditor)
           else
-            ...widget.order.shoppingStops.map(_buildStopSection),
+            ...widget.order.shoppingStops
+                .where((stop) => !stop.isSkipped && !stop.isReplaced)
+                .map(_buildStopSection),
           const SizedBox(height: 8),
           TextField(
             controller: _receiptNoteController,
@@ -1187,7 +1263,7 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
                   ),
                 ),
               ),
-              if (stop.isFailed || stop.isSkipped)
+              if (stop.isFailed || stop.isSkipped || stop.isReplaced)
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
@@ -1198,7 +1274,11 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
-                    stop.isFailed ? 'Gagal' : 'Dilewati',
+                    stop.isFailed
+                        ? 'Gagal'
+                        : stop.isReplaced
+                        ? 'Diganti'
+                        : 'Dilewati',
                     style: const TextStyle(
                       color: AppColors.error,
                       fontSize: 11,
@@ -1606,9 +1686,7 @@ class _ActionCard extends StatelessWidget {
     if (onReportPickupFailed == null ||
         normalizeServiceTypeCode(order.serviceTypeCode) !=
             ServiceTypeCodes.shopping ||
-        order.shoppingStops
-            .where((stop) => !stop.isFailed && !stop.isSkipped)
-            .isEmpty ||
+        order.shoppingStops.where((stop) => stop.isActive).isEmpty ||
         order.shoppingPricing?.canCancelWithFee == true) {
       return false;
     }
@@ -1623,7 +1701,7 @@ class _ActionCard extends StatelessWidget {
       context: context,
       builder: (context) => _FailedPickupDialog(
         stops: order.shoppingStops
-            .where((stop) => !stop.isFailed && !stop.isSkipped)
+            .where((stop) => stop.isActive)
             .toList(growable: false),
       ),
     );
@@ -1669,67 +1747,108 @@ class _FailedPickupDialogState extends State<_FailedPickupDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Merchant Tutup'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          DropdownButtonFormField<int>(
-            initialValue: _selectedPickupLocationId,
-            decoration: const InputDecoration(
-              labelText: 'Merchant',
-              border: OutlineInputBorder(),
-            ),
-            items: widget.stops
-                .map(
-                  (stop) => DropdownMenuItem<int>(
-                    value: stop.pickupLocationId,
-                    child: Text(
-                      '${stop.sequenceNo <= 0 ? 1 : stop.sequenceNo}. ${stop.merchant.name}',
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+
+    return SafeArea(
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          bottom: viewInsets.bottom + 16,
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Material(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(20),
+              clipBehavior: Clip.antiAlias,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Merchant Tutup',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                  ),
-                )
-                .toList(growable: false),
-            onChanged: (value) {
-              if (value == null) {
-                return;
-              }
-              setState(() => _selectedPickupLocationId = value);
-            },
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _reasonController,
-            minLines: 2,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: 'Alasan',
-              border: OutlineInputBorder(),
+                    const SizedBox(height: 14),
+                    DropdownButtonFormField<int>(
+                      initialValue: _selectedPickupLocationId,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Merchant',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: widget.stops
+                          .map(
+                            (stop) => DropdownMenuItem<int>(
+                              value: stop.pickupLocationId,
+                              child: Text(
+                                '${stop.sequenceNo <= 0 ? 1 : stop.sequenceNo}. ${stop.merchant.name}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(growable: false),
+                      onChanged: (value) {
+                        if (value == null) {
+                          return;
+                        }
+                        setState(() => _selectedPickupLocationId = value);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _reasonController,
+                      minLines: 2,
+                      maxLines: 4,
+                      decoration: const InputDecoration(
+                        labelText: 'Alasan',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('Batal'),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton(
+                          onPressed: () {
+                            final reason = _reasonController.text.trim();
+                            if (reason.isEmpty) {
+                              return;
+                            }
+                            Navigator.of(context).pop(
+                              _FailedPickupReport(
+                                pickupLocationId: _selectedPickupLocationId,
+                                reason: reason,
+                              ),
+                            );
+                          },
+                          child: const Text('Catat'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-        ],
+        ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Batal'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            final reason = _reasonController.text.trim();
-            if (reason.isEmpty) {
-              return;
-            }
-            Navigator.of(context).pop(
-              _FailedPickupReport(
-                pickupLocationId: _selectedPickupLocationId,
-                reason: reason,
-              ),
-            );
-          },
-          child: const Text('Catat'),
-        ),
-      ],
     );
   }
 }

@@ -54,13 +54,14 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     await Future<void>.delayed(Duration.zero);
 
-    final error = await container
+    final result = await container
         .read(driverOrdersProvider.notifier)
         .acceptOrder('ORD-1');
 
     final state = container.read(driverOrdersProvider).asData!.value;
 
-    expect(error, isNull);
+    expect(result.error, isNull);
+    expect(result.order?.id, 'ORD-1');
     expect(state.incoming.length, 0);
     expect(state.running.length, 1);
     expect(state.running.first.id, 'ORD-1');
@@ -85,13 +86,13 @@ void main() {
 
     await container.read(driverOrdersProvider.future);
 
-    final error = await container
+    final result = await container
         .read(driverOrdersProvider.notifier)
         .acceptOrder('ORD-1');
 
     final state = container.read(driverOrdersProvider).asData!.value;
 
-    expect(error, isNotNull);
+    expect(result.error, isNotNull);
     expect(state.incoming.length, 1);
     expect(state.running, isEmpty);
   });
@@ -540,7 +541,7 @@ void main() {
       expect(fakeRealtime.orderTrackingSubscriptions, isNot(contains(99)));
 
       acceptCompleter.complete();
-      expect(await acceptFuture, isNull);
+      expect((await acceptFuture).error, isNull);
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
 
@@ -764,7 +765,7 @@ class _FakeDriverOrderService extends DriverOrderService {
   }
 
   @override
-  Future<void> acceptOrder(String orderId) async {
+  Future<DriverOrderModel> acceptOrder(String orderId) async {
     if (failAccept) {
       throw const DriverOrderApiException('accept failed', statusCode: 500);
     }
@@ -781,7 +782,7 @@ class _FakeDriverOrderService extends DriverOrderService {
       }
     }
     if (acceptedOrder == null) {
-      return;
+      return fetchOrderDetail(orderId);
     }
 
     payload = DriverOrdersPayload(
@@ -792,6 +793,11 @@ class _FakeDriverOrderService extends DriverOrderService {
         ...payload.running.where((order) => order.id != orderId),
         acceptedOrder,
       ],
+    );
+
+    return acceptedOrder.copyWith(
+      statusCode: OrderStatusCodes.driverAssigned,
+      statusDisplayName: orderStatusLabel(OrderStatusCodes.driverAssigned),
     );
   }
 
