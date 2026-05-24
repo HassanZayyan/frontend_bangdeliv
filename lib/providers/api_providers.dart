@@ -4,6 +4,7 @@ import '../models/home_data_model.dart';
 import '../services/api_client.dart';
 import '../services/chatbot_api_service.dart';
 import '../services/customer_order_api_service.dart';
+import '../services/device_token_api_service.dart';
 import '../services/home_api_service.dart';
 import '../services/order_chat_api_service.dart';
 import '../services/pusher_service.dart';
@@ -38,6 +39,11 @@ final customerOrderApiServiceProvider = Provider<CustomerOrderApiService>((
 final orderChatApiServiceProvider = Provider<OrderChatApiService>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   return OrderChatApiService(apiClient);
+});
+
+final deviceTokenApiServiceProvider = Provider<DeviceTokenApiService>((ref) {
+  final apiClient = ref.watch(apiClientProvider);
+  return DeviceTokenApiService(apiClient);
 });
 
 final orderRealtimeClientProvider = Provider<OrderRealtimeClient>((ref) {

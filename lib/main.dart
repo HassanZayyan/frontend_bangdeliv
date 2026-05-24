@@ -5,8 +5,12 @@ import 'config/app_theme.dart';
 import 'config/app_router.dart';
 import 'providers/app_realtime_bootstrap_provider.dart';
 import 'providers/auth_session_provider.dart';
+import 'providers/firebase_notification_provider.dart';
+import 'services/firebase_notification_service.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await FirebaseNotificationService.initializeFirebase();
   AppEnv.logDebugSummary();
 
   runApp(
@@ -34,6 +38,7 @@ class _MyAppState extends ConsumerState<MyApp> {
   @override
   Widget build(BuildContext context) {
     ref.watch(appRealtimeBootstrapProvider);
+    ref.watch(firebaseNotificationBootstrapProvider);
     final router = ref.watch(appRouterProvider);
 
     return MaterialApp.router(
