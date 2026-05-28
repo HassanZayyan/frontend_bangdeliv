@@ -1349,6 +1349,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
     final overlayBox =
         Overlay.of(context).context.findRenderObject() as RenderBox;
     final fieldBox = fieldContext.findRenderObject() as RenderBox;
+    final fieldWidth = fieldBox.size.width;
     final fieldTopLeft = fieldBox.localToGlobal(
       Offset.zero,
       ancestor: overlayBox,
@@ -1370,7 +1371,11 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
       color: AppColors.white,
       surfaceTintColor: AppColors.white,
       shadowColor: Colors.black26,
-      constraints: const BoxConstraints(minWidth: 220, maxHeight: 300),
+      constraints: BoxConstraints(
+        minWidth: fieldWidth,
+        maxWidth: fieldWidth,
+        maxHeight: 300,
+      ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       items: items
           .map(
@@ -1383,7 +1388,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
                 style: const TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 14,
-                  fontWeight: FontWeight.w400,
+                  fontWeight: FontWeight.normal,
                 ),
               ),
             ),
@@ -1592,7 +1597,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
     final segments = <String>[
       detailText,
       _selectedSubDistrict ?? '',
-      _selectedDistrict ?? '',
+      _selectedDistrict != null ? 'Kec. $_selectedDistrict' : '',
       _selectedCityRegency ?? '',
       _selectedProvince,
       _selectedPostalCode ?? '',
@@ -1618,7 +1623,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
 
     final areaParts = <String>[
       _selectedSubDistrict ?? '',
-      _selectedDistrict ?? '',
+      _selectedDistrict != null ? 'Kec. $_selectedDistrict' : '',
       _selectedCityRegency ?? '',
       _selectedProvince,
       _selectedPostalCode ?? '',
@@ -1630,7 +1635,11 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
         final fromFull = fullParts[fullParts.length - areaParts.length + i]
             .toLowerCase();
         final fromArea = areaParts[i].toLowerCase();
-        if (fromFull != fromArea) {
+        
+        final normalizedFull = fromFull.replaceAll('kec. ', '').trim();
+        final normalizedArea = fromArea.replaceAll('kec. ', '').trim();
+
+        if (normalizedFull != normalizedArea) {
           isSuffixMatch = false;
           break;
         }
