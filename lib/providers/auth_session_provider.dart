@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/user_profile_model.dart';
 import '../services/auth_service.dart';
+import '../services/firebase_notification_service.dart';
+import 'api_providers.dart';
 
 enum SessionUserRole { guest, customer, driver, admin, unknown }
 
@@ -138,15 +140,25 @@ class AuthSessionNotifier extends Notifier<AuthSessionState> {
       state = AuthSessionState.fromProfile(profile);
     } on AuthException {
       await AuthService.clearLocalSession();
+      FirebaseNotificationService.clearBackendTokenSync();
       state = const AuthSessionState.guest();
     } catch (_) {
       await AuthService.clearLocalSession();
+      FirebaseNotificationService.clearBackendTokenSync();
       state = const AuthSessionState.guest();
     }
   }
 
   Future<void> logout() async {
+    await FirebaseNotificationService.unregisterCurrentToken(
+      unregisterToken: (token) {
+        return ref
+            .read(deviceTokenApiServiceProvider)
+            .unregisterDeviceToken(token: token);
+      },
+    );
     await AuthService.logout();
+    FirebaseNotificationService.clearBackendTokenSync();
     state = const AuthSessionState.guest();
   }
 }
