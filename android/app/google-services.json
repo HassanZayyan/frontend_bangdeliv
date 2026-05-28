@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "65361848359",
+    "project_id": "ta-bangdeliv",
+    "storage_bucket": "ta-bangdeliv.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:65361848359:android:08339e633141217d548602",
+        "android_client_info": {
+          "package_name": "com.bangdeliv.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCZHhGnDTTWb4juFygdsYd-3A9GpCn6UkY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
