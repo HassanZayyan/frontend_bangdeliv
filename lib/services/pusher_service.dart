@@ -168,6 +168,11 @@ class PusherService implements OrderRealtimeClient {
 
     final socket = WebSocketChannel.connect(_reverbUri);
     _socket = socket;
+    unawaited(
+      socket.sink.done.catchError((Object error) {
+        _log('socket sink done error: $error');
+      }),
+    );
 
     _socketSub = socket.stream.listen(
       (raw) {

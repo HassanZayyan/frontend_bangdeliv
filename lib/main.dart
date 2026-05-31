@@ -5,6 +5,7 @@ import 'config/app_theme.dart';
 import 'config/app_router.dart';
 import 'providers/app_realtime_bootstrap_provider.dart';
 import 'providers/auth_session_provider.dart';
+import 'providers/chat_heads_up_notification_provider.dart';
 import 'providers/firebase_notification_provider.dart';
 import 'services/firebase_notification_service.dart';
 
@@ -39,6 +40,7 @@ class _MyAppState extends ConsumerState<MyApp> {
   Widget build(BuildContext context) {
     ref.watch(appRealtimeBootstrapProvider);
     ref.watch(firebaseNotificationBootstrapProvider);
+    ref.watch(chatHeadsUpNotificationProvider);
     final router = ref.watch(appRouterProvider);
 
     return MaterialApp.router(

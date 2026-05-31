@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../config/app_colors.dart';
+import '../config/app_routes.dart';
 import '../models/order_chat_model.dart';
 import '../providers/auth_session_provider.dart';
 import '../providers/order_chat_provider.dart';
@@ -55,9 +58,11 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
     if (text.isEmpty) return;
 
     _inputController.clear();
-    final error = await ref
+    final sendFuture = ref
         .read(orderChatProvider(widget.orderId).notifier)
         .sendMessage(text);
+    _scrollToBottom();
+    final error = await sendFuture;
 
     if (!mounted || error == null) {
       _scrollToBottom();
@@ -78,6 +83,102 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
         );
   }
 
+  Future<void> _sendPhoto() async {
+    final intent = await showModalBottomSheet<_PhotoAttachmentIntent>(
+      context: context,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_outlined),
+                title: const Text('Kirim Foto Biasa'),
+                subtitle: const Text('Foto order atau lampiran chat.'),
+                onTap: () =>
+                    Navigator.of(context).pop(_PhotoAttachmentIntent.image),
+              ),
+              ListTile(
+                leading: const Icon(Icons.receipt_long_outlined),
+                title: const Text('Kirim Bukti Transfer'),
+                subtitle: const Text('Masuk ke bukti pembayaran transfer.'),
+                onTap: () => Navigator.of(
+                  context,
+                ).pop(_PhotoAttachmentIntent.paymentTransfer),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (intent == null) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('Ambil dari kamera'),
+                onTap: () => Navigator.of(context).pop(ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Pilih dari galeri'),
+                onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (source == null) {
+      return;
+    }
+
+    final photo = await ImagePicker().pickImage(
+      source: source,
+      imageQuality: 76,
+      maxWidth: 1600,
+    );
+    if (photo == null) {
+      return;
+    }
+
+    final error = await ref
+        .read(orderChatProvider(widget.orderId).notifier)
+        .sendAttachment(
+          photo,
+          body: intent.body,
+          attachmentType: intent.attachmentType,
+        );
+
+    if (!mounted || error == null) {
+      _scrollToBottom();
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(error), backgroundColor: AppColors.error),
+    );
+  }
+
   void _markVisibleMessagesRead(List<OrderChatMessageModel> messages) {
     final latestMessageId = _latestServerMessageId(messages);
     if (latestMessageId <= 0 || latestMessageId <= _lastMarkedReadMessageId) {
@@ -90,6 +191,21 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
           .read(orderChatUnreadCountProvider(widget.orderId).notifier)
           .markReadThrough(latestMessageId),
     );
+  }
+
+  void _handleBack() {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+
+    final session = ref.read(authSessionProvider);
+    if (session.role == SessionUserRole.driver) {
+      context.go(AppRoutes.driverHome);
+      return;
+    }
+
+    context.go(AppRoutes.home);
   }
 
   @override
@@ -111,114 +227,123 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
       }
     });
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text(
-          'Chat Order',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-        ),
-        backgroundColor: AppColors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.chevron_left, color: AppColors.textPrimary),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            }
-          },
-        ),
-      ),
-      body: chatAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) => _ErrorState(
-          message: error.toString(),
-          onRetry: () => ref.invalidate(orderChatProvider(widget.orderId)),
-        ),
-        data: (chat) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              _markVisibleMessagesRead(chat.messages);
-            }
-          });
+    return PopScope<void>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          return;
+        }
 
-          return Column(
-            children: [
-              if (chat.realtimeUnavailable) const _SyncStatusPill(),
-              if ((chat.errorMessage ?? '').isNotEmpty)
-                _InfoBanner(text: chat.errorMessage!),
-              Expanded(
-                child: RefreshIndicator(
-                  onRefresh: () async {
-                    ref.invalidate(orderChatProvider(widget.orderId));
-                    await ref.read(orderChatProvider(widget.orderId).future);
-                    final messages =
-                        ref
-                            .read(orderChatProvider(widget.orderId))
-                            .asData
-                            ?.value
-                            .messages ??
-                        const <OrderChatMessageModel>[];
-                    await ref
-                        .read(
-                          orderChatUnreadCountProvider(widget.orderId).notifier,
-                        )
-                        .markReadThrough(_latestServerMessageId(messages));
-                  },
-                  child: ListView(
-                    controller: _scrollController,
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
-                    children: [
-                      if (chat.hasMore)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Center(
-                            child: OutlinedButton.icon(
-                              onPressed: chat.isLoadingOlder
-                                  ? null
-                                  : () => ref
-                                        .read(
-                                          orderChatProvider(
-                                            widget.orderId,
-                                          ).notifier,
-                                        )
-                                        .loadOlder(),
-                              icon: chat.isLoadingOlder
-                                  ? const SizedBox(
-                                      width: 14,
-                                      height: 14,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(Icons.history, size: 16),
-                              label: const Text('Muat pesan lama'),
+        _handleBack();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: const Text(
+            'Chat Order',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          ),
+          backgroundColor: AppColors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.chevron_left, color: AppColors.textPrimary),
+            onPressed: _handleBack,
+          ),
+        ),
+        body: chatAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, stackTrace) => _ErrorState(
+            message: error.toString(),
+            onRetry: () => ref.invalidate(orderChatProvider(widget.orderId)),
+          ),
+          data: (chat) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                _markVisibleMessagesRead(chat.messages);
+              }
+            });
+
+            return Column(
+              children: [
+                if (chat.realtimeUnavailable) const _SyncStatusPill(),
+                if ((chat.errorMessage ?? '').isNotEmpty)
+                  _InfoBanner(text: chat.errorMessage!),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: () async {
+                      ref.invalidate(orderChatProvider(widget.orderId));
+                      await ref.read(orderChatProvider(widget.orderId).future);
+                      final messages =
+                          ref
+                              .read(orderChatProvider(widget.orderId))
+                              .asData
+                              ?.value
+                              .messages ??
+                          const <OrderChatMessageModel>[];
+                      await ref
+                          .read(
+                            orderChatUnreadCountProvider(
+                              widget.orderId,
+                            ).notifier,
+                          )
+                          .markReadThrough(_latestServerMessageId(messages));
+                    },
+                    child: ListView(
+                      controller: _scrollController,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+                      children: [
+                        if (chat.hasMore)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Center(
+                              child: OutlinedButton.icon(
+                                onPressed: chat.isLoadingOlder
+                                    ? null
+                                    : () => ref
+                                          .read(
+                                            orderChatProvider(
+                                              widget.orderId,
+                                            ).notifier,
+                                          )
+                                          .loadOlder(),
+                                icon: chat.isLoadingOlder
+                                    ? const SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(Icons.history, size: 16),
+                                label: const Text('Muat pesan lama'),
+                              ),
                             ),
                           ),
-                        ),
-                      if (chat.messages.isEmpty)
-                        const _EmptyChat()
-                      else
-                        ...chat.messages.map(
-                          (message) => _MessageBubble(
-                            message: message,
-                            isMine: message.senderUserId == currentUserId,
+                        if (chat.messages.isEmpty)
+                          const _EmptyChat()
+                        else
+                          ...chat.messages.map(
+                            (message) => _MessageBubble(
+                              message: message,
+                              isMine: message.senderUserId == currentUserId,
+                            ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              _Composer(
-                controller: _inputController,
-                enabled: chat.canSend,
-                isSending: chat.isSending,
-                onSend: _sendMessage,
-              ),
-            ],
-          );
-        },
+                _Composer(
+                  controller: _inputController,
+                  enabled: chat.canSend,
+                  isSending: chat.isSending,
+                  onSend: _sendMessage,
+                  onAttachPhoto: _sendPhoto,
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -270,10 +395,15 @@ class _MessageBubble extends StatelessWidget {
                   ),
                 ),
               ),
-            Text(
-              message.body,
-              style: TextStyle(color: textColor, height: 1.42, fontSize: 14),
-            ),
+            if (message.hasAttachment) ...[
+              _MessageAttachment(url: message.attachmentUrl!, isMine: isMine),
+              if (message.body.trim().isNotEmpty) const SizedBox(height: 8),
+            ],
+            if (message.body.trim().isNotEmpty)
+              Text(
+                message.body,
+                style: TextStyle(color: textColor, height: 1.42, fontSize: 14),
+              ),
             const SizedBox(height: 5),
             Row(
               mainAxisSize: MainAxisSize.min,
@@ -305,18 +435,74 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
+class _MessageAttachment extends StatelessWidget {
+  const _MessageAttachment({required this.url, required this.isMine});
+
+  final String url;
+  final bool isMine;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalized = url.trim().toLowerCase();
+    final isRemote =
+        normalized.startsWith('http://') || normalized.startsWith('https://');
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 220, maxHeight: 220),
+        color: isMine
+            ? Colors.white.withValues(alpha: 0.18)
+            : AppColors.background,
+        child: isRemote
+            ? Image.network(
+                url,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => _attachmentFallback(),
+              )
+            : _localImageOrFallback(url),
+      ),
+    );
+  }
+
+  Widget _localImageOrFallback(String path) {
+    final file = File(path);
+    if (!file.existsSync()) {
+      return _attachmentFallback();
+    }
+
+    return Image.file(
+      file,
+      fit: BoxFit.cover,
+      errorBuilder: (_, _, _) => _attachmentFallback(),
+    );
+  }
+
+  Widget _attachmentFallback() {
+    return const SizedBox(
+      width: 180,
+      height: 120,
+      child: Center(
+        child: Icon(Icons.image_outlined, color: AppColors.textSecondary),
+      ),
+    );
+  }
+}
+
 class _Composer extends StatelessWidget {
   const _Composer({
     required this.controller,
     required this.enabled,
     required this.isSending,
     required this.onSend,
+    required this.onAttachPhoto,
   });
 
   final TextEditingController controller;
   final bool enabled;
   final bool isSending;
   final VoidCallback onSend;
+  final VoidCallback onAttachPhoto;
 
   @override
   Widget build(BuildContext context) {
@@ -361,6 +547,13 @@ class _Composer extends StatelessWidget {
         top: false,
         child: Row(
           children: [
+            IconButton(
+              onPressed: canSendAction ? onAttachPhoto : null,
+              tooltip: 'Upload bukti foto',
+              icon: const Icon(Icons.photo_camera_outlined),
+              color: AppColors.primary,
+            ),
+            const SizedBox(width: 6),
             Expanded(
               child: TextField(
                 controller: controller,
@@ -500,6 +693,29 @@ class _EmptyChat extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+enum _PhotoAttachmentIntent {
+  image,
+  paymentTransfer;
+
+  String get attachmentType {
+    switch (this) {
+      case _PhotoAttachmentIntent.image:
+        return 'image';
+      case _PhotoAttachmentIntent.paymentTransfer:
+        return 'payment_transfer';
+    }
+  }
+
+  String get body {
+    switch (this) {
+      case _PhotoAttachmentIntent.image:
+        return 'Foto order';
+      case _PhotoAttachmentIntent.paymentTransfer:
+        return 'Bukti transfer';
+    }
   }
 }
 

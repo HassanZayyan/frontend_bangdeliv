@@ -284,6 +284,21 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     });
   }
 
+  void _handleBack() {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+
+    final session = ref.read(authSessionProvider);
+    if (session.role == SessionUserRole.driver) {
+      context.go(AppRoutes.driverHome);
+      return;
+    }
+
+    context.go(AppRoutes.home);
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(chatbotConversationProvider);
@@ -307,7 +322,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         toolbarHeight: 72,
         leading: IconButton(
           icon: const Icon(Icons.chevron_left, color: AppColors.textPrimary),
-          onPressed: () => context.pop(),
+          onPressed: _handleBack,
         ),
         title: Row(
           children: [

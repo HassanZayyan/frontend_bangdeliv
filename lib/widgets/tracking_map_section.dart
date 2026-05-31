@@ -285,6 +285,7 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
   @override
   Widget build(BuildContext context) {
     final markers = _buildMarkers();
+    final showRouteUnavailableHint = _shouldShowRouteUnavailableHint();
 
     if (markers.isEmpty) {
       return _buildUnavailableMap();
@@ -329,6 +330,13 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
               },
             ),
             Positioned(top: 10, left: 10, right: 10, child: _buildTopHint()),
+            if (showRouteUnavailableHint)
+              Positioned(
+                top: 52,
+                left: 10,
+                right: 10,
+                child: _buildRouteUnavailableHint(),
+              ),
             if (widget.followDriver &&
                 _hasDriverCoordinates &&
                 !_isFollowingDriver)
@@ -341,6 +349,30 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
                 child: _buildLegend(),
               ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRouteUnavailableHint() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.white.withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: const Text(
+          'Rute jalan belum tersedia, coba refresh.',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
     );
@@ -511,20 +543,30 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
   }
 
   Set<Polyline> _buildPolylines() {
-    final points = _decodePolyline(widget.encodedPolyline);
-    if (points.length < 2) {
+    final decodedPoints = _decodePolyline(widget.encodedPolyline);
+    if (decodedPoints.length < 2) {
       return const <Polyline>{};
     }
 
     return {
       Polyline(
         polylineId: const PolylineId('order_route'),
-        points: points,
+        points: decodedPoints,
         color: AppColors.primary,
         width: 5,
         geodesic: true,
       ),
     };
+  }
+
+  bool _shouldShowRouteUnavailableHint() {
+    if (_decodePolyline(widget.encodedPolyline).length >= 2) {
+      return false;
+    }
+
+    return _pickupPoints().isNotEmpty &&
+        widget.dropoffLatitude != null &&
+        widget.dropoffLongitude != null;
   }
 
   List<_PickupPointView> _pickupPoints() {

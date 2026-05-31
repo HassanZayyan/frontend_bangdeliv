@@ -406,6 +406,10 @@ class TrackOrderScreen extends ConsumerWidget {
                                 ),
                                 const SizedBox(height: 12),
                               ],
+                              if (detail.proofs.isNotEmpty) ...[
+                                _buildProofsCard(context, detail.proofs),
+                                const SizedBox(height: 12),
+                              ],
                               _buildPaymentCard(order, detail),
                               const SizedBox(height: 12),
                               _buildTimelineCard(
@@ -481,6 +485,10 @@ class TrackOrderScreen extends ConsumerWidget {
               const SizedBox(height: 12),
               if (detail.isShoppingOrder) ...[
                 _ShoppingOrderItemsCard(detail: detail, onChanged: onRefresh),
+                const SizedBox(height: 12),
+              ],
+              if (detail.proofs.isNotEmpty) ...[
+                _buildProofsCard(context, detail.proofs),
                 const SizedBox(height: 12),
               ],
               _buildPaymentCard(order, detail),
@@ -1185,6 +1193,7 @@ class TrackOrderScreen extends ConsumerWidget {
   }) {
     final paymentMethod = paymentMethodLabel(detail.paymentMethod);
     final paymentStatus = paymentStatusLabel(detail.paymentStatus);
+    final deliveryFeeNotice = _deliveryFeeNotice(order, detail);
     final rows = <_InfoRow>[
       _InfoRow('No. Order', order.orderNumber),
       _InfoRow('Layanan', order.serviceTypeLabel),
@@ -1205,39 +1214,188 @@ class TrackOrderScreen extends ConsumerWidget {
       title: 'Ringkasan Order',
       icon: Icons.receipt_long_outlined,
       child: Column(
-        children: List.generate(rows.length, (index) {
-          final row = rows[index];
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (index > 0)
-                const Divider(height: 1, thickness: 1, color: AppColors.border),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Row(
-                  children: [
-                    Text(
-                      row.label,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 13,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ...List.generate(rows.length, (index) {
+            final row = rows[index];
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (index > 0)
+                  const Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: AppColors.border,
+                  ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Row(
+                    children: [
+                      Text(
+                        row.label,
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 13,
+                        ),
                       ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      row.value,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
+                      const Spacer(),
+                      Text(
+                        row.value,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+              ],
+            );
+          }),
+          if (deliveryFeeNotice != null) ...[
+            const SizedBox(height: 8),
+            _DeliveryFeeNotice(text: deliveryFeeNotice),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String? _deliveryFeeNotice(
+    CustomerOrderSummaryModel order,
+    CustomerOrderDetailModel detail,
+  ) {
+    final manualFee = detail.manualDeliveryFee ?? order.manualDeliveryFee;
+    if (manualFee == null || manualFee <= 0) {
+      return null;
+    }
+
+    final reason =
+        (detail.manualDeliveryFeeReason ?? order.manualDeliveryFeeReason ?? '')
+            .trim();
+    final buffer = StringBuffer(
+      'Ongkir diperbarui driver menjadi ${formatCurrency(manualFee)}.',
+    );
+    if (reason.isNotEmpty) {
+      buffer.write(' Alasan: $reason.');
+    }
+
+    return buffer.toString();
+  }
+
+  Widget _buildProofsCard(
+    BuildContext context,
+    List<CustomerOrderProofModel> proofs,
+  ) {
+    final visibleProofs = proofs
+        .where((proof) => (proof.photoUrl ?? '').trim().isNotEmpty)
+        .toList(growable: false);
+    if (visibleProofs.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final hasPendingTransferProof = visibleProofs.any(
+      (proof) =>
+          proof.type == 'payment_transfer' &&
+          (proof.status ?? '').trim().toLowerCase() == 'pending',
+    );
+
+    return _buildCard(
+      title: 'Bukti Foto',
+      icon: Icons.photo_library_outlined,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: visibleProofs
+                .map(
+                  (proof) => InkWell(
+                    onTap: () => _showProofPreview(context, proof),
+                    borderRadius: BorderRadius.circular(10),
+                    child: SizedBox(
+                      width: 104,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.network(
+                              proof.photoUrl!,
+                              width: 104,
+                              height: 84,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => Container(
+                                width: 104,
+                                height: 84,
+                                color: AppColors.background,
+                                child: const Icon(
+                                  Icons.image_not_supported_outlined,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            proof.label,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              height: 1.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+          ),
+          if (hasPendingTransferProof) ...[
+            const SizedBox(height: 12),
+            const Text(
+              'Bukti transfer menunggu verifikasi driver/admin.',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                height: 1.35,
               ),
-            ],
-          );
-        }),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _showProofPreview(BuildContext context, CustomerOrderProofModel proof) {
+    final url = proof.photoUrl;
+    if (url == null || url.isEmpty) {
+      return;
+    }
+
+    showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.all(18),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: InteractiveViewer(
+            child: Image.network(
+              url,
+              fit: BoxFit.contain,
+              errorBuilder: (_, _, _) => const Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('Gambar bukti belum bisa dimuat.'),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1251,7 +1409,14 @@ class TrackOrderScreen extends ConsumerWidget {
     final isCourier =
         normalizeServiceTypeCode(order.serviceTypeCode) ==
         ServiceTypeCodes.courier;
-    final paymentMessage = isCourier
+    final isCancelledWithFee =
+        normalizeOrderStatusCode(order.statusCode) ==
+        OrderStatusCodes.cancelledWithFee;
+    final paymentMessage = isCancelledWithFee
+        ? (isPaid
+              ? 'Penalty merchant gagal sudah tercatat.'
+              : 'Bayar penalty merchant gagal sesuai nominal.')
+        : isCourier
         ? (isPaid
               ? 'Pembayaran pickup sudah tercatat.'
               : 'Bayar tunai ke driver saat menyerahkan barang di titik ambil.')
@@ -1829,8 +1994,10 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
     final priceText = !item.isAvailable
         ? 'Tidak tersedia'
         : item.isPricePending
-        ? 'Harga menunggu nota'
-        : formatCurrency(item.subtotal);
+        ? 'Harga mengikuti struk'
+        : item.subtotal > 0
+        ? formatCurrency(item.subtotal)
+        : 'Termasuk total struk';
     final statusColor = !item.isAvailable || item.isPricePending
         ? AppColors.error
         : AppColors.textSecondary;
@@ -2019,6 +2186,43 @@ class _TrackRouteArgs {
   final bool fromHistory;
 
   const _TrackRouteArgs({this.orderId, this.fromHistory = false});
+}
+
+class _DeliveryFeeNotice extends StatelessWidget {
+  const _DeliveryFeeNotice({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline, color: AppColors.primary, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 12.5,
+                height: 1.4,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _InfoRow {

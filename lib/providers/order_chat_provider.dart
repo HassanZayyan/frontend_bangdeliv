@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/order_chat_model.dart';
@@ -296,6 +297,116 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
       }
 
       if (!_isMounted) {
+        return null;
+      }
+
+      final latest = state.asData?.value;
+      final friendlyError = _friendlySendError(error);
+      if (latest == null) {
+        return friendlyError;
+      }
+
+      state = AsyncData(
+        latest.copyWith(
+          messages: _markOptimisticFailed(latest.messages, clientMessageId),
+          sendingCount: _decrementSending(latest.sendingCount),
+          errorMessage: friendlyError,
+        ),
+      );
+
+      return friendlyError;
+    }
+  }
+
+  Future<String?> sendAttachment(
+    XFile file, {
+    String? body,
+    String attachmentType = 'image',
+  }) async {
+    if (!_isMounted) {
+      return null;
+    }
+
+    final current = state.asData?.value;
+    final session = ref.read(authSessionProvider);
+    final profile = session.profile;
+    final normalizedBody = (body ?? '').trim();
+
+    if (current == null) {
+      return 'Chat belum siap.';
+    }
+    if (!current.canSend) {
+      return 'Chat hanya aktif saat order berlangsung.';
+    }
+    if (profile == null) {
+      return null;
+    }
+
+    final clientMessageId = _clientMessageId();
+    final optimistic = OrderChatMessageModel(
+      id: -DateTime.now().microsecondsSinceEpoch,
+      orderId: orderId,
+      senderUserId: profile.id,
+      senderRole: session.role == SessionUserRole.driver
+          ? 'driver'
+          : 'customer',
+      senderName: profile.name,
+      body: normalizedBody.isEmpty ? 'Mengirim foto...' : normalizedBody,
+      clientMessageId: clientMessageId,
+      createdAt: DateTime.now().toUtc(),
+      attachmentType: attachmentType,
+      attachmentUrl: file.path,
+      isPending: true,
+    );
+
+    state = AsyncData(
+      current.copyWith(
+        messages: _mergeMessages(current.messages, <OrderChatMessageModel>[
+          optimistic,
+        ]),
+        sendingCount: current.sendingCount + 1,
+        clearErrorMessage: true,
+      ),
+    );
+
+    try {
+      final result = await ref
+          .read(orderChatApiServiceProvider)
+          .sendAttachment(
+            orderId: orderId,
+            file: file,
+            body: normalizedBody,
+            attachmentType: attachmentType,
+            clientMessageId: clientMessageId,
+          );
+
+      if (!_isMounted) {
+        return null;
+      }
+
+      final latest = state.asData?.value;
+      if (latest == null) {
+        return null;
+      }
+
+      state = AsyncData(
+        latest.copyWith(
+          messages: _mergeMessages(latest.messages, <OrderChatMessageModel>[
+            result.message,
+          ]),
+          canSend: result.canSend,
+          sendingCount: _decrementSending(latest.sendingCount),
+          clearErrorMessage: true,
+        ),
+      );
+      return null;
+    } catch (error) {
+      if (!_isMounted) {
+        return null;
+      }
+
+      final recovered = await _recoverMessageAfterSendFailure(clientMessageId);
+      if (recovered) {
         return null;
       }
 

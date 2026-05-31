@@ -1,3 +1,4 @@
+import '../config/app_env.dart';
 import '../utils/order_status.dart' as order_status;
 import '../utils/order_formatters.dart';
 import '../utils/service_type.dart' as service_type;
@@ -52,6 +53,13 @@ class CustomerOrderSummaryModel {
   final DateTime? createdAt;
   final DateTime? estimatedDelivery;
   final String deliveryAddress;
+  final double? deliveryDistanceKm;
+  final String? deliveryDistanceText;
+  final double? deliveryFee;
+  final String? deliveryFeeSource;
+  final double? manualDeliveryFee;
+  final String? manualDeliveryFeeReason;
+  final bool carefulCarryRequired;
   final String? paymentStatus;
   final String? paymentMethod;
 
@@ -69,6 +77,13 @@ class CustomerOrderSummaryModel {
     required this.createdAt,
     required this.estimatedDelivery,
     required this.deliveryAddress,
+    this.deliveryDistanceKm,
+    this.deliveryDistanceText,
+    this.deliveryFee,
+    this.deliveryFeeSource,
+    this.manualDeliveryFee,
+    this.manualDeliveryFeeReason,
+    this.carefulCarryRequired = false,
     required this.paymentStatus,
     required this.paymentMethod,
   });
@@ -101,6 +116,13 @@ class CustomerOrderSummaryModel {
     DateTime? createdAt,
     DateTime? estimatedDelivery,
     String? deliveryAddress,
+    double? deliveryDistanceKm,
+    String? deliveryDistanceText,
+    double? deliveryFee,
+    String? deliveryFeeSource,
+    double? manualDeliveryFee,
+    String? manualDeliveryFeeReason,
+    bool? carefulCarryRequired,
     String? paymentStatus,
     String? paymentMethod,
   }) {
@@ -118,6 +140,14 @@ class CustomerOrderSummaryModel {
       createdAt: createdAt ?? this.createdAt,
       estimatedDelivery: estimatedDelivery ?? this.estimatedDelivery,
       deliveryAddress: deliveryAddress ?? this.deliveryAddress,
+      deliveryDistanceKm: deliveryDistanceKm ?? this.deliveryDistanceKm,
+      deliveryDistanceText: deliveryDistanceText ?? this.deliveryDistanceText,
+      deliveryFee: deliveryFee ?? this.deliveryFee,
+      deliveryFeeSource: deliveryFeeSource ?? this.deliveryFeeSource,
+      manualDeliveryFee: manualDeliveryFee ?? this.manualDeliveryFee,
+      manualDeliveryFeeReason:
+          manualDeliveryFeeReason ?? this.manualDeliveryFeeReason,
+      carefulCarryRequired: carefulCarryRequired ?? this.carefulCarryRequired,
       paymentStatus: paymentStatus ?? this.paymentStatus,
       paymentMethod: paymentMethod ?? this.paymentMethod,
     );
@@ -141,6 +171,28 @@ class CustomerOrderSummaryModel {
       createdAt: _asDateTime(json['created_at']),
       estimatedDelivery: _asDateTime(json['estimated_delivery']),
       deliveryAddress: (json['delivery_address'] ?? '-').toString(),
+      deliveryDistanceKm: _asNullableDouble(
+        json['delivery_distance_km'] ?? json['deliveryDistanceKm'],
+      ),
+      deliveryDistanceText:
+          (json['delivery_distance_text'] ?? json['deliveryDistanceText'])
+              ?.toString(),
+      deliveryFee: _asNullableDouble(
+        json['delivery_fee'] ?? json['deliveryFee'],
+      ),
+      deliveryFeeSource:
+          (json['delivery_fee_source'] ?? json['deliveryFeeSource'])
+              ?.toString(),
+      manualDeliveryFee: _asNullableDouble(
+        json['manual_delivery_fee'] ?? json['manualDeliveryFee'],
+      ),
+      manualDeliveryFeeReason:
+          (json['manual_delivery_fee_reason'] ??
+                  json['manualDeliveryFeeReason'])
+              ?.toString(),
+      carefulCarryRequired: _asBool(
+        json['careful_carry_required'] ?? json['carefulCarryRequired'],
+      ),
       paymentStatus: json['payment_status']?.toString(),
       paymentMethod: json['payment_method']?.toString(),
     );
@@ -288,6 +340,29 @@ class CustomerOrderSummaryModel {
     return double.tryParse(value?.toString() ?? '') ?? 0;
   }
 
+  static double? _asNullableDouble(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    final raw = value.toString().trim();
+    if (raw.isEmpty) {
+      return null;
+    }
+
+    return double.tryParse(raw);
+  }
+
+  static bool _asBool(dynamic value) {
+    if (value is bool) return value;
+    final normalized = value?.toString().trim().toLowerCase() ?? '';
+    return normalized == 'true' || normalized == '1' || normalized == 'yes';
+  }
+
   static DateTime? _asDateTime(dynamic value) {
     final raw = value?.toString() ?? '';
     if (raw.trim().isEmpty) {
@@ -315,11 +390,17 @@ class CustomerOrderDetailModel {
   final double? driverLongitude;
   final DateTime? driverLocationUpdatedAt;
   final String? deliveryDistanceText;
+  final double? deliveryDistanceKm;
+  final String? deliveryFeeSource;
+  final double? manualDeliveryFee;
+  final String? manualDeliveryFeeReason;
+  final bool carefulCarryRequired;
   final List<OrderStatusSnapshot> timeline;
   final List<CustomerShoppingItemModel> shoppingItems;
   final List<CustomerShoppingStopModel> shoppingStops;
   final OrderRouteModel? route;
   final CustomerShoppingPricingModel? shoppingPricing;
+  final List<CustomerOrderProofModel> proofs;
 
   const CustomerOrderDetailModel({
     required this.summary,
@@ -338,12 +419,18 @@ class CustomerOrderDetailModel {
     required this.driverLongitude,
     required this.driverLocationUpdatedAt,
     required this.deliveryDistanceText,
+    this.deliveryDistanceKm,
+    this.deliveryFeeSource,
+    this.manualDeliveryFee,
+    this.manualDeliveryFeeReason,
+    this.carefulCarryRequired = false,
     required this.timeline,
     this.shoppingItems = const <CustomerShoppingItemModel>[],
     this.shoppingStops = const <CustomerShoppingStopModel>[],
     OrderRouteModel? route,
     OrderRouteModel? shoppingRoute,
     this.shoppingPricing,
+    this.proofs = const <CustomerOrderProofModel>[],
   }) : route = route ?? shoppingRoute;
 
   OrderRouteModel? get shoppingRoute => route;
@@ -394,12 +481,18 @@ class CustomerOrderDetailModel {
     double? driverLongitude,
     DateTime? driverLocationUpdatedAt,
     String? deliveryDistanceText,
+    double? deliveryDistanceKm,
+    String? deliveryFeeSource,
+    double? manualDeliveryFee,
+    String? manualDeliveryFeeReason,
+    bool? carefulCarryRequired,
     List<OrderStatusSnapshot>? timeline,
     List<CustomerShoppingItemModel>? shoppingItems,
     List<CustomerShoppingStopModel>? shoppingStops,
     OrderRouteModel? route,
     OrderRouteModel? shoppingRoute,
     CustomerShoppingPricingModel? shoppingPricing,
+    List<CustomerOrderProofModel>? proofs,
   }) {
     return CustomerOrderDetailModel(
       summary: summary ?? this.summary,
@@ -419,11 +512,18 @@ class CustomerOrderDetailModel {
       driverLocationUpdatedAt:
           driverLocationUpdatedAt ?? this.driverLocationUpdatedAt,
       deliveryDistanceText: deliveryDistanceText ?? this.deliveryDistanceText,
+      deliveryDistanceKm: deliveryDistanceKm ?? this.deliveryDistanceKm,
+      deliveryFeeSource: deliveryFeeSource ?? this.deliveryFeeSource,
+      manualDeliveryFee: manualDeliveryFee ?? this.manualDeliveryFee,
+      manualDeliveryFeeReason:
+          manualDeliveryFeeReason ?? this.manualDeliveryFeeReason,
+      carefulCarryRequired: carefulCarryRequired ?? this.carefulCarryRequired,
       timeline: timeline ?? this.timeline,
       shoppingItems: shoppingItems ?? this.shoppingItems,
       shoppingStops: shoppingStops ?? this.shoppingStops,
       route: route ?? shoppingRoute ?? this.route,
       shoppingPricing: shoppingPricing ?? this.shoppingPricing,
+      proofs: proofs ?? this.proofs,
     );
   }
 
@@ -594,6 +694,22 @@ class CustomerOrderDetailModel {
             driver['updated_at'],
       ),
       deliveryDistanceText: json['delivery_distance_text']?.toString(),
+      deliveryDistanceKm: _asNullableDouble(
+        json['delivery_distance_km'] ?? json['deliveryDistanceKm'],
+      ),
+      deliveryFeeSource:
+          (json['delivery_fee_source'] ?? json['deliveryFeeSource'])
+              ?.toString(),
+      manualDeliveryFee: _asNullableDouble(
+        json['manual_delivery_fee'] ?? json['manualDeliveryFee'],
+      ),
+      manualDeliveryFeeReason:
+          (json['manual_delivery_fee_reason'] ??
+                  json['manualDeliveryFeeReason'])
+              ?.toString(),
+      carefulCarryRequired: CustomerOrderSummaryModel._asBool(
+        json['careful_carry_required'] ?? json['carefulCarryRequired'],
+      ),
       timeline: timeline,
       shoppingItems: shoppingItems,
       shoppingStops: rawStops.isEmpty
@@ -611,6 +727,9 @@ class CustomerOrderDetailModel {
       shoppingPricing: CustomerShoppingPricingModel.fromJson(
         json,
         shoppingOrder,
+      ),
+      proofs: CustomerOrderProofModel.parseList(
+        json['proofs'] ?? json['order_proofs'] ?? json['attachments'],
       ),
     );
   }
@@ -677,6 +796,83 @@ class CustomerOrderDetailModel {
   }
 }
 
+class CustomerOrderProofModel {
+  const CustomerOrderProofModel({
+    required this.id,
+    required this.type,
+    required this.label,
+    this.photoUrl,
+    this.status,
+    this.note,
+    this.createdAt,
+  });
+
+  final int id;
+  final String type;
+  final String label;
+  final String? photoUrl;
+  final String? status;
+  final String? note;
+  final DateTime? createdAt;
+
+  factory CustomerOrderProofModel.fromJson(Map<String, dynamic> json) {
+    final type =
+        (json['type'] ?? json['proof_type'] ?? json['attachment_type'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+    final rawUrl =
+        (json['photo_url'] ??
+                json['file_url'] ??
+                json['url'] ??
+                json['path'] ??
+                '')
+            .toString()
+            .trim();
+
+    return CustomerOrderProofModel(
+      id: CustomerOrderSummaryModel._asInt(json['id']),
+      type: type,
+      label: _labelFor(type),
+      photoUrl: rawUrl.isEmpty ? null : AppEnv.resolveBackendAssetUrl(rawUrl),
+      status: (json['status'] ?? json['verification_status'])?.toString(),
+      note: json['note']?.toString(),
+      createdAt: CustomerOrderSummaryModel._asDateTime(
+        json['created_at'] ?? json['createdAt'],
+      ),
+    );
+  }
+
+  static List<CustomerOrderProofModel> parseList(dynamic raw) {
+    if (raw is! List) {
+      return const <CustomerOrderProofModel>[];
+    }
+
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .map(CustomerOrderProofModel.fromJson)
+        .where((proof) => proof.type.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  static String _labelFor(String type) {
+    switch (type) {
+      case 'pickup':
+        return 'Bukti pengambilan';
+      case 'delivery':
+        return 'Bukti diterima';
+      case 'receipt':
+        return 'Foto struk';
+      case 'store_closed':
+        return 'Foto toko tutup';
+      case 'payment_transfer':
+        return 'Bukti transfer';
+      default:
+        return 'Bukti order';
+    }
+  }
+}
+
 class CustomerShoppingItemModel {
   final int id;
   final int? pickupLocationId;
@@ -707,7 +903,14 @@ class CustomerShoppingItemModel {
   });
 
   bool get isManual => itemSource.toUpperCase() == 'MANUAL';
-  bool get isPricePending => isManual && isAvailable && unitPrice <= 0;
+  bool get isPricePending {
+    final status = (priceStatus ?? '').trim().toUpperCase();
+    if (status.isNotEmpty) {
+      return status.contains('PENDING');
+    }
+
+    return isManual && isAvailable && unitPrice <= 0;
+  }
 
   factory CustomerShoppingItemModel.fromJson(Map<String, dynamic> json) {
     return CustomerShoppingItemModel(
