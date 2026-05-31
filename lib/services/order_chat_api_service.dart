@@ -1,3 +1,10 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
+
+import '../config/app_env.dart';
 import '../models/order_chat_model.dart';
 import 'api_client.dart';
 import 'api_exception.dart';
@@ -74,6 +81,68 @@ class OrderChatApiService {
     }
 
     return OrderChatSendResult.fromApiJson(response);
+  }
+
+  Future<OrderChatSendResult> sendAttachment({
+    required int orderId,
+    required XFile file,
+    required String clientMessageId,
+    String? body,
+    String attachmentType = 'image',
+  }) async {
+    final uri = Uri.parse(
+      '${AppEnv.apiBaseUrl}/v1/orders/$orderId/chat/messages',
+    );
+    final request = http.MultipartRequest('POST', uri);
+
+    try {
+      request.headers.addAll(
+        await AuthService.authorizedHeaders(includeJsonContentType: false),
+      );
+      request.fields.addAll(<String, String>{
+        'body': (body ?? '').trim(),
+        'client_message_id': clientMessageId,
+        'attachment_type': attachmentType,
+      });
+      request.files.add(
+        await http.MultipartFile.fromPath('attachment', file.path),
+      );
+
+      final streamed = await request.send().timeout(_chatTimeout);
+      final response = await http.Response.fromStream(streamed);
+      final decoded = response.body.isEmpty
+          ? const <String, dynamic>{}
+          : jsonDecode(response.body);
+
+      if (decoded is! Map<String, dynamic>) {
+        throw const ApiException('Format respons chat tidak valid.');
+      }
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw ApiException(
+          AuthService.extractErrorMessage(
+            response,
+            fallback: 'Gagal mengirim foto chat.',
+          ),
+          statusCode: response.statusCode,
+        );
+      }
+
+      final success = decoded['success'] == true;
+      if (!success) {
+        throw ApiException(
+          decoded['message']?.toString() ?? 'Gagal mengirim foto chat.',
+        );
+      }
+
+      return OrderChatSendResult.fromApiJson(decoded);
+    } on TimeoutException {
+      throw const ApiException('Upload foto chat timeout.', statusCode: 408);
+    } on AuthException catch (error) {
+      throw ApiException(error.message);
+    } on FormatException {
+      throw const ApiException('Format respons chat tidak valid.');
+    }
   }
 
   Future<OrderChatUnreadSummary> fetchUnread({required int orderId}) async {

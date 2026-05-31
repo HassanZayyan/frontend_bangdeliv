@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../models/driver_order_model.dart';
 import '../services/driver_order_service.dart';
@@ -672,6 +673,130 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     }
   }
 
+  Future<String?> confirmTransferPayment({
+    required String orderId,
+    required double amount,
+    String? note,
+  }) async {
+    return _mutateRunningOrder(
+      orderId: orderId,
+      request: (service) => service.confirmTransferPayment(
+        orderId: orderId,
+        amount: amount,
+        note: note,
+      ),
+    );
+  }
+
+  Future<String?> updateDeliveryFeeOverride({
+    required String orderId,
+    required double amount,
+    required String reason,
+    bool? carefulCarryRequired,
+  }) async {
+    return _mutateRunningOrder(
+      orderId: orderId,
+      request: (service) => service.updateDeliveryFeeOverride(
+        orderId: orderId,
+        amount: amount,
+        reason: reason,
+        carefulCarryRequired: carefulCarryRequired,
+      ),
+    );
+  }
+
+  Future<String?> uploadProof({
+    required String orderId,
+    required String type,
+    required XFile photo,
+    String? note,
+    int? pickupLocationId,
+  }) async {
+    return _mutateRunningOrder(
+      orderId: orderId,
+      request: (service) => service.uploadProof(
+        orderId: orderId,
+        type: type,
+        photo: photo,
+        note: note,
+        pickupLocationId: pickupLocationId,
+      ),
+    );
+  }
+
+  Future<String?> updateShoppingCheckout({
+    required String orderId,
+    required List<Map<String, dynamic>> items,
+    required double shoppingTotalAmount,
+    double? deliveryFeeOverride,
+    String? receiptNote,
+    XFile? receiptPhoto,
+  }) async {
+    return _mutateRunningOrder(
+      orderId: orderId,
+      request: (service) => service.updateShoppingCheckout(
+        orderId: orderId,
+        items: items,
+        shoppingTotalAmount: shoppingTotalAmount,
+        deliveryFeeOverride: deliveryFeeOverride,
+        receiptNote: receiptNote,
+        receiptPhoto: receiptPhoto,
+      ),
+    );
+  }
+
+  Future<String?> _mutateRunningOrder({
+    required String orderId,
+    required Future<DriverOrderModel> Function(DriverOrderService service)
+    request,
+  }) async {
+    final current = state.asData?.value;
+    if (current == null) {
+      return 'Data order belum siap.';
+    }
+
+    if (current.isProcessing(orderId)) {
+      return null;
+    }
+
+    final processingOrderIds = <String>{...current.processingOrderIds, orderId};
+    state = AsyncData(current.copyWith(processingOrderIds: processingOrderIds));
+
+    try {
+      final updated = await request(ref.read(driverOrderServiceProvider));
+
+      final latest = state.asData?.value;
+      if (latest == null) {
+        return null;
+      }
+
+      final cleanedProcessingIds = <String>{...latest.processingOrderIds}
+        ..remove(orderId);
+      state = AsyncData(
+        latest.copyWith(
+          running: _upsertRunningOrder(latest.running, updated),
+          processingOrderIds: cleanedProcessingIds,
+        ),
+      );
+      _syncRunningOrderRealtime(state.asData!.value);
+
+      ref.invalidate(driverOrderDetailProvider(orderId));
+      return null;
+    } catch (error) {
+      final latest = state.asData?.value;
+      if (latest == null) {
+        return error.toString();
+      }
+
+      final rollbackProcessingIds = <String>{...latest.processingOrderIds}
+        ..remove(orderId);
+      state = AsyncData(
+        latest.copyWith(processingOrderIds: rollbackProcessingIds),
+      );
+      return error.toString();
+    }
+  }
+
   Future<String?> updateShoppingItems({
     required String orderId,
     required List<Map<String, dynamic>> items,
@@ -734,6 +859,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     required String orderId,
     required int pickupLocationId,
     required String reason,
+    XFile? storeClosedPhoto,
   }) async {
     final current = state.asData?.value;
     if (current == null) {
@@ -748,6 +874,18 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     state = AsyncData(current.copyWith(processingOrderIds: processingOrderIds));
 
     try {
+      if (storeClosedPhoto != null) {
+        await ref
+            .read(driverOrderServiceProvider)
+            .uploadProof(
+              orderId: orderId,
+              type: 'store_closed',
+              photo: storeClosedPhoto,
+              note: reason,
+              pickupLocationId: pickupLocationId,
+            );
+      }
+
       final updated = await ref
           .read(driverOrderServiceProvider)
           .recordShoppingPickupFailed(
@@ -1284,6 +1422,14 @@ final driverActiveOrderProvider = Provider<DriverOrderModel?>((ref) {
   return state.maybeWhen(
     data: (value) => value.running.isEmpty ? null : value.running.first,
     orElse: () => null,
+  );
+});
+
+final driverIncomingOrderCountProvider = Provider<int>((ref) {
+  final state = ref.watch(driverOrdersProvider);
+  return state.maybeWhen(
+    data: (value) => value.incoming.length,
+    orElse: () => 0,
   );
 });
 

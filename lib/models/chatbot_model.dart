@@ -343,7 +343,7 @@ class ChatbotResult {
   String toAssistantText() {
     final backendMessage = assistantText?.trim() ?? '';
     if (backendMessage.isNotEmpty) {
-      return backendMessage;
+      return _normalizeDeliveryFeeLabel(backendMessage);
     }
 
     if (intent == ChatbotIntent.courierOrder) {
@@ -440,6 +440,13 @@ class ChatbotResult {
     }
 
     return buffer.toString().trimRight();
+  }
+
+  String _normalizeDeliveryFeeLabel(String text) {
+    return text.replaceAllMapped(
+      RegExp(r'(^|\n)\s*Ongkir\s*:', caseSensitive: false),
+      (match) => '${match.group(1) ?? ''}Estimasi ongkir sementara:',
+    );
   }
 }
 

@@ -1,3 +1,4 @@
+import '../config/app_env.dart';
 import '../utils/order_formatters.dart';
 
 class OrderChatMessageModel {
@@ -10,6 +11,9 @@ class OrderChatMessageModel {
     required this.body,
     required this.clientMessageId,
     required this.createdAt,
+    this.attachmentType,
+    this.attachmentUrl,
+    this.attachmentMimeType,
     this.isPending = false,
     this.isFailed = false,
   });
@@ -22,10 +26,14 @@ class OrderChatMessageModel {
   final String body;
   final String? clientMessageId;
   final DateTime? createdAt;
+  final String? attachmentType;
+  final String? attachmentUrl;
+  final String? attachmentMimeType;
   final bool isPending;
   final bool isFailed;
 
   bool get hasServerId => id > 0;
+  bool get hasAttachment => (attachmentUrl ?? '').trim().isNotEmpty;
 
   OrderChatMessageModel copyWith({
     int? id,
@@ -36,6 +44,9 @@ class OrderChatMessageModel {
     String? body,
     String? clientMessageId,
     DateTime? createdAt,
+    String? attachmentType,
+    String? attachmentUrl,
+    String? attachmentMimeType,
     bool? isPending,
     bool? isFailed,
   }) {
@@ -48,12 +59,26 @@ class OrderChatMessageModel {
       body: body ?? this.body,
       clientMessageId: clientMessageId ?? this.clientMessageId,
       createdAt: createdAt ?? this.createdAt,
+      attachmentType: attachmentType ?? this.attachmentType,
+      attachmentUrl: attachmentUrl ?? this.attachmentUrl,
+      attachmentMimeType: attachmentMimeType ?? this.attachmentMimeType,
       isPending: isPending ?? this.isPending,
       isFailed: isFailed ?? this.isFailed,
     );
   }
 
   factory OrderChatMessageModel.fromJson(Map<String, dynamic> json) {
+    final attachment = _extractAttachment(json);
+    final rawAttachmentUrl =
+        (attachment['url'] ??
+                attachment['file_url'] ??
+                attachment['photo_url'] ??
+                attachment['path'] ??
+                json['attachment_url'] ??
+                '')
+            .toString()
+            .trim();
+
     return OrderChatMessageModel(
       id: _asInt(json['id']),
       orderId: _asInt(json['order_id'] ?? json['orderId']),
@@ -74,7 +99,33 @@ class OrderChatMessageModel {
         json['client_message_id'] ?? json['clientMessageId'],
       ),
       createdAt: parseBackendDateTime(json['created_at'] ?? json['createdAt']),
+      attachmentType: _nullableString(
+        attachment['type'] ?? json['attachment_type'],
+      ),
+      attachmentUrl: rawAttachmentUrl.isEmpty
+          ? null
+          : AppEnv.resolveBackendAssetUrl(rawAttachmentUrl),
+      attachmentMimeType: _nullableString(
+        attachment['mime_type'] ?? json['attachment_mime_type'],
+      ),
     );
+  }
+
+  static Map<String, dynamic> _extractAttachment(Map<String, dynamic> json) {
+    final rawAttachments = json['attachments'];
+    if (rawAttachments is List && rawAttachments.isNotEmpty) {
+      final first = rawAttachments.first;
+      if (first is Map<String, dynamic>) {
+        return first;
+      }
+    }
+
+    final rawAttachment = json['attachment'];
+    if (rawAttachment is Map<String, dynamic>) {
+      return rawAttachment;
+    }
+
+    return const <String, dynamic>{};
   }
 
   static int _asInt(dynamic value) {

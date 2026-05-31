@@ -135,6 +135,7 @@ class CustomerOrderTrackingNotifier
         }
         break;
       case OrderRealtimeEventType.content:
+        _applyContentEvent(event);
         _scheduleDetailReconciliation();
         break;
       case OrderRealtimeEventType.location:
@@ -254,6 +255,57 @@ class CustomerOrderTrackingNotifier
 
     _syncAutoRefresh(patchedDetail);
     _scheduleDetailReconciliation();
+  }
+
+  void _applyContentEvent(OrderRealtimeEvent event) {
+    if (!_isMounted) {
+      return;
+    }
+
+    final current = state.asData?.value;
+    if (current == null) {
+      return;
+    }
+
+    final pricing = event.payload?['pricing'];
+    if (pricing is! Map) {
+      return;
+    }
+
+    final deliveryFee = _asNullableDouble(pricing['delivery_fee']);
+    final manualDeliveryFee = _asNullableDouble(pricing['manual_delivery_fee']);
+    final totalPrice = _asNullableDouble(pricing['total_price']);
+    final deliveryFeeSource = pricing['delivery_fee_source']?.toString();
+    final manualReason = pricing['manual_delivery_fee_reason']?.toString();
+    final carefulCarryRequired = _asNullableBool(
+      pricing['careful_carry_required'],
+    );
+
+    final patchedSummary = current.detail.summary.copyWith(
+      totalAmount: totalPrice,
+      deliveryFee: deliveryFee,
+      deliveryFeeSource: deliveryFeeSource,
+      manualDeliveryFee: manualDeliveryFee,
+      manualDeliveryFeeReason: manualReason,
+      carefulCarryRequired: carefulCarryRequired,
+    );
+    final patchedDetail = current.detail.copyWith(
+      summary: patchedSummary,
+      deliveryFeeSource: deliveryFeeSource,
+      manualDeliveryFee: manualDeliveryFee,
+      manualDeliveryFeeReason: manualReason,
+      carefulCarryRequired: carefulCarryRequired,
+    );
+
+    state = AsyncData(
+      current.copyWith(
+        detail: patchedDetail,
+        realtimeConnected: true,
+        realtimeUnavailable: false,
+        lastRealtimeEventAt: DateTime.now(),
+        clearRealtimeMessage: true,
+      ),
+    );
   }
 
   List<OrderStatusSnapshot> _upsertTimeline(
@@ -421,6 +473,26 @@ class CustomerOrderTrackingNotifier
     final fetchedLocationUpdatedAt = fetched.driverLocationUpdatedAt;
     return fetchedLocationUpdatedAt == null ||
         fetchedLocationUpdatedAt.isBefore(lastLocationEventAt);
+  }
+
+  double? _asNullableDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
+  }
+
+  bool? _asNullableBool(dynamic value) {
+    if (value == null) return null;
+    if (value is bool) return value;
+    final normalized = value.toString().trim().toLowerCase();
+    if (normalized == 'true' || normalized == '1' || normalized == 'yes') {
+      return true;
+    }
+    if (normalized == 'false' || normalized == '0' || normalized == 'no') {
+      return false;
+    }
+
+    return null;
   }
 
   void _markRealtimeUnavailable(String message) {

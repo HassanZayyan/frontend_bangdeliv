@@ -75,6 +75,21 @@ void main() {
     expect(find.text('Pilih Titik Tujuan'), findsNothing);
   });
 
+  testWidgets('back button from root chatbot falls back to home', (
+    WidgetTester tester,
+  ) async {
+    await _pumpChatbot(
+      tester,
+      serviceType: 'nitip',
+      chatbotApiService: _FakeChatbotApiService(),
+    );
+
+    await tester.tap(find.byIcon(Icons.chevron_left));
+    await _pumpChatbotFrame(tester);
+
+    expect(find.text('Home Screen'), findsOneWidget);
+  });
+
   for (final entry in const <String, String>{
     'nitip': 'Sebelum titip belanja',
     'antar_jemput': 'Sebelum pesan Antar Jemput',
@@ -139,9 +154,46 @@ void main() {
       find.textContaining('order antar jemput berhasil dibuat'),
       findsOneWidget,
     );
+    expect(
+      find.textContaining('Estimasi ongkir sementara: Rp 9.000.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Ongkir: Rp 9.000.'), findsNothing);
     expect(find.text('Lacak Pesanan'), findsOneWidget);
     expect(find.textContaining('belum bisa digunakan'), findsNothing);
   });
+
+  for (final entry in const <String, ({String message, String action})>{
+    'kurir': (
+      message: 'Alamat ambil kamu sudah tersimpan',
+      action: 'Atur Titik Ambil & Tujuan',
+    ),
+    'nitip': (
+      message: 'Alamat antar pesanan kamu sudah tersimpan',
+      action: 'Pilih Titik Antar',
+    ),
+  }.entries) {
+    testWidgets('${entry.key} shows address-ready message after address fill', (
+      WidgetTester tester,
+    ) async {
+      final router = await _pumpChatbot(
+        tester,
+        serviceType: entry.key,
+        chatbotApiService: _FakeChatbotApiService(),
+        authSession: _buildAuthenticatedSessionWithoutAddress(),
+        refreshedAuthSession: _buildAuthenticatedSession(),
+      );
+
+      expect(find.text('Alamat Saya Screen'), findsOneWidget);
+
+      router.pop();
+      await _pumpChatbotFrame(tester);
+
+      expect(find.textContaining(entry.value.message), findsOneWidget);
+      expect(find.text(entry.value.action), findsOneWidget);
+      expect(find.text('Atur Titik Jemput & Tujuan'), findsNothing);
+    });
+  }
 
   testWidgets('show courier map picker action when backend asks for pin', (
     WidgetTester tester,
@@ -294,6 +346,7 @@ Future<GoRouter> _pumpChatbot(
   required String serviceType,
   required ChatbotApiService chatbotApiService,
   AuthSessionState? authSession,
+  AuthSessionState? refreshedAuthSession,
 }) async {
   SharedPreferences.setMockInitialValues(<String, Object>{});
 
@@ -314,6 +367,12 @@ Future<GoRouter> _pumpChatbot(
           );
         },
       ),
+      GoRoute(
+        path: '/home',
+        builder: (BuildContext context, GoRouterState state) {
+          return const Scaffold(body: Center(child: Text('Home Screen')));
+        },
+      ),
     ],
   );
   addTearDown(router.dispose);
@@ -324,6 +383,7 @@ Future<GoRouter> _pumpChatbot(
         authSessionProvider.overrideWith(
           () => _FakeAuthSessionNotifier(
             authSession ?? _buildAuthenticatedSession(),
+            refreshedSession: refreshedAuthSession,
           ),
         ),
         chatbotApiServiceProvider.overrideWithValue(chatbotApiService),
@@ -396,9 +456,11 @@ AuthSessionState _buildAuthenticatedSessionWithoutAddress() {
 }
 
 class _FakeAuthSessionNotifier extends AuthSessionNotifier {
-  _FakeAuthSessionNotifier(this._session);
+  _FakeAuthSessionNotifier(this._session, {AuthSessionState? refreshedSession})
+    : _refreshedSession = refreshedSession;
 
   final AuthSessionState _session;
+  final AuthSessionState? _refreshedSession;
 
   @override
   AuthSessionState build() => _session;
@@ -415,7 +477,7 @@ class _FakeAuthSessionNotifier extends AuthSessionNotifier {
 
   @override
   Future<void> refreshSession() async {
-    state = _session;
+    state = _refreshedSession ?? _session;
   }
 }
 

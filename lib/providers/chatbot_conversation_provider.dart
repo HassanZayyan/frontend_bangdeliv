@@ -530,7 +530,9 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
   void onAddressBookUpdated({required String serviceType}) {
     _ensureService(serviceType);
 
-    if (serviceType != 'antar_jemput' && serviceType != 'kurir') {
+    if (serviceType != 'antar_jemput' &&
+        serviceType != 'kurir' &&
+        serviceType != 'nitip') {
       return;
     }
 
@@ -550,9 +552,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       messages: <ChatbotConversationMessage>[
         ...state.messages,
         _botMessage(
-          text: serviceType == 'kurir'
-              ? 'Alamat ambil kamu sudah tersimpan. Atur titik ambil dan tujuan lewat tombol di bawah, atau tetap kirim lewat chat.'
-              : 'Alamat jemput kamu sudah tersimpan. Atur titik jemput dan tujuan lewat tombol di bawah, atau tetap kirim lewat chat.',
+          text: _addressBookUpdatedMessage(serviceType),
           timestamp: _nowLabel(),
           actionHints: mapHints,
         ),
@@ -827,12 +827,19 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     }
 
     if (nextActions.contains('OPEN_MAP_PICKER_DELIVERY')) {
+      final deliveryFallbackLabel =
+          serviceType == 'nitip' && nextActions.contains('CONFIRM_DRAFT')
+          ? 'Ganti Titik Antar'
+          : 'Pilih Titik Antar';
       add(
         _mapPickerHintFromPayload(
           actionPayloads,
           'OPEN_MAP_PICKER_DELIVERY',
           fallbackTarget: 'delivery',
-          fallbackLabel: 'Pilih Titik Antar',
+          fallbackLabel: deliveryFallbackLabel,
+          labelOverride: deliveryFallbackLabel == 'Ganti Titik Antar'
+              ? deliveryFallbackLabel
+              : null,
         ),
       );
     }
@@ -923,6 +930,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     String actionKey, {
     required String fallbackTarget,
     required String fallbackLabel,
+    String? labelOverride,
   }) {
     final payload = actionPayloads?[actionKey];
     final payloadMap = payload is Map<String, dynamic>
@@ -934,9 +942,11 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
 
     return ChatbotMessageActionHint(
       type: ChatbotMessageActionType.openMapPicker,
-      label: (payloadMap['label']?.toString().trim() ?? '').isEmpty
-          ? fallbackLabel
-          : payloadMap['label'].toString().trim(),
+      label:
+          labelOverride ??
+          ((payloadMap['label']?.toString().trim() ?? '').isEmpty
+              ? fallbackLabel
+              : payloadMap['label'].toString().trim()),
       target: (payloadMap['target']?.toString().trim() ?? '').isEmpty
           ? fallbackTarget
           : payloadMap['target'].toString().trim(),
@@ -1084,6 +1094,20 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       ];
     }
 
+    if (serviceType == 'nitip') {
+      return const <ChatbotMessageActionHint>[
+        ChatbotMessageActionHint(
+          type: ChatbotMessageActionType.openMapPicker,
+          label: 'Pilih Titik Antar',
+          target: 'delivery',
+        ),
+      ];
+    }
+
+    if (serviceType != 'antar_jemput') {
+      return const <ChatbotMessageActionHint>[];
+    }
+
     return const <ChatbotMessageActionHint>[
       ChatbotMessageActionHint(
         type: ChatbotMessageActionType.openRoutePicker,
@@ -1094,6 +1118,18 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         ],
       ),
     ];
+  }
+
+  String _addressBookUpdatedMessage(String serviceType) {
+    if (serviceType == 'kurir') {
+      return 'Alamat ambil kamu sudah tersimpan. Atur titik ambil dan tujuan lewat tombol di bawah, atau tetap kirim lewat chat.';
+    }
+
+    if (serviceType == 'nitip') {
+      return 'Alamat antar pesanan kamu sudah tersimpan. Pilih titik antar lewat tombol di bawah, atau tetap kirim lewat chat.';
+    }
+
+    return 'Alamat jemput kamu sudah tersimpan. Atur titik jemput dan tujuan lewat tombol di bawah, atau tetap kirim lewat chat.';
   }
 
   bool _isSameActionSet(

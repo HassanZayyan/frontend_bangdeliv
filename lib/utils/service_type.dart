@@ -45,3 +45,13 @@ String serviceTypeLabel(String code) {
       return 'Layanan Bangdeliv';
   }
 }
+
+bool serviceTypeSupportsOrderProofs(String code) {
+  final normalized = normalizeServiceTypeCode(code);
+  return normalized == ServiceTypeCodes.courier ||
+      normalized == ServiceTypeCodes.shopping;
+}
+
+bool serviceTypeSupportsCarefulCarry(String code) {
+  return serviceTypeSupportsOrderProofs(code);
+}

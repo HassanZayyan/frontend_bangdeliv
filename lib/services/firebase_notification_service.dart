@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../config/app_routes.dart';
 import '../firebase_options.dart';
+import 'notification_navigation_service.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -16,18 +19,39 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   }
 }
 
+@pragma('vm:entry-point')
+void localNotificationTapBackground(NotificationResponse response) {
+  final payload = response.payload?.trim() ?? '';
+  if (payload.isEmpty) {
+    return;
+  }
+
+  unawaited(NotificationNavigationService.queueRoute(payload));
+}
+
 class FirebaseNotificationService {
   FirebaseNotificationService._();
 
   static final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  static final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
+
+  static const String chatNotificationChannelId = 'bangdeliv_chat_high';
+  static const String _chatNotificationChannelName = 'Chat Order';
+  static const String _chatNotificationChannelDescription =
+      'Notifikasi prioritas tinggi untuk pesan chat order.';
 
   static bool _firebaseInitialized = false;
   static bool _notificationsInitialized = false;
+  static bool _localNotificationsInitialized = false;
+  static bool _localLaunchDetailsHandled = false;
   static String? _registeredToken;
   static int? _registeredUserId;
-  static void Function(String route)? _openRoute;
+  static FutureOr<void> Function(String route)? _openRoute;
+  static bool Function(RemoteMessage message)? _shouldShowForegroundMessage;
   static Future<void> Function(String token)? _tokenRefreshHandler;
   static StreamSubscription<String>? _tokenRefreshSubscription;
+  static final Set<String> _shownNotificationKeys = <String>{};
 
   static Future<bool> initializeFirebase() async {
     if (_firebaseInitialized) {
@@ -57,10 +81,14 @@ class FirebaseNotificationService {
   }
 
   static Future<void> initializeNotifications({
-    void Function(String route)? onOpenRoute,
+    FutureOr<void> Function(String route)? onOpenRoute,
+    bool Function(RemoteMessage message)? shouldShowForegroundMessage,
   }) async {
     if (onOpenRoute != null) {
       _openRoute = onOpenRoute;
+    }
+    if (shouldShowForegroundMessage != null) {
+      _shouldShowForegroundMessage = shouldShowForegroundMessage;
     }
 
     if (_notificationsInitialized) {
@@ -73,6 +101,8 @@ class FirebaseNotificationService {
     }
 
     await _messaging.setAutoInitEnabled(true);
+    await _initializeLocalNotifications();
+    await _handleLocalNotificationLaunchDetails();
 
     _tokenRefreshSubscription ??= _messaging.onTokenRefresh.listen((token) {
       _logToken(token, label: 'Refreshed token');
@@ -80,15 +110,17 @@ class FirebaseNotificationService {
     });
 
     FirebaseMessaging.onMessage.listen((message) {
-      if (!kDebugMode) {
-        return;
+      if (kDebugMode) {
+        final notification = message.notification;
+        debugPrint(
+          '[FCM] Foreground message: '
+          '${notification?.title ?? message.messageId ?? 'no title'}',
+        );
       }
 
-      final notification = message.notification;
-      debugPrint(
-        '[FCM] Foreground message: '
-        '${notification?.title ?? message.messageId ?? 'no title'}',
-      );
+      if (_shouldShowForegroundMessage?.call(message) ?? true) {
+        unawaited(_showForegroundOrderChatNotification(message));
+      }
     });
 
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
@@ -176,10 +208,16 @@ class FirebaseNotificationService {
     }
   }
 
-  @visibleForTesting
   static String? routeForNotificationData(Map<String, dynamic> data) {
     if ((data['type'] ?? '').toString() != 'order_chat_message') {
       return null;
+    }
+
+    final explicitRoute = NotificationNavigationService.normalizeRoute(
+      (data['route'] ?? '').toString(),
+    );
+    if (explicitRoute != null) {
+      return explicitRoute;
     }
 
     final orderId = int.tryParse((data['order_id'] ?? '').toString());
@@ -188,6 +226,35 @@ class FirebaseNotificationService {
     }
 
     return AppRoutes.orderChatPath(orderId);
+  }
+
+  static Future<void> showLocalOrderChatNotification({
+    required int orderId,
+    required int messageId,
+    required String title,
+    required String body,
+  }) async {
+    final route = AppRoutes.orderChatPath(orderId);
+    final key = messageId > 0
+        ? 'chat:$orderId:$messageId'
+        : 'realtime:$orderId:${title.hashCode}:${body.hashCode}';
+    if (!_rememberNotificationKey(key)) {
+      return;
+    }
+
+    await _initializeLocalNotifications();
+    await _showLocalNotification(
+      id: _notificationId(orderId: orderId, messageId: messageId),
+      title: title,
+      body: body,
+      payload: route,
+      data: <String, dynamic>{
+        'type': 'order_chat_message',
+        'order_id': orderId.toString(),
+        'message_id': messageId.toString(),
+        'route': route,
+      },
+    );
   }
 
   static Future<NotificationSettings> _requestNotificationPermission() {
@@ -200,6 +267,194 @@ class FirebaseNotificationService {
       provisional: false,
       sound: true,
     );
+  }
+
+  static Future<void> _initializeLocalNotifications() async {
+    if (_localNotificationsInitialized) {
+      return;
+    }
+
+    try {
+      const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const darwin = DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      );
+      const settings = InitializationSettings(
+        android: android,
+        iOS: darwin,
+        macOS: darwin,
+      );
+
+      await _localNotifications.initialize(
+        settings: settings,
+        onDidReceiveNotificationResponse: (response) {
+          final payload = response.payload?.trim() ?? '';
+          _handleOpenRoute(payload);
+        },
+        onDidReceiveBackgroundNotificationResponse:
+            localNotificationTapBackground,
+      );
+
+      final androidPlugin = _localNotifications
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          chatNotificationChannelId,
+          _chatNotificationChannelName,
+          description: _chatNotificationChannelDescription,
+          importance: Importance.max,
+          playSound: true,
+          enableVibration: true,
+          showBadge: true,
+        ),
+      );
+      await androidPlugin?.requestNotificationsPermission();
+
+      _localNotificationsInitialized = true;
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('[FCM] Failed to initialize local notifications: $error');
+      }
+    }
+  }
+
+  static Future<void> _handleLocalNotificationLaunchDetails() async {
+    if (_localLaunchDetailsHandled) {
+      return;
+    }
+
+    _localLaunchDetailsHandled = true;
+
+    try {
+      final details = await _localNotifications
+          .getNotificationAppLaunchDetails();
+      final didLaunch = details?.didNotificationLaunchApp ?? false;
+      if (!didLaunch) {
+        return;
+      }
+
+      _handleOpenRoute(details?.notificationResponse?.payload);
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint(
+          '[FCM] Failed to read local notification launch details: $error',
+        );
+      }
+    }
+  }
+
+  static Future<void> _showForegroundOrderChatNotification(
+    RemoteMessage message,
+  ) async {
+    final route = routeForNotificationData(message.data);
+    if (route == null) {
+      return;
+    }
+
+    final orderId = int.tryParse((message.data['order_id'] ?? '').toString());
+    final messageId = int.tryParse(
+      (message.data['message_id'] ?? '').toString(),
+    );
+    final key =
+        (orderId != null && orderId > 0 && messageId != null && messageId > 0)
+        ? 'chat:$orderId:$messageId'
+        : 'fcm:${message.messageId ?? ''}:${orderId ?? 0}:${messageId ?? 0}';
+    if (!_rememberNotificationKey(key)) {
+      return;
+    }
+
+    await _initializeLocalNotifications();
+
+    final notification = message.notification;
+    final title = (notification?.title ?? message.data['title'] ?? 'Bang Deliv')
+        .toString()
+        .trim();
+    final body =
+        (notification?.body ?? message.data['body'] ?? 'Pesan chat baru.')
+            .toString()
+            .trim();
+
+    await _showLocalNotification(
+      id: _notificationId(orderId: orderId ?? 0, messageId: messageId ?? 0),
+      title: title.isEmpty ? 'Bang Deliv' : title,
+      body: body.isEmpty ? 'Pesan chat baru.' : body,
+      payload: route,
+      data: message.data,
+    );
+  }
+
+  static Future<void> _showLocalNotification({
+    required int id,
+    required String title,
+    required String body,
+    required String payload,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      const android = AndroidNotificationDetails(
+        chatNotificationChannelId,
+        _chatNotificationChannelName,
+        channelDescription: _chatNotificationChannelDescription,
+        importance: Importance.max,
+        priority: Priority.high,
+        category: AndroidNotificationCategory.message,
+        visibility: NotificationVisibility.public,
+        playSound: true,
+        enableVibration: true,
+        channelShowBadge: true,
+        ticker: 'Pesan chat order baru',
+      );
+      const darwin = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
+      const details = NotificationDetails(android: android, iOS: darwin);
+
+      await _localNotifications.show(
+        id: id,
+        title: title,
+        body: body,
+        notificationDetails: details,
+        payload: payload,
+      );
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint(
+          '[FCM] Failed to show local notification: $error data=${jsonEncode(data)}',
+        );
+      }
+    }
+  }
+
+  static int _notificationId({required int orderId, required int messageId}) {
+    if (messageId > 0) {
+      return messageId % 2147483647;
+    }
+
+    final seed = '$orderId:${DateTime.now().millisecondsSinceEpoch}';
+    return seed.hashCode.abs() % 2147483647;
+  }
+
+  static bool _rememberNotificationKey(String key) {
+    if (key.trim().isEmpty) {
+      return true;
+    }
+
+    if (_shownNotificationKeys.contains(key)) {
+      return false;
+    }
+
+    _shownNotificationKeys.add(key);
+    if (_shownNotificationKeys.length > 120) {
+      _shownNotificationKeys.remove(_shownNotificationKeys.first);
+    }
+
+    return true;
   }
 
   static Future<void> _registerTokenForUser({
@@ -224,11 +479,22 @@ class FirebaseNotificationService {
 
   static void _openRouteFromMessage(RemoteMessage message) {
     final route = routeForNotificationData(message.data);
-    if (route == null) {
+    _handleOpenRoute(route);
+  }
+
+  static void _handleOpenRoute(String? route) {
+    final normalizedRoute = NotificationNavigationService.normalizeRoute(route);
+    if (normalizedRoute == null) {
       return;
     }
 
-    _openRoute?.call(route);
+    final openRoute = _openRoute;
+    if (openRoute == null) {
+      unawaited(NotificationNavigationService.queueRoute(normalizedRoute));
+      return;
+    }
+
+    unawaited(Future<void>.sync(() => openRoute(normalizedRoute)));
   }
 
   static void _logToken(String? token, {required String label}) {

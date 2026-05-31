@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
@@ -20,6 +21,7 @@ import '../utils/courier_package_formatter.dart';
 import '../utils/map_marker_icons.dart';
 import '../utils/order_formatters.dart' hide formatCurrency;
 import '../utils/order_status.dart';
+import '../utils/order_ui_helpers.dart';
 import '../utils/service_type.dart';
 import '../widgets/order_chat_badge_icon.dart';
 import '../widgets/shopping_fee_breakdown.dart';
@@ -103,19 +105,74 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                 const SizedBox(height: 12),
                 _OrderMetaCard(order: order, trackingState: trackingState),
                 const SizedBox(height: 12),
+                if (normalizeServiceTypeCode(order.serviceTypeCode) ==
+                    ServiceTypeCodes.courier) ...[
+                  _ProofChecklistCard(
+                    order: order,
+                    isProcessing: isProcessing,
+                    onUploadProof:
+                        ({
+                          required type,
+                          required photo,
+                          note,
+                          pickupLocationId,
+                        }) {
+                          return ref
+                              .read(driverOrdersProvider.notifier)
+                              .uploadProof(
+                                orderId: order.id,
+                                type: type,
+                                photo: photo,
+                                note: note,
+                                pickupLocationId: pickupLocationId,
+                              );
+                        },
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                _ManualDeliveryFeeCard(
+                  order: order,
+                  isProcessing: isProcessing,
+                  onSave:
+                      ({
+                        required amount,
+                        required reason,
+                        required carefulCarryRequired,
+                      }) {
+                        return ref
+                            .read(driverOrdersProvider.notifier)
+                            .updateDeliveryFeeOverride(
+                              orderId: order.id,
+                              amount: amount,
+                              reason: reason,
+                              carefulCarryRequired: carefulCarryRequired,
+                            );
+                      },
+                ),
+                const SizedBox(height: 12),
                 if (order.shoppingItems.isNotEmpty) ...[
                   _ShoppingItemsCard(
                     order: order,
                     isProcessing: isProcessing,
-                    onSave: (items, receiptNote) async {
-                      return ref
-                          .read(driverOrdersProvider.notifier)
-                          .updateShoppingItems(
-                            orderId: order.id,
-                            items: items,
-                            receiptNote: receiptNote,
-                          );
-                    },
+                    onSave:
+                        (
+                          items,
+                          shoppingTotalAmount,
+                          deliveryFeeOverride,
+                          receiptNote,
+                          receiptPhoto,
+                        ) async {
+                          return ref
+                              .read(driverOrdersProvider.notifier)
+                              .updateShoppingCheckout(
+                                orderId: order.id,
+                                items: items,
+                                shoppingTotalAmount: shoppingTotalAmount,
+                                deliveryFeeOverride: deliveryFeeOverride,
+                                receiptNote: receiptNote,
+                                receiptPhoto: receiptPhoto,
+                              );
+                        },
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -125,13 +182,18 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                   order: order,
                   isProcessing: isProcessing,
                   onReportPickupFailed:
-                      ({required pickupLocationId, required reason}) async {
+                      ({
+                        required pickupLocationId,
+                        required reason,
+                        required storeClosedPhoto,
+                      }) async {
                         final error = await ref
                             .read(driverOrdersProvider.notifier)
                             .recordShoppingPickupFailed(
                               orderId: order.id,
                               pickupLocationId: pickupLocationId,
                               reason: reason,
+                              storeClosedPhoto: storeClosedPhoto,
                             );
 
                         if (!context.mounted) {
@@ -152,6 +214,31 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                           ref.invalidate(driverOrderDetailProvider(order.id));
                         }
                       },
+                  onConfirmTransfer: ({required amount, required note}) async {
+                    final error = await ref
+                        .read(driverOrdersProvider.notifier)
+                        .confirmTransferPayment(
+                          orderId: order.id,
+                          amount: amount,
+                          note: note,
+                        );
+
+                    if (!context.mounted) {
+                      return;
+                    }
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          error ?? 'Pembayaran transfer berhasil dicatat.',
+                        ),
+                        backgroundColor: error == null ? null : AppColors.error,
+                      ),
+                    );
+                    if (error == null) {
+                      ref.invalidate(driverOrderDetailProvider(order.id));
+                    }
+                  },
                   onTapAction: (action) async {
                     final notifier = ref.read(driverOrdersProvider.notifier);
 
@@ -287,6 +374,7 @@ class _MapCardState extends State<_MapCard> {
     }
 
     final initial = driver ?? pickup ?? dropoff!;
+    final showRouteUnavailableHint = _shouldShowRouteUnavailableHint();
     final markers = <Marker>{
       if (driver != null)
         Marker(
@@ -344,6 +432,22 @@ class _MapCardState extends State<_MapCard> {
               right: 10,
               child: _TrackingBadge(state: widget.trackingState),
             ),
+            if (showRouteUnavailableHint)
+              Positioned(
+                top: 52,
+                left: 10,
+                right: 10,
+                child: const _RouteUnavailableBadge(),
+              ),
+            if (widget.order.deliveryDistanceLabel.isNotEmpty)
+              Positioned(
+                left: 10,
+                right: 10,
+                bottom: 10,
+                child: _MapDistanceBadge(
+                  label: widget.order.deliveryDistanceLabel,
+                ),
+              ),
           ],
         ),
       ),
@@ -407,20 +511,30 @@ class _MapCardState extends State<_MapCard> {
   }
 
   Set<Polyline> _buildPolylines() {
-    final points = _decodePolyline(widget.order.route?.encodedPolyline);
-    if (points.length < 2) {
+    final decodedPoints = _decodePolyline(widget.order.route?.encodedPolyline);
+    if (decodedPoints.length < 2) {
       return const <Polyline>{};
     }
 
     return {
       Polyline(
         polylineId: const PolylineId('order_route'),
-        points: points,
+        points: decodedPoints,
         color: AppColors.primary,
         width: 5,
         geodesic: true,
       ),
     };
+  }
+
+  bool _shouldShowRouteUnavailableHint() {
+    if (_decodePolyline(widget.order.route?.encodedPolyline).length >= 2) {
+      return false;
+    }
+
+    return _pickupPoints().isNotEmpty &&
+        _latLng(widget.order.dropoffLatitude, widget.order.dropoffLongitude) !=
+            null;
   }
 
   List<LatLng> _decodePolyline(String? encoded) {
@@ -458,6 +572,75 @@ class _MapCardState extends State<_MapCard> {
     }
 
     return points;
+  }
+}
+
+class _MapDistanceBadge extends StatelessWidget {
+  const _MapDistanceBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: AppColors.white.withValues(alpha: 0.94),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.route_outlined,
+              size: 14,
+              color: AppColors.primary,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Jarak rute $label',
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RouteUnavailableBadge extends StatelessWidget {
+  const _RouteUnavailableBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: AppColors.white.withValues(alpha: 0.94),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: const Text(
+          'Rute jalan belum tersedia, coba refresh.',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -608,6 +791,10 @@ class _OrderMetaCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _routeVisualizer(order),
+          if (order.deliveryDistanceLabel.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _row('Jarak', order.deliveryDistanceLabel),
+          ],
           ..._buildCourierPackageRows(packageDetails),
           if ((trackingState.message ?? '').trim().isNotEmpty) ...[
             const SizedBox(height: 12),
@@ -890,6 +1077,9 @@ class _OrderMetaCard extends StatelessWidget {
     final fee = order.fee;
     final total = order.totalPrice.round();
     final pricing = order.shoppingPricing;
+    final supportsCarefulCarry = serviceTypeSupportsCarefulCarry(
+      order.serviceTypeCode,
+    );
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -931,6 +1121,46 @@ class _OrderMetaCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                 ],
+                if (order.deliveryFee != null && order.deliveryFee! > 0) ...[
+                  const Text(
+                    'Ongkir',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    formatRupiah(order.deliveryFee!),
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if ((order.deliveryFeeSource ?? '').trim().isNotEmpty ||
+                      order.manualDeliveryFee != null ||
+                      (supportsCarefulCarry && order.carefulCarryRequired))
+                    Text(
+                      [
+                        if ((order.deliveryFeeSource ?? '').trim().isNotEmpty &&
+                            (order.deliveryFeeSource ?? '')
+                                    .trim()
+                                    .toLowerCase() !=
+                                'manual')
+                          order.deliveryFeeSource!.trim(),
+                        if (order.manualDeliveryFee != null) 'manual',
+                        if (supportsCarefulCarry && order.carefulCarryRequired)
+                          'perlu 2 orang',
+                      ].join(' - '),
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  const SizedBox(height: 8),
+                ],
                 const Text(
                   'Total Pembayaran',
                   style: TextStyle(
@@ -951,6 +1181,19 @@ class _OrderMetaCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   ShoppingFeeBreakdown(
                     items: pricing.feeBreakdown
+                        .map(
+                          (item) => ShoppingFeeBreakdownItem(
+                            label: item.label,
+                            description: item.description,
+                            amount: item.amount,
+                          ),
+                        )
+                        .toList(growable: false),
+                  ),
+                ] else if (order.feeBreakdown.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  ShoppingFeeBreakdown(
+                    items: order.feeBreakdown
                         .map(
                           (item) => ShoppingFeeBreakdownItem(
                             label: item.label,
@@ -986,12 +1229,611 @@ class _OrderMetaCard extends StatelessWidget {
   }
 }
 
+class _ProofChecklistCard extends StatelessWidget {
+  const _ProofChecklistCard({
+    required this.order,
+    required this.isProcessing,
+    required this.onUploadProof,
+  });
+
+  final DriverOrderModel order;
+  final bool isProcessing;
+  final Future<String?> Function({
+    required String type,
+    required XFile photo,
+    String? note,
+    int? pickupLocationId,
+  })
+  onUploadProof;
+
+  @override
+  Widget build(BuildContext context) {
+    final requirements = _requirements();
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.photo_camera_outlined, color: AppColors.primary),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Bukti Foto Order',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ...requirements.map(
+            (requirement) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _proofRow(context, requirement),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<_ProofRequirement> _requirements() {
+    final serviceType = normalizeServiceTypeCode(order.serviceTypeCode);
+    final hasStoreClosedProof = order.hasProof('store_closed');
+
+    return <_ProofRequirement>[
+      if (serviceType == ServiceTypeCodes.courier) ...[
+        const _ProofRequirement(
+          type: 'pickup',
+          title: 'Pengambilan',
+          description: 'Foto saat barang/order diambil.',
+        ),
+        const _ProofRequirement(
+          type: 'delivery',
+          title: 'Diterima',
+          description: 'Foto saat order selesai diterima.',
+        ),
+      ],
+      if (serviceType == ServiceTypeCodes.shopping)
+        const _ProofRequirement(
+          type: 'receipt',
+          title: 'Struk belanja',
+          description: 'Foto struk untuk total belanja nitip.',
+        ),
+      if (hasStoreClosedProof)
+        const _ProofRequirement(
+          type: 'store_closed',
+          title: 'Toko tutup',
+          description: 'Bukti toko tutup/gagal pickup.',
+        ),
+    ];
+  }
+
+  Widget _proofRow(BuildContext context, _ProofRequirement requirement) {
+    final uploaded = order.hasProof(requirement.type);
+    final proof = _proofFor(requirement.type);
+    final proofPhotoUrl = proof?.photoUrl;
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            uploaded ? Icons.check_circle : Icons.radio_button_unchecked,
+            color: uploaded ? AppColors.success : AppColors.textSecondary,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  requirement.title,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  requirement.description,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (proofPhotoUrl != null) ...[
+            InkWell(
+              onTap: () => _showProofPreview(context, proof!),
+              borderRadius: BorderRadius.circular(8),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  proofPhotoUrl,
+                  width: 44,
+                  height: 44,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => Container(
+                    width: 44,
+                    height: 44,
+                    color: AppColors.white,
+                    child: const Icon(
+                      Icons.image_not_supported_outlined,
+                      size: 18,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+          OutlinedButton.icon(
+            onPressed: isProcessing
+                ? null
+                : () => _handleUpload(context, requirement),
+            icon: const Icon(Icons.upload_file, size: 16),
+            label: Text(uploaded ? 'Ganti' : 'Upload'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  DriverOrderProofModel? _proofFor(String type) {
+    final normalized = type.trim().toLowerCase();
+    for (final proof in order.proofs) {
+      if (proof.type == normalized) {
+        return proof;
+      }
+    }
+
+    return null;
+  }
+
+  void _showProofPreview(BuildContext context, DriverOrderProofModel proof) {
+    final url = proof.photoUrl;
+    if (url == null || url.isEmpty) {
+      return;
+    }
+
+    showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.all(18),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: InteractiveViewer(
+            child: Image.network(
+              url,
+              fit: BoxFit.contain,
+              errorBuilder: (_, _, _) => const Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('Gambar bukti belum bisa dimuat.'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleUpload(
+    BuildContext context,
+    _ProofRequirement requirement,
+  ) async {
+    final photo = await _pickImage(context);
+    if (photo == null) {
+      return;
+    }
+
+    final error = await onUploadProof(
+      type: requirement.type,
+      photo: photo,
+      note: requirement.title,
+    );
+
+    if (!context.mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error ?? '${requirement.title} berhasil diupload.'),
+        backgroundColor: error == null ? null : AppColors.error,
+      ),
+    );
+  }
+}
+
+class _ProofRequirement {
+  const _ProofRequirement({
+    required this.type,
+    required this.title,
+    required this.description,
+  });
+
+  final String type;
+  final String title;
+  final String description;
+}
+
+class _ManualDeliveryFeeCard extends StatelessWidget {
+  const _ManualDeliveryFeeCard({
+    required this.order,
+    required this.isProcessing,
+    required this.onSave,
+  });
+
+  final DriverOrderModel order;
+  final bool isProcessing;
+  final Future<String?> Function({
+    required double amount,
+    required String reason,
+    required bool carefulCarryRequired,
+  })
+  onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    final manualReason = (order.manualDeliveryFeeReason ?? '').trim();
+    final supportsCarefulCarry = serviceTypeSupportsCarefulCarry(
+      order.serviceTypeCode,
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.edit_road_outlined, color: AppColors.primary),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Ongkir Driver',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: isProcessing ? null : () => _openDialog(context),
+                icon: const Icon(Icons.edit, size: 16),
+                label: const Text('Edit'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _summaryChip(
+                'Jarak',
+                order.deliveryDistanceLabel.isEmpty
+                    ? '-'
+                    : order.deliveryDistanceLabel,
+              ),
+              _summaryChip(
+                'Ongkir sistem',
+                order.deliveryFee == null
+                    ? '-'
+                    : formatRupiah(order.deliveryFee!),
+              ),
+              _summaryChip(
+                'Manual',
+                order.manualDeliveryFee == null
+                    ? '-'
+                    : formatRupiah(order.manualDeliveryFee!),
+              ),
+              if (supportsCarefulCarry && order.carefulCarryRequired)
+                _summaryChip('Perlu 2 orang', 'aktif'),
+            ],
+          ),
+          if (manualReason.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              manualReason,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryChip(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Text(
+        '$label: $value',
+        style: const TextStyle(
+          color: AppColors.textPrimary,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openDialog(BuildContext context) async {
+    final supportsCarefulCarry = serviceTypeSupportsCarefulCarry(
+      order.serviceTypeCode,
+    );
+
+    final result = await showDialog<_ManualDeliveryFeeInput>(
+      context: context,
+      builder: (context) => _ManualDeliveryFeeDialog(
+        initialAmount: order.manualDeliveryFee ?? order.deliveryFee,
+        initialReason: order.manualDeliveryFeeReason ?? '',
+        initialCarefulCarryRequired:
+            supportsCarefulCarry && order.carefulCarryRequired,
+        supportsCarefulCarry: supportsCarefulCarry,
+        systemDeliveryFee: order.deliveryFee,
+      ),
+    );
+
+    if (result == null) {
+      return;
+    }
+
+    final error = await onSave(
+      amount: result.amount,
+      reason: result.reason,
+      carefulCarryRequired: result.carefulCarryRequired,
+    );
+
+    if (!context.mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error ?? 'Ongkir manual berhasil disimpan.'),
+        backgroundColor: error == null ? null : AppColors.error,
+      ),
+    );
+  }
+}
+
+class _ManualDeliveryFeeDialog extends StatefulWidget {
+  const _ManualDeliveryFeeDialog({
+    required this.initialAmount,
+    required this.initialReason,
+    required this.initialCarefulCarryRequired,
+    required this.supportsCarefulCarry,
+    required this.systemDeliveryFee,
+  });
+
+  final double? initialAmount;
+  final String initialReason;
+  final bool initialCarefulCarryRequired;
+  final bool supportsCarefulCarry;
+  final double? systemDeliveryFee;
+
+  @override
+  State<_ManualDeliveryFeeDialog> createState() =>
+      _ManualDeliveryFeeDialogState();
+}
+
+class _ManualDeliveryFeeDialogState extends State<_ManualDeliveryFeeDialog> {
+  late final TextEditingController _amountController;
+  late final TextEditingController _reasonController;
+  late bool _carefulCarryRequired;
+  bool _amountTouchedByUser = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final initialAmount = widget.initialAmount ?? 0;
+    _amountController = TextEditingController(
+      text: initialAmount > 0 ? initialAmount.round().toString() : '',
+    );
+    _reasonController = TextEditingController(text: widget.initialReason);
+    _carefulCarryRequired =
+        widget.supportsCarefulCarry && widget.initialCarefulCarryRequired;
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _reasonController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+
+    return SafeArea(
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          bottom: viewInsets.bottom + 16,
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Material(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(20),
+              clipBehavior: Clip.antiAlias,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Edit Ongkir Manual',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: _amountController,
+                      keyboardType: TextInputType.number,
+                      onChanged: (_) => _amountTouchedByUser = true,
+                      decoration: const InputDecoration(
+                        labelText: 'Ongkir dasar manual',
+                        prefixText: 'Rp ',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _reasonController,
+                      minLines: 2,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Alasan edit',
+                        hintText: 'Contoh: rute sistem kurang akurat',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    if (widget.supportsCarefulCarry) ...[
+                      const SizedBox(height: 6),
+                      CheckboxListTile(
+                        value: _carefulCarryRequired,
+                        onChanged: _handleCarefulCarryChanged,
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        title: const Text('Perlu 2 orang / hati-hati'),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: _close,
+                          child: const Text('Batal'),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton(
+                          onPressed: _submit,
+                          child: const Text('Simpan'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _handleCarefulCarryChanged(bool? value) {
+    setState(() {
+      _carefulCarryRequired = value ?? false;
+      final systemDeliveryFee = widget.systemDeliveryFee;
+      if (_carefulCarryRequired &&
+          !_amountTouchedByUser &&
+          systemDeliveryFee != null &&
+          systemDeliveryFee > 0) {
+        _amountController.text = systemDeliveryFee.round().toString();
+      }
+
+      if (_carefulCarryRequired && _reasonController.text.trim().isEmpty) {
+        _reasonController.text = 'Perlu 2 orang / barang harus hati-hati';
+      }
+    });
+  }
+
+  void _close() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    Navigator.of(context).pop();
+  }
+
+  void _submit() {
+    final amount = _parseCurrencyInput(_amountController.text);
+    final reason = _reasonController.text.trim();
+    if (amount <= 0 || reason.isEmpty) {
+      return;
+    }
+
+    FocusManager.instance.primaryFocus?.unfocus();
+    Navigator.of(context).pop(
+      _ManualDeliveryFeeInput(
+        amount: amount,
+        reason: reason,
+        carefulCarryRequired:
+            widget.supportsCarefulCarry && _carefulCarryRequired,
+      ),
+    );
+  }
+}
+
+class _ManualDeliveryFeeInput {
+  const _ManualDeliveryFeeInput({
+    required this.amount,
+    required this.reason,
+    required this.carefulCarryRequired,
+  });
+
+  final double amount;
+  final String reason;
+  final bool carefulCarryRequired;
+}
+
 class _ShoppingItemsCard extends StatefulWidget {
   final DriverOrderModel order;
   final bool isProcessing;
   final Future<String?> Function(
     List<Map<String, dynamic>> items,
+    double shoppingTotalAmount,
+    double? deliveryFeeOverride,
     String? receiptNote,
+    XFile? receiptPhoto,
   )
   onSave;
 
@@ -1006,10 +1848,14 @@ class _ShoppingItemsCard extends StatefulWidget {
 }
 
 class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
-  final Map<int, TextEditingController> _priceControllers = {};
+  final TextEditingController _shoppingTotalController =
+      TextEditingController();
+  final TextEditingController _deliveryFeeOverrideController =
+      TextEditingController();
   final TextEditingController _receiptNoteController = TextEditingController();
   final Map<int, bool> _availability = {};
   final Map<int, bool> _heavy = {};
+  XFile? _receiptPhoto;
 
   @override
   void initState() {
@@ -1027,20 +1873,18 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
 
   @override
   void dispose() {
-    for (final controller in _priceControllers.values) {
-      controller.dispose();
-    }
+    _shoppingTotalController.dispose();
+    _deliveryFeeOverrideController.dispose();
     _receiptNoteController.dispose();
     super.dispose();
   }
 
   void _syncControllers() {
     final activeIds = widget.order.shoppingItems.map((item) => item.id).toSet();
-    final staleIds = _priceControllers.keys
+    final staleIds = _availability.keys
         .where((id) => !activeIds.contains(id))
         .toList(growable: false);
     for (final id in staleIds) {
-      _priceControllers.remove(id)?.dispose();
       _availability.remove(id);
       _heavy.remove(id);
     }
@@ -1048,21 +1892,35 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
     for (final item in widget.order.shoppingItems) {
       _availability[item.id] = item.isAvailable;
       _heavy[item.id] = item.isHeavy;
-      _priceControllers.putIfAbsent(
-        item.id,
-        () => TextEditingController(
-          text: item.unitPrice > 0 ? item.unitPrice.round().toString() : '',
-        ),
-      );
+    }
+
+    _primeCheckoutControllers();
+  }
+
+  void _primeCheckoutControllers() {
+    if (_shoppingTotalController.text.trim().isEmpty) {
+      final subtotal =
+          widget.order.shoppingPricing?.subtotal ??
+          widget.order.shoppingItems.fold<double>(
+            0,
+            (sum, item) => sum + item.subtotal,
+          );
+      if (subtotal > 0) {
+        _shoppingTotalController.text = subtotal.round().toString();
+      }
+    }
+
+    if (_deliveryFeeOverrideController.text.trim().isEmpty &&
+        widget.order.manualDeliveryFee != null &&
+        widget.order.manualDeliveryFee! > 0) {
+      _deliveryFeeOverrideController.text = widget.order.manualDeliveryFee!
+          .round()
+          .toString();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final pendingCount = widget.order.shoppingItems
-        .where((item) => item.isPricePending)
-        .length;
-
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -1077,22 +1935,21 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
             children: [
               const Expanded(
                 child: Text(
-                  'Daftar Belanja',
+                  'Checkout Belanja',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
                   ),
                 ),
               ),
-              if (pendingCount > 0)
-                Text(
-                  '$pendingCount harga pending',
-                  style: const TextStyle(
-                    color: AppColors.error,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
+              const Text(
+                'Total dari struk',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
                 ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -1102,6 +1959,51 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
             ...widget.order.shoppingStops
                 .where((stop) => !stop.isSkipped && !stop.isReplaced)
                 .map(_buildStopSection),
+          if (_shoppingProofs().isNotEmpty) ...[
+            const SizedBox(height: 4),
+            _buildProofPreviewStrip(_shoppingProofs()),
+            const SizedBox(height: 10),
+          ],
+          const SizedBox(height: 8),
+          TextField(
+            controller: _shoppingTotalController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Total belanja di struk',
+              prefixText: 'Rp ',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _deliveryFeeOverrideController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Edit ongkir nitip (opsional)',
+              prefixText: 'Rp ',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: widget.isProcessing
+                ? null
+                : () async {
+                    final photo = await _pickImage(context);
+                    if (photo == null || !mounted) {
+                      return;
+                    }
+                    setState(() => _receiptPhoto = photo);
+                  },
+            icon: const Icon(Icons.photo_camera_outlined, size: 18),
+            label: Text(
+              _receiptPhoto == null && !widget.order.hasProof('receipt')
+                  ? 'Upload Foto Struk'
+                  : 'Foto Struk Siap',
+            ),
+          ),
           const SizedBox(height: 8),
           TextField(
             controller: _receiptNoteController,
@@ -1129,7 +2031,7 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
                       ),
                     )
                   : const Icon(Icons.receipt_long, size: 18),
-              label: const Text('Simpan Harga Nota'),
+              label: const Text('Simpan Checkout Nitip'),
             ),
           ),
         ],
@@ -1139,7 +2041,6 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
 
   Widget _buildItemEditor(DriverShoppingItemModel item) {
     final isAvailable = _availability[item.id] ?? item.isAvailable;
-    final controller = _priceControllers[item.id]!;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -1188,18 +2089,6 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
                 ),
               ),
             ),
-          TextField(
-            controller: controller,
-            enabled: isAvailable,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              labelText: item.isManual ? 'Harga aktual' : 'Harga item',
-              prefixText: 'Rp ',
-              border: const OutlineInputBorder(),
-              isDense: true,
-            ),
-          ),
-          const SizedBox(height: 6),
           CheckboxListTile(
             value: _heavy[item.id] ?? item.isHeavy,
             onChanged: (value) {
@@ -1323,26 +2212,144 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
     );
   }
 
-  Future<void> _save() async {
-    final payload = widget.order.shoppingItems
-        .map((item) {
-          final rawPrice = _priceControllers[item.id]?.text.trim() ?? '';
-          final unitPrice = double.tryParse(rawPrice.replaceAll('.', '')) ?? 0;
+  List<DriverOrderProofModel> _shoppingProofs() {
+    return widget.order.proofs
+        .where(
+          (proof) =>
+              (proof.type == 'receipt' || proof.type == 'store_closed') &&
+              (proof.photoUrl ?? '').trim().isNotEmpty,
+        )
+        .toList(growable: false);
+  }
 
-          return <String, dynamic>{
+  Widget _buildProofPreviewStrip(List<DriverOrderProofModel> proofs) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: proofs
+          .map(
+            (proof) => InkWell(
+              onTap: () => _showProofPreview(proof),
+              borderRadius: BorderRadius.circular(8),
+              child: SizedBox(
+                width: 96,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        proof.photoUrl!,
+                        width: 96,
+                        height: 72,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => Container(
+                          width: 96,
+                          height: 72,
+                          color: AppColors.background,
+                          child: const Icon(
+                            Icons.image_not_supported_outlined,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      proof.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  void _showProofPreview(DriverOrderProofModel proof) {
+    final url = proof.photoUrl;
+    if (url == null || url.isEmpty) {
+      return;
+    }
+
+    showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.all(18),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: InteractiveViewer(
+            child: Image.network(
+              url,
+              fit: BoxFit.contain,
+              errorBuilder: (_, _, _) => const Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('Gambar bukti belum bisa dimuat.'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _save() async {
+    final shoppingTotalAmount = _parseCurrencyInput(
+      _shoppingTotalController.text,
+    );
+    final deliveryFeeOverrideRaw = _deliveryFeeOverrideController.text.trim();
+    final deliveryFeeOverride = deliveryFeeOverrideRaw.isEmpty
+        ? null
+        : _parseCurrencyInput(deliveryFeeOverrideRaw);
+
+    if (shoppingTotalAmount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Total belanja di struk wajib diisi.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    if (_receiptPhoto == null && !widget.order.hasProof('receipt')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Upload foto struk dulu.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final payload = widget.order.shoppingItems
+        .map(
+          (item) => <String, dynamic>{
             'id': item.id,
             'quantity': item.quantity,
-            'unit_price': unitPrice,
             'is_available': _availability[item.id] ?? item.isAvailable,
             'notes': item.notes,
             'is_heavy': _heavy[item.id] ?? item.isHeavy,
-          };
-        })
+          },
+        )
         .toList(growable: false);
 
     final error = await widget.onSave(
       payload,
+      shoppingTotalAmount,
+      deliveryFeeOverride == null || deliveryFeeOverride <= 0
+          ? null
+          : deliveryFeeOverride,
       _receiptNoteController.text.trim(),
+      _receiptPhoto,
     );
 
     if (!mounted) {
@@ -1507,14 +2514,18 @@ class _ActionCard extends StatelessWidget {
   final Future<void> Function({
     required int pickupLocationId,
     required String reason,
+    required XFile storeClosedPhoto,
   })?
   onReportPickupFailed;
+  final Future<void> Function({required double amount, required String? note})?
+  onConfirmTransfer;
   final Future<void> Function(DriverOrderActionModel action) onTapAction;
 
   const _ActionCard({
     required this.order,
     required this.isProcessing,
     required this.onReportPickupFailed,
+    required this.onConfirmTransfer,
     required this.onTapAction,
   });
 
@@ -1522,6 +2533,7 @@ class _ActionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final actions = order.availableActions;
     final hasCodCollection = actions.any((action) => action.isCodCollection);
+    final canConfirmTransfer = _canConfirmTransfer();
     final isCourier =
         normalizeServiceTypeCode(order.serviceTypeCode) ==
         ServiceTypeCodes.courier;
@@ -1578,6 +2590,7 @@ class _ActionCard extends StatelessWidget {
                         await onReportPickupFailed?.call(
                           pickupLocationId: report.pickupLocationId,
                           reason: report.reason,
+                          storeClosedPhoto: report.storeClosedPhoto,
                         );
                       },
                 icon: const Icon(Icons.storefront_outlined, size: 18),
@@ -1622,6 +2635,28 @@ class _ActionCard extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                   height: 1.4,
                 ),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+          if (canConfirmTransfer) ...[
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: isProcessing || onConfirmTransfer == null
+                    ? null
+                    : () async {
+                        final input = await _showTransferPaymentDialog(context);
+                        if (input == null) {
+                          return;
+                        }
+                        await onConfirmTransfer?.call(
+                          amount: input.amount,
+                          note: input.note,
+                        );
+                      },
+                icon: const Icon(Icons.account_balance_outlined, size: 18),
+                label: const Text('Catat Transfer'),
               ),
             ),
             const SizedBox(height: 10),
@@ -1696,6 +2731,17 @@ class _ActionCard extends StatelessWidget {
         status == OrderStatusCodes.arrivedMerchant;
   }
 
+  bool _canConfirmTransfer() {
+    if (onConfirmTransfer == null || isPaymentPaid(order.paymentStatus)) {
+      return false;
+    }
+
+    final normalizedMethod = order.paymentMethod.trim().toLowerCase();
+    return normalizedMethod.contains('transfer') ||
+        normalizedMethod == 'tf' ||
+        normalizedMethod.contains('bank');
+  }
+
   Future<_FailedPickupReport?> _showFailedPickupDialog(BuildContext context) {
     return showDialog<_FailedPickupReport>(
       context: context,
@@ -1706,16 +2752,91 @@ class _ActionCard extends StatelessWidget {
       ),
     );
   }
+
+  Future<_TransferPaymentInput?> _showTransferPaymentDialog(
+    BuildContext context,
+  ) {
+    final amountController = TextEditingController(
+      text: order.totalPrice > 0 ? order.totalPrice.round().toString() : '',
+    );
+    final noteController = TextEditingController(
+      text: 'Pembayaran transfer dicatat dari app driver.',
+    );
+
+    return showDialog<_TransferPaymentInput>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Catat Pembayaran Transfer'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Nominal transfer',
+                prefixText: 'Rp ',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: noteController,
+              minLines: 2,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Catatan',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final amount = _parseCurrencyInput(amountController.text);
+              if (amount <= 0) {
+                return;
+              }
+              Navigator.of(context).pop(
+                _TransferPaymentInput(
+                  amount: amount,
+                  note: noteController.text.trim(),
+                ),
+              );
+            },
+            child: const Text('Catat'),
+          ),
+        ],
+      ),
+    ).whenComplete(() {
+      amountController.dispose();
+      noteController.dispose();
+    });
+  }
 }
 
 class _FailedPickupReport {
   const _FailedPickupReport({
     required this.pickupLocationId,
     required this.reason,
+    required this.storeClosedPhoto,
   });
 
   final int pickupLocationId;
   final String reason;
+  final XFile storeClosedPhoto;
+}
+
+class _TransferPaymentInput {
+  const _TransferPaymentInput({required this.amount, required this.note});
+
+  final double amount;
+  final String? note;
 }
 
 class _FailedPickupDialog extends StatefulWidget {
@@ -1732,6 +2853,7 @@ class _FailedPickupDialogState extends State<_FailedPickupDialog> {
     text: 'Merchant tutup saat driver tiba.',
   );
   late int _selectedPickupLocationId;
+  XFile? _storeClosedPhoto;
 
   @override
   void initState() {
@@ -1816,6 +2938,22 @@ class _FailedPickupDialogState extends State<_FailedPickupDialog> {
                         border: OutlineInputBorder(),
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final photo = await _pickImage(context);
+                        if (photo == null || !mounted) {
+                          return;
+                        }
+                        setState(() => _storeClosedPhoto = photo);
+                      },
+                      icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                      label: Text(
+                        _storeClosedPhoto == null
+                            ? 'Upload Foto Toko Tutup'
+                            : 'Foto Toko Siap',
+                      ),
+                    ),
                     const SizedBox(height: 16),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
@@ -1831,10 +2969,23 @@ class _FailedPickupDialogState extends State<_FailedPickupDialog> {
                             if (reason.isEmpty) {
                               return;
                             }
+                            final photo = _storeClosedPhoto;
+                            if (photo == null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Foto toko tutup wajib diupload.',
+                                  ),
+                                  backgroundColor: AppColors.error,
+                                ),
+                              );
+                              return;
+                            }
                             Navigator.of(context).pop(
                               _FailedPickupReport(
                                 pickupLocationId: _selectedPickupLocationId,
                                 reason: reason,
+                                storeClosedPhoto: photo,
                               ),
                             );
                           },
@@ -1851,6 +3002,54 @@ class _FailedPickupDialogState extends State<_FailedPickupDialog> {
       ),
     );
   }
+}
+
+double _parseCurrencyInput(String raw) {
+  final cleaned = raw.replaceAll(RegExp(r'[^0-9]'), '');
+  if (cleaned.isEmpty) {
+    return 0;
+  }
+
+  return double.tryParse(cleaned) ?? 0;
+}
+
+Future<XFile?> _pickImage(BuildContext context) async {
+  final source = await showModalBottomSheet<ImageSource>(
+    context: context,
+    backgroundColor: AppColors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+    ),
+    builder: (context) {
+      return SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Ambil dari kamera'),
+              onTap: () => Navigator.of(context).pop(ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Pilih dari galeri'),
+              onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+
+  if (source == null) {
+    return null;
+  }
+
+  return ImagePicker().pickImage(
+    source: source,
+    imageQuality: 76,
+    maxWidth: 1600,
+  );
 }
 
 class _ErrorState extends StatelessWidget {
