@@ -40,6 +40,11 @@ class FirebaseNotificationService {
   static const String _chatNotificationChannelName = 'Chat Order';
   static const String _chatNotificationChannelDescription =
       'Notifikasi prioritas tinggi untuk pesan chat order.';
+  static const String statusNotificationChannelId =
+      'bangdeliv_order_status_high';
+  static const String _statusNotificationChannelName = 'Status Order';
+  static const String _statusNotificationChannelDescription =
+      'Notifikasi prioritas tinggi untuk perubahan status order.';
 
   static bool _firebaseInitialized = false;
   static bool _notificationsInitialized = false;
@@ -119,7 +124,7 @@ class FirebaseNotificationService {
       }
 
       if (_shouldShowForegroundMessage?.call(message) ?? true) {
-        unawaited(_showForegroundOrderChatNotification(message));
+        unawaited(_showForegroundOrderNotification(message));
       }
     });
 
@@ -209,7 +214,8 @@ class FirebaseNotificationService {
   }
 
   static String? routeForNotificationData(Map<String, dynamic> data) {
-    if ((data['type'] ?? '').toString() != 'order_chat_message') {
+    final type = (data['type'] ?? '').toString();
+    if (type != 'order_chat_message' && type != 'order_status_changed') {
       return null;
     }
 
@@ -225,7 +231,9 @@ class FirebaseNotificationService {
       return null;
     }
 
-    return AppRoutes.orderChatPath(orderId);
+    return type == 'order_status_changed'
+        ? AppRoutes.orderTrackPath(orderId)
+        : AppRoutes.orderChatPath(orderId);
   }
 
   static Future<void> showLocalOrderChatNotification({
@@ -312,6 +320,17 @@ class FirebaseNotificationService {
           showBadge: true,
         ),
       );
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          statusNotificationChannelId,
+          _statusNotificationChannelName,
+          description: _statusNotificationChannelDescription,
+          importance: Importance.max,
+          playSound: true,
+          enableVibration: true,
+          showBadge: true,
+        ),
+      );
       await androidPlugin?.requestNotificationsPermission();
 
       _localNotificationsInitialized = true;
@@ -347,7 +366,7 @@ class FirebaseNotificationService {
     }
   }
 
-  static Future<void> _showForegroundOrderChatNotification(
+  static Future<void> _showForegroundOrderNotification(
     RemoteMessage message,
   ) async {
     final route = routeForNotificationData(message.data);
@@ -359,10 +378,14 @@ class FirebaseNotificationService {
     final messageId = int.tryParse(
       (message.data['message_id'] ?? '').toString(),
     );
-    final key =
-        (orderId != null && orderId > 0 && messageId != null && messageId > 0)
-        ? 'chat:$orderId:$messageId'
-        : 'fcm:${message.messageId ?? ''}:${orderId ?? 0}:${messageId ?? 0}';
+    final historyId = int.tryParse(
+      (message.data['history_id'] ?? '').toString(),
+    );
+    final type = (message.data['type'] ?? '').toString();
+    final notificationRefId = messageId ?? historyId ?? 0;
+    final key = orderId != null && orderId > 0 && notificationRefId > 0
+        ? '$type:$orderId:$notificationRefId'
+        : 'fcm:${message.messageId ?? ''}:${orderId ?? 0}:$notificationRefId';
     if (!_rememberNotificationKey(key)) {
       return;
     }
@@ -374,14 +397,22 @@ class FirebaseNotificationService {
         .toString()
         .trim();
     final body =
-        (notification?.body ?? message.data['body'] ?? 'Pesan chat baru.')
+        (notification?.body ??
+                message.data['body'] ??
+                (type == 'order_status_changed'
+                    ? 'Status order diperbarui.'
+                    : 'Pesan chat baru.'))
             .toString()
             .trim();
 
     await _showLocalNotification(
-      id: _notificationId(orderId: orderId ?? 0, messageId: messageId ?? 0),
+      id: _notificationId(orderId: orderId ?? 0, messageId: notificationRefId),
       title: title.isEmpty ? 'Bang Deliv' : title,
-      body: body.isEmpty ? 'Pesan chat baru.' : body,
+      body: body.isEmpty
+          ? (type == 'order_status_changed'
+                ? 'Status order diperbarui.'
+                : 'Pesan chat baru.')
+          : body,
       payload: route,
       data: message.data,
     );
@@ -395,10 +426,18 @@ class FirebaseNotificationService {
     required Map<String, dynamic> data,
   }) async {
     try {
-      const android = AndroidNotificationDetails(
-        chatNotificationChannelId,
-        _chatNotificationChannelName,
-        channelDescription: _chatNotificationChannelDescription,
+      final isStatusNotification =
+          (data['type'] ?? '').toString() == 'order_status_changed';
+      final android = AndroidNotificationDetails(
+        isStatusNotification
+            ? statusNotificationChannelId
+            : chatNotificationChannelId,
+        isStatusNotification
+            ? _statusNotificationChannelName
+            : _chatNotificationChannelName,
+        channelDescription: isStatusNotification
+            ? _statusNotificationChannelDescription
+            : _chatNotificationChannelDescription,
         importance: Importance.max,
         priority: Priority.high,
         category: AndroidNotificationCategory.message,
@@ -406,14 +445,16 @@ class FirebaseNotificationService {
         playSound: true,
         enableVibration: true,
         channelShowBadge: true,
-        ticker: 'Pesan chat order baru',
+        ticker: isStatusNotification
+            ? 'Status order diperbarui'
+            : 'Pesan chat order baru',
       );
       const darwin = DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
         presentSound: true,
       );
-      const details = NotificationDetails(android: android, iOS: darwin);
+      final details = NotificationDetails(android: android, iOS: darwin);
 
       await _localNotifications.show(
         id: id,

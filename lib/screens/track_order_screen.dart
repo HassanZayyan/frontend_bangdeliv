@@ -20,7 +20,12 @@ import '../widgets/shopping_fee_breakdown.dart';
 import '../widgets/tracking_map_section.dart';
 
 class TrackOrderScreen extends ConsumerWidget {
-  const TrackOrderScreen({super.key});
+  const TrackOrderScreen({super.key}) : initialOrderId = null;
+
+  const TrackOrderScreen.route({super.key, required int orderId})
+    : initialOrderId = orderId;
+
+  final int? initialOrderId;
 
   static const _kStepLabelsDefault = [
     'Menunggu',
@@ -50,7 +55,9 @@ class TrackOrderScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final routeArgs = _extractRouteArgs(GoRouterState.of(context).extra);
+    final routeArgs = initialOrderId != null
+        ? _TrackRouteArgs(orderId: initialOrderId)
+        : _extractRouteArgs(GoRouterState.of(context).extra);
     final orderId = routeArgs.orderId;
 
     if (orderId != null) {

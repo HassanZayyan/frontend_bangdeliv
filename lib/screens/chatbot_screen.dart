@@ -766,15 +766,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             textColor: textColor,
           ),
         ],
-        if (parts.packageSizeLine != null &&
-            parts.packageSizeLine!.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          _buildDraftField(
-            label: 'Berat/Ukuran',
-            value: parts.packageSizeLine!,
-            textColor: textColor,
-          ),
-        ],
         if (parts.packageSafetyLine != null &&
             parts.packageSafetyLine!.isNotEmpty) ...[
           const SizedBox(height: 8),

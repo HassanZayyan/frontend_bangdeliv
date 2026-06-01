@@ -550,7 +550,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     }
 
     if (current.isProcessing(orderId)) {
-      return null;
+      return 'Aksi order sebelumnya masih diproses. Tunggu sebentar.';
     }
 
     final processingOrderIds = <String>{...current.processingOrderIds, orderId};
@@ -625,7 +625,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     }
 
     if (current.isProcessing(orderId)) {
-      return null;
+      return 'Aksi order sebelumnya masih diproses. Tunggu sebentar.';
     }
 
     final processingOrderIds = <String>{...current.processingOrderIds, orderId};
@@ -756,7 +756,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     }
 
     if (current.isProcessing(orderId)) {
-      return null;
+      return 'Aksi order sebelumnya masih diproses. Tunggu sebentar.';
     }
 
     final processingOrderIds = <String>{...current.processingOrderIds, orderId};

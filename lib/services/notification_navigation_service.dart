@@ -42,7 +42,10 @@ class NotificationNavigationService {
 
     final path = uri.path;
     final isOrderChatRoute = RegExp(r'^/orders/[1-9]\d*/chat$').hasMatch(path);
-    if (!isOrderChatRoute) {
+    final isOrderTrackRoute = RegExp(
+      r'^/orders/[1-9]\d*/track$',
+    ).hasMatch(path);
+    if (!isOrderChatRoute && !isOrderTrackRoute) {
       return null;
     }
 
