@@ -1034,8 +1034,6 @@ class _CourierPackageSection extends StatelessWidget {
             ),
           if (packageDetails.description.isNotEmpty)
             _courierInfoLine('Barang', packageDetails.description),
-          if (packageDetails.sizeLine.isNotEmpty)
-            _courierInfoLine('Ukuran', packageDetails.sizeLine),
           if (packageDetails.safetyLine.isNotEmpty)
             _courierInfoLine('Keamanan', packageDetails.safetyLine),
           if (packageDetails.packingNote.isNotEmpty)

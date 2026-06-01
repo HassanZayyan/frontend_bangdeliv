@@ -212,17 +212,37 @@ class DriverOrderService {
     String? receiptNote,
     XFile? receiptPhoto,
   }) async {
+    final normalizedNote = receiptNote?.trim();
+    final path = '/v1/driver/orders/$orderId/shopping-checkout';
+
+    if (receiptPhoto == null) {
+      final response = await _patch(
+        path,
+        body: <String, dynamic>{
+          'shopping_total_amount': shoppingTotalAmount,
+          'delivery_fee_override': ?deliveryFeeOverride,
+          if (normalizedNote != null && normalizedNote.isNotEmpty)
+            'receipt_note': normalizedNote,
+          'items': items,
+        },
+        fallback: 'Gagal menyimpan checkout nitip.',
+      );
+
+      return _orderFromMutationResponse(response, orderId);
+    }
+
     final response = await _multipart(
-      'PATCH',
-      '/v1/driver/orders/$orderId/shopping-checkout',
+      'POST',
+      path,
       fields: <String, String>{
+        '_method': 'PATCH',
         'shopping_total_amount': shoppingTotalAmount.toString(),
         'delivery_fee_override': ?deliveryFeeOverride?.toString(),
-        if ((receiptNote ?? '').trim().isNotEmpty)
-          'receipt_note': receiptNote!.trim(),
+        if (normalizedNote != null && normalizedNote.isNotEmpty)
+          'receipt_note': normalizedNote,
         'items': jsonEncode(items),
       },
-      files: <String, XFile>{'receipt_photo': ?receiptPhoto},
+      files: <String, XFile>{'receipt_photo': receiptPhoto},
       fallback: 'Gagal menyimpan checkout nitip.',
     );
 
@@ -497,6 +517,8 @@ class DriverOrderService {
   Future<Map<String, dynamic>> _patch(
     String path, {
     Map<String, dynamic>? body,
+    String fallback = 'Gagal memperbarui status kerja driver.',
+    Duration timeout = _timeout,
   }) async {
     final uri = _buildUri(path);
     final headers = await AuthService.authorizedHeaders();
@@ -506,7 +528,7 @@ class DriverOrderService {
     try {
       response = await http
           .patch(uri, headers: headers, body: jsonEncode(payload))
-          .timeout(_timeout);
+          .timeout(timeout);
     } on TimeoutException {
       throw const DriverOrderApiException(
         'Koneksi timeout. Pastikan backend aktif dan API_BASE_URL benar.',
@@ -538,10 +560,7 @@ class DriverOrderService {
     }
 
     throw DriverOrderApiException(
-      AuthService.extractErrorMessage(
-        response,
-        fallback: 'Gagal memperbarui status kerja driver.',
-      ),
+      AuthService.extractErrorMessage(response, fallback: fallback),
       statusCode: response.statusCode,
     );
   }

@@ -154,6 +154,16 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                   _ShoppingItemsCard(
                     order: order,
                     isProcessing: isProcessing,
+                    onUploadReceipt: (photo, note) {
+                      return ref
+                          .read(driverOrdersProvider.notifier)
+                          .uploadProof(
+                            orderId: order.id,
+                            type: 'receipt',
+                            photo: photo,
+                            note: note,
+                          );
+                    },
                     onSave:
                         (
                           items,
@@ -162,7 +172,7 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                           receiptNote,
                           receiptPhoto,
                         ) async {
-                          return ref
+                          final error = await ref
                               .read(driverOrdersProvider.notifier)
                               .updateShoppingCheckout(
                                 orderId: order.id,
@@ -172,6 +182,19 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                                 receiptNote: receiptNote,
                                 receiptPhoto: receiptPhoto,
                               );
+
+                          if (error == null) {
+                            ref.invalidate(driverOrderDetailProvider(order.id));
+                            try {
+                              await ref.read(
+                                driverOrderDetailProvider(order.id).future,
+                              );
+                            } catch (_) {
+                              return 'Checkout tersimpan, tapi detail order belum berhasil dimuat ulang. Tarik layar untuk refresh.';
+                            }
+                          }
+
+                          return error;
                         },
                   ),
                   const SizedBox(height: 12),
@@ -1066,7 +1089,6 @@ class _OrderMetaCard extends StatelessWidget {
     }
 
     addRow('Barang', details.description);
-    addRow('Ukuran', details.sizeLine);
     addRow('Keamanan', details.safetyLine);
     addRow('Catatan', details.packingNote);
 
@@ -1828,6 +1850,7 @@ class _ManualDeliveryFeeInput {
 class _ShoppingItemsCard extends StatefulWidget {
   final DriverOrderModel order;
   final bool isProcessing;
+  final Future<String?> Function(XFile photo, String? note) onUploadReceipt;
   final Future<String?> Function(
     List<Map<String, dynamic>> items,
     double shoppingTotalAmount,
@@ -1840,6 +1863,7 @@ class _ShoppingItemsCard extends StatefulWidget {
   const _ShoppingItemsCard({
     required this.order,
     required this.isProcessing,
+    required this.onUploadReceipt,
     required this.onSave,
   });
 
@@ -1855,7 +1879,7 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
   final TextEditingController _receiptNoteController = TextEditingController();
   final Map<int, bool> _availability = {};
   final Map<int, bool> _heavy = {};
-  XFile? _receiptPhoto;
+  bool _isUploadingReceipt = false;
 
   @override
   void initState() {
@@ -1953,9 +1977,11 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
             ],
           ),
           const SizedBox(height: 10),
-          if (widget.order.shoppingStops.isEmpty)
-            ...widget.order.shoppingItems.map(_buildItemEditor)
-          else
+          if (widget.order.shoppingStops.isEmpty) ...[
+            _buildHeavyToggleForItems(widget.order.shoppingItems),
+            const SizedBox(height: 8),
+            ...widget.order.shoppingItems.map(_buildItemEditor),
+          ] else
             ...widget.order.shoppingStops
                 .where((stop) => !stop.isSkipped && !stop.isReplaced)
                 .map(_buildStopSection),
@@ -1988,18 +2014,20 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
-            onPressed: widget.isProcessing
+            onPressed: widget.isProcessing || _isUploadingReceipt
                 ? null
-                : () async {
-                    final photo = await _pickImage(context);
-                    if (photo == null || !mounted) {
-                      return;
-                    }
-                    setState(() => _receiptPhoto = photo);
-                  },
-            icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                : _uploadReceiptPhoto,
+            icon: _isUploadingReceipt
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.photo_camera_outlined, size: 18),
             label: Text(
-              _receiptPhoto == null && !widget.order.hasProof('receipt')
+              _isUploadingReceipt
+                  ? 'Mengupload Struk...'
+                  : !widget.order.hasProof('receipt')
                   ? 'Upload Foto Struk'
                   : 'Foto Struk Siap',
             ),
@@ -2020,7 +2048,9 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: widget.isProcessing ? null : _save,
+              onPressed: widget.isProcessing || _isUploadingReceipt
+                  ? null
+                  : _save,
               icon: widget.isProcessing
                   ? const SizedBox(
                       width: 16,
@@ -2089,35 +2119,14 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
                 ),
               ),
             ),
-          CheckboxListTile(
-            value: _heavy[item.id] ?? item.isHeavy,
-            onChanged: (value) {
-              setState(() {
-                _heavy[item.id] = value ?? false;
-              });
-            },
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
-            title: const Text(
-              'Item berat',
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-              ),
-            ),
-            subtitle: const Text(
-              'Tambahan biaya Rp6.000 sekali per order',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-            ),
-          ),
         ],
       ),
     );
   }
 
   Widget _buildStopSection(DriverShoppingStopModel stop) {
+    final activeItems = stop.items;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
@@ -2206,8 +2215,56 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
             ),
           ],
           const SizedBox(height: 8),
-          ...stop.items.map(_buildItemEditor),
+          _buildHeavyToggleForItems(activeItems),
+          const SizedBox(height: 8),
+          ...activeItems.map(_buildItemEditor),
         ],
+      ),
+    );
+  }
+
+  Widget _buildHeavyToggleForItems(List<DriverShoppingItemModel> items) {
+    if (items.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final availableItems = items
+        .where((item) => _availability[item.id] ?? item.isAvailable)
+        .toList(growable: false);
+    final targetItems = availableItems.isEmpty ? items : availableItems;
+    final isHeavy = targetItems.any((item) => _heavy[item.id] ?? item.isHeavy);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.14)),
+      ),
+      child: CheckboxListTile(
+        value: isHeavy,
+        onChanged: (value) {
+          final nextValue = value ?? false;
+          setState(() {
+            for (final item in items) {
+              _heavy[item.id] = nextValue;
+            }
+          });
+        },
+        dense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+        controlAffinity: ListTileControlAffinity.leading,
+        title: const Text(
+          'Item berat',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w700,
+            fontSize: 13,
+          ),
+        ),
+        subtitle: const Text(
+          'Tambahan biaya Rp6.000 sekali per order',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+        ),
       ),
     );
   }
@@ -2301,6 +2358,31 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
     );
   }
 
+  Future<void> _uploadReceiptPhoto() async {
+    final photo = await _pickImage(context);
+    if (photo == null || !mounted) {
+      return;
+    }
+
+    setState(() => _isUploadingReceipt = true);
+    final error = await widget.onUploadReceipt(
+      photo,
+      _receiptNoteController.text.trim(),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() => _isUploadingReceipt = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error ?? 'Foto struk berhasil diupload.'),
+        backgroundColor: error == null ? null : AppColors.error,
+      ),
+    );
+  }
+
   Future<void> _save() async {
     final shoppingTotalAmount = _parseCurrencyInput(
       _shoppingTotalController.text,
@@ -2320,7 +2402,7 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
       return;
     }
 
-    if (_receiptPhoto == null && !widget.order.hasProof('receipt')) {
+    if (!widget.order.hasProof('receipt')) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Upload foto struk dulu.'),
@@ -2349,7 +2431,7 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
           ? null
           : deliveryFeeOverride,
       _receiptNoteController.text.trim(),
-      _receiptPhoto,
+      null,
     );
 
     if (!mounted) {
@@ -2358,7 +2440,7 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(error ?? 'Harga nota berhasil disimpan.'),
+        content: Text(error ?? 'Checkout nitip berhasil disimpan.'),
         backgroundColor: error == null ? null : AppColors.error,
       ),
     );

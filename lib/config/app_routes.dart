@@ -22,6 +22,7 @@ class AppRoutes {
   static const String notifications = '/notifications';
   static const String notificationSettings = '/notification-settings';
   static const String track = '/track';
+  static const String orderTrack = '/orders/:orderId/track';
   static const String shoppingAddItem = '/orders/:orderId/shopping/add-item';
   static const String orderChat = '/orders/:orderId/chat';
   static const String menuDetail = '/menu/:menuId';
@@ -50,5 +51,9 @@ class AppRoutes {
 
   static String orderChatPath(Object orderId) {
     return '/orders/$orderId/chat';
+  }
+
+  static String orderTrackPath(Object orderId) {
+    return '/orders/$orderId/track';
   }
 }

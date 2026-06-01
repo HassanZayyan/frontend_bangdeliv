@@ -110,6 +110,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const TrackOrderScreen(),
       ),
       GoRoute(
+        path: AppRoutes.orderTrack,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final orderId = int.tryParse(state.pathParameters['orderId'] ?? '');
+          if (orderId == null || orderId <= 0) {
+            return const Scaffold(
+              body: Center(child: Text('Tracking order tidak valid.')),
+            );
+          }
+
+          return TrackOrderScreen.route(orderId: orderId);
+        },
+      ),
+      GoRoute(
         path: AppRoutes.shoppingAddItem,
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) {
