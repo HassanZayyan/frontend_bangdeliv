@@ -32,13 +32,15 @@ class ShoppingFeeBreakdown extends StatelessWidget {
         tilePadding: EdgeInsets.zero,
         childrenPadding: const EdgeInsets.only(bottom: 4),
         dense: true,
-        initiallyExpanded: items.length == 1,
+        initiallyExpanded: false,
+        iconColor: AppColors.primary,
+        collapsedIconColor: AppColors.textSecondary,
         title: const Text(
           'Rincian service fee',
           style: TextStyle(
             color: AppColors.textPrimary,
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
+            fontSize: 12.8,
+            fontWeight: FontWeight.w700,
           ),
         ),
         children: [

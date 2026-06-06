@@ -23,8 +23,9 @@ DateTime? parseBackendDateTime(dynamic value) {
   if (raw.isEmpty) return null;
 
   final normalized = raw.contains(' ') ? raw.replaceFirst(' ', 'T') : raw;
-  final dateOnlyMatch = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$')
-      .firstMatch(normalized);
+  final dateOnlyMatch = RegExp(
+    r'^(\d{4})-(\d{2})-(\d{2})$',
+  ).firstMatch(normalized);
   if (dateOnlyMatch != null) {
     return DateTime.utc(
       int.parse(dateOnlyMatch.group(1)!),
@@ -33,11 +34,13 @@ DateTime? parseBackendDateTime(dynamic value) {
     ).subtract(_wibOffset);
   }
 
-  final hasExplicitTimeZone =
-      RegExp(r'(Z|[+-]\d{2}:?\d{2})$').hasMatch(normalized);
+  final hasExplicitTimeZone = RegExp(
+    r'(Z|[+-]\d{2}:?\d{2})$',
+  ).hasMatch(normalized);
   final hasTimeComponent = normalized.contains('T');
-  final parseTarget =
-      hasTimeComponent && !hasExplicitTimeZone ? '${normalized}Z' : normalized;
+  final parseTarget = hasTimeComponent && !hasExplicitTimeZone
+      ? '${normalized}Z'
+      : normalized;
 
   return DateTime.tryParse(parseTarget)?.toUtc();
 }
@@ -51,7 +54,9 @@ String formatDateTime(DateTime? value, {bool includeZone = true}) {
   final year = wib.year.toString();
   final time = formatTime(value, includeZone: false);
 
-  return includeZone ? '$day/$month/$year $time WIB' : '$day/$month/$year $time';
+  return includeZone
+      ? '$day/$month/$year $time WIB'
+      : '$day/$month/$year $time';
 }
 
 String formatTime(DateTime? value, {bool includeZone = true}) {
@@ -63,6 +68,34 @@ String formatTime(DateTime? value, {bool includeZone = true}) {
   final formatted = '$hour:$minute';
 
   return includeZone ? '$formatted WIB' : formatted;
+}
+
+const _indoMonths = [
+  '',
+  'Januari',
+  'Februari',
+  'Maret',
+  'April',
+  'Mei',
+  'Juni',
+  'Juli',
+  'Agustus',
+  'September',
+  'Oktober',
+  'November',
+  'Desember',
+];
+
+String formatDateMonthTime(DateTime? value) {
+  if (value == null) return '-';
+
+  final wib = toWib(value);
+  final day = wib.day;
+  final month = _indoMonths[wib.month];
+  final hour = wib.hour.toString().padLeft(2, '0');
+  final minute = wib.minute.toString().padLeft(2, '0');
+
+  return '$day $month, $hour:$minute';
 }
 
 String currentWibHourMinute({bool includeZone = false}) {

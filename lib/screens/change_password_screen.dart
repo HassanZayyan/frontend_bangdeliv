@@ -39,80 +39,95 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         ),
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildPasswordField(
-                  label: 'Password Saat Ini',
-                  controller: _currentPasswordController,
-                  isVisible: _showCurrentPassword,
-                  onToggleVisibility: () {
-                    setState(() {
-                      _showCurrentPassword = !_showCurrentPassword;
-                    });
-                  },
-                  validator: (value) {
-                    final text = value ?? '';
-                    if (text.isEmpty) {
-                      return 'Password saat ini wajib diisi';
-                    }
-                    if (text.length < 8) {
-                      return 'Password minimal 8 karakter';
-                    }
-                    return null;
-                  },
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildPasswordField(
+                        label: 'Password Saat Ini',
+                        hintText: 'Masukkan password lama',
+                        controller: _currentPasswordController,
+                        isVisible: _showCurrentPassword,
+                        onToggleVisibility: () {
+                          setState(() {
+                            _showCurrentPassword = !_showCurrentPassword;
+                          });
+                        },
+                        validator: (value) {
+                          final text = value ?? '';
+                          if (text.isEmpty) {
+                            return 'Password saat ini wajib diisi';
+                          }
+                          if (text.length < 8) {
+                            return 'Password minimal 8 karakter';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      _buildPasswordField(
+                        label: 'Password Baru',
+                        hintText: 'Masukkan password baru',
+                        controller: _newPasswordController,
+                        isVisible: _showNewPassword,
+                        onToggleVisibility: () {
+                          setState(() {
+                            _showNewPassword = !_showNewPassword;
+                          });
+                        },
+                        validator: (value) {
+                          final text = value ?? '';
+                          if (text.isEmpty) {
+                            return 'Password baru wajib diisi';
+                          }
+                          if (text.length < 8) {
+                            return 'Password minimal 8 karakter';
+                          }
+                          if (text == _currentPasswordController.text) {
+                            return 'Password baru harus berbeda';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      _buildPasswordField(
+                        label: 'Konfirmasi Password Baru',
+                        hintText: 'Ulangi password baru',
+                        controller: _confirmPasswordController,
+                        isVisible: _showConfirmPassword,
+                        onToggleVisibility: () {
+                          setState(() {
+                            _showConfirmPassword = !_showConfirmPassword;
+                          });
+                        },
+                        validator: (value) {
+                          final text = value ?? '';
+                          if (text.isEmpty) {
+                            return 'Konfirmasi password wajib diisi';
+                          }
+                          if (text != _newPasswordController.text) {
+                            return 'Konfirmasi password tidak sama';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 18),
+                      _buildPasswordRequirementInfo(),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 14),
-                _buildPasswordField(
-                  label: 'Password Baru',
-                  controller: _newPasswordController,
-                  isVisible: _showNewPassword,
-                  onToggleVisibility: () {
-                    setState(() {
-                      _showNewPassword = !_showNewPassword;
-                    });
-                  },
-                  validator: (value) {
-                    final text = value ?? '';
-                    if (text.isEmpty) {
-                      return 'Password baru wajib diisi';
-                    }
-                    if (text.length < 8) {
-                      return 'Password minimal 8 karakter';
-                    }
-                    if (text == _currentPasswordController.text) {
-                      return 'Password baru harus berbeda';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 14),
-                _buildPasswordField(
-                  label: 'Konfirmasi Password Baru',
-                  controller: _confirmPasswordController,
-                  isVisible: _showConfirmPassword,
-                  onToggleVisibility: () {
-                    setState(() {
-                      _showConfirmPassword = !_showConfirmPassword;
-                    });
-                  },
-                  validator: (value) {
-                    final text = value ?? '';
-                    if (text.isEmpty) {
-                      return 'Konfirmasi password wajib diisi';
-                    }
-                    if (text != _newPasswordController.text) {
-                      return 'Konfirmasi password tidak sama';
-                    }
-                    return null;
-                  },
-                ),
-                const Spacer(),
-                SizedBox(
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                child: SizedBox(
                   width: double.infinity,
                   height: 52,
                   child: ElevatedButton(
@@ -134,16 +149,66 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                         : const Text('Simpan Password'),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
+  Widget _buildPasswordRequirementInfo() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Kata sandi baru disarankan',
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 10),
+        _buildPasswordTip('Gunakan minimal 8 karakter'),
+        _buildPasswordTip('Kombinasikan huruf besar, huruf kecil, dan angka'),
+        _buildPasswordTip('Tambahkan karakter khusus seperti !@#%'),
+        _buildPasswordTip('Hindari menggunakan informasi pribadi'),
+      ],
+    );
+  }
+
+  Widget _buildPasswordTip(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.check_circle_rounded,
+            color: AppColors.textMuted,
+            size: 16,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 11.5,
+                height: 1.3,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPasswordField({
     required String label,
+    required String hintText,
     required TextEditingController controller,
     required bool isVisible,
     required VoidCallback onToggleVisibility,
@@ -164,18 +229,29 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         TextFormField(
           controller: controller,
           obscureText: !isVisible,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+          ),
           validator: validator,
           decoration: InputDecoration(
-            hintText: label,
+            hintText: hintText,
             isDense: true,
             contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 12,
+              horizontal: 14,
+              vertical: 13,
             ),
             filled: true,
             fillColor: AppColors.white,
+            hintStyle: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+            ),
             suffixIcon: IconButton(
               onPressed: onToggleVisibility,
+              iconSize: 20,
               icon: Icon(
                 isVisible ? Icons.visibility : Icons.visibility_off,
                 color: AppColors.textSecondary,
@@ -188,6 +264,13 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: AppColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: AppColors.primary,
+                width: 1.5,
+              ),
             ),
           ),
         ),

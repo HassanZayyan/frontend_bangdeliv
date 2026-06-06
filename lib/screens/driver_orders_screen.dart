@@ -641,7 +641,7 @@ class _OrderCard extends StatelessWidget {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            textStyle: GoogleFonts.poppins(
+                            textStyle: GoogleFonts.nunitoSans(
                               fontWeight: FontWeight.w700,
                               fontSize: 15,
                             ),
@@ -665,7 +665,7 @@ class _OrderCard extends StatelessWidget {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            textStyle: GoogleFonts.poppins(
+                            textStyle: GoogleFonts.nunitoSans(
                               fontWeight: FontWeight.w700,
                               fontSize: 15,
                             ),

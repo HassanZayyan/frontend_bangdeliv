@@ -40,7 +40,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Pilih lewat peta'), findsOneWidget);
+    expect(find.text('Pilih Peta'), findsOneWidget);
     expect(find.text('Tujuan'), findsOneWidget);
     expect(find.byType(GoogleMap), findsNothing);
     expect(

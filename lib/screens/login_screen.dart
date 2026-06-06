@@ -6,6 +6,7 @@ import '../config/app_colors.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../providers/auth_session_provider.dart';
 import '../services/auth_service.dart';
+import '../widgets/bang_ui.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -97,18 +98,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        ClipOval(
-          child: Image.asset(
-            'assets/images/logo.jpg',
-            width: 100,
-            height: 100,
-            fit: BoxFit.cover,
+        Container(
+          width: 96,
+          height: 96,
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: ClipOval(
+            child: Image.asset('assets/images/logo.jpg', fit: BoxFit.cover),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
         RichText(
           text: TextSpan(
-            style: GoogleFonts.bebasNeue(fontSize: 48, letterSpacing: 2),
+            style: GoogleFonts.nunitoSans(fontSize: 42, letterSpacing: 1.5),
             children: const [
               TextSpan(
                 text: 'BANG',
@@ -140,7 +152,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         children: [
           Text(
             'Masuk ke Akun',
-            style: Theme.of(context).textTheme.displayMedium,
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontSize: 20),
           ),
           SizedBox(height: isCompact ? 16 : 24),
 
@@ -148,6 +162,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.next,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+            ),
             decoration: const InputDecoration(
               hintText: 'Email',
               prefixIcon: Icon(
@@ -173,6 +192,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             obscureText: !_isPasswordVisible,
             textInputAction: TextInputAction.done,
             onFieldSubmitted: (_) => _handleLogin(),
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+            ),
             decoration: InputDecoration(
               hintText: 'Password',
               prefixIcon: const Icon(
@@ -180,6 +204,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 color: AppColors.textSecondary,
               ),
               suffixIcon: IconButton(
+                iconSize: 20,
                 icon: Icon(
                   _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
                   color: AppColors.textSecondary,
@@ -221,69 +246,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
           SizedBox(height: isCompact ? 10 : 16),
 
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _isSubmitting ? null : _handleLogin,
-              child: _isSubmitting
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.white,
-                      ),
-                    )
-                  : const Text('Masuk ->'),
-            ),
+          BangPrimaryButton(
+            label: 'Masuk',
+            icon: Icons.arrow_forward_rounded,
+            isLoading: _isSubmitting,
+            onPressed: _handleLogin,
           ),
 
-          SizedBox(height: isCompact ? 14 : 24),
-
-          Row(
-            children: [
-              const Expanded(child: Divider(color: AppColors.border)),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  'atau lanjutkan dengan',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ),
-              const Expanded(child: Divider(color: AppColors.border)),
-            ],
-          ),
-
-          SizedBox(height: isCompact ? 12 : 24),
-
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () {},
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                side: const BorderSide(color: AppColors.border),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              icon: const Text(
-                'G',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blueAccent,
-                ),
-              ),
-              label: Text(
-                'Masuk dengan Google',
-                style: Theme.of(
-                  context,
-                ).textTheme.labelLarge?.copyWith(color: AppColors.textPrimary),
-              ),
-            ),
-          ),
-
-          SizedBox(height: isCompact ? 16 : 24),
+          SizedBox(height: isCompact ? 16 : 22),
 
           Center(
             child: Wrap(

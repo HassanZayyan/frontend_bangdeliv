@@ -8,6 +8,7 @@ import '../models/address_location_picker_result.dart';
 import '../models/user_profile_model.dart';
 import '../providers/auth_session_provider.dart';
 import '../services/auth_service.dart';
+import '../widgets/bang_select_field.dart';
 
 class AddAddressScreen extends ConsumerStatefulWidget {
   const AddAddressScreen({super.key, this.initialAddress});
@@ -336,6 +337,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
   final _phoneController = TextEditingController();
   final _fullAddressController = TextEditingController();
   final _detailController = TextEditingController();
+  final _customLabelController = TextEditingController();
 
   String? _selectedLabel;
   final String _selectedProvince = _fixedProvince;
@@ -356,6 +358,16 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
   bool _isDeleting = false;
 
   bool get _isEditMode => widget.initialAddress != null;
+  bool get _isCustomLabel => _selectedLabel == 'Lainnya';
+  String get _resolvedAddressLabel {
+    final selected = (_selectedLabel ?? '').trim();
+    if (selected == 'Lainnya') {
+      return _customLabelController.text.trim();
+    }
+
+    return selected;
+  }
+
   List<String> get _cityRegencyOptions {
     const preferredOrder = <String>['Kabupaten Semarang', 'Kota Salatiga'];
     final options = _coverageData.keys.toList();
@@ -412,11 +424,19 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
     if (normalized.contains('kantor') || normalized.contains('office')) {
       return 'Kantor';
     }
-    return 'Rumah';
+    if (normalized.isEmpty ||
+        normalized.contains('rumah') ||
+        normalized.contains('home')) {
+      return 'Rumah';
+    }
+    return 'Lainnya';
   }
 
   void _fillFormFromAddress(SavedAddressModel address) {
     _selectedLabel = _normalizeAddressLabel(address.label);
+    _customLabelController.text = _selectedLabel == 'Lainnya'
+        ? address.label.trim()
+        : '';
     _labelErrorText = null;
     _locationErrorText = null;
     _recipientController.text = address.recipientName;
@@ -437,7 +457,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
       );
     }
 
-    _detailController.text = address.detail;
+    _detailController.clear();
     _isDefault = address.isDefault;
     if (_isCoordinatePairValid(address.latitude, address.longitude)) {
       _selectedLatitude = address.latitude;
@@ -524,6 +544,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
       _fillFormFromAddress(widget.initialAddress!);
     } else {
       _selectedLabel = 'Rumah';
+      _customLabelController.clear();
       _prefillUserData();
     }
   }
@@ -643,12 +664,14 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
                               },
                             ),
                             SizedBox(height: fieldSpacing),
+                            _buildSectionTitle('Wilayah Pengantaran'),
+                            const SizedBox(height: 6),
                             _buildCoverageSelectorCard(),
                             SizedBox(height: fieldSpacing),
                             _buildTextField(
                               label: 'Detail Alamat',
                               controller: _fullAddressController,
-                              hintText: 'Jalan, nomor rumah, RT/RW, patokan',
+                              hintText: 'Jalan, RT/RW, patokan',
                               maxLines: isCompact ? 2 : 3,
                               validator: (value) {
                                 final text = value?.trim() ?? '';
@@ -659,26 +682,11 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
                               },
                             ),
                             SizedBox(height: fieldSpacing),
+                            _buildSectionTitle('Lokasi di Peta'),
+                            const SizedBox(height: 6),
                             _buildLocationPickerCard(),
-                            SizedBox(height: fieldSpacing),
-                            _buildTextField(
-                              label: 'Detail Tambahan (Opsional)',
-                              controller: _detailController,
-                              hintText: 'Contoh: Pagar hitam, lantai 2',
-                              maxLines: isCompact ? 1 : 2,
-                            ),
-                            const SizedBox(height: 4),
-                            SwitchListTile.adaptive(
-                              contentPadding: EdgeInsets.zero,
-                              title: const Text('Jadikan alamat utama'),
-                              value: _isDefault,
-                              onChanged: (value) {
-                                setState(() {
-                                  _isDefault = value;
-                                });
-                              },
-                              activeThumbColor: AppColors.primary,
-                            ),
+                            const SizedBox(height: 12),
+                            _buildDefaultAddressToggle(),
                             SizedBox(height: isCompact ? 10 : 14),
                             if (_isEditMode)
                               Row(
@@ -815,7 +823,8 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
     }
 
     final isFormValid = currentState.validate();
-    final hasSelectedLabel = (_selectedLabel ?? '').trim().isNotEmpty;
+    final addressLabel = _resolvedAddressLabel;
+    final hasSelectedLabel = addressLabel.isNotEmpty;
     final hasCoverageSelection = _hasCompleteCoverageSelection();
     final hasPinnedLocation = _isCoordinatePairValid(
       _selectedLatitude,
@@ -824,7 +833,9 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
 
     if (!hasSelectedLabel) {
       setState(() {
-        _labelErrorText = 'Label alamat wajib dipilih';
+        _labelErrorText = _isCustomLabel
+            ? null
+            : 'Tandai sebagai wajib dipilih';
       });
     }
 
@@ -877,22 +888,22 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
       if (_isEditMode) {
         await AuthService.updateSavedAddress(
           addressId: widget.initialAddress!.id,
-          label: _selectedLabel!,
+          label: addressLabel,
           recipientName: _recipientController.text.trim(),
           phone: _phoneController.text.trim(),
           fullAddress: normalizedFullAddress,
-          detail: _detailController.text.trim(),
+          detail: '',
           latitude: latitudeToSave,
           longitude: longitudeToSave,
           isDefault: _isDefault,
         );
       } else {
         await AuthService.createSavedAddress(
-          label: _selectedLabel!,
+          label: addressLabel,
           recipientName: _recipientController.text.trim(),
           phone: _phoneController.text.trim(),
           fullAddress: normalizedFullAddress,
-          detail: _detailController.text.trim(),
+          detail: '',
           latitude: latitudeToSave,
           longitude: longitudeToSave,
           isDefault: _isDefault,
@@ -1058,16 +1069,26 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
           controller: controller,
           keyboardType: keyboardType,
           maxLines: maxLines,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+          ),
           validator: validator,
           decoration: InputDecoration(
             hintText: hintText,
             isDense: true,
             contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 12,
+              horizontal: 14,
+              vertical: 13,
             ),
             filled: true,
             fillColor: AppColors.white,
+            hintStyle: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: AppColors.border),
@@ -1076,16 +1097,88 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: AppColors.border),
             ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: AppColors.primary,
+                width: 1.5,
+              ),
+            ),
           ),
         ),
       ],
     );
   }
 
+  Widget _buildSectionTitle(String text) {
+    return Text(
+      text,
+      style: const TextStyle(
+        color: AppColors.textSecondary,
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+
+  Widget _buildDefaultAddressToggle() {
+    final isDisabled = _isSubmitting || _isDeleting;
+
+    return Semantics(
+      label: 'Jadikan alamat utama',
+      toggled: _isDefault,
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'Jadikan alamat utama',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Switch(
+            value: _isDefault,
+            onChanged: isDisabled
+                ? null
+                : (value) {
+                    setState(() {
+                      _isDefault = value;
+                    });
+                  },
+            thumbColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.disabled)) {
+                return AppColors.surfaceAlt;
+              }
+              return AppColors.white;
+            }),
+            trackColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.disabled)) {
+                return AppColors.border;
+              }
+              if (states.contains(WidgetState.selected)) {
+                return AppColors.success;
+              }
+              return AppColors.border;
+            }),
+            trackOutlineColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.selected)) {
+                return AppColors.success;
+              }
+              return AppColors.border;
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCoverageSelectorCard() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(12),
@@ -1098,17 +1191,8 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Wilayah Pengantaran *',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 8),
           _buildReadOnlyAreaField(label: 'Provinsi', value: _selectedProvince),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           _buildAreaDropdownField(
             label: 'Kabupaten/Kota',
             value: _selectedCityRegency,
@@ -1127,7 +1211,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
               });
             },
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           _buildAreaDropdownField(
             label: 'Kecamatan',
             value: _selectedDistrict,
@@ -1149,7 +1233,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
                     });
                   },
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           _buildAreaDropdownField(
             label: 'Kelurahan/Desa',
             value: _selectedSubDistrict,
@@ -1173,7 +1257,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
                     });
                   },
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           _buildAreaDropdownField(
             label: 'Kode Pos',
             value: _selectedPostalCode,
@@ -1233,6 +1317,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
             value,
             style: const TextStyle(
               color: AppColors.textPrimary,
+              fontSize: 14,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1250,150 +1335,20 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
   }) {
     final isEnabled = onChanged != null && items.isNotEmpty;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 12,
-            color: AppColors.textSecondary,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Builder(
-          builder: (fieldContext) {
-            return InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: !isEnabled
-                  ? null
-                  : () async {
-                      await _scrollDropdownFieldIntoView(fieldContext);
-                      if (!mounted || !fieldContext.mounted) return;
-                      final pickedValue = await _showAreaOptionsMenu(
-                        fieldContext: fieldContext,
-                        items: items,
-                      );
-                      if (pickedValue != null) {
-                        onChanged(pickedValue);
-                      }
-                    },
-              child: InputDecorator(
-                isEmpty: (value ?? '').trim().isEmpty,
-                decoration: InputDecoration(
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 12,
-                  ),
-                  filled: true,
-                  fillColor: AppColors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: AppColors.border),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: AppColors.border),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        (value ?? '').trim().isNotEmpty
-                            ? value!.trim()
-                            : hintText,
-                        style: TextStyle(
-                          color: (value ?? '').trim().isNotEmpty
-                              ? AppColors.textPrimary
-                              : AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                    Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      color: isEnabled
-                          ? AppColors.textSecondary
-                          : AppColors.textSecondary.withValues(alpha: 0.6),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Future<void> _scrollDropdownFieldIntoView(BuildContext fieldContext) async {
-    await Scrollable.ensureVisible(
-      fieldContext,
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOut,
-      alignment: 0.12,
-      alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
-    );
-  }
-
-  Future<String?> _showAreaOptionsMenu({
-    required BuildContext fieldContext,
-    required List<String> items,
-  }) {
-    if (!mounted || !fieldContext.mounted) {
-      return Future.value(null);
-    }
-
-    final overlayBox =
-        Overlay.of(context).context.findRenderObject() as RenderBox;
-    final fieldBox = fieldContext.findRenderObject() as RenderBox;
-    final fieldWidth = fieldBox.size.width;
-    final fieldTopLeft = fieldBox.localToGlobal(
-      Offset.zero,
-      ancestor: overlayBox,
-    );
-    final fieldBottomRight = fieldBox.localToGlobal(
-      fieldBox.size.bottomRight(Offset.zero),
-      ancestor: overlayBox,
-    );
-    final position = RelativeRect.fromLTRB(
-      fieldTopLeft.dx,
-      fieldBottomRight.dy + 4,
-      overlayBox.size.width - fieldBottomRight.dx,
-      overlayBox.size.height - fieldBottomRight.dy,
-    );
-
-    return showMenu<String>(
-      context: context,
-      position: position,
-      color: AppColors.white,
-      surfaceTintColor: AppColors.white,
-      shadowColor: Colors.black26,
-      constraints: BoxConstraints(
-        minWidth: fieldWidth,
-        maxWidth: fieldWidth,
-        maxHeight: 300,
-      ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      items: items
-          .map(
-            (item) => PopupMenuItem<String>(
-              value: item,
-              height: 44,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Text(
-                item,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.normal,
-                ),
-              ),
-            ),
-          )
-          .toList(growable: false),
+    return BangSelectField(
+      label: label,
+      value: value,
+      hintText: hintText,
+      items: items,
+      enabled: isEnabled,
+      onChanged: onChanged,
+      labelFontSize: 12,
+      labelBottomSpacing: 4,
+      fieldFontSize: 14,
+      hintFontSize: 14,
+      borderRadius: 10,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      selectedFontWeight: FontWeight.w600,
     );
   }
 
@@ -1405,7 +1360,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(12),
@@ -1418,21 +1373,6 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.place_outlined, color: AppColors.textSecondary),
-              const SizedBox(width: 8),
-              Text(
-                'Lokasi di Peta *',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
           Text(
             hasPinnedLocation
                 ? 'Titik: ${_selectedLatitude!.toStringAsFixed(6)}, ${_selectedLongitude!.toStringAsFixed(6)}'
@@ -1447,7 +1387,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
             ),
           ),
           if (_locationErrorText != null) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
               _locationErrorText!,
               style: const TextStyle(color: AppColors.error, fontSize: 12),
@@ -1463,7 +1403,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
               ),
             ),
           ],
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
@@ -1490,7 +1430,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Label Alamat',
+          'Tandai sebagai',
           style: TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: 13,
@@ -1506,15 +1446,37 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
                 isSelected: _selectedLabel == 'Rumah',
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             Expanded(
               child: _buildAddressLabelOption(
                 label: 'Kantor',
                 isSelected: _selectedLabel == 'Kantor',
               ),
             ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildAddressLabelOption(
+                label: 'Lainnya',
+                isSelected: _selectedLabel == 'Lainnya',
+              ),
+            ),
           ],
         ),
+        if (_isCustomLabel) ...[
+          const SizedBox(height: 10),
+          _buildTextField(
+            label: 'Label Alamat',
+            controller: _customLabelController,
+            hintText: 'Contoh: Kos, Toko, Kontrakan',
+            validator: (value) {
+              final text = value?.trim() ?? '';
+              if (text.isEmpty) {
+                return 'Label alamat wajib diisi';
+              }
+              return null;
+            },
+          ),
+        ],
         if (_labelErrorText != null) ...[
           const SizedBox(height: 6),
           Text(
@@ -1540,14 +1502,17 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
           }
           setState(() {
             _selectedLabel = label;
+            if (label != 'Lainnya') {
+              _customLabelController.clear();
+            }
             _labelErrorText = null;
           });
         },
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
           decoration: BoxDecoration(
             color: isSelected ? AppColors.primaryLight : AppColors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isSelected ? AppColors.primary : AppColors.border,
             ),
@@ -1557,8 +1522,8 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
             label,
             style: TextStyle(
               color: isSelected ? AppColors.primaryDark : AppColors.textPrimary,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),
@@ -1635,7 +1600,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
         final fromFull = fullParts[fullParts.length - areaParts.length + i]
             .toLowerCase();
         final fromArea = areaParts[i].toLowerCase();
-        
+
         final normalizedFull = fromFull.replaceAll('kec. ', '').trim();
         final normalizedArea = fromArea.replaceAll('kec. ', '').trim();
 
@@ -1659,6 +1624,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
     _phoneController.dispose();
     _fullAddressController.dispose();
     _detailController.dispose();
+    _customLabelController.dispose();
     super.dispose();
   }
 }

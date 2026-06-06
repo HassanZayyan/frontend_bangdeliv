@@ -40,9 +40,9 @@ String serviceTypeLabel(String code) {
     case ServiceTypeCodes.courier:
       return 'Kurir';
     case ServiceTypeCodes.shopping:
-      return 'Titip Belanja';
+      return 'Nitip';
     default:
-      return 'Layanan Bangdeliv';
+      return 'Kurir';
   }
 }
 

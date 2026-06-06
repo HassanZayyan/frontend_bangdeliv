@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import '../config/app_colors.dart';
 import '../providers/auth_session_provider.dart';
 import '../services/auth_service.dart';
+import '../widgets/profile_avatar.dart';
 import '../widgets/vehicle_info_fields.dart';
 
 enum _AvatarPickerAction { camera, gallery, remove }
@@ -106,160 +107,197 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
+          : SafeArea(
+              top: false,
               child: Form(
                 key: _formKey,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    const SizedBox(height: 20),
-                    Stack(
-                      children: [
-                        _buildAvatarPreview(),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: InkWell(
-                            onTap: _isSubmitting
-                                ? null
-                                : _openAvatarPickerSheet,
-                            borderRadius: BorderRadius.circular(100),
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: const BoxDecoration(
-                                color: AppColors.primary,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.camera_alt,
-                                color: Colors.white,
-                                size: 20,
-                              ),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const SizedBox(height: 20),
+                            Stack(
+                              children: [
+                                ValueListenableBuilder<TextEditingValue>(
+                                  valueListenable: _nameController,
+                                  builder: (context, value, _) {
+                                    return _buildAvatarPreview(value.text);
+                                  },
+                                ),
+                                Positioned(
+                                  bottom: -6,
+                                  right: -6,
+                                  child: Tooltip(
+                                    message: 'Ganti foto profil',
+                                    child: InkWell(
+                                      onTap: _isSubmitting
+                                          ? null
+                                          : _openAvatarPickerSheet,
+                                      borderRadius: BorderRadius.circular(100),
+                                      child: SizedBox(
+                                        width: 44,
+                                        height: 44,
+                                        child: Center(
+                                          child: Container(
+                                            width: 30,
+                                            height: 30,
+                                            alignment: Alignment.center,
+                                            decoration: BoxDecoration(
+                                              color: AppColors.white,
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: AppColors.primaryLight,
+                                                width: 1.5,
+                                              ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: AppColors.black
+                                                      .withValues(alpha: 0.14),
+                                                  blurRadius: 8,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ],
+                                            ),
+                                            child: const Icon(
+                                              Icons.camera_alt,
+                                              color: AppColors.primary,
+                                              size: 15,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 40),
-                    _buildTextField(
-                      label: 'Nama Lengkap',
-                      controller: _nameController,
-                      keyboardType: TextInputType.name,
-                      validator: (value) {
-                        final name = value?.trim() ?? '';
-                        if (name.isEmpty) {
-                          return 'Nama wajib diisi';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    _buildTextField(
-                      label: 'Nomor Telepon',
-                      controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      validator: (value) {
-                        final phone = value?.trim() ?? '';
-                        if (phone.isEmpty) {
-                          return 'Nomor telepon wajib diisi';
-                        }
-                        final normalized = phone.replaceAll(
-                          RegExp(r'[^0-9+]'),
-                          '',
-                        );
-                        if (!RegExp(
-                          r'^\+?[0-9]{10,15}$',
-                        ).hasMatch(normalized)) {
-                          return 'Format nomor telepon tidak valid';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    _buildTextField(
-                      label: 'Email',
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (value) {
-                        final email = value?.trim() ?? '';
-                        if (email.isEmpty) {
-                          return 'Email wajib diisi';
-                        }
-                        final valid = RegExp(
-                          r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
-                        ).hasMatch(email);
-                        if (!valid) {
-                          return 'Format email tidak valid';
-                        }
-                        return null;
-                      },
-                    ),
-                    if (_isDriver) ...[
-                      const SizedBox(height: 20),
-                      VehicleInfoFields(
-                        selectedVehicleType: _selectedVehicleType,
-                        selectedVehicleBrand: _selectedVehicleBrand,
-                        vehicleModelController: _vehicleModelController,
-                        enabled: !_isSubmitting,
-                        requiredFields: _isDriver,
-                        showLabels: true,
-                        filled: true,
-                        fillColor: Colors.white,
-                        onVehicleTypeChanged: (value) {
-                          setState(() {
-                            _selectedVehicleType = value;
-                            if ((value ?? '').trim().isEmpty) {
-                              _selectedVehicleBrand = null;
-                              _vehicleModelController.clear();
-                            }
-                          });
-                        },
-                        onVehicleBrandChanged: (value) {
-                          setState(() {
-                            _selectedVehicleBrand = value;
-                            if ((value ?? '').trim().isEmpty) {
-                              _vehicleModelController.clear();
-                            }
-                          });
-                        },
-                      ),
-                    ],
-                    const SizedBox(height: 40),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: ElevatedButton(
-                        onPressed: _isSubmitting ? null : _handleSubmit,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        child: _isSubmitting
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppColors.white,
-                                ),
-                              )
-                            : const Text(
-                                'Simpan Perubahan',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
+                            const SizedBox(height: 30),
+                            _buildTextField(
+                              label: 'Nama Lengkap',
+                              controller: _nameController,
+                              keyboardType: TextInputType.name,
+                              validator: (value) {
+                                final name = value?.trim() ?? '';
+                                if (name.isEmpty) {
+                                  return 'Nama wajib diisi';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 20),
+                            _buildTextField(
+                              label: 'Nomor Telepon',
+                              controller: _phoneController,
+                              keyboardType: TextInputType.phone,
+                              validator: (value) {
+                                final phone = value?.trim() ?? '';
+                                if (phone.isEmpty) {
+                                  return 'Nomor telepon wajib diisi';
+                                }
+                                final normalized = phone.replaceAll(
+                                  RegExp(r'[^0-9+]'),
+                                  '',
+                                );
+                                if (!RegExp(
+                                  r'^\+?[0-9]{10,15}$',
+                                ).hasMatch(normalized)) {
+                                  return 'Format nomor telepon tidak valid';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 20),
+                            _buildTextField(
+                              label: 'Email',
+                              controller: _emailController,
+                              keyboardType: TextInputType.emailAddress,
+                              validator: (value) {
+                                final email = value?.trim() ?? '';
+                                if (email.isEmpty) {
+                                  return 'Email wajib diisi';
+                                }
+                                final valid = RegExp(
+                                  r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                                ).hasMatch(email);
+                                if (!valid) {
+                                  return 'Format email tidak valid';
+                                }
+                                return null;
+                              },
+                            ),
+                            if (_isDriver) ...[
+                              const SizedBox(height: 20),
+                              VehicleInfoFields(
+                                selectedVehicleType: _selectedVehicleType,
+                                selectedVehicleBrand: _selectedVehicleBrand,
+                                vehicleModelController: _vehicleModelController,
+                                enabled: !_isSubmitting,
+                                requiredFields: _isDriver,
+                                showLabels: true,
+                                filled: true,
+                                fillColor: Colors.white,
+                                onVehicleTypeChanged: (value) {
+                                  setState(() {
+                                    _selectedVehicleType = value;
+                                    if ((value ?? '').trim().isEmpty) {
+                                      _selectedVehicleBrand = null;
+                                      _vehicleModelController.clear();
+                                    }
+                                  });
+                                },
+                                onVehicleBrandChanged: (value) {
+                                  setState(() {
+                                    _selectedVehicleBrand = value;
+                                    if ((value ?? '').trim().isEmpty) {
+                                      _vehicleModelController.clear();
+                                    }
+                                  });
+                                },
                               ),
+                            ],
+                          ],
+                        ),
                       ),
                     ),
+                    _buildBottomSubmitButton(),
                   ],
                 ),
               ),
             ),
+    );
+  }
+
+  Widget _buildBottomSubmitButton() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+      child: SizedBox(
+        width: double.infinity,
+        height: 52,
+        child: ElevatedButton(
+          onPressed: _isSubmitting ? null : _handleSubmit,
+          style: ElevatedButton.styleFrom(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: _isSubmitting
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.white,
+                  ),
+                )
+              : const Text('Simpan Perubahan'),
+        ),
+      ),
     );
   }
 
@@ -335,21 +373,28 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         Text(
           label,
           style: const TextStyle(
-            fontWeight: FontWeight.bold,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
             color: AppColors.textSecondary,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         TextFormField(
           controller: controller,
           keyboardType: keyboardType,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+          ),
           validator: validator,
           decoration: InputDecoration(
+            isDense: true,
             filled: true,
             fillColor: Colors.white,
             contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 16,
+              horizontal: 14,
+              vertical: 13,
             ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -359,48 +404,32 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: AppColors.border),
             ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: AppColors.primary,
+                width: 1.5,
+              ),
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildAvatarPreview() {
+  Widget _buildAvatarPreview(String name) {
     final normalizedAvatarUrl = (_currentAvatarUrl ?? '').trim();
+    final selectedAvatar = _selectedAvatar;
 
-    return Container(
-      height: 120,
-      width: 120,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: AppColors.primaryLight, width: 4),
-        color: AppColors.darkBlue,
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          const Center(
-            child: Icon(Icons.person, size: 60, color: AppColors.primary),
-          ),
-          if (_selectedAvatar != null)
-            Image.file(
-              File(_selectedAvatar!.path),
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return const SizedBox.shrink();
-              },
-            )
-          else if (!_removeAvatar && normalizedAvatarUrl.isNotEmpty)
-            Image.network(
-              normalizedAvatarUrl,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return const SizedBox.shrink();
-              },
-            ),
-        ],
-      ),
+    return ProfileAvatar(
+      name: name,
+      avatarUrl: _removeAvatar ? null : normalizedAvatarUrl,
+      imageProvider: selectedAvatar == null
+          ? null
+          : FileImage(File(selectedAvatar.path)),
+      size: 84,
+      borderColor: AppColors.primaryLight,
+      borderWidth: 3,
     );
   }
 
@@ -409,42 +438,44 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         _selectedAvatar != null ||
         (!_removeAvatar && (_currentAvatarUrl ?? '').trim().isNotEmpty);
 
-    final action = await showModalBottomSheet<_AvatarPickerAction>(
+    final action = await showDialog<_AvatarPickerAction>(
       context: context,
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.camera_alt_outlined),
-                  title: const Text('Ambil dari Kamera'),
-                  onTap: () =>
-                      Navigator.of(context).pop(_AvatarPickerAction.camera),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.photo_library_outlined),
-                  title: const Text('Pilih dari Galeri'),
-                  onTap: () =>
-                      Navigator.of(context).pop(_AvatarPickerAction.gallery),
-                ),
-                if (hasAvatar)
-                  ListTile(
-                    leading: const Icon(
-                      Icons.delete_outline,
-                      color: AppColors.error,
-                    ),
-                    title: const Text(
-                      'Hapus Foto Profil',
-                      style: TextStyle(color: AppColors.error),
-                    ),
-                    onTap: () =>
-                        Navigator.of(context).pop(_AvatarPickerAction.remove),
-                  ),
-              ],
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.white,
+          surfaceTintColor: AppColors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: const Text(
+            'Foto Profil',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
             ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _AvatarPickerOption(
+                icon: Icons.camera_alt_outlined,
+                title: 'Ambil dari Kamera',
+                onTap: () => dialogContext.pop(_AvatarPickerAction.camera),
+              ),
+              _AvatarPickerOption(
+                icon: Icons.photo_library_outlined,
+                title: 'Pilih dari Galeri',
+                onTap: () => dialogContext.pop(_AvatarPickerAction.gallery),
+              ),
+              if (hasAvatar)
+                _AvatarPickerOption(
+                  icon: Icons.delete_outline,
+                  title: 'Hapus Foto Profil',
+                  color: AppColors.error,
+                  onTap: () => dialogContext.pop(_AvatarPickerAction.remove),
+                ),
+            ],
           ),
         );
       },
@@ -498,7 +529,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Gagal memilih foto profil. Coba lagi.'),
+          content: Text('Gagal memilih foto profil.'),
           backgroundColor: Colors.red.shade600,
         ),
       );
@@ -512,5 +543,51 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     _emailController.dispose();
     _vehicleModelController.dispose();
     super.dispose();
+  }
+}
+
+class _AvatarPickerOption extends StatelessWidget {
+  const _AvatarPickerOption({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+    this.color,
+  });
+
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final resolvedColor = color ?? AppColors.textPrimary;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            children: [
+              Icon(icon, color: resolvedColor, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: resolvedColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

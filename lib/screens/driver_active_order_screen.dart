@@ -26,6 +26,41 @@ import '../utils/service_type.dart';
 import '../widgets/order_chat_badge_icon.dart';
 import '../widgets/shopping_fee_breakdown.dart';
 
+InputDecoration _driverDialogInputDecoration({
+  String? labelText,
+  String? hintText,
+  String? prefixText,
+}) {
+  final border = OutlineInputBorder(
+    borderRadius: BorderRadius.circular(12),
+    borderSide: const BorderSide(color: AppColors.border),
+  );
+
+  return InputDecoration(
+    labelText: labelText,
+    hintText: hintText,
+    prefixText: prefixText,
+    isDense: true,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+    labelStyle: const TextStyle(
+      color: AppColors.textSecondary,
+      fontSize: 13,
+      fontWeight: FontWeight.w600,
+    ),
+    hintStyle: const TextStyle(
+      color: AppColors.textSecondary,
+      fontSize: 14,
+      fontWeight: FontWeight.w500,
+    ),
+    border: border,
+    enabledBorder: border,
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+    ),
+  );
+}
+
 class DriverActiveOrderScreen extends ConsumerWidget {
   final String orderId;
 
@@ -1741,10 +1776,14 @@ class _ManualDeliveryFeeDialogState extends State<_ManualDeliveryFeeDialog> {
                       controller: _amountController,
                       keyboardType: TextInputType.number,
                       onChanged: (_) => _amountTouchedByUser = true,
-                      decoration: const InputDecoration(
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                      ),
+                      decoration: _driverDialogInputDecoration(
                         labelText: 'Ongkir dasar manual',
                         prefixText: 'Rp ',
-                        border: OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -1752,10 +1791,14 @@ class _ManualDeliveryFeeDialogState extends State<_ManualDeliveryFeeDialog> {
                       controller: _reasonController,
                       minLines: 2,
                       maxLines: 3,
-                      decoration: const InputDecoration(
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                      ),
+                      decoration: _driverDialogInputDecoration(
                         labelText: 'Alasan edit',
                         hintText: 'Contoh: rute sistem kurang akurat',
-                        border: OutlineInputBorder(),
                       ),
                     ),
                     if (widget.supportsCarefulCarry) ...[
@@ -1994,22 +2037,28 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
           TextField(
             controller: _shoppingTotalController,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+            ),
+            decoration: _driverDialogInputDecoration(
               labelText: 'Total belanja di struk',
               prefixText: 'Rp ',
-              border: OutlineInputBorder(),
-              isDense: true,
             ),
           ),
           const SizedBox(height: 8),
           TextField(
             controller: _deliveryFeeOverrideController,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+            ),
+            decoration: _driverDialogInputDecoration(
               labelText: 'Edit ongkir nitip (opsional)',
               prefixText: 'Rp ',
-              border: OutlineInputBorder(),
-              isDense: true,
             ),
           ),
           const SizedBox(height: 8),
@@ -2037,11 +2086,14 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
             controller: _receiptNoteController,
             minLines: 1,
             maxLines: 3,
-            decoration: const InputDecoration(
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+            ),
+            decoration: _driverDialogInputDecoration(
               labelText: 'Catatan nota',
               hintText: 'Contoh: satu item kosong, diganti ukuran lain',
-              border: OutlineInputBorder(),
-              isDense: true,
             ),
           ),
           const SizedBox(height: 10),
@@ -2764,7 +2816,7 @@ class _ActionCard extends StatelessWidget {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      textStyle: GoogleFonts.poppins(
+                      textStyle: GoogleFonts.nunitoSans(
                         fontWeight: FontWeight.w700,
                         fontSize: 15,
                       ),
@@ -2855,10 +2907,14 @@ class _ActionCard extends StatelessWidget {
             TextField(
               controller: amountController,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+              ),
+              decoration: _driverDialogInputDecoration(
                 labelText: 'Nominal transfer',
                 prefixText: 'Rp ',
-                border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 10),
@@ -2866,10 +2922,12 @@ class _ActionCard extends StatelessWidget {
               controller: noteController,
               minLines: 2,
               maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Catatan',
-                border: OutlineInputBorder(),
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
               ),
+              decoration: _driverDialogInputDecoration(labelText: 'Catatan'),
             ),
           ],
         ),
@@ -2987,9 +3045,13 @@ class _FailedPickupDialogState extends State<_FailedPickupDialog> {
                     DropdownButtonFormField<int>(
                       initialValue: _selectedPickupLocationId,
                       isExpanded: true,
-                      decoration: const InputDecoration(
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                      ),
+                      decoration: _driverDialogInputDecoration(
                         labelText: 'Merchant',
-                        border: OutlineInputBorder(),
                       ),
                       items: widget.stops
                           .map(
@@ -3015,9 +3077,13 @@ class _FailedPickupDialogState extends State<_FailedPickupDialog> {
                       controller: _reasonController,
                       minLines: 2,
                       maxLines: 4,
-                      decoration: const InputDecoration(
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                      ),
+                      decoration: _driverDialogInputDecoration(
                         labelText: 'Alasan',
-                        border: OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 12),

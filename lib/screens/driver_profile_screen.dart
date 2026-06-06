@@ -7,12 +7,14 @@ import '../config/app_routes.dart';
 import '../models/user_profile_model.dart';
 import '../providers/auth_session_provider.dart';
 import '../services/auth_service.dart';
+import '../widgets/profile_avatar.dart';
 
 class DriverProfileScreen extends ConsumerStatefulWidget {
   const DriverProfileScreen({super.key});
 
   @override
-  ConsumerState<DriverProfileScreen> createState() => _DriverProfileScreenState();
+  ConsumerState<DriverProfileScreen> createState() =>
+      _DriverProfileScreenState();
 }
 
 class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
@@ -106,19 +108,18 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
                 const SizedBox(height: 18),
                 SizedBox(
                   width: double.infinity,
-                  child: OutlinedButton.icon(
+                  child: OutlinedButton(
                     onPressed: _handleLogout,
-                    icon: const Icon(Icons.logout, color: AppColors.primary),
-                    label: const Text(
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.primaryLight),
+                      backgroundColor: AppColors.white,
+                    ),
+                    child: const Text(
                       'Keluar dari Akun',
                       style: TextStyle(
                         color: AppColors.primary,
                         fontWeight: FontWeight.bold,
                       ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppColors.primaryLight),
-                      backgroundColor: AppColors.white,
                     ),
                   ),
                 ),
@@ -152,16 +153,10 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
         children: [
           Row(
             children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: ClipOval(
-                  child: _buildAvatarImage(profile.avatarUrl),
-                ),
+              ProfileAvatar(
+                name: profile.name,
+                avatarUrl: profile.avatarUrl,
+                size: 56,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -201,11 +196,15 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
           const SizedBox(height: 6),
           Row(
             children: [
-              Expanded(child: _miniStat('Order Selesai', completedOrders.toString())),
+              Expanded(
+                child: _miniStat('Order Selesai', completedOrders.toString()),
+              ),
               Expanded(
                 child: _miniStat(
                   'Rating',
-                  resolvedRating <= 0 ? '-' : '${resolvedRating.toStringAsFixed(1)}★',
+                  resolvedRating <= 0
+                      ? '-'
+                      : '${resolvedRating.toStringAsFixed(1)}★',
                 ),
               ),
             ],
@@ -216,7 +215,9 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
   }
 
   Widget _buildOperationalCard(DriverProfileModel? driverProfile) {
-    final operationalStatus = (driverProfile?.status ?? 'offline').trim().toLowerCase();
+    final operationalStatus = (driverProfile?.status ?? 'offline')
+        .trim()
+        .toLowerCase();
     final vehicleType = (driverProfile?.vehicleType ?? '').trim();
     final vehicleBrand = (driverProfile?.vehicleBrand ?? '').trim();
     final vehicleModel = (driverProfile?.vehicleModel ?? '').trim();
@@ -248,7 +249,9 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: _operationalColor(operationalStatus).withValues(alpha: 0.14),
+              color: _operationalColor(
+                operationalStatus,
+              ).withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Text(
@@ -266,7 +269,10 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
           const SizedBox(height: 8),
           _detailRow('Tipe Motor', vehicleModel.isEmpty ? '-' : vehicleModel),
           const SizedBox(height: 8),
-          _detailRow('Plat Kendaraan', vehiclePlate.isEmpty ? '-' : vehiclePlate.toUpperCase()),
+          _detailRow(
+            'Plat Kendaraan',
+            vehiclePlate.isEmpty ? '-' : vehiclePlate.toUpperCase(),
+          ),
           const SizedBox(height: 8),
           _detailRow('Nomor SIM', maskedLicenseNumber),
         ],
@@ -275,7 +281,9 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
   }
 
   Widget _buildStatusCard(DriverProfileModel? driverProfile) {
-    final status = (driverProfile?.registrationStatus ?? 'unknown').trim().toLowerCase();
+    final status = (driverProfile?.registrationStatus ?? 'unknown')
+        .trim()
+        .toLowerCase();
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -313,10 +321,7 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
           const SizedBox(height: 8),
           const Text(
             'Kelola dokumen dan pantau status verifikasi akun driver Anda.',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
           ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
@@ -455,10 +460,7 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
         const SizedBox(height: 2),
         Text(
           label,
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 12,
-          ),
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
         ),
       ],
     );
@@ -491,28 +493,6 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
       default:
         return 'Belum tersedia';
     }
-  }
-
-  Widget _buildAvatarImage(String? avatarUrl) {
-    final normalized = avatarUrl?.trim() ?? '';
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Container(
-          color: AppColors.primary.withValues(alpha: 0.12),
-          alignment: Alignment.center,
-          child: const Icon(Icons.person, color: AppColors.primaryDark),
-        ),
-        if (normalized.isNotEmpty)
-          Image.network(
-            normalized,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              return const SizedBox.shrink();
-            },
-          ),
-      ],
-    );
   }
 
   Color _operationalColor(String status) {

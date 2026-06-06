@@ -44,7 +44,7 @@ void main() {
       await tester.tap(find.text('Resto Satu'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Item Belanja'), findsOneWidget);
+      expect(find.text('Item'), findsOneWidget);
       expect(find.text('Menu Katalog'), findsNothing);
       expect(find.text('Item berat'), findsNothing);
       expect(service.menuSearchCalls, 1);
@@ -54,7 +54,7 @@ void main() {
       await _tapAddToDraft(tester);
 
       expect(service.addCalls, 0);
-      expect(find.text('Daftar Titipan'), findsOneWidget);
+      expect(find.text('Daftar Item'), findsOneWidget);
       expect(find.text('Soto Ayam'), findsOneWidget);
 
       await _tapSubmitDrafts(tester);
@@ -86,8 +86,8 @@ void main() {
     await tester.tap(find.text('Warung Madura'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Item Belanja'), findsOneWidget);
-    expect(find.textContaining('Harga dan status berat'), findsWidgets);
+    expect(find.text('Item'), findsOneWidget);
+    expect(find.text('Harga dikonfirmasi driver dari nota.'), findsOneWidget);
     expect(find.text('Item berat'), findsNothing);
 
     await tester.enterText(find.byType(TextField).at(1), 'Telur 1 kg');
@@ -118,7 +118,7 @@ void main() {
 }
 
 Future<void> _tapAddToDraft(WidgetTester tester) async {
-  final finder = find.widgetWithText(OutlinedButton, 'Tambah ke daftar');
+  final finder = find.text('Tambah');
   await tester.ensureVisible(finder);
   await tester.pumpAndSettle();
   await tester.tap(finder);
@@ -126,7 +126,7 @@ Future<void> _tapAddToDraft(WidgetTester tester) async {
 }
 
 Future<void> _tapSubmitDrafts(WidgetTester tester) async {
-  final finder = find.widgetWithText(ElevatedButton, 'Kirim Titipan');
+  final finder = find.text('Simpan Item');
   await tester.ensureVisible(finder);
   await tester.pumpAndSettle();
   await tester.tap(finder);
@@ -203,7 +203,7 @@ CustomerOrderDetailModel _shoppingDetail({
       id: 1,
       orderNumber: 'BD-TEST-1',
       serviceTypeCode: 'SHOPPING',
-      serviceTypeLabel: 'Titip Belanja',
+      serviceTypeLabel: 'Nitip',
       restaurantName: 'Resto Awal',
       itemsSummary: '1x Telur',
       totalAmount: totalPrice,

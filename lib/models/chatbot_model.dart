@@ -370,12 +370,12 @@ class ChatbotResult {
       if (isOrderCreated) {
         return createdOrderNumber != null &&
                 createdOrderNumber!.trim().isNotEmpty
-            ? 'Order titip belanja berhasil dibuat dengan nomor $createdOrderNumber.'
-            : 'Order titip belanja berhasil dibuat.';
+            ? 'Order Nitip berhasil dibuat dengan nomor $createdOrderNumber.'
+            : 'Order Nitip berhasil dibuat.';
       }
 
       if (validation != null && validation!.rejectionReasons.isNotEmpty) {
-        final buffer = StringBuffer('Draft titip belanja belum lengkap:\n');
+        final buffer = StringBuffer('Draft Nitip belum lengkap:\n');
         for (final reason in validation!.rejectionReasons) {
           buffer.writeln('- $reason');
         }
@@ -386,7 +386,7 @@ class ChatbotResult {
     }
 
     if (intent == ChatbotIntent.outOfDomain) {
-      return 'Aku fokus bantu titip belanja. Tulis merchant dan item yang ingin dibeli, ya.';
+      return 'Aku fokus bantu Nitip. Tulis merchant dan item yang ingin dibeli, ya.';
     }
 
     if (validation != null && !validation!.isValidOrder) {

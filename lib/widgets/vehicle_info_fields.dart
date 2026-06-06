@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../config/app_colors.dart';
 import '../utils/vehicle_options.dart';
+import 'bang_select_field.dart';
 
 class VehicleInfoFields extends StatelessWidget {
   const VehicleInfoFields({
@@ -16,6 +19,22 @@ class VehicleInfoFields extends StatelessWidget {
     this.showLabels = false,
     this.filled = false,
     this.fillColor,
+    this.vehicleTypeLabel = 'Jenis Motor',
+    this.showIcons = false,
+    this.capitalizeVehicleModel = false,
+    this.labelColor,
+    this.labelFontSize = 13,
+    this.labelFontWeight = FontWeight.w700,
+    this.labelBottomSpacing = 6,
+    this.fieldSpacing = 16,
+    this.borderRadius = 12,
+    this.contentPadding = const EdgeInsets.symmetric(
+      horizontal: 14,
+      vertical: 13,
+    ),
+    this.isDense = true,
+    this.fieldFontSize = 14,
+    this.hintFontSize = 14,
   });
 
   final String? selectedVehicleType;
@@ -28,88 +47,103 @@ class VehicleInfoFields extends StatelessWidget {
   final bool showLabels;
   final bool filled;
   final Color? fillColor;
+  final String vehicleTypeLabel;
+  final bool showIcons;
+  final bool capitalizeVehicleModel;
+  final Color? labelColor;
+  final double labelFontSize;
+  final FontWeight labelFontWeight;
+  final double labelBottomSpacing;
+  final double fieldSpacing;
+  final double borderRadius;
+  final EdgeInsetsGeometry contentPadding;
+  final bool isDense;
+  final double fieldFontSize;
+  final double hintFontSize;
 
   @override
   Widget build(BuildContext context) {
     final hasVehicleType = (selectedVehicleType ?? '').trim().isNotEmpty;
     final hasVehicleBrand = (selectedVehicleBrand ?? '').trim().isNotEmpty;
+    final fieldTextStyle = _fieldTextStyle;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildFieldLabel('Jenis Motor'),
-        DropdownButtonFormField<String>(
-          key: ValueKey<String?>('vehicle-type-${selectedVehicleType ?? ''}'),
-          initialValue: selectedVehicleType,
-          isExpanded: true,
-          decoration: _decoration(
-            hintText: 'Pilih jenis motor',
-            icon: Icons.two_wheeler_outlined,
+        BangSelectField(
+          fieldKey: ValueKey<String?>(
+            'vehicle-type-${selectedVehicleType ?? ''}',
           ),
-          items: vehicleTypeItems(selected: selectedVehicleType)
-              .map(
-                (type) =>
-                    DropdownMenuItem<String>(value: type, child: Text(type)),
-              )
-              .toList(growable: false),
+          label: showLabels ? vehicleTypeLabel : null,
+          value: selectedVehicleType,
+          hintText: 'Pilih jenis motor',
+          items: vehicleTypeItems(selected: selectedVehicleType),
+          enabled: enabled,
           onChanged: enabled ? onVehicleTypeChanged : null,
           validator: (value) {
             if (!requiredFields) {
               return null;
             }
-
             final selected = (value ?? '').trim();
-            if (selected.isEmpty) {
-              return 'Jenis motor wajib dipilih';
-            }
-
-            return null;
+            return selected.isEmpty ? 'Jenis motor wajib dipilih' : null;
           },
+          fillColor: fillColor ?? AppColors.white,
+          labelColor: labelColor ?? AppColors.textSecondary,
+          labelFontSize: labelFontSize,
+          labelFontWeight: labelFontWeight,
+          labelBottomSpacing: labelBottomSpacing,
+          fieldFontSize: fieldFontSize,
+          hintFontSize: hintFontSize,
+          borderRadius: borderRadius,
+          contentPadding: contentPadding,
+          selectedFontWeight: FontWeight.w600,
         ),
         if (hasVehicleType) ...[
-          const SizedBox(height: 16),
-          _buildFieldLabel('Merk Motor'),
-          DropdownButtonFormField<String>(
-            key: ValueKey<String?>(
-              'vehicle-brand-${selectedVehicleBrand ?? ''}',
+          SizedBox(height: fieldSpacing),
+          BangSelectField(
+            fieldKey: ValueKey<String?>(
+              'vehicle-brand-${selectedVehicleType ?? ''}-${selectedVehicleBrand ?? ''}',
             ),
-            initialValue: selectedVehicleBrand,
-            isExpanded: true,
-            decoration: _decoration(
-              hintText: 'Pilih merk motor',
-              icon: Icons.local_offer_outlined,
-            ),
-            items: vehicleBrandItems(selected: selectedVehicleBrand)
-                .map(
-                  (brand) => DropdownMenuItem<String>(
-                    value: brand,
-                    child: Text(brand),
-                  ),
-                )
-                .toList(growable: false),
+            label: showLabels ? 'Merk Motor' : null,
+            value: selectedVehicleBrand,
+            hintText: 'Pilih merk motor',
+            items: vehicleBrandItems(selected: selectedVehicleBrand),
+            enabled: enabled,
             onChanged: enabled ? onVehicleBrandChanged : null,
             validator: (value) {
               if (!requiredFields) {
                 return null;
               }
-
               final selected = (value ?? '').trim();
-              if (selected.isEmpty) {
-                return 'Merk motor wajib dipilih';
-              }
-
-              return null;
+              return selected.isEmpty ? 'Merk motor wajib dipilih' : null;
             },
+            fillColor: fillColor ?? AppColors.white,
+            labelColor: labelColor ?? AppColors.textSecondary,
+            labelFontSize: labelFontSize,
+            labelFontWeight: labelFontWeight,
+            labelBottomSpacing: labelBottomSpacing,
+            fieldFontSize: fieldFontSize,
+            hintFontSize: hintFontSize,
+            borderRadius: borderRadius,
+            contentPadding: contentPadding,
+            selectedFontWeight: FontWeight.w600,
           ),
         ],
         if (hasVehicleBrand) ...[
-          const SizedBox(height: 16),
+          SizedBox(height: fieldSpacing),
           _buildFieldLabel('Tipe Motor'),
           TextFormField(
             controller: vehicleModelController,
             enabled: enabled,
             textInputAction: TextInputAction.next,
+            style: fieldTextStyle,
+            textCapitalization: capitalizeVehicleModel
+                ? TextCapitalization.characters
+                : TextCapitalization.none,
             keyboardType: TextInputType.text,
+            inputFormatters: capitalizeVehicleModel
+                ? const [_UpperCaseTextFormatter()]
+                : null,
             decoration: _decoration(
               hintText: 'Contoh: Vario 160',
               icon: Icons.directions_bike_outlined,
@@ -138,12 +172,13 @@ class VehicleInfoFields extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.only(bottom: labelBottomSpacing),
       child: Text(
         text,
-        style: const TextStyle(
-          fontWeight: FontWeight.bold,
-          color: AppColors.textSecondary,
+        style: GoogleFonts.nunitoSans(
+          color: labelColor ?? AppColors.textSecondary,
+          fontSize: labelFontSize,
+          fontWeight: labelFontWeight,
         ),
       ),
     );
@@ -155,9 +190,11 @@ class VehicleInfoFields extends StatelessWidget {
   }) {
     final decoration = InputDecoration(
       hintText: hintText,
-      prefixIcon: Icon(icon, color: AppColors.textSecondary),
+      isDense: isDense,
+      prefixIcon: showIcons ? Icon(icon, color: AppColors.textSecondary) : null,
       filled: filled,
       fillColor: fillColor,
+      hintStyle: _hintTextStyle,
     );
 
     if (!filled) {
@@ -165,14 +202,42 @@ class VehicleInfoFields extends StatelessWidget {
     }
 
     final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(borderRadius),
       borderSide: const BorderSide(color: AppColors.border),
     );
 
     return decoration.copyWith(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      contentPadding: contentPadding,
       border: border,
       enabledBorder: border,
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(borderRadius),
+        borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+      ),
     );
+  }
+
+  TextStyle get _fieldTextStyle => GoogleFonts.nunitoSans(
+    color: AppColors.textPrimary,
+    fontSize: fieldFontSize,
+    fontWeight: FontWeight.w400,
+  );
+
+  TextStyle get _hintTextStyle => GoogleFonts.nunitoSans(
+    color: AppColors.textSecondary,
+    fontSize: hintFontSize,
+    fontWeight: FontWeight.w400,
+  );
+}
+
+class _UpperCaseTextFormatter extends TextInputFormatter {
+  const _UpperCaseTextFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return newValue.copyWith(text: newValue.text.toUpperCase());
   }
 }

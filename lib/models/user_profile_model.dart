@@ -180,7 +180,9 @@ class SavedAddressModel {
   });
 
   String get displayAddress {
-    String cleanedAddress = fullAddress.replaceAll(RegExp(r'(,\s*)?Indonesia\s*$', caseSensitive: false), '').trim();
+    String cleanedAddress = fullAddress
+        .replaceAll(RegExp(r'(,\s*)?Indonesia\s*$', caseSensitive: false), '')
+        .trim();
 
     if (detail.trim().isEmpty) {
       return cleanedAddress;

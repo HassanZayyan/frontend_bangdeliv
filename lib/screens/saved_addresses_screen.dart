@@ -9,7 +9,9 @@ import '../providers/auth_session_provider.dart';
 import '../services/auth_service.dart';
 
 class SavedAddressesScreen extends ConsumerStatefulWidget {
-  const SavedAddressesScreen({super.key});
+  const SavedAddressesScreen({super.key, this.selectionMode = false});
+
+  final bool selectionMode;
 
   @override
   ConsumerState<SavedAddressesScreen> createState() =>
@@ -18,6 +20,7 @@ class SavedAddressesScreen extends ConsumerStatefulWidget {
 
 class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
   late Future<List<SavedAddressModel>> _addressesFuture;
+  int? _selectingAddressId;
 
   @override
   void initState() {
@@ -36,9 +39,9 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(
-          'Alamat Saya',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        title: Text(
+          widget.selectionMode ? 'Pilih Alamat' : 'Alamat Saya',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         backgroundColor: AppColors.white,
         elevation: 0,
@@ -46,16 +49,8 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
           icon: const Icon(Icons.chevron_left, color: AppColors.textPrimary),
           onPressed: () => context.pop(),
         ),
-        actions: [
-          TextButton(
-            onPressed: _openAddAddress,
-            child: const Text(
-              'Tambah',
-              style: TextStyle(color: AppColors.primary),
-            ),
-          ),
-        ],
       ),
+      bottomNavigationBar: _buildBottomAddButton(),
       body: FutureBuilder<List<SavedAddressModel>>(
         future: _addressesFuture,
         builder: (context, snapshot) {
@@ -101,15 +96,9 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Text(
-                      'Belum ada alamat saya untuk akun ini.',
+                      'Belum ada alamat tersimpan untuk akun ini.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: AppColors.textSecondary),
-                    ),
-                    const SizedBox(height: 14),
-                    ElevatedButton.icon(
-                      onPressed: _openAddAddress,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Tambah Alamat'),
                     ),
                   ],
                 ),
@@ -127,6 +116,29 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
             },
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildBottomAddButton() {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+        child: SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: ElevatedButton.icon(
+            onPressed: _openAddAddress,
+            icon: const Icon(Icons.add_rounded, size: 20),
+            label: const Text('Tambah Alamat Baru'),
+            style: ElevatedButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -160,103 +172,217 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
     }
   }
 
+  Future<void> _selectAddress(SavedAddressModel address) async {
+    if (!widget.selectionMode || _selectingAddressId != null) {
+      return;
+    }
+
+    if (address.isDefault) {
+      context.pop(true);
+      return;
+    }
+
+    setState(() {
+      _selectingAddressId = address.id;
+    });
+
+    try {
+      await AuthService.updateSavedAddress(
+        addressId: address.id,
+        label: address.label,
+        recipientName: address.recipientName,
+        phone: address.phone,
+        fullAddress: address.fullAddress,
+        detail: address.detail,
+        latitude: address.latitude,
+        longitude: address.longitude,
+        isDefault: true,
+      );
+
+      await ref.read(authSessionProvider.notifier).refreshSession();
+
+      if (!mounted) {
+        return;
+      }
+
+      context.pop(true);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _selectingAddressId = null;
+        });
+      }
+    }
+  }
+
   Widget _buildAddressCard(SavedAddressModel address) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    final isSelecting = _selectingAddressId == address.id;
+
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: widget.selectionMode ? () => _selectAddress(address) : null,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: address.isDefault ? AppColors.primary : AppColors.border,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: _buildAddressCardContent(address, isSelecting: isSelecting),
         ),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: address.isDefault
-                  ? AppColors.primary.withValues(alpha: 0.1)
-                  : AppColors.background,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.location_on,
-              color: address.isDefault
-                  ? AppColors.primary
-                  : AppColors.textSecondary,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
+    );
+  }
+
+  Widget _buildAddressCardContent(
+    SavedAddressModel address, {
+    required bool isSelecting,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text(
                       address.label.isEmpty ? 'Alamat' : address.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
                       ),
                     ),
-                    if (address.isDefault) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          'Utama',
-                          style: TextStyle(
-                            color: AppColors.primary,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
+                  ),
+                  if (address.isDefault) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.white,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: AppColors.primary, width: 1),
+                      ),
+                      child: const Text(
+                        'Utama',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w600,
+                          height: 1,
                         ),
                       ),
-                    ],
+                    ),
                   ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  address.recipientName,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  address.phone,
-                  style: const TextStyle(color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  address.displayAddress,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    height: 1.4,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
+            _buildAddressTrailing(address, isSelecting: isSelecting),
+          ],
+        ),
+        const SizedBox(height: 1),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Flexible(
+              child: Text(
+                address.recipientName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 6),
+              child: Text(
+                '|',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                  height: 1.2,
+                ),
+              ),
+            ),
+            Text(
+              address.phone,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 11.5,
+                height: 1.2,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          address.displayAddress,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 12,
+            height: 1.35,
           ),
-          IconButton(
-            onPressed: () => _openEditAddress(address),
-            icon: const Icon(Icons.edit_outlined),
-            color: AppColors.primary,
-            tooltip: 'Edit alamat',
-          ),
-        ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAddressTrailing(
+    SavedAddressModel address, {
+    required bool isSelecting,
+  }) {
+    if (widget.selectionMode) {
+      return SizedBox.square(
+        dimension: 32,
+        child: isSelecting
+            ? const Padding(
+                padding: EdgeInsets.all(7),
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Icon(
+                address.isDefault
+                    ? Icons.check_circle_rounded
+                    : Icons.radio_button_unchecked_rounded,
+                color: address.isDefault
+                    ? AppColors.primary
+                    : AppColors.textSecondary,
+                size: 20,
+              ),
+      );
+    }
+
+    return Tooltip(
+      message: 'Edit alamat',
+      child: InkResponse(
+        onTap: () => _openEditAddress(address),
+        radius: 20,
+        child: const SizedBox.square(
+          dimension: 32,
+          child: Icon(Icons.edit_outlined, color: AppColors.primary, size: 20),
+        ),
       ),
     );
   }
