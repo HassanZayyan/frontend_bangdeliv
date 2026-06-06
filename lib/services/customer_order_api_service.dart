@@ -1,3 +1,10 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
+
+import '../config/app_env.dart';
 import '../models/customer_order_model.dart';
 import 'api_client.dart';
 import 'api_exception.dart';
@@ -76,6 +83,71 @@ class CustomerOrderApiService {
     }
 
     return CustomerOrderDetailModel.fromJson(rawData);
+  }
+
+  Future<CustomerOrderDetailModel> updatePaymentMethod(
+    int orderId, {
+    required String paymentMethod,
+  }) async {
+    Map<String, dynamic> response;
+    try {
+      response = await _apiClient.patch(
+        '/v1/orders/$orderId/payment-method',
+        body: <String, dynamic>{'payment_method': paymentMethod.trim()},
+        headers: await AuthService.authorizedHeaders(),
+      );
+    } on AuthException catch (error) {
+      throw ApiException(error.message);
+    }
+
+    return _extractDetail(response, fallback: 'Gagal mengubah metode bayar.');
+  }
+
+  Future<CustomerOrderDetailModel> uploadTransferEvidence(
+    int orderId, {
+    required XFile photo,
+    String? note,
+  }) async {
+    final uri = _buildUri('/v1/orders/$orderId/payment/transfer/evidence');
+    final request = http.MultipartRequest('POST', uri);
+
+    try {
+      request.headers.addAll(
+        await AuthService.authorizedHeaders(includeJsonContentType: false),
+      );
+      final normalizedNote = note?.trim();
+      if (normalizedNote != null && normalizedNote.isNotEmpty) {
+        request.fields['note'] = normalizedNote;
+      }
+      request.files.add(await http.MultipartFile.fromPath('photo', photo.path));
+
+      final streamed = await request.send().timeout(
+        const Duration(seconds: 30),
+      );
+      final response = await http.Response.fromStream(streamed);
+      final decoded = response.body.isEmpty
+          ? <String, dynamic>{}
+          : jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw const ApiException('Format respons server tidak valid.');
+      }
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw ApiException(
+          decoded['message']?.toString() ?? 'Gagal upload bukti transfer.',
+          statusCode: response.statusCode,
+        );
+      }
+
+      return _extractDetail(decoded, fallback: 'Gagal upload bukti transfer.');
+    } on AuthException catch (error) {
+      throw ApiException(error.message);
+    } on TimeoutException {
+      throw const ApiException('Upload timeout. Coba lagi.');
+    } on http.ClientException {
+      throw const ApiException('Tidak dapat terhubung ke server API.');
+    } on FormatException {
+      throw const ApiException('Format respons server tidak valid.');
+    }
   }
 
   Future<void> cancelOrder(int orderId, {required String reason}) async {
@@ -252,6 +324,33 @@ class CustomerOrderApiService {
     }
 
     return rawData;
+  }
+
+  CustomerOrderDetailModel _extractDetail(
+    Map<String, dynamic> response, {
+    required String fallback,
+  }) {
+    final success = response['success'] == true;
+    if (!success) {
+      throw ApiException(response['message']?.toString() ?? fallback);
+    }
+
+    final rawData = response['data'];
+    if (rawData is! Map<String, dynamic>) {
+      throw const ApiException('Format detail order tidak valid dari server.');
+    }
+
+    return CustomerOrderDetailModel.fromJson(rawData);
+  }
+
+  Uri _buildUri(String path) {
+    final baseUri = Uri.parse(AppEnv.apiBaseUrl);
+    final normalizedPath = path.startsWith('/') ? path.substring(1) : path;
+    final fullPath = baseUri.path.endsWith('/')
+        ? '${baseUri.path}$normalizedPath'
+        : '${baseUri.path}/$normalizedPath';
+
+    return baseUri.replace(path: fullPath);
   }
 
   List<Map<String, dynamic>> _extractList(dynamic raw) {

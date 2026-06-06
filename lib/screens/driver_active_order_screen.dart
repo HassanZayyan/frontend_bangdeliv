@@ -806,7 +806,7 @@ class _OrderMetaCard extends StatelessWidget {
               ),
               if (order.paymentStatus.isNotEmpty)
                 _pill(
-                  'COD ${order.paymentStatus.toUpperCase()}',
+                  '${order.paymentMethod.toUpperCase()} ${order.paymentStatus.toUpperCase()}',
                   AppColors.darkBlue.withValues(alpha: 0.08),
                   AppColors.darkBlue,
                 ),
