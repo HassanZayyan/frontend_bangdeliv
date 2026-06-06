@@ -370,6 +370,8 @@ class DriverOrderModel {
       proofs: DriverOrderProofModel.parseList(
         json['proofs'] ??
             json['order_proofs'] ??
+            json['evidences'] ??
+            json['order_evidences'] ??
             json['attachments'] ??
             json['payment_attachments'],
       ),
@@ -450,11 +452,15 @@ class DriverOrderProofModel {
   final DateTime? createdAt;
 
   factory DriverOrderProofModel.fromJson(Map<String, dynamic> json) {
-    final rawType =
-        (json['type'] ?? json['proof_type'] ?? json['attachment_type'] ?? '')
-            .toString()
-            .trim()
-            .toLowerCase();
+    final rawType = _normalizeType(
+      json['type'] ?? json['proof_type'] ?? json['attachment_type'],
+    );
+    final rawEvidenceType = _normalizeEvidenceType(
+      json['evidence_type'] ?? json['evidenceType'],
+    );
+    final type = rawType.isNotEmpty
+        ? rawType
+        : _typeFromEvidenceType(rawEvidenceType);
     final rawUrl =
         (json['photo_url'] ??
                 json['file_url'] ??
@@ -466,18 +472,60 @@ class DriverOrderProofModel {
 
     return DriverOrderProofModel(
       id: DriverOrderModel._asInt(json['id'], fallback: 0),
-      type: rawType,
-      label: _labelFor(rawType),
+      type: type,
+      label: _labelFor(type),
       photoUrl: rawUrl.isEmpty ? null : AppEnv.resolveBackendAssetUrl(rawUrl),
       status: (json['status'] ?? json['verification_status'])?.toString(),
-      note: json['note']?.toString(),
+      note: (json['note'] ?? json['notes'])?.toString(),
       pickupLocationId: DriverOrderModel._asIntOrNull(
         json['pickup_location_id'] ?? json['pickupLocationId'],
       ),
       createdAt: DriverOrderModel._asDateTime(
-        json['created_at'] ?? json['createdAt'],
+        json['uploaded_at'] ??
+            json['uploadedAt'] ??
+            json['created_at'] ??
+            json['createdAt'],
       ),
     );
+  }
+
+  static String _normalizeType(dynamic value) {
+    return (value ?? '')
+        .toString()
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
+  }
+
+  static String _normalizeEvidenceType(dynamic value) {
+    return (value ?? '')
+        .toString()
+        .trim()
+        .toUpperCase()
+        .replaceAll(RegExp(r'[^A-Z0-9]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
+  }
+
+  static String _typeFromEvidenceType(String evidenceType) {
+    switch (evidenceType) {
+      case 'PICKUP_PHOTO':
+        return 'pickup';
+      case 'DELIVERY_PHOTO':
+      case 'COURIER_DELIVERY_PHOTO':
+      case 'COURIER_RECEIVER_PHOTO':
+        return 'delivery';
+      case 'SHOPPING_RECEIPT':
+        return 'receipt';
+      case 'STORE_CLOSED_PHOTO':
+        return 'store_closed';
+      case 'PAYMENT_TRANSFER_PHOTO':
+        return 'payment_transfer';
+      default:
+        return _normalizeType(evidenceType);
+    }
   }
 
   static List<DriverOrderProofModel> parseList(dynamic raw) {

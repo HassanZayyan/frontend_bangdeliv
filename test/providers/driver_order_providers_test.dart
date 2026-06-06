@@ -672,6 +672,73 @@ void main() {
   );
 
   test(
+    'driver detail reconciliation refetches transfer proof when realtime is missed',
+    () async {
+      final oldInterval = driverTransferProofReconciliationInterval;
+      driverTransferProofReconciliationInterval = const Duration(
+        milliseconds: 20,
+      );
+      addTearDown(() {
+        driverTransferProofReconciliationInterval = oldInterval;
+      });
+
+      final staleOrder = _transferOrder('99');
+      final proofedOrder = _transferOrder(
+        '99',
+        proofs: [
+          DriverOrderProofModel(
+            id: 19,
+            type: 'payment_transfer',
+            label: 'Bukti transfer',
+            photoUrl: 'https://example.com/transfer.jpg',
+            status: 'pending',
+            createdAt: DateTime.utc(2026, 6, 6, 15, 38),
+          ),
+        ],
+      );
+      final fakeService = _FakeDriverOrderService(
+        payload: DriverOrdersPayload(
+          incoming: const <DriverOrderModel>[],
+          running: <DriverOrderModel>[staleOrder],
+        ),
+        detailResponses: <DriverOrderModel>[staleOrder, proofedOrder],
+      );
+      final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+      final fakeRealtime = FakeOrderRealtimeClient();
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          driverOrderServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final subscription = container.listen<void>(
+        driverOrderTransferProofReconciliationProvider('99'),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
+
+      final initial = await container.read(
+        driverOrderDetailProvider('99').future,
+      );
+      expect(initial.proofs, isEmpty);
+
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      await Future<void>.delayed(Duration.zero);
+
+      final refreshed = await container.read(
+        driverOrderDetailProvider('99').future,
+      );
+      expect(refreshed.hasProof('payment_transfer'), isTrue);
+      expect(refreshed.proofs.single.photoUrl, contains('transfer.jpg'));
+      expect(fakeService.fetchDetailCalls, greaterThanOrEqualTo(2));
+    },
+  );
+
+  test(
     'driver realtime bootstrap increments unread for customer chat without opening chat screen',
     () async {
       final fakeService = _FakeDriverOrderService(
@@ -739,7 +806,9 @@ class _FakeDriverOrderService extends DriverOrderService {
   final bool failReject;
   final Completer<void>? acceptCompleter;
   final List<String> acceptedOrderIds = <String>[];
+  final List<DriverOrderModel> detailResponses;
   int fetchCalls = 0;
+  int fetchDetailCalls = 0;
   int fetchHistoryCalls = 0;
   final List<String> transitionedOrderIds = <String>[];
   List<DriverHistoryOrderModel> history = const <DriverHistoryOrderModel>[];
@@ -749,7 +818,10 @@ class _FakeDriverOrderService extends DriverOrderService {
     this.failAccept = false,
     this.failReject = false,
     this.acceptCompleter,
-  });
+    List<DriverOrderModel>? detailResponses,
+  }) : detailResponses = List<DriverOrderModel>.from(
+         detailResponses ?? const <DriverOrderModel>[],
+       );
 
   @override
   Future<DriverOrdersPayload> fetchOrders() async {
@@ -759,9 +831,43 @@ class _FakeDriverOrderService extends DriverOrderService {
 
   @override
   Future<DriverOrderModel> fetchOrderDetail(String orderId) async {
+    fetchDetailCalls += 1;
+    if (detailResponses.isNotEmpty) {
+      final next = detailResponses.removeAt(0);
+      _upsertPayloadOrder(next);
+      return next;
+    }
+
     return payload.incoming
         .followedBy(payload.running)
         .firstWhere((order) => order.id == orderId);
+  }
+
+  void _upsertPayloadOrder(DriverOrderModel order) {
+    final incomingIndex = payload.incoming.indexWhere(
+      (item) => item.id == order.id,
+    );
+    if (incomingIndex >= 0) {
+      final incoming = List<DriverOrderModel>.from(payload.incoming);
+      incoming[incomingIndex] = order;
+      payload = DriverOrdersPayload(
+        incoming: incoming,
+        running: payload.running,
+      );
+      return;
+    }
+
+    final runningIndex = payload.running.indexWhere(
+      (item) => item.id == order.id,
+    );
+    if (runningIndex >= 0) {
+      final running = List<DriverOrderModel>.from(payload.running);
+      running[runningIndex] = order;
+      payload = DriverOrdersPayload(
+        incoming: payload.incoming,
+        running: running,
+      );
+    }
   }
 
   @override
@@ -928,6 +1034,26 @@ DriverOrderModel _runningOrder(String id) {
     fee: 9000,
     itemCount: 1,
     statusCode: 'DRIVER_ASSIGNED',
+  );
+}
+
+DriverOrderModel _transferOrder(
+  String id, {
+  List<DriverOrderProofModel> proofs = const <DriverOrderProofModel>[],
+}) {
+  return DriverOrderModel(
+    id: id,
+    customerName: 'Customer $id',
+    pickupAddress: 'Pickup',
+    dropoffAddress: 'Dropoff',
+    etaMinutes: 8,
+    fee: 5000,
+    totalPrice: 5000,
+    itemCount: 1,
+    statusCode: 'DRIVER_ASSIGNED',
+    paymentMethod: 'TRANSFER',
+    paymentStatus: 'unpaid',
+    proofs: proofs,
   );
 }
 

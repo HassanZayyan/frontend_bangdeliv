@@ -21,9 +21,9 @@ import '../utils/courier_package_formatter.dart';
 import '../utils/map_marker_icons.dart';
 import '../utils/order_formatters.dart' hide formatCurrency;
 import '../utils/order_status.dart';
-import '../utils/order_ui_helpers.dart';
 import '../utils/service_type.dart';
 import '../widgets/order_chat_badge_icon.dart';
+import '../widgets/driver_transfer_payment_card.dart';
 import '../widgets/shopping_fee_breakdown.dart';
 
 InputDecoration _driverDialogInputDecoration({
@@ -76,6 +76,7 @@ class DriverActiveOrderScreen extends ConsumerWidget {
 
     final detailState = ref.watch(driverOrderDetailProvider(orderId));
     ref.watch(driverOrderDetailRealtimeProvider(orderId));
+    ref.watch(driverOrderTransferProofReconciliationProvider(orderId));
     final ordersState = ref.watch(driverOrdersProvider);
     final trackingState = ref.watch(driverLocationTrackingProvider);
 
@@ -234,6 +235,41 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 12),
                 ],
+                if (DriverTransferPaymentCard.shouldShow(order)) ...[
+                  DriverTransferPaymentCard(
+                    order: order,
+                    isProcessing: isProcessing,
+                    onConfirmTransfer: ({required amount, required note}) async {
+                      final error = await ref
+                          .read(driverOrdersProvider.notifier)
+                          .confirmTransferPayment(
+                            orderId: order.id,
+                            amount: amount,
+                            note: note,
+                          );
+
+                      if (!context.mounted) {
+                        return;
+                      }
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            error ??
+                                'Pembayaran transfer berhasil diverifikasi.',
+                          ),
+                          backgroundColor: error == null
+                              ? null
+                              : AppColors.error,
+                        ),
+                      );
+                      if (error == null) {
+                        ref.invalidate(driverOrderDetailProvider(order.id));
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 _TimelineCard(timeline: order.statusTimeline),
                 const SizedBox(height: 12),
                 _ActionCard(
@@ -272,31 +308,6 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                           ref.invalidate(driverOrderDetailProvider(order.id));
                         }
                       },
-                  onConfirmTransfer: ({required amount, required note}) async {
-                    final error = await ref
-                        .read(driverOrdersProvider.notifier)
-                        .confirmTransferPayment(
-                          orderId: order.id,
-                          amount: amount,
-                          note: note,
-                        );
-
-                    if (!context.mounted) {
-                      return;
-                    }
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          error ?? 'Pembayaran transfer berhasil dicatat.',
-                        ),
-                        backgroundColor: error == null ? null : AppColors.error,
-                      ),
-                    );
-                    if (error == null) {
-                      ref.invalidate(driverOrderDetailProvider(order.id));
-                    }
-                  },
                   onTapAction: (action) async {
                     final notifier = ref.read(driverOrdersProvider.notifier);
 
@@ -1922,6 +1933,8 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
   final TextEditingController _receiptNoteController = TextEditingController();
   final Map<int, bool> _availability = {};
   final Map<int, bool> _heavy = {};
+  final Set<int> _dirtyAvailabilityIds = {};
+  final Set<int> _dirtyHeavyIds = {};
   bool _isUploadingReceipt = false;
 
   @override
@@ -1954,11 +1967,32 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
     for (final id in staleIds) {
       _availability.remove(id);
       _heavy.remove(id);
+      _dirtyAvailabilityIds.remove(id);
+      _dirtyHeavyIds.remove(id);
     }
 
     for (final item in widget.order.shoppingItems) {
-      _availability[item.id] = item.isAvailable;
-      _heavy[item.id] = item.isHeavy;
+      if (!_availability.containsKey(item.id)) {
+        _dirtyAvailabilityIds.remove(item.id);
+        _availability[item.id] = item.isAvailable;
+      } else if (_dirtyAvailabilityIds.contains(item.id)) {
+        if (_availability[item.id] == item.isAvailable) {
+          _dirtyAvailabilityIds.remove(item.id);
+        }
+      } else {
+        _availability[item.id] = item.isAvailable;
+      }
+
+      if (!_heavy.containsKey(item.id)) {
+        _dirtyHeavyIds.remove(item.id);
+        _heavy[item.id] = item.isHeavy;
+      } else if (_dirtyHeavyIds.contains(item.id)) {
+        if (_heavy[item.id] == item.isHeavy) {
+          _dirtyHeavyIds.remove(item.id);
+        }
+      } else {
+        _heavy[item.id] = item.isHeavy;
+      }
     }
 
     _primeCheckoutControllers();
@@ -2154,6 +2188,7 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
                 value: isAvailable,
                 onChanged: (value) {
                   setState(() {
+                    _dirtyAvailabilityIds.add(item.id);
                     _availability[item.id] = value ?? true;
                   });
                 },
@@ -2298,6 +2333,7 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
           final nextValue = value ?? false;
           setState(() {
             for (final item in items) {
+              _dirtyHeavyIds.add(item.id);
               _heavy[item.id] = nextValue;
             }
           });
@@ -2496,6 +2532,10 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
         backgroundColor: error == null ? null : AppColors.error,
       ),
     );
+
+    if (error == null) {
+      setState(_syncControllers);
+    }
   }
 }
 
@@ -2651,15 +2691,12 @@ class _ActionCard extends StatelessWidget {
     required XFile storeClosedPhoto,
   })?
   onReportPickupFailed;
-  final Future<void> Function({required double amount, required String? note})?
-  onConfirmTransfer;
   final Future<void> Function(DriverOrderActionModel action) onTapAction;
 
   const _ActionCard({
     required this.order,
     required this.isProcessing,
     required this.onReportPickupFailed,
-    required this.onConfirmTransfer,
     required this.onTapAction,
   });
 
@@ -2667,7 +2704,6 @@ class _ActionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final actions = order.availableActions;
     final hasCodCollection = actions.any((action) => action.isCodCollection);
-    final canConfirmTransfer = _canConfirmTransfer();
     final isCourier =
         normalizeServiceTypeCode(order.serviceTypeCode) ==
         ServiceTypeCodes.courier;
@@ -2773,28 +2809,6 @@ class _ActionCard extends StatelessWidget {
             ),
             const SizedBox(height: 10),
           ],
-          if (canConfirmTransfer) ...[
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: isProcessing || onConfirmTransfer == null
-                    ? null
-                    : () async {
-                        final input = await _showTransferPaymentDialog(context);
-                        if (input == null) {
-                          return;
-                        }
-                        await onConfirmTransfer?.call(
-                          amount: input.amount,
-                          note: input.note,
-                        );
-                      },
-                icon: const Icon(Icons.account_balance_outlined, size: 18),
-                label: const Text('Catat Transfer'),
-              ),
-            ),
-            const SizedBox(height: 10),
-          ],
           if (actions.isEmpty)
             const Text(
               'Tidak ada aksi yang tersedia pada status ini.',
@@ -2865,17 +2879,6 @@ class _ActionCard extends StatelessWidget {
         status == OrderStatusCodes.arrivedMerchant;
   }
 
-  bool _canConfirmTransfer() {
-    if (onConfirmTransfer == null || isPaymentPaid(order.paymentStatus)) {
-      return false;
-    }
-
-    final normalizedMethod = order.paymentMethod.trim().toLowerCase();
-    return normalizedMethod.contains('transfer') ||
-        normalizedMethod == 'tf' ||
-        normalizedMethod.contains('bank');
-  }
-
   Future<_FailedPickupReport?> _showFailedPickupDialog(BuildContext context) {
     return showDialog<_FailedPickupReport>(
       context: context,
@@ -2885,78 +2888,6 @@ class _ActionCard extends StatelessWidget {
             .toList(growable: false),
       ),
     );
-  }
-
-  Future<_TransferPaymentInput?> _showTransferPaymentDialog(
-    BuildContext context,
-  ) {
-    final amountController = TextEditingController(
-      text: order.totalPrice > 0 ? order.totalPrice.round().toString() : '',
-    );
-    final noteController = TextEditingController(
-      text: 'Pembayaran transfer dicatat dari app driver.',
-    );
-
-    return showDialog<_TransferPaymentInput>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Catat Pembayaran Transfer'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: amountController,
-              keyboardType: TextInputType.number,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-              ),
-              decoration: _driverDialogInputDecoration(
-                labelText: 'Nominal transfer',
-                prefixText: 'Rp ',
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: noteController,
-              minLines: 2,
-              maxLines: 3,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-              ),
-              decoration: _driverDialogInputDecoration(labelText: 'Catatan'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Batal'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final amount = _parseCurrencyInput(amountController.text);
-              if (amount <= 0) {
-                return;
-              }
-              Navigator.of(context).pop(
-                _TransferPaymentInput(
-                  amount: amount,
-                  note: noteController.text.trim(),
-                ),
-              );
-            },
-            child: const Text('Catat'),
-          ),
-        ],
-      ),
-    ).whenComplete(() {
-      amountController.dispose();
-      noteController.dispose();
-    });
   }
 }
 
@@ -2970,13 +2901,6 @@ class _FailedPickupReport {
   final int pickupLocationId;
   final String reason;
   final XFile storeClosedPhoto;
-}
-
-class _TransferPaymentInput {
-  const _TransferPaymentInput({required this.amount, required this.note});
-
-  final double amount;
-  final String? note;
 }
 
 class _FailedPickupDialog extends StatefulWidget {
