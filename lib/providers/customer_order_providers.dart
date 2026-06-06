@@ -183,9 +183,10 @@ class CustomerOrdersNotifier
       return;
     }
 
-    final statusLabel = (status.statusLabel ?? '').trim().isNotEmpty
-        ? status.statusLabel!.trim()
-        : orderStatusLabel(statusCode);
+    final statusLabel = orderStatusDisplayLabel(
+      statusCode,
+      fallbackLabel: status.statusLabel,
+    );
     final isTerminal = status.isTerminal ?? isTerminalOrderStatus(statusCode);
 
     final patchedOrder = current[index].copyWith(

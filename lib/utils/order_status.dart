@@ -66,7 +66,7 @@ String orderStatusLabel(String code) {
     case OrderStatusCodes.driverAssigned:
       return 'Driver Ditugaskan';
     case OrderStatusCodes.arrivedMerchant:
-      return 'Driver Tiba di Merchant';
+      return 'Driver tiba di lokasi ambil';
     case OrderStatusCodes.arrivedPickup:
       return 'Driver Tiba di Titik Jemput';
     case OrderStatusCodes.pickedUp:
@@ -86,6 +86,21 @@ String orderStatusLabel(String code) {
     default:
       return code.trim().isEmpty ? 'Status Tidak Diketahui' : code;
   }
+}
+
+String orderStatusDisplayLabel(String code, {String? fallbackLabel}) {
+  final normalizedCode = normalizeOrderStatusCode(code);
+
+  if (normalizedCode == OrderStatusCodes.arrivedMerchant) {
+    return orderStatusLabel(normalizedCode);
+  }
+
+  final trimmedLabel = fallbackLabel?.trim();
+  if (trimmedLabel != null && trimmedLabel.isNotEmpty) {
+    return trimmedLabel;
+  }
+
+  return orderStatusLabel(normalizedCode);
 }
 
 int resolveTrackingStepIndex({
@@ -149,7 +164,10 @@ bool _isPickupArrivalStatus(String compactCode, String compactLabel) {
       _containsAny(compactCode, compactLabel, const ['ARRIVED_MERCHANT']) ||
       _containsAny(compactCode, compactLabel, const ['TIBA_DI_TITIK_JEMPUT']) ||
       _containsAny(compactCode, compactLabel, const ['TIBA_DI_JEMPUT']) ||
-      _containsAny(compactCode, compactLabel, const ['TIBA_DI_MERCHANT']);
+      _containsAny(compactCode, compactLabel, const ['TIBA_DI_MERCHANT']) ||
+      _containsAny(compactCode, compactLabel, const [
+        'TIBA_DI_LOKASI_AMBIL',
+      ]);
 }
 
 bool _containsAny(String compactCode, String compactLabel, List<String> keys) {

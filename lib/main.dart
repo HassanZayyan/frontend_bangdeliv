@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
+import 'config/app_colors.dart';
 import 'config/app_env.dart';
 import 'config/app_theme.dart';
 import 'config/app_router.dart';
@@ -11,6 +13,15 @@ import 'services/firebase_notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: AppColors.white,
+      statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+      systemNavigationBarColor: AppColors.white,
+      systemNavigationBarIconBrightness: Brightness.dark,
+    ),
+  );
   await FirebaseNotificationService.initializeFirebase();
   AppEnv.logDebugSummary();
 
@@ -48,6 +59,12 @@ class _MyAppState extends ConsumerState<MyApp> {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       routerConfig: router,
+      builder: (context, child) {
+        return ColoredBox(
+          color: AppColors.background,
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }

@@ -256,9 +256,10 @@ class CustomerOrderSummaryModel {
 
     return _ParsedOrderStatus(
       code: fallbackCode,
-      label: displayName.isNotEmpty
-          ? displayName
-          : order_status.orderStatusLabel(fallbackCode),
+      label: order_status.orderStatusDisplayLabel(
+        fallbackCode,
+        fallbackLabel: displayName,
+      ),
       isTerminal:
           isTerminal || order_status.isTerminalOrderStatus(fallbackCode),
     );
@@ -277,9 +278,7 @@ class CustomerOrderSummaryModel {
       return value;
     }
 
-    return serviceTypeLabel.trim().isNotEmpty
-        ? serviceTypeLabel
-        : 'Layanan Bangdeliv';
+    return serviceTypeLabel.trim().isNotEmpty ? serviceTypeLabel : 'Kurir';
   }
 
   static String _extractItemsSummary(Map<String, dynamic> json) {
@@ -382,6 +381,9 @@ class CustomerOrderDetailModel {
   final String? driverVehicleBrand;
   final String? driverVehicleModel;
   final String? driverVehiclePlate;
+  final String? driverAvatarUrl;
+  final String? pickupAddress;
+  final String? dropoffAddress;
   final double? pickupLatitude;
   final double? pickupLongitude;
   final double? dropoffLatitude;
@@ -411,6 +413,9 @@ class CustomerOrderDetailModel {
     required this.driverVehicleBrand,
     required this.driverVehicleModel,
     required this.driverVehiclePlate,
+    this.driverAvatarUrl,
+    this.pickupAddress,
+    this.dropoffAddress,
     required this.pickupLatitude,
     required this.pickupLongitude,
     required this.dropoffLatitude,
@@ -473,6 +478,9 @@ class CustomerOrderDetailModel {
     String? driverVehicleBrand,
     String? driverVehicleModel,
     String? driverVehiclePlate,
+    String? driverAvatarUrl,
+    String? pickupAddress,
+    String? dropoffAddress,
     double? pickupLatitude,
     double? pickupLongitude,
     double? dropoffLatitude,
@@ -503,6 +511,9 @@ class CustomerOrderDetailModel {
       driverVehicleBrand: driverVehicleBrand ?? this.driverVehicleBrand,
       driverVehicleModel: driverVehicleModel ?? this.driverVehicleModel,
       driverVehiclePlate: driverVehiclePlate ?? this.driverVehiclePlate,
+      driverAvatarUrl: driverAvatarUrl ?? this.driverAvatarUrl,
+      pickupAddress: pickupAddress ?? this.pickupAddress,
+      dropoffAddress: dropoffAddress ?? this.dropoffAddress,
       pickupLatitude: pickupLatitude ?? this.pickupLatitude,
       pickupLongitude: pickupLongitude ?? this.pickupLongitude,
       dropoffLatitude: dropoffLatitude ?? this.dropoffLatitude,
@@ -563,6 +574,27 @@ class CustomerOrderDetailModel {
     final pickupLongitude = _asNullableDouble(
       pickupLocation?['longitude'] ?? pickupSource['longitude'],
     );
+    final pickupAddress = _firstNonEmptyString([
+      pickupLocation?['full_address'],
+      pickupLocation?['address'],
+      json['pickup_address'],
+      json['pickupAddress'],
+      pickupSource['full_address'],
+      pickupSource['address'],
+    ]);
+    final dropoffAddress = _firstNonEmptyString([
+      dropoffLocation?['full_address'],
+      dropoffLocation?['address'],
+      json['dropoff_address'],
+      json['dropoffAddress'],
+      json['delivery_address'],
+      json['deliveryAddress'],
+    ]);
+    final driverAvatar = _firstNonEmptyString([
+      driverUser['avatar_url'],
+      driverUser['avatarUrl'],
+      driverUser['avatar'],
+    ]);
 
     final parsedDriverLatitude = _asNullableDouble(
       driver['current_latitude'] ??
@@ -611,9 +643,10 @@ class CustomerOrderDetailModel {
 
               return OrderStatusSnapshot(
                 code: code,
-                label: label.isNotEmpty
-                    ? label
-                    : order_status.orderStatusLabel(code),
+                label: order_status.orderStatusDisplayLabel(
+                  code,
+                  fallbackLabel: label,
+                ),
                 eventType: (history['event_type'] ?? 'STATUS_CHANGE')
                     .toString()
                     .trim()
@@ -664,6 +697,11 @@ class CustomerOrderDetailModel {
       driverVehicleBrand: driver['vehicle_brand']?.toString(),
       driverVehicleModel: driver['vehicle_model']?.toString(),
       driverVehiclePlate: driver['vehicle_plate']?.toString(),
+      driverAvatarUrl: driverAvatar == null
+          ? null
+          : AppEnv.resolveBackendAssetUrl(driverAvatar),
+      pickupAddress: pickupAddress,
+      dropoffAddress: dropoffAddress,
       pickupLatitude: pickupLatitude != null && _isValidLatitude(pickupLatitude)
           ? pickupLatitude
           : null,
@@ -764,6 +802,17 @@ class CustomerOrderDetailModel {
 
       if (code == role) {
         return location;
+      }
+    }
+
+    return null;
+  }
+
+  static String? _firstNonEmptyString(List<dynamic> values) {
+    for (final value in values) {
+      final text = value?.toString().trim() ?? '';
+      if (text.isNotEmpty && text != '-') {
+        return text;
       }
     }
 

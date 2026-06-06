@@ -46,6 +46,7 @@ import '../screens/main_layout.dart';
 import '../screens/driver_main_layout.dart';
 import '../screens/menu_detail_screen.dart';
 import '../screens/merchant_detail_screen.dart';
+import '../screens/nearby_merchants_screen.dart';
 import 'app_routes.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -53,6 +54,46 @@ final GlobalKey<NavigatorState> _shellNavigatorKey =
     GlobalKey<NavigatorState>();
 final GlobalKey<NavigatorState> _driverShellNavigatorKey =
     GlobalKey<NavigatorState>();
+
+GoRoute _rootRoute({
+  required String path,
+  required Widget Function(BuildContext context, GoRouterState state) builder,
+}) {
+  return GoRoute(
+    path: path,
+    parentNavigatorKey: _rootNavigatorKey,
+    pageBuilder: (context, state) =>
+        _buildRootPage(state: state, child: builder(context, state)),
+  );
+}
+
+CustomTransitionPage<dynamic> _buildRootPage({
+  required GoRouterState state,
+  required Widget child,
+}) {
+  return CustomTransitionPage<dynamic>(
+    key: state.pageKey,
+    opaque: true,
+    transitionDuration: const Duration(milliseconds: 260),
+    reverseTransitionDuration: const Duration(milliseconds: 220),
+    child: child,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curve = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+
+      return SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(1, 0),
+          end: Offset.zero,
+        ).animate(curve),
+        child: child,
+      );
+    },
+  );
+}
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
@@ -69,49 +110,40 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       );
     },
     routes: [
-      GoRoute(
+      _rootRoute(
         path: AppRoutes.splash,
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const SplashScreen(),
       ),
-      GoRoute(
+      _rootRoute(
         path: AppRoutes.login,
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const LoginScreen(),
       ),
-      GoRoute(
+      _rootRoute(
         path: AppRoutes.register,
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const RegisterScreen(),
       ),
-      GoRoute(
+      _rootRoute(
         path: AppRoutes.registerDriver,
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const RegisterDriverScreen(),
       ),
-      GoRoute(
+      _rootRoute(
         path: AppRoutes.registerSuccess,
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const RegisterSuccessScreen(),
       ),
-      GoRoute(
+      _rootRoute(
         path: AppRoutes.forgotPassword,
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const ForgotPasswordScreen(),
       ),
-      GoRoute(
+      _rootRoute(
         path: AppRoutes.chatbot,
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const ChatbotScreen(),
       ),
-      GoRoute(
+      _rootRoute(
         path: AppRoutes.track,
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const TrackOrderScreen(),
       ),
-      GoRoute(
+      _rootRoute(
         path: AppRoutes.orderTrack,
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) {
           final orderId = int.tryParse(state.pathParameters['orderId'] ?? '');
           if (orderId == null || orderId <= 0) {
@@ -123,9 +155,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return TrackOrderScreen.route(orderId: orderId);
         },
       ),
-      GoRoute(
+      _rootRoute(
         path: AppRoutes.shoppingAddItem,
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) {
           final orderId = int.tryParse(state.pathParameters['orderId'] ?? '');
           final extra = state.extra;
@@ -146,9 +177,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
-      GoRoute(
+      _rootRoute(
         path: AppRoutes.orderChat,
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) {
           final orderId = int.tryParse(state.pathParameters['orderId'] ?? '');
           if (orderId == null || orderId <= 0) {
@@ -160,9 +190,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return OrderChatScreen(orderId: orderId);
         },
       ),
-      GoRoute(
+      _rootRoute(
         path: AppRoutes.menuDetail,
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) {
           final menuId = state.pathParameters['menuId'] ?? '';
           final extra = state.extra;
@@ -171,9 +200,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return MenuDetailScreen(menuId: menuId, initialMenu: initialMenu);
         },
       ),
-      GoRoute(
+      _rootRoute(
         path: AppRoutes.merchantDetail,
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) {
           final merchantId = state.pathParameters['merchantId'] ?? '';
           final extra = state.extra;
@@ -185,24 +213,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
-      GoRoute(
+      _rootRoute(
         path: AppRoutes.editProfile,
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const EditProfileScreen(),
       ),
-      GoRoute(
+      _rootRoute(
         path: AppRoutes.changePassword,
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const ChangePasswordScreen(),
       ),
-      GoRoute(
+      _rootRoute(
         path: AppRoutes.addresses,
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const SavedAddressesScreen(),
       ),
-      GoRoute(
+      _rootRoute(
+        path: AppRoutes.addressPicker,
+        builder: (context, state) =>
+            const SavedAddressesScreen(selectionMode: true),
+      ),
+      _rootRoute(
         path: AppRoutes.addAddress,
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) {
           SavedAddressModel? initialAddress;
           final extra = state.extra;
@@ -218,9 +247,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return AddAddressScreen(initialAddress: initialAddress);
         },
       ),
-      GoRoute(
+      _rootRoute(
         path: AppRoutes.addressLocationPicker,
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) {
           double? initialLatitude;
           double? initialLongitude;
@@ -249,9 +277,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
-      GoRoute(
+      _rootRoute(
         path: AppRoutes.routeLocationPicker,
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) {
           final extra = state.extra;
           if (extra is RouteLocationPickerArgs) {
@@ -263,24 +290,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
-      GoRoute(
+      _rootRoute(
         path: AppRoutes.notifications,
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const NotificationsScreen(),
       ),
-      GoRoute(
+      _rootRoute(
         path: AppRoutes.notificationSettings,
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const NotificationSettingsScreen(),
       ),
-      GoRoute(
+      _rootRoute(
         path: AppRoutes.privacyMapPreview,
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const PrivacyMapScreen(),
       ),
-      GoRoute(
+      _rootRoute(
         path: AppRoutes.driverVerificationStatus,
-        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const DriverVerificationStatusScreen(),
       ),
       // ShellRoute untuk menu yang punya BottomNavigationBar
@@ -293,6 +316,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppRoutes.home,
             builder: (context, state) => const HomeScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.nearbyMerchants,
+            builder: (context, state) => const NearbyMerchantsScreen(),
           ),
           GoRoute(
             path: AppRoutes.activity,
@@ -494,6 +521,7 @@ const Set<String> _customerOnlyRoutes = {
   AppRoutes.track,
   AppRoutes.shoppingAddItem,
   AppRoutes.addresses,
+  AppRoutes.addressPicker,
   AppRoutes.addAddress,
   AppRoutes.registerDriver,
 };

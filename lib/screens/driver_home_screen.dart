@@ -37,7 +37,7 @@ class DriverHomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text(
           'Beranda Driver',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
         ),
         backgroundColor: AppColors.white,
         elevation: 0,
@@ -53,12 +53,13 @@ class DriverHomeScreen extends ConsumerWidget {
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 16,
-                  spreadRadius: 2,
+                  blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
               ],
-              border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+              border: Border.all(
+                color: AppColors.border.withValues(alpha: 0.5),
+              ),
             ),
             child: Row(
               children: [
@@ -80,7 +81,7 @@ class DriverHomeScreen extends ConsumerWidget {
                         style: TextStyle(
                           color: _availabilityColor(availabilityStatus),
                           fontWeight: FontWeight.w800,
-                          fontSize: 18,
+                          fontSize: 16,
                         ),
                       ),
                       if (hasAvailabilitySyncIssue)
@@ -240,8 +241,7 @@ class _ActiveOrderCard extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 16,
-              spreadRadius: 2,
+              blurRadius: 12,
               offset: const Offset(0, 4),
             ),
           ],
@@ -257,7 +257,7 @@ class _ActiveOrderCard extends StatelessWidget {
             const SizedBox(height: 12),
             const Text(
               'Belum Ada Order Aktif',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
             ),
             const SizedBox(height: 4),
             const Text(
@@ -274,8 +274,12 @@ class _ActiveOrderCard extends StatelessWidget {
                   foregroundColor: AppColors.primaryDark,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  textStyle: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  textStyle: GoogleFonts.nunitoSans(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 onPressed: () => context.go(AppRoutes.driverOrders),
                 icon: const Icon(Icons.assignment_outlined),
@@ -294,12 +298,14 @@ class _ActiveOrderCard extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: AppColors.primary.withValues(alpha: 0.1),
-            blurRadius: 20,
-            spreadRadius: 4,
-            offset: const Offset(0, 8),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
         ],
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3), width: 1.5),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.3),
+          width: 1.5,
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -317,28 +323,38 @@ class _ActiveOrderCard extends StatelessWidget {
                         color: AppColors.primary.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.delivery_dining, color: AppColors.primary, size: 20),
+                      child: const Icon(
+                        Icons.delivery_dining,
+                        color: AppColors.primary,
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     const Text(
                       'Order Aktif',
                       style: TextStyle(
                         fontWeight: FontWeight.w800,
-                        fontSize: 16,
+                        fontSize: 15,
                         color: AppColors.primaryDark,
                       ),
                     ),
                   ],
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(100),
                   ),
                   child: Text(
                     '#${activeOrder!.id}',
-                    style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.primaryDark),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primaryDark,
+                    ),
                   ),
                 ),
               ],
@@ -349,7 +365,9 @@ class _ActiveOrderCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.background,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+                border: Border.all(
+                  color: AppColors.border.withValues(alpha: 0.6),
+                ),
               ),
               child: Column(
                 children: [
@@ -363,13 +381,22 @@ class _ActiveOrderCard extends StatelessWidget {
                           color: AppColors.primary.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.storefront_rounded, size: 14, color: AppColors.primary),
+                        child: const Icon(
+                          Icons.storefront_rounded,
+                          size: 14,
+                          color: AppColors.primary,
+                        ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           activeOrder!.pickupAddress,
-                          style: const TextStyle(fontWeight: FontWeight.w500, color: AppColors.textPrimary, fontSize: 13, height: 1.4),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.textPrimary,
+                            fontSize: 13,
+                            height: 1.4,
+                          ),
                         ),
                       ),
                     ],
@@ -379,12 +406,18 @@ class _ActiveOrderCard extends StatelessWidget {
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Column(
-                        children: List.generate(3, (index) => Container(
-                          width: 2,
-                          height: 3,
-                          margin: const EdgeInsets.symmetric(vertical: 1.5),
-                          decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(1)),
-                        )),
+                        children: List.generate(
+                          3,
+                          (index) => Container(
+                            width: 2,
+                            height: 3,
+                            margin: const EdgeInsets.symmetric(vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: AppColors.border,
+                              borderRadius: BorderRadius.circular(1),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -395,10 +428,16 @@ class _ActiveOrderCard extends StatelessWidget {
                         margin: const EdgeInsets.only(top: 2),
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF2563EB).withValues(alpha: 0.12),
+                          color: const Color(
+                            0xFF2563EB,
+                          ).withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.location_on_rounded, size: 14, color: Color(0xFF2563EB)),
+                        child: const Icon(
+                          Icons.location_on_rounded,
+                          size: 14,
+                          color: Color(0xFF2563EB),
+                        ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -406,7 +445,12 @@ class _ActiveOrderCard extends StatelessWidget {
                           activeOrder!.dropoffAddress,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w500, color: AppColors.textPrimary, fontSize: 13, height: 1.4),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.textPrimary,
+                            fontSize: 13,
+                            height: 1.4,
+                          ),
                         ),
                       ),
                     ],
@@ -428,7 +472,7 @@ class _ActiveOrderCard extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  textStyle: GoogleFonts.poppins(
+                  textStyle: GoogleFonts.nunitoSans(
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
                   ),
@@ -464,8 +508,7 @@ class _SummaryTile extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 16,
-            spreadRadius: 2,
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
@@ -484,7 +527,11 @@ class _SummaryTile extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             value,
-            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.textPrimary),
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 14.5,
+              color: AppColors.textPrimary,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),

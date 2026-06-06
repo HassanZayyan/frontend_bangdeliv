@@ -79,6 +79,7 @@ class _DriverMainLayoutState extends ConsumerState<DriverMainLayout> {
     });
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       body: widget.child,
       bottomNavigationBar: isActiveDriver
           ? BottomNavigationBar(

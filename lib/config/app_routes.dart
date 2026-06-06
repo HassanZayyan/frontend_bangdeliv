@@ -16,6 +16,7 @@ class AppRoutes {
   static const String editProfile = '/edit-profile';
   static const String changePassword = '/change-password';
   static const String addresses = '/addresses';
+  static const String addressPicker = '/addresses/select';
   static const String addAddress = '/addresses/add';
   static const String addressLocationPicker = '/addresses/location-picker';
   static const String routeLocationPicker = '/route-location-picker';
@@ -27,6 +28,7 @@ class AppRoutes {
   static const String orderChat = '/orders/:orderId/chat';
   static const String menuDetail = '/menu/:menuId';
   static const String merchantDetail = '/merchant/:merchantId';
+  static const String nearbyMerchants = '/merchants/nearby';
   static const String register = '/register';
   static const String registerDriver = '/register-driver';
   static const String registerSuccess = '/register-success';
