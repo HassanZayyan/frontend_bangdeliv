@@ -277,6 +277,8 @@ class CustomerOrderTrackingNotifier
     final totalPrice = _asNullableDouble(pricing['total_price']);
     final deliveryFeeSource = pricing['delivery_fee_source']?.toString();
     final manualReason = pricing['manual_delivery_fee_reason']?.toString();
+    final paymentMethod = pricing['payment_method']?.toString();
+    final paymentStatus = pricing['payment_status']?.toString();
     final carefulCarryRequired = _asNullableBool(
       pricing['careful_carry_required'],
     );
@@ -288,6 +290,8 @@ class CustomerOrderTrackingNotifier
       manualDeliveryFee: manualDeliveryFee,
       manualDeliveryFeeReason: manualReason,
       carefulCarryRequired: carefulCarryRequired,
+      paymentMethod: paymentMethod,
+      paymentStatus: paymentStatus,
     );
     final patchedDetail = current.detail.copyWith(
       summary: patchedSummary,
@@ -295,6 +299,8 @@ class CustomerOrderTrackingNotifier
       manualDeliveryFee: manualDeliveryFee,
       manualDeliveryFeeReason: manualReason,
       carefulCarryRequired: carefulCarryRequired,
+      paymentMethod: paymentMethod,
+      paymentStatus: paymentStatus,
     );
 
     state = AsyncData(

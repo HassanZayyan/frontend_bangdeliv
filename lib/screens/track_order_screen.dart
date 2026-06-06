@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
@@ -65,6 +66,7 @@ class TrackOrderScreen extends ConsumerWidget {
       final trackingAsync = ref.watch(trackingProvider);
       return _buildScaffold(
         context,
+        ref,
         trackingAsync,
         forceHistoryTitle: routeArgs.fromHistory,
         showEmptyForNoActiveOrder: false,
@@ -85,12 +87,14 @@ class TrackOrderScreen extends ConsumerWidget {
     return ordersAsync.when(
       loading: () => _buildScaffold(
         context,
+        ref,
         const AsyncLoading<CustomerOrderTrackingState>(),
         showEmptyForNoActiveOrder: false,
         onRetry: () => ref.invalidate(customerOrdersProvider),
       ),
       error: (error, stackTrace) => _buildScaffold(
         context,
+        ref,
         AsyncError<CustomerOrderTrackingState>(error, stackTrace),
         showEmptyForNoActiveOrder: false,
         onRetry: () => ref.invalidate(customerOrdersProvider),
@@ -100,6 +104,7 @@ class TrackOrderScreen extends ConsumerWidget {
         if (activeOrder == null) {
           return _buildScaffold(
             context,
+            ref,
             const AsyncLoading<CustomerOrderTrackingState>(),
             showEmptyForNoActiveOrder: true,
             onRetry: () => ref.invalidate(customerOrdersProvider),
@@ -109,6 +114,7 @@ class TrackOrderScreen extends ConsumerWidget {
         final trackingAsync = ref.watch(trackingProvider);
         return _buildScaffold(
           context,
+          ref,
           trackingAsync,
           showEmptyForNoActiveOrder: false,
           onRetry: () => ref.invalidate(trackingProvider),
@@ -127,6 +133,7 @@ class TrackOrderScreen extends ConsumerWidget {
 
   Widget _buildScaffold(
     BuildContext context,
+    WidgetRef ref,
     AsyncValue<CustomerOrderTrackingState> trackingAsync, {
     bool forceHistoryTitle = false,
     required bool showEmptyForNoActiveOrder,
@@ -183,7 +190,7 @@ class TrackOrderScreen extends ConsumerWidget {
                 ),
               ),
               data: (tracking) =>
-                  _buildDetailView(context, tracking, onRefresh: onRefresh),
+                  _buildDetailView(context, ref, tracking, onRefresh: onRefresh),
             ),
     );
   }
@@ -268,6 +275,7 @@ class TrackOrderScreen extends ConsumerWidget {
 
   Widget _buildDetailView(
     BuildContext context,
+    WidgetRef ref,
     CustomerOrderTrackingState tracking, {
     Future<void> Function()? onRefresh,
   }) {
@@ -290,6 +298,7 @@ class TrackOrderScreen extends ConsumerWidget {
         context: context,
         order: order,
         detail: detail,
+        ref: ref,
         hasLiveDriver: hasLiveDriver,
         infoMessage: _fixedStatusInfoMessage(order),
         onRefresh: onRefresh,
@@ -302,6 +311,7 @@ class TrackOrderScreen extends ConsumerWidget {
         context: context,
         order: order,
         detail: detail,
+        ref: ref,
         hasLiveDriver: hasLiveDriver,
         infoMessage: _fixedStatusInfoMessage(order),
         onRefresh: onRefresh,
@@ -417,7 +427,13 @@ class TrackOrderScreen extends ConsumerWidget {
                                 _buildProofsCard(context, detail.proofs),
                                 const SizedBox(height: 12),
                               ],
-                              _buildPaymentCard(order, detail),
+                              _buildPaymentCard(
+                                context,
+                                ref,
+                                order,
+                                detail,
+                                onRefresh,
+                              ),
                               const SizedBox(height: 12),
                               _buildTimelineCard(
                                 detail.timeline,
@@ -441,6 +457,7 @@ class TrackOrderScreen extends ConsumerWidget {
 
   Widget _buildFixedStatusLayout({
     required BuildContext context,
+    required WidgetRef ref,
     required CustomerOrderSummaryModel order,
     required CustomerOrderDetailModel detail,
     required bool hasLiveDriver,
@@ -498,7 +515,7 @@ class TrackOrderScreen extends ConsumerWidget {
                 _buildProofsCard(context, detail.proofs),
                 const SizedBox(height: 12),
               ],
-              _buildPaymentCard(order, detail),
+              _buildPaymentCard(context, ref, order, detail, onRefresh),
               const SizedBox(height: 12),
               _buildCard(
                 title: 'Info Tracking',
@@ -1408,31 +1425,40 @@ class TrackOrderScreen extends ConsumerWidget {
   }
 
   Widget _buildPaymentCard(
+    BuildContext context,
+    WidgetRef ref,
     CustomerOrderSummaryModel order,
     CustomerOrderDetailModel detail,
+    Future<void> Function()? onRefresh,
   ) {
     final isPaid = isPaymentPaid(detail.paymentStatus);
     final statusColor = isPaid ? AppColors.success : AppColors.primary;
+    final normalizedPaymentMethod = (detail.paymentMethod ?? 'COD')
+        .trim()
+        .toUpperCase();
+    final isTransfer = normalizedPaymentMethod == 'TRANSFER';
     final isCourier =
         normalizeServiceTypeCode(order.serviceTypeCode) ==
         ServiceTypeCodes.courier;
     final isCancelledWithFee =
         normalizeOrderStatusCode(order.statusCode) ==
         OrderStatusCodes.cancelledWithFee;
-    final paymentMessage = isCancelledWithFee
-        ? (isPaid
-              ? 'Penalty merchant gagal sudah tercatat.'
-              : 'Bayar penalty merchant gagal sesuai nominal.')
-        : isCourier
-        ? (isPaid
-              ? 'Pembayaran pickup sudah tercatat.'
-              : 'Bayar tunai ke driver saat menyerahkan barang di titik ambil.')
-        : (isPaid
-              ? 'Pembayaran tunai sudah tercatat.'
-              : 'Bayar tunai ke driver saat pesanan sampai.');
+    final hasPendingTransferProof = detail.proofs.any(
+      (proof) =>
+          proof.type == 'payment_transfer' &&
+          (proof.status ?? '').trim().toLowerCase() == 'pending',
+    );
+    final paymentMessage = _paymentMessage(
+      order: order,
+      isPaid: isPaid,
+      isTransfer: isTransfer,
+      isCourier: isCourier,
+      isCancelledWithFee: isCancelledWithFee,
+      hasPendingTransferProof: hasPendingTransferProof,
+    );
 
     return _buildCard(
-      title: 'Pembayaran COD',
+      title: 'Pembayaran',
       icon: Icons.payments_outlined,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1470,10 +1496,135 @@ class TrackOrderScreen extends ConsumerWidget {
                 fontSize: 12.5,
               ),
             ),
+            const SizedBox(height: 12),
+            if (isTransfer || isCancelledWithFee)
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _uploadTransferEvidence(
+                    context,
+                    ref,
+                    order.id,
+                    onRefresh,
+                  ),
+                  icon: const Icon(Icons.upload_file_outlined),
+                  label: const Text('Upload Bukti Transfer'),
+                ),
+              )
+            else
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _changePaymentMethodToTransfer(
+                    context,
+                    ref,
+                    order.id,
+                    onRefresh,
+                  ),
+                  icon: const Icon(Icons.swap_horiz),
+                  label: const Text('Ubah ke Transfer'),
+                ),
+              ),
           ],
         ],
       ),
     );
+  }
+
+  String _paymentMessage({
+    required CustomerOrderSummaryModel order,
+    required bool isPaid,
+    required bool isTransfer,
+    required bool isCourier,
+    required bool isCancelledWithFee,
+    required bool hasPendingTransferProof,
+  }) {
+    if (isCancelledWithFee) {
+      if (isPaid) {
+        return 'Fee pembatalan merchant sudah tercatat.';
+      }
+      return 'Bayar fee pembatalan merchant sebesar 50% dari ongkir aktif terakhir lewat transfer.';
+    }
+
+    if (isTransfer) {
+      if (isPaid) {
+        return 'Pembayaran transfer sudah diverifikasi.';
+      }
+      return hasPendingTransferProof
+          ? 'Bukti transfer menunggu verifikasi driver/admin.'
+          : 'Upload bukti transfer agar driver/admin bisa memverifikasi pembayaran.';
+    }
+
+    if (isCourier) {
+      return isPaid
+          ? 'Pembayaran pickup sudah tercatat.'
+          : 'Bayar tunai ke driver saat menyerahkan barang di titik ambil.';
+    }
+
+    return isPaid
+        ? 'Pembayaran tunai sudah tercatat.'
+        : 'Bayar tunai ke driver saat pesanan sampai.';
+  }
+
+  Future<void> _changePaymentMethodToTransfer(
+    BuildContext context,
+    WidgetRef ref,
+    int orderId,
+    Future<void> Function()? onRefresh,
+  ) async {
+    try {
+      await ref
+          .read(customerOrderApiServiceProvider)
+          .updatePaymentMethod(orderId, paymentMethod: 'TRANSFER');
+      ref.invalidate(customerOrderTrackingProvider(orderId));
+      ref.invalidate(customerOrdersProvider);
+      await onRefresh?.call();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Metode pembayaran diubah ke transfer.')),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    }
+  }
+
+  Future<void> _uploadTransferEvidence(
+    BuildContext context,
+    WidgetRef ref,
+    int orderId,
+    Future<void> Function()? onRefresh,
+  ) async {
+    final photo = await ImagePicker().pickImage(
+      source: ImageSource.camera,
+      imageQuality: 82,
+      maxWidth: 1600,
+    );
+    if (photo == null) {
+      return;
+    }
+
+    try {
+      await ref
+          .read(customerOrderApiServiceProvider)
+          .uploadTransferEvidence(orderId, photo: photo);
+      ref.invalidate(customerOrderTrackingProvider(orderId));
+      ref.invalidate(customerOrdersProvider);
+      await onRefresh?.call();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bukti transfer berhasil diupload.'),
+        ),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    }
   }
 
   Widget _paymentChip(String text, Color color) {

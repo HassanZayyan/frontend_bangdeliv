@@ -844,6 +844,28 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       );
     }
 
+    if (nextActions.contains('SET_PAYMENT_COD')) {
+      add(
+        _presetMessageHintFromPayload(
+          actionPayloads,
+          'SET_PAYMENT_COD',
+          fallbackLabel: 'COD',
+          fallbackMessage: 'COD',
+        ),
+      );
+    }
+
+    if (nextActions.contains('SET_PAYMENT_TRANSFER')) {
+      add(
+        _presetMessageHintFromPayload(
+          actionPayloads,
+          'SET_PAYMENT_TRANSFER',
+          fallbackLabel: 'Transfer',
+          fallbackMessage: 'Transfer',
+        ),
+      );
+    }
+
     if (nextActions.contains('CONFIRM_DRAFT')) {
       add(
         _presetMessageHintFromPayload(
