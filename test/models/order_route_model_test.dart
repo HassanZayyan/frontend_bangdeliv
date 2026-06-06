@@ -29,7 +29,7 @@ void main() {
     final detail = CustomerOrderDetailModel.fromJson({
       'id': 13,
       'order_number': 'BDS-0001',
-      'service_type': {'code': 'SHOPPING', 'display_name': 'Titip Belanja'},
+      'service_type': {'code': 'SHOPPING', 'display_name': 'Nitip'},
       'status_ref': {
         'code': 'DRIVER_ASSIGNED',
         'display_name': 'Driver Ditugaskan',

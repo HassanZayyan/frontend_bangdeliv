@@ -73,7 +73,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         return const _ServiceContext(
           serviceType: 'antar_jemput',
           title: 'BangBot AI - Antar Jemput',
-          subtitle: 'Mode perjalanan aktif',
+          iconAsset: 'assets/images/services/service_ride_motor_simplified.png',
           welcomeMessage:
               'Halo! Saya BangBot untuk layanan Antar Jemput. Kamu bisa kirim tujuan lewat chat atau atur titik jemput dan tujuan di map.',
           addressRequiredMessage:
@@ -88,26 +88,28 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         return const _ServiceContext(
           serviceType: 'kurir',
           title: 'BangBot AI - Kurir',
-          subtitle: 'Mode pengiriman paket aktif',
+          iconAsset:
+              'assets/images/services/service_courier_box_simplified.png',
           welcomeMessage:
-              'Halo! Saya BangBot untuk layanan Kurir. Tulis tujuan kirim dan isi paket lewat chat, atau atur titik ambil dan tujuan di map.',
+              'Halo! Saya BangBot untuk layanan Kurir. Kirim barang seperti laundry, dokumen, skincare, atau paket kecil. Tulis tujuan dan isi paket lewat chat, atau atur titik ambil dan tujuan di map.',
           addressRequiredMessage:
               'Sebelum pesan Kurir, isi Alamat Saya dulu supaya titik ambil utama kamu siap dipakai.',
-          suggestions: ['Isi paket kunci', 'Kirim kunci', 'Kirim dokumen'],
+          suggestions: ['Kirim laundry', 'Kirim skincare', 'Kirim dokumen'],
         );
       default:
         return const _ServiceContext(
           serviceType: 'nitip',
-          title: 'BangBot AI - Titip Belanja',
-          subtitle: 'Mode titip belanja aktif',
+          title: 'BangBot AI - Nitip',
+          iconAsset:
+              'assets/images/services/service_shopping_basket_simplified.png',
           welcomeMessage:
-              'Halo! Saya BangBot untuk layanan Titip Belanja. Tulis merchant dan item, lalu pilih titik antar di map.',
+              'Halo! Saya BangBot untuk layanan Nitip. Titip beli makanan, sembako, atau kebutuhan minimarket. Tulis toko/resto dan item, lalu pilih titik antar di map.',
           addressRequiredMessage:
-              'Sebelum titip belanja, isi Alamat Saya dulu supaya titik antar pesanan kamu siap dipakai.',
+              'Sebelum pakai Nitip, isi Alamat Saya dulu supaya titik antar pesanan kamu siap dipakai.',
           suggestions: [
-            'Alfamart telur 1 kg',
-            'Warung Madura gula',
-            'Ayam Geprek 2',
+            'Beli ayam geprek',
+            'Beli sembako',
+            'Belanja minimarket',
           ],
         );
     }
@@ -319,67 +321,35 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
-        toolbarHeight: 72,
+        toolbarHeight: 64,
+        titleSpacing: 0,
         leading: IconButton(
           icon: const Icon(Icons.chevron_left, color: AppColors.textPrimary),
           onPressed: _handleBack,
         ),
         title: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.auto_awesome,
-                color: Colors.white,
-                size: 16,
-              ),
+            Image.asset(
+              _serviceContext.iconAsset,
+              width: 28,
+              height: 28,
+              fit: BoxFit.contain,
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    _serviceContext.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  _serviceContext.title,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
                   ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: AppColors.success,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          _serviceContext.subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.success,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                ),
               ),
             ),
           ],
@@ -429,7 +399,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
             decoration: const BoxDecoration(
               color: AppColors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+              border: Border(top: BorderSide(color: AppColors.border)),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
             ),
             child: SafeArea(
               child: Column(
@@ -455,51 +426,51 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: SizedBox(
-                          height: 50,
-                          child: TextField(
-                            controller: _inputController,
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
+                        child: TextField(
+                          controller: _inputController,
+                          minLines: 1,
+                          maxLines: 3,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 14,
+                          ),
+                          textInputAction: TextInputAction.send,
+                          onSubmitted: (_) {
+                            if (effectiveBusy) {
+                              return;
+                            }
+                            _sendMessage();
+                          },
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: AppColors.white,
+                            hintText: 'Ketik kebutuhan layanan...',
+                            hintStyle: const TextStyle(
+                              color: AppColors.textSecondary,
                               fontSize: 14,
                             ),
-                            textInputAction: TextInputAction.send,
-                            onSubmitted: (_) {
-                              if (effectiveBusy) {
-                                return;
-                              }
-                              _sendMessage();
-                            },
-                            decoration: const InputDecoration(
-                              filled: true,
-                              fillColor: AppColors.background,
-                              hintText: 'Ketik kebutuhan layanan...',
-                              hintStyle: TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 14,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: const BorderSide(
+                                color: AppColors.border,
                               ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.all(
-                                  Radius.circular(25),
-                                ),
-                                borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: const BorderSide(
+                                color: AppColors.border,
                               ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.all(
-                                  Radius.circular(25),
-                                ),
-                                borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: const BorderSide(
+                                color: AppColors.primary,
+                                width: 1.2,
                               ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.all(
-                                  Radius.circular(25),
-                                ),
-                                borderSide: BorderSide.none,
-                              ),
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 0,
-                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 13,
                             ),
                           ),
                         ),
@@ -546,16 +517,16 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: AppColors.primaryLight,
+          color: AppColors.primary.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: AppColors.primary, width: 1.2),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.24)),
         ),
         child: Text(
           label,
           style: const TextStyle(
             color: AppColors.primaryDark,
             fontSize: 13,
-            fontWeight: FontWeight.normal,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
@@ -686,6 +657,14 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     required Color textColor,
   }) {
     if (message.isUser) {
+      final routeCommandParts = _tryParseUserRouteCommand(message.text);
+      if (routeCommandParts != null) {
+        return _buildUserRouteCommandContent(
+          parts: routeCommandParts,
+          textColor: textColor,
+        );
+      }
+
       return Text(
         message.text,
         style: TextStyle(color: textColor, height: 1.5),
@@ -694,43 +673,51 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
     final parts = _tryParseDraftMessage(message.text);
     if (parts == null) {
-      final resetParts = _tryParseResetDestinationMessage(message.text);
-      if (resetParts == null) {
-        return Text(
-          message.text,
-          style: TextStyle(color: textColor, height: 1.5),
+      final shoppingParts = _tryParseShoppingDraftMessage(message.text);
+      if (shoppingParts != null) {
+        return _buildShoppingDraftContent(
+          parts: shoppingParts,
+          textColor: textColor,
         );
       }
 
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            resetParts.headline,
-            style: TextStyle(
-              color: textColor,
-              height: 1.45,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 10),
-          _buildDraftField(
-            label: resetParts.pickupLabel,
-            value: resetParts.pickupAddress,
-            textColor: textColor,
-          ),
-          if (resetParts.instructionLine.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(
-              resetParts.instructionLine,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12,
-                height: 1.4,
-              ),
-            ),
-          ],
-        ],
+      final resetParts = _tryParseResetDestinationMessage(message.text);
+      if (resetParts != null) {
+        return _buildResetDestinationContent(
+          parts: resetParts,
+          textColor: textColor,
+        );
+      }
+
+      final inlineResetParts = _tryParseInlineCourierResetMessage(message.text);
+      if (inlineResetParts != null) {
+        return _buildResetDestinationContent(
+          parts: inlineResetParts,
+          textColor: textColor,
+        );
+      }
+
+      final shoppingSuccessParts = _tryParseShoppingSuccessMessage(
+        message.text,
+      );
+      if (shoppingSuccessParts != null) {
+        return _buildShoppingSuccessContent(
+          parts: shoppingSuccessParts,
+          textColor: textColor,
+        );
+      }
+
+      final promptParts = _tryParseCourierRouteSavedPrompt(message.text);
+      if (promptParts != null) {
+        return _buildSimplePromptContent(
+          parts: promptParts,
+          textColor: textColor,
+        );
+      }
+
+      return Text(
+        message.text,
+        style: TextStyle(color: textColor, height: 1.5),
       );
     }
 
@@ -766,6 +753,15 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             textColor: textColor,
           ),
         ],
+        if (parts.packageSizeLine != null &&
+            parts.packageSizeLine!.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _buildDraftField(
+            label: 'Berat/Ukuran',
+            value: parts.packageSizeLine!,
+            textColor: textColor,
+          ),
+        ],
         if (parts.packageSafetyLine != null &&
             parts.packageSafetyLine!.isNotEmpty) ...[
           const SizedBox(height: 8),
@@ -777,24 +773,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         ],
         if (parts.feeLine.isNotEmpty) ...[
           const SizedBox(height: 10),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.cardYellow.withValues(alpha: 0.45),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Text(
-              parts.feeLine,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-                height: 1.4,
-              ),
-            ),
-          ),
+          _buildAssistantNotice(parts.feeLine),
         ],
         if (parts.instructionLine.isNotEmpty) ...[
           const SizedBox(height: 10),
@@ -806,6 +785,353 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
               height: 1.4,
             ),
           ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildResetDestinationContent({
+    required _ResetDestinationMessageParts parts,
+    required Color textColor,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          parts.headline,
+          style: TextStyle(
+            color: textColor,
+            height: 1.45,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 10),
+        _buildDraftField(
+          label: parts.pickupLabel,
+          value: parts.pickupAddress,
+          textColor: textColor,
+        ),
+        if (parts.instructionLine.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text(
+            parts.instructionLine,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildShoppingSuccessContent({
+    required _ShoppingSuccessMessageParts parts,
+    required Color textColor,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          parts.headline,
+          style: TextStyle(
+            color: textColor,
+            height: 1.45,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        if (parts.deliveryFeeLine.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          _buildAssistantNotice(parts.deliveryFeeLine),
+        ],
+        if (parts.instructionLine.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text(
+            parts.instructionLine,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12.5,
+              height: 1.4,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildSimplePromptContent({
+    required _SimplePromptMessageParts parts,
+    required Color textColor,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          parts.headline,
+          style: TextStyle(
+            color: textColor,
+            height: 1.45,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        if (parts.instructionLine.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text(
+            parts.instructionLine,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAssistantNotice(String text) {
+    final rows = _parseAssistantNoticeRows(text);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.cardYellow.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: rows.isEmpty
+          ? Text(
+              text,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                height: 1.4,
+              ),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final row in rows)
+                  Padding(
+                    padding: EdgeInsets.only(bottom: row == rows.last ? 0 : 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${row.label}:',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              row.amount,
+                              maxLines: 1,
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                height: 1.35,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (row.note.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            row.note,
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w500,
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+    );
+  }
+
+  List<_AssistantNoticeRow> _parseAssistantNoticeRows(String text) {
+    final rows = <_AssistantNoticeRow>[];
+    final rowPattern = RegExp(
+      r'^(.+?):\s*(Rp\s*[\d.]+(?:,\d+)?)(?:\s*(\(.+\)))?\.?$',
+      caseSensitive: false,
+    );
+
+    for (final rawLine in text.split('\n')) {
+      final line = rawLine.trim();
+      if (line.isEmpty) {
+        continue;
+      }
+
+      final match = rowPattern.firstMatch(line);
+      if (match == null) {
+        return const [];
+      }
+
+      rows.add(
+        _AssistantNoticeRow(
+          label: _normalizeAssistantNoticeLabel(match.group(1)!.trim()),
+          amount: match.group(2)!.trim().replaceFirst(RegExp(r'\.$'), ''),
+          note: (match.group(3) ?? '').trim().replaceFirst(RegExp(r'\.$'), ''),
+        ),
+      );
+    }
+
+    return rows;
+  }
+
+  String _normalizeAssistantNoticeLabel(String label) {
+    final normalized = label.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final lower = normalized.toLowerCase();
+
+    if (lower == 'estimasi ongkir sementara' || lower == 'ongkir') {
+      return 'Estimasi ongkir';
+    }
+
+    if (lower == 'estimasi total sementara') {
+      return 'Estimasi total';
+    }
+
+    return normalized;
+  }
+
+  Widget _buildUserRouteCommandContent({
+    required _UserRouteCommandParts parts,
+    required Color textColor,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Rute dipilih',
+          style: TextStyle(
+            color: textColor,
+            height: 1.35,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 10),
+        for (final point in parts.points) ...[
+          Text(
+            point.label,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.78),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            point.value,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 13.5,
+              height: 1.4,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          if (point != parts.points.last) const SizedBox(height: 8),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildShoppingDraftContent({
+    required _ShoppingDraftMessageParts parts,
+    required Color textColor,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          parts.headline,
+          style: TextStyle(
+            color: textColor,
+            height: 1.45,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 10),
+        _buildDraftField(
+          label: 'Merchant',
+          value: parts.merchant,
+          textColor: textColor,
+        ),
+        const SizedBox(height: 8),
+        _buildDraftField(
+          label: 'Alamat antar',
+          value: parts.deliveryAddress,
+          textColor: textColor,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Daftar belanja',
+          style: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.2,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final item in parts.items)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 4,
+                      height: 4,
+                      margin: const EdgeInsets.only(top: 9),
+                      decoration: BoxDecoration(
+                        color: textColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        item,
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 13.5,
+                          height: 1.45,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        if (parts.feeLines.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          _buildAssistantNotice(parts.feeLines.join('\n')),
         ],
       ],
     );
@@ -840,6 +1166,261 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         ),
       ],
     );
+  }
+
+  _ShoppingSuccessMessageParts? _tryParseShoppingSuccessMessage(String raw) {
+    final normalized = raw.replaceAll('\r\n', '\n').trim();
+    if (normalized.isEmpty) {
+      return null;
+    }
+
+    final lines = normalized
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
+    if (lines.isEmpty ||
+        !lines.first.toLowerCase().startsWith('order nitip berhasil dibuat')) {
+      return null;
+    }
+
+    var deliveryFeeLine = '';
+    final instructionLines = <String>[];
+    for (final line in lines.skip(1)) {
+      if (line.toLowerCase().startsWith('estimasi ongkir sementara:')) {
+        deliveryFeeLine = line;
+      } else {
+        instructionLines.add(line);
+      }
+    }
+
+    return _ShoppingSuccessMessageParts(
+      headline: lines.first,
+      deliveryFeeLine: deliveryFeeLine,
+      instructionLine: instructionLines.join(' ').trim(),
+    );
+  }
+
+  _SimplePromptMessageParts? _tryParseCourierRouteSavedPrompt(String raw) {
+    final normalized = raw.replaceAll(RegExp(r'\s+'), ' ').trim();
+    const headline = 'Titik ambil dan tujuan sudah saya simpan.';
+    if (!normalized.toLowerCase().startsWith(headline.toLowerCase())) {
+      return null;
+    }
+
+    return _SimplePromptMessageParts(
+      headline: headline,
+      instructionLine: normalized.substring(headline.length).trim(),
+    );
+  }
+
+  _ResetDestinationMessageParts? _tryParseInlineCourierResetMessage(
+    String raw,
+  ) {
+    final normalized = raw.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (normalized.isEmpty) {
+      return null;
+    }
+
+    final lower = normalized.toLowerCase();
+    const pickupMarker = 'alamat ambil kamu di ';
+    const instructionMarker = 'sekarang kirim tujuan baru';
+    final pickupIndex = lower.indexOf(pickupMarker);
+    final instructionIndex = lower.indexOf(instructionMarker);
+    if (pickupIndex < 0 ||
+        instructionIndex < 0 ||
+        instructionIndex <= pickupIndex) {
+      return null;
+    }
+
+    final headline = normalized.substring(0, pickupIndex).trim();
+    if (!headline.toLowerCase().contains('tujuan sebelumnya') ||
+        !headline.toLowerCase().contains('reset')) {
+      return null;
+    }
+
+    final pickupAddress = normalized
+        .substring(pickupIndex + pickupMarker.length, instructionIndex)
+        .trim()
+        .replaceFirst(RegExp(r'\.\s*$'), '');
+    final instruction = normalized.substring(instructionIndex).trim();
+    if (pickupAddress.isEmpty) {
+      return null;
+    }
+
+    return _ResetDestinationMessageParts(
+      headline: headline,
+      pickupLabel: 'Ambil',
+      pickupAddress: pickupAddress,
+      instructionLine: instruction,
+    );
+  }
+
+  _UserRouteCommandParts? _tryParseUserRouteCommand(String raw) {
+    final normalized = raw.trim();
+    if (!normalized.toLowerCase().startsWith('[map_route]')) {
+      return null;
+    }
+
+    final body = normalized.replaceFirst(
+      RegExp(r'^\[MAP_ROUTE\]\s*', caseSensitive: false),
+      '',
+    );
+    final points = <_UserRouteCommandPoint>[];
+    for (final segment in body.split(';')) {
+      final arrowIndex = segment.indexOf('=>');
+      if (arrowIndex < 0) {
+        continue;
+      }
+
+      final rawTarget = segment.substring(0, arrowIndex).trim().toLowerCase();
+      final value = segment.substring(arrowIndex + 2).trim();
+      if (value.isEmpty) {
+        continue;
+      }
+
+      final label = switch (rawTarget) {
+        'pickup' => 'Ambil',
+        'dropoff' => 'Tujuan',
+        'destination' => 'Tujuan',
+        _ => rawTarget.isEmpty ? 'Lokasi' : rawTarget,
+      };
+      points.add(_UserRouteCommandPoint(label: label, value: value));
+    }
+
+    if (points.isEmpty) {
+      return null;
+    }
+
+    return _UserRouteCommandParts(points: points);
+  }
+
+  _ShoppingDraftMessageParts? _tryParseShoppingDraftMessage(String raw) {
+    final normalized = raw.replaceAll('\r\n', '\n').trim();
+    if (normalized.isEmpty) {
+      return null;
+    }
+
+    final lines = normalized
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
+
+    if (lines.length < 8) {
+      return null;
+    }
+
+    final merchantIndex = lines.indexWhere(
+      (line) => line.toLowerCase() == 'merchant',
+    );
+    final deliveryIndex = lines.indexWhere((line) {
+      final lower = line.toLowerCase();
+      return lower == 'alamat antar' || lower == 'alamat kirim';
+    });
+    final itemsIndex = lines.indexWhere(
+      (line) => line.toLowerCase() == 'daftar belanja',
+    );
+    final firstFeeIndex = lines.indexWhere(
+      (line) => line.toLowerCase().startsWith('estimasi ongkir sementara:'),
+    );
+
+    if (merchantIndex <= 0 ||
+        deliveryIndex <= merchantIndex ||
+        itemsIndex <= deliveryIndex ||
+        firstFeeIndex <= itemsIndex) {
+      return null;
+    }
+
+    final headline = lines.take(merchantIndex).join(' ').trim();
+    final lowerHeadline = headline.toLowerCase();
+    if (!lowerHeadline.contains('titip belanja') &&
+        !lowerHeadline.contains('nitip')) {
+      return null;
+    }
+
+    final merchant = lines
+        .sublist(merchantIndex + 1, deliveryIndex)
+        .join(' ')
+        .trim();
+    final deliveryAddress = lines
+        .sublist(deliveryIndex + 1, itemsIndex)
+        .join(' ')
+        .trim();
+    final itemLines = lines.sublist(itemsIndex + 1, firstFeeIndex);
+    final items = _normalizeShoppingItemLines(itemLines);
+    final feeLines = _normalizeShoppingFeeLines(lines, firstFeeIndex);
+
+    if (merchant.isEmpty || deliveryAddress.isEmpty || items.isEmpty) {
+      return null;
+    }
+
+    return _ShoppingDraftMessageParts(
+      headline: headline,
+      merchant: merchant,
+      deliveryAddress: deliveryAddress,
+      items: items,
+      feeLines: feeLines,
+    );
+  }
+
+  List<String> _normalizeShoppingItemLines(List<String> lines) {
+    final items = <String>[];
+    final current = StringBuffer();
+    final itemStartPattern = RegExp(r'^\d+\.\s*');
+
+    void flush() {
+      final value = current.toString().trim();
+      if (value.isNotEmpty) {
+        items.add(value);
+      }
+      current.clear();
+    }
+
+    for (final line in lines) {
+      final cleaned = line.replaceFirst(itemStartPattern, '').trim();
+      if (cleaned.isEmpty) {
+        continue;
+      }
+
+      if (itemStartPattern.hasMatch(line)) {
+        flush();
+        current.write(cleaned);
+      } else if (current.isNotEmpty) {
+        current.write(' $cleaned');
+      }
+    }
+
+    flush();
+    return items;
+  }
+
+  List<String> _normalizeShoppingFeeLines(List<String> lines, int startIndex) {
+    final feeLines = <String>[];
+    var index = startIndex;
+
+    while (index < lines.length) {
+      final line = lines[index].trim();
+      final lower = line.toLowerCase();
+      final isFeeLine =
+          lower.startsWith('estimasi ongkir sementara:') ||
+          lower.startsWith('estimasi total sementara:');
+
+      if (!isFeeLine) {
+        index += 1;
+        continue;
+      }
+
+      if (line.toLowerCase().endsWith('rp') && index + 1 < lines.length) {
+        feeLines.add('$line ${lines[index + 1].trim()}');
+        index += 2;
+      } else {
+        feeLines.add(line);
+        index += 1;
+      }
+    }
+
+    return feeLines;
   }
 
   _DraftMessageParts? _tryParseDraftMessage(String raw) {
@@ -1037,6 +1618,22 @@ class _DraftMessageParts {
   final String instructionLine;
 }
 
+class _ShoppingDraftMessageParts {
+  const _ShoppingDraftMessageParts({
+    required this.headline,
+    required this.merchant,
+    required this.deliveryAddress,
+    required this.items,
+    required this.feeLines,
+  });
+
+  final String headline;
+  final String merchant;
+  final String deliveryAddress;
+  final List<String> items;
+  final List<String> feeLines;
+}
+
 class _ResetDestinationMessageParts {
   const _ResetDestinationMessageParts({
     required this.headline,
@@ -1051,10 +1648,57 @@ class _ResetDestinationMessageParts {
   final String instructionLine;
 }
 
+class _ShoppingSuccessMessageParts {
+  const _ShoppingSuccessMessageParts({
+    required this.headline,
+    required this.deliveryFeeLine,
+    required this.instructionLine,
+  });
+
+  final String headline;
+  final String deliveryFeeLine;
+  final String instructionLine;
+}
+
+class _SimplePromptMessageParts {
+  const _SimplePromptMessageParts({
+    required this.headline,
+    required this.instructionLine,
+  });
+
+  final String headline;
+  final String instructionLine;
+}
+
+class _UserRouteCommandParts {
+  const _UserRouteCommandParts({required this.points});
+
+  final List<_UserRouteCommandPoint> points;
+}
+
+class _UserRouteCommandPoint {
+  const _UserRouteCommandPoint({required this.label, required this.value});
+
+  final String label;
+  final String value;
+}
+
+class _AssistantNoticeRow {
+  const _AssistantNoticeRow({
+    required this.label,
+    required this.amount,
+    required this.note,
+  });
+
+  final String label;
+  final String amount;
+  final String note;
+}
+
 class _ServiceContext {
   final String serviceType;
   final String title;
-  final String subtitle;
+  final String iconAsset;
   final String welcomeMessage;
   final String addressRequiredMessage;
   final List<String> suggestions;
@@ -1062,7 +1706,7 @@ class _ServiceContext {
   const _ServiceContext({
     required this.serviceType,
     required this.title,
-    required this.subtitle,
+    required this.iconAsset,
     required this.welcomeMessage,
     required this.addressRequiredMessage,
     required this.suggestions,

@@ -95,6 +95,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
             controller: _nameController,
             keyboardType: TextInputType.name,
             textInputAction: TextInputAction.next,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+            ),
             decoration: const InputDecoration(
               hintText: 'Nama Lengkap',
               prefixIcon: Icon(
@@ -116,6 +121,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
             controller: _waController,
             keyboardType: TextInputType.phone,
             textInputAction: TextInputAction.next,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+            ),
             decoration: const InputDecoration(
               hintText: 'Nomor WhatsApp',
               prefixIcon: Icon(
@@ -140,6 +150,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.next,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+            ),
             decoration: const InputDecoration(
               hintText: 'Email',
               prefixIcon: Icon(
@@ -165,6 +180,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
             obscureText: !_isPasswordVisible,
             textInputAction: TextInputAction.done,
             onFieldSubmitted: (_) => _handleRegister(),
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+            ),
             decoration: InputDecoration(
               hintText: 'Password',
               prefixIcon: const Icon(
@@ -172,6 +192,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 color: AppColors.textSecondary,
               ),
               suffixIcon: IconButton(
+                iconSize: 20,
                 icon: Icon(
                   _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
                   color: AppColors.textSecondary,
@@ -210,7 +231,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         color: AppColors.white,
                       ),
                     )
-                  : const Text('Daftar ->'),
+                  : const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Daftar'),
+                        SizedBox(width: 8),
+                        Icon(Icons.arrow_forward_rounded, size: 18),
+                      ],
+                    ),
             ),
           ),
 

@@ -203,7 +203,7 @@ CustomerOrderDetailModel _shoppingDetail({
       id: 1,
       orderNumber: 'BD-TEST-1',
       serviceTypeCode: 'SHOPPING',
-      serviceTypeLabel: 'Titip Belanja',
+      serviceTypeLabel: 'Nitip',
       restaurantName: 'Resto Awal',
       itemsSummary: '1x Telur',
       totalAmount: totalPrice,

@@ -10,7 +10,10 @@ class NotificationsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Notifikasi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        title: const Text(
+          'Notifikasi',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
         backgroundColor: AppColors.white,
         elevation: 0,
         leading: IconButton(
@@ -21,11 +24,18 @@ class NotificationsScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          const Text('Hari Ini', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+          const Text(
+            'Hari Ini',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: AppColors.textSecondary,
+            ),
+          ),
           const SizedBox(height: 12),
           _buildNotificationCard(
             title: 'Pesanan Telah Tiba! 🚀',
-            message: 'Pesanan #BD-20260330-012 dari Warung Bu Sri sudah sampai. Selamat menikmati!',
+            message:
+                'Pesanan #BD-20260330-012 dari Warung Bu Sri sudah sampai. Selamat menikmati!',
             time: '10:05',
             isUnread: true,
             iconData: Icons.check_circle,
@@ -34,18 +44,26 @@ class NotificationsScreen extends StatelessWidget {
           const SizedBox(height: 12),
           _buildNotificationCard(
             title: 'Promo Spesial Grab Hari Ini!',
-            message: 'Diskon 50% untuk semua menu Ayam Geprek. Yuk pesan sekarang sebelum kehabisan.',
+            message:
+                'Diskon 50% untuk semua menu Ayam Geprek. Yuk pesan sekarang sebelum kehabisan.',
             time: '08:00',
             isUnread: true,
             iconData: Icons.local_offer,
             iconColor: AppColors.primary,
           ),
           const SizedBox(height: 24),
-          const Text('Kemarin', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+          const Text(
+            'Kemarin',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: AppColors.textSecondary,
+            ),
+          ),
           const SizedBox(height: 12),
           _buildNotificationCard(
             title: 'Pesanan Dibatalkan',
-            message: 'Mohon maaf, pesanan #BD-20260310-099 dibatalkan karena toko tutup.',
+            message:
+                'Mohon maaf, pesanan #BD-20260310-099 dibatalkan karena toko tutup.',
             time: 'Kemarin 15:35',
             isUnread: false,
             iconData: Icons.cancel,
@@ -69,7 +87,11 @@ class NotificationsScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: isUnread ? Colors.white : AppColors.background,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isUnread ? AppColors.primary.withValues(alpha: 0.3) : AppColors.border),
+        border: Border.all(
+          color: isUnread
+              ? AppColors.primary.withValues(alpha: 0.3)
+              : AppColors.border,
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -94,7 +116,9 @@ class NotificationsScreen extends StatelessWidget {
                       child: Text(
                         title,
                         style: TextStyle(
-                          fontWeight: isUnread ? FontWeight.bold : FontWeight.w600,
+                          fontWeight: isUnread
+                              ? FontWeight.bold
+                              : FontWeight.w600,
                           fontSize: 15,
                         ),
                       ),
@@ -114,12 +138,18 @@ class NotificationsScreen extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   message,
-                  style: const TextStyle(color: AppColors.textSecondary, height: 1.4),
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    height: 1.4,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   time,
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),

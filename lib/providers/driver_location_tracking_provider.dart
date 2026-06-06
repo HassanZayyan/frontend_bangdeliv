@@ -7,10 +7,11 @@ import '../utils/order_status.dart';
 import 'auth_session_provider.dart';
 import 'driver_order_providers.dart';
 
-final driverLocationTrackingProvider = NotifierProvider<
-    DriverLocationTrackingNotifier, DriverLocationTrackingState>(
-  DriverLocationTrackingNotifier.new,
-);
+final driverLocationTrackingProvider =
+    NotifierProvider<
+      DriverLocationTrackingNotifier,
+      DriverLocationTrackingState
+    >(DriverLocationTrackingNotifier.new);
 
 class DriverLocationTrackingState {
   final bool isTracking;
@@ -34,14 +35,14 @@ class DriverLocationTrackingState {
   });
 
   const DriverLocationTrackingState.idle()
-      : isTracking = false,
-        isStarting = false,
-        permissionDenied = false,
-        orderId = null,
-        latitude = null,
-        longitude = null,
-        lastSentAt = null,
-        message = null;
+    : isTracking = false,
+      isStarting = false,
+      permissionDenied = false,
+      orderId = null,
+      latitude = null,
+      longitude = null,
+      lastSentAt = null,
+      message = null;
 
   DriverLocationTrackingState copyWith({
     bool? isTracking,
@@ -91,12 +92,10 @@ class DriverLocationTrackingNotifier
     return const DriverLocationTrackingState.idle();
   }
 
-  void syncForOrder({
-    required String? orderId,
-    required String? statusCode,
-  }) {
+  void syncForOrder({required String? orderId, required String? statusCode}) {
     final normalizedOrderId = orderId?.trim();
-    final shouldTrack = normalizedOrderId != null &&
+    final shouldTrack =
+        normalizedOrderId != null &&
         normalizedOrderId.isNotEmpty &&
         RegExp(r'^\d+$').hasMatch(normalizedOrderId) &&
         isDriverLocationTrackable(statusCode);
@@ -135,9 +134,7 @@ class DriverLocationTrackingNotifier
     if (!hasPermission) return;
 
     final position = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-      ),
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
     );
 
     await _sendLocation(orderId, position, force: true);
@@ -173,26 +170,27 @@ class DriverLocationTrackingNotifier
 
       if (_activeOrderId != orderId) return;
 
-      _gpsSubscription = Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 5,
-        ),
-      ).listen(
-        (position) {
-          if (_activeOrderId != orderId) return;
-          _applyPosition(position);
-        unawaited(_sendLocation(orderId, position));
-      },
-      onError: (_) {
-        _stopGpsStream();
-        state = state.copyWith(
-          isStarting: false,
-          isTracking: false,
-            message: 'Gagal membaca GPS driver.',
+      _gpsSubscription =
+          Geolocator.getPositionStream(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 5,
+            ),
+          ).listen(
+            (position) {
+              if (_activeOrderId != orderId) return;
+              _applyPosition(position);
+              unawaited(_sendLocation(orderId, position));
+            },
+            onError: (_) {
+              _stopGpsStream();
+              state = state.copyWith(
+                isStarting: false,
+                isTracking: false,
+                message: 'Gagal membaca GPS driver.',
+              );
+            },
           );
-        },
-      );
 
       state = state.copyWith(
         isTracking: true,
@@ -237,7 +235,9 @@ class DriverLocationTrackingNotifier
           ? position.heading
           : 0.0;
 
-      await ref.read(driverOrderServiceProvider).updateLocation(
+      await ref
+          .read(driverOrderServiceProvider)
+          .updateLocation(
             orderId,
             position.latitude,
             position.longitude,

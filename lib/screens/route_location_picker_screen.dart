@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../config/app_colors.dart';
 import '../models/route_location_picker_result.dart';
@@ -91,7 +92,9 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
         target: _destinationTarget,
         latitude: destinationInitial.latitude,
         longitude: destinationInitial.longitude,
-        address: _mapsLookup.cleanAddress(widget.args.destinationInitialAddress),
+        address: _mapsLookup.cleanAddress(
+          widget.args.destinationInitialAddress,
+        ),
         source: hasExplicitDestinationInitial ? 'existing_route' : 'map_pin',
       );
     }
@@ -160,6 +163,8 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: SearchAnchor(
                 searchController: _searchController,
+                viewBackgroundColor: AppColors.white,
+                viewSurfaceTintColor: AppColors.white,
                 builder: (BuildContext context, SearchController controller) {
                   return SearchBar(
                     controller: controller,
@@ -297,8 +302,10 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     String? activeAddress, {
     required bool showMapPanel,
   }) {
-    final actionButtonTextStyle = Theme.of(context).textTheme.titleMedium
-        ?.copyWith(fontWeight: FontWeight.w700, fontSize: 17);
+    final actionButtonTextStyle = GoogleFonts.nunitoSans(
+      fontSize: 15,
+      fontWeight: FontWeight.w600,
+    );
     return Container(
       width: double.infinity,
       padding: EdgeInsets.fromLTRB(16, showMapPanel ? 2 : 8, 16, 16),
@@ -318,7 +325,9 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                       child: AnimatedSwitcher(
                         duration: const Duration(milliseconds: 180),
                         child: Text(
-                          (activeAddress ?? '').trim().isEmpty ? ' ' : activeAddress!,
+                          (activeAddress ?? '').trim().isEmpty
+                              ? ' '
+                              : activeAddress!,
                           key: ValueKey((activeAddress ?? '').trim()),
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
@@ -327,9 +336,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                       ),
                     ),
                   )
-                : const SizedBox(
-                    key: ValueKey('route_picker_address_hidden'),
-                  ),
+                : const SizedBox(key: ValueKey('route_picker_address_hidden')),
           ),
           if (showMapPanel && (_statusHint ?? '').isNotEmpty) ...[
             const SizedBox(height: 6),
@@ -340,63 +347,78 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
               keyValue: const Key('route_picker_status_hint'),
             ),
           ],
-          if (showMapPanel) const SizedBox(height: 16) else const SizedBox(height: 8),
-          SizedBox(
-            height: 48,
-            child: OutlinedButton.icon(
-              onPressed: _handleLocationButtonPressed,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primaryDark,
-                side: BorderSide(color: AppColors.primaryDark.withValues(alpha: 0.5)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              icon: _showLocationButtonLoading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Icon(
-                      _isDestinationMapEntryMode
-                          ? Icons.map_outlined
-                          : Icons.my_location,
-                      size: 18,
+          if (showMapPanel)
+            const SizedBox(height: 16)
+          else
+            const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 50,
+                  child: OutlinedButton.icon(
+                    onPressed: _handleLocationButtonPressed,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textPrimary,
+                      side: const BorderSide(color: AppColors.border),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
-              label: Text(
-                _isDestinationMapEntryMode ? 'Pilih lewat peta' : 'Lokasi Saya',
-                style: actionButtonTextStyle?.copyWith(fontSize: 16),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 50,
-            child: ElevatedButton(
-              onPressed: (_canConfirmRoute ||
-                      (_isManualDestinationSelectionMode &&
-                          !_isSavingManualDestination))
-                  ? _handlePrimaryAction
-                  : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.white,
-                disabledBackgroundColor: AppColors.border,
-                disabledForegroundColor: AppColors.textSecondary,
-                elevation: 0,
-                padding: EdgeInsets.zero,
-                alignment: Alignment.center,
-                textStyle: actionButtonTextStyle,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                    icon: _showLocationButtonLoading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            _isDestinationMapEntryMode
+                                ? Icons.map_outlined
+                                : Icons.my_location,
+                            size: 18,
+                          ),
+                    label: Text(
+                      _isDestinationMapEntryMode ? 'Pilih Peta' : 'Lokasi Saya',
+                      style: actionButtonTextStyle,
+                    ),
+                  ),
                 ),
               ),
-              child: Text(
-                widget.args.confirmLabel,
-                textAlign: TextAlign.center,
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed:
+                        (_canConfirmRoute ||
+                            (_isManualDestinationSelectionMode &&
+                                !_isSavingManualDestination))
+                        ? _handlePrimaryAction
+                        : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.white,
+                      disabledBackgroundColor: AppColors.border,
+                      disabledForegroundColor: AppColors.textSecondary,
+                      elevation: 0,
+                      padding: EdgeInsets.zero,
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      alignment: Alignment.center,
+                      textStyle: actionButtonTextStyle,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      'Simpan',
+                      textAlign: TextAlign.center,
+                      style: actionButtonTextStyle,
+                    ),
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ],
       ),
@@ -907,7 +929,12 @@ class _InfoHint extends StatelessWidget {
           child: Icon(icon, size: 14, color: iconColor),
         ),
         const SizedBox(width: 6),
-        Expanded(child: Text(text, style: _RouteLocationPickerScreenState._bodyHintStyle)),
+        Expanded(
+          child: Text(
+            text,
+            style: _RouteLocationPickerScreenState._bodyHintStyle,
+          ),
+        ),
       ],
     );
   }
@@ -935,15 +962,15 @@ class _PointCard extends StatelessWidget {
     final point = this.point;
     final isChosen = isSelected ?? point != null;
     final labelStyle = Theme.of(context).textTheme.titleSmall?.copyWith(
-          color: isActive ? color : AppColors.textPrimary,
-          fontWeight: FontWeight.w700,
-          fontSize: 14,
-        );
+      color: isActive ? color : AppColors.textPrimary,
+      fontWeight: FontWeight.w700,
+      fontSize: 14,
+    );
     final statusStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: isChosen ? color : AppColors.textSecondary,
-          fontWeight: isChosen ? FontWeight.w600 : FontWeight.w500,
-          fontSize: 12,
-        );
+      color: isChosen ? color : AppColors.textSecondary,
+      fontWeight: isChosen ? FontWeight.w600 : FontWeight.w500,
+      fontSize: 12,
+    );
     return InkWell(
       borderRadius: BorderRadius.circular(14),
       onTap: onTap,

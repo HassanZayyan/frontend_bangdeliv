@@ -31,9 +31,11 @@ class _AddressLocationPickerScreenState
   late LatLng _cameraTarget;
   late double _initialZoom;
   bool _isResolvingCurrentLocation = false;
-  String? _locationHint;
   String _selectedSource = 'map_pin';
   bool _isLocationPermissionGranted = false;
+  int _addressRequestId = 0;
+  String? _selectedAddress;
+  bool _isResolvingAddress = false;
 
   @override
   void initState() {
@@ -56,6 +58,10 @@ class _AddressLocationPickerScreenState
     if (!hasInitialCoordinate) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _moveToCurrentLocation();
+      });
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _resolveSelectedAddress(_cameraTarget);
       });
     }
 
@@ -83,6 +89,19 @@ class _AddressLocationPickerScreenState
     super.dispose();
   }
 
+  String get _selectedAddressText {
+    final address = (_selectedAddress ?? '').trim();
+    if (address.isNotEmpty) {
+      return address;
+    }
+
+    if (_isResolvingAddress || _isResolvingCurrentLocation) {
+      return 'Mengambil detail alamat...';
+    }
+
+    return 'Detail alamat belum tersedia. Geser peta atau cari alamat.';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -98,6 +117,10 @@ class _AddressLocationPickerScreenState
       body: SafeArea(
         child: Column(
           children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: _buildSearchBar(),
+            ),
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -124,12 +147,7 @@ class _AddressLocationPickerScreenState
                             _selectedSource = 'map_pin';
                           }
                         },
-                        onCameraIdle: () {
-                          if (!mounted) {
-                            return;
-                          }
-                          setState(() {});
-                        },
+                        onCameraIdle: _handleCameraIdle,
                       ),
                       const IgnorePointer(
                         child: Center(
@@ -143,66 +161,6 @@ class _AddressLocationPickerScreenState
                           ),
                         ),
                       ),
-                      Positioned(
-                        left: 12,
-                        right: 12,
-                        top: 12,
-                        child: SearchAnchor(
-                          builder:
-                              (
-                                BuildContext context,
-                                SearchController controller,
-                              ) {
-                                return SearchBar(
-                                  controller: controller,
-                                  padding:
-                                      const WidgetStatePropertyAll<EdgeInsets>(
-                                        EdgeInsets.symmetric(horizontal: 16.0),
-                                      ),
-                                  onTap: () {
-                                    controller.openView();
-                                  },
-                                  onChanged: (_) {
-                                    controller.openView();
-                                  },
-                                  leading: const Icon(Icons.search),
-                                  hintText: 'Cari alamat / lokasi...',
-                                  backgroundColor: WidgetStatePropertyAll(
-                                    AppColors.white.withValues(alpha: 0.95),
-                                  ),
-                                  elevation: const WidgetStatePropertyAll(2),
-                                );
-                              },
-                          suggestionsBuilder:
-                              (
-                                BuildContext context,
-                                SearchController controller,
-                              ) async {
-                                final query = controller.text;
-                                if (query.isEmpty) {
-                                  return const Iterable<Widget>.empty();
-                                }
-                                final results = await _mapsLookup.searchPlaces(
-                                  query,
-                                );
-                                return results.map((prediction) {
-                                  return ListTile(
-                                    leading: const Icon(
-                                      Icons.location_on,
-                                      color: AppColors.primary,
-                                    ),
-                                    title: Text(prediction.description),
-                                    onTap: () {
-                                      controller.closeView(
-                                        prediction.description,
-                                      );
-                                      _goToPlace(prediction.placeId);
-                                    },
-                                  );
-                                });
-                              },
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -214,24 +172,26 @@ class _AddressLocationPickerScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Koordinat terpilih: ${_cameraTarget.latitude.toStringAsFixed(6)}, ${_cameraTarget.longitude.toStringAsFixed(6)}',
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                  if ((_locationHint ?? '').isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      _locationHint!,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
+                  SizedBox(
+                    height: 54,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      child: Text(
+                        _selectedAddressText,
+                        key: ValueKey(_selectedAddressText),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: _selectedAddress == null
+                              ? AppColors.textSecondary
+                              : AppColors.textPrimary,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 12.5,
+                          height: 1.35,
+                        ),
                       ),
                     ),
-                  ],
+                  ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -258,7 +218,7 @@ class _AddressLocationPickerScreenState
                                     ),
                                   )
                                 : const Icon(Icons.my_location, size: 18),
-                            label: const Text('Pakai Lokasi Saat Ini'),
+                            label: const Text('Lokasi Saya'),
                           ),
                         ),
                       ),
@@ -280,7 +240,7 @@ class _AddressLocationPickerScreenState
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
                             child: const Text(
-                              'Konfirmasi',
+                              'Simpan',
                               style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
@@ -300,10 +260,110 @@ class _AddressLocationPickerScreenState
     );
   }
 
+  Widget _buildSearchBar() {
+    return SearchAnchor(
+      viewBackgroundColor: AppColors.white,
+      viewSurfaceTintColor: AppColors.white,
+      builder: (BuildContext context, SearchController controller) {
+        return SearchBar(
+          controller: controller,
+          padding: const WidgetStatePropertyAll<EdgeInsets>(
+            EdgeInsets.symmetric(horizontal: 16),
+          ),
+          onTap: controller.openView,
+          onChanged: (_) => controller.openView(),
+          leading: const Icon(Icons.search),
+          hintText: 'Cari alamat / lokasi...',
+          hintStyle: const WidgetStatePropertyAll(
+            TextStyle(color: AppColors.textSecondary, fontSize: 16),
+          ),
+          side: const WidgetStatePropertyAll(
+            BorderSide(color: AppColors.border),
+          ),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+          backgroundColor: WidgetStatePropertyAll(
+            AppColors.white.withValues(alpha: 0.95),
+          ),
+          elevation: const WidgetStatePropertyAll(1),
+        );
+      },
+      suggestionsBuilder:
+          (BuildContext context, SearchController controller) async {
+            final query = controller.text;
+            if (query.isEmpty) {
+              return const Iterable<Widget>.empty();
+            }
+            final results = await _mapsLookup.searchPlaces(query);
+            return results.map((prediction) {
+              return ListTile(
+                leading: const Icon(
+                  Icons.location_on,
+                  color: AppColors.primary,
+                ),
+                title: Text(prediction.description),
+                onTap: () {
+                  controller.closeView(prediction.description);
+                  _goToPlace(prediction.placeId);
+                },
+              );
+            });
+          },
+    );
+  }
+
+  Future<void> _handleCameraIdle() async {
+    if (!mounted) {
+      return;
+    }
+
+    if (_isResolvingCurrentLocation) {
+      setState(() {});
+      return;
+    }
+
+    await _resolveSelectedAddress(_cameraTarget);
+  }
+
+  Future<void> _resolveSelectedAddress(
+    LatLng target, {
+    String? preferredAddress,
+  }) async {
+    if (!mounted) {
+      return;
+    }
+
+    final cleanedPreferred = _mapsLookup.cleanAddress(preferredAddress);
+    final requestId = ++_addressRequestId;
+
+    setState(() {
+      _isResolvingAddress = cleanedPreferred == null;
+      _selectedAddress = cleanedPreferred;
+    });
+
+    if (cleanedPreferred != null) {
+      setState(() {
+        _isResolvingAddress = false;
+      });
+      return;
+    }
+
+    final resolvedAddress = await _mapsLookup.reverseGeocode(target);
+    if (!mounted || requestId != _addressRequestId) {
+      return;
+    }
+
+    setState(() {
+      _selectedAddress = _mapsLookup.cleanAddress(resolvedAddress);
+      _isResolvingAddress = false;
+    });
+  }
+
   Future<void> _moveToCurrentLocation() async {
     setState(() {
       _isResolvingCurrentLocation = true;
-      _locationHint = null;
+      _isResolvingAddress = true;
     });
 
     try {
@@ -312,10 +372,6 @@ class _AddressLocationPickerScreenState
         _showMessage(
           'Layanan lokasi belum aktif. Aktifkan GPS lalu coba lagi.',
         );
-        setState(() {
-          _locationHint =
-              'GPS belum aktif, kamu tetap bisa memilih titik dengan drag peta.';
-        });
         return;
       }
 
@@ -326,10 +382,6 @@ class _AddressLocationPickerScreenState
 
       if (permission == LocationPermission.denied) {
         _showMessage('Izin lokasi ditolak. Pilih titik manual di peta.');
-        setState(() {
-          _locationHint =
-              'Izin lokasi ditolak, gunakan drag peta untuk memilih titik.';
-        });
         return;
       }
 
@@ -338,10 +390,6 @@ class _AddressLocationPickerScreenState
           'Izin lokasi ditolak permanen. Buka pengaturan untuk mengaktifkannya.',
         );
         await Geolocator.openAppSettings();
-        setState(() {
-          _locationHint =
-              'Izin lokasi ditolak permanen, kamu bisa lanjut pilih titik manual.';
-        });
         return;
       }
 
@@ -370,22 +418,18 @@ class _AddressLocationPickerScreenState
       }
 
       setState(() {
-        _locationHint =
-            'Lokasi saat ini berhasil digunakan sebagai titik awal.';
         _selectedSource = 'gps';
       });
+      await _resolveSelectedAddress(target);
     } catch (_) {
       _showMessage(
         'Gagal mengambil lokasi saat ini. Coba lagi atau pilih titik manual.',
       );
-      setState(() {
-        _locationHint =
-            'Lokasi tidak tersedia, kamu tetap bisa drag peta untuk memilih titik.';
-      });
     } finally {
       if (mounted) {
         setState(() {
           _isResolvingCurrentLocation = false;
+          _isResolvingAddress = false;
         });
       }
     }
@@ -435,7 +479,10 @@ class _AddressLocationPickerScreenState
     if (!mounted) return;
     setState(() {
       _selectedSource = 'search';
-      _locationHint = resolved.address ?? 'Lokasi ditemukan.';
     });
+    await _resolveSelectedAddress(
+      resolved.target,
+      preferredAddress: resolved.address,
+    );
   }
 }

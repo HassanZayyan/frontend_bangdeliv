@@ -232,8 +232,16 @@ class DriverOrderModel {
       serviceTypeCode: normalizeServiceTypeCode(
         (json['service_type_code'] ?? json['serviceTypeCode'] ?? '').toString(),
       ),
-      serviceTypeName: (json['service_type_name'] ?? json['serviceTypeName'])
-          ?.toString(),
+      serviceTypeName: serviceTypeLabel(
+        normalizeServiceTypeCode(
+          (json['service_type_name'] ??
+                  json['serviceTypeName'] ??
+                  json['service_type_code'] ??
+                  json['serviceTypeCode'] ??
+                  '')
+              .toString(),
+        ),
+      ),
       pickupAddress: (json['pickup_address'] ?? json['pickupAddress'] ?? '-')
           .toString(),
       pickupLatitude: _asDoubleOrNull(

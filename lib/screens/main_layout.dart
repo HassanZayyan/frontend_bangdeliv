@@ -19,6 +19,7 @@ class _MainLayoutState extends State<MainLayout> {
   int _calculateSelectedIndex(BuildContext context) {
     final String location = GoRouterState.of(context).uri.path;
     if (location.startsWith(AppRoutes.home)) return 0;
+    if (location.startsWith(AppRoutes.nearbyMerchants)) return 0;
     if (location.startsWith(AppRoutes.activity)) return 1;
     if (location.startsWith(AppRoutes.history)) return 2;
     if (location.startsWith(AppRoutes.profile)) return 3;
@@ -78,6 +79,7 @@ class _MainLayoutState extends State<MainLayout> {
         _handleSystemBack();
       },
       child: Scaffold(
+        backgroundColor: AppColors.background,
         body: widget.child,
         bottomNavigationBar: BottomNavigationBar(
           type: BottomNavigationBarType.fixed,
@@ -91,9 +93,15 @@ class _MainLayoutState extends State<MainLayout> {
               icon: Icon(Icons.home_filled),
               label: 'Beranda',
             ),
-            BottomNavigationBarItem(icon: Icon(Icons.bolt), label: 'Aktivitas'),
-            BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Riwayat'),
-            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.assignment_rounded),
+              label: 'Aktivitas',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.history),
+              label: 'Riwayat',
+            ),
+            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Akun'),
           ],
         ),
       ),

@@ -17,7 +17,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     return Scaffold(
       backgroundColor: AppColors.primary,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppColors.background,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -28,10 +28,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         bottom: false,
         child: Column(
           children: [
-            Expanded(
-              flex: 2,
-              child: _buildHeader(context),
-            ),
+            Expanded(flex: 2, child: _buildHeader(context)),
             Expanded(
               flex: 5,
               child: Container(
@@ -44,9 +41,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     topRight: Radius.circular(30),
                   ),
                 ),
-                child: SingleChildScrollView(
-                  child: _buildForm(context),
-                ),
+                child: SingleChildScrollView(child: _buildForm(context)),
               ),
             ),
           ],
@@ -65,19 +60,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             color: Colors.white.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(20),
           ),
-          child: const Icon(
-            Icons.lock_reset,
-            size: 48,
-            color: Colors.white,
-          ),
+          child: const Icon(Icons.lock_reset, size: 48, color: Colors.white),
         ),
         const SizedBox(height: 16),
         Text(
           'Lupa Password?',
           style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ],
     );
@@ -99,9 +90,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         TextField(
           controller: _emailController,
           keyboardType: TextInputType.emailAddress,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+          ),
           decoration: const InputDecoration(
             hintText: 'Email atau Nomor WhatsApp',
-            prefixIcon: Icon(Icons.email_outlined, color: AppColors.textSecondary),
+            prefixIcon: Icon(
+              Icons.email_outlined,
+              color: AppColors.textSecondary,
+            ),
           ),
         ),
         const SizedBox(height: 32),

@@ -64,13 +64,15 @@ class _MerchantDetailView extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        elevation: 0,
-        centerTitle: true,
-        backgroundColor: AppColors.white,
-        foregroundColor: AppColors.textPrimary,
         title: const Text(
-          'Detail Merchant',
-          style: TextStyle(fontWeight: FontWeight.w700),
+          'Detail Toko & Resto',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+        backgroundColor: AppColors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.chevron_left, color: AppColors.textPrimary),
+          onPressed: () => Navigator.of(context).maybePop(),
         ),
       ),
       body: SingleChildScrollView(
@@ -118,21 +120,6 @@ class _MerchantDetailView extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                const Icon(Icons.star_rounded, size: 18, color: Colors.amber),
-                const SizedBox(width: 6),
-                Text(
-                  merchant.rating.toStringAsFixed(1),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
             Row(
               children: [
                 const Icon(
@@ -185,11 +172,16 @@ class _MerchantDetailErrorState extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        elevation: 0,
-        centerTitle: true,
+        title: const Text(
+          'Detail Toko & Resto',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
         backgroundColor: AppColors.white,
-        foregroundColor: AppColors.textPrimary,
-        title: const Text('Detail Merchant'),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.chevron_left, color: AppColors.textPrimary),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
       ),
       body: Center(
         child: Padding(

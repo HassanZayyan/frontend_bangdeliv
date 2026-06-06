@@ -6,10 +6,12 @@ class NotificationSettingsScreen extends StatefulWidget {
   const NotificationSettingsScreen({super.key});
 
   @override
-  State<NotificationSettingsScreen> createState() => _NotificationSettingsScreenState();
+  State<NotificationSettingsScreen> createState() =>
+      _NotificationSettingsScreenState();
 }
 
-class _NotificationSettingsScreenState extends State<NotificationSettingsScreen> {
+class _NotificationSettingsScreenState
+    extends State<NotificationSettingsScreen> {
   bool _orderUpdates = true;
   bool _chatMessages = true;
   bool _appUpdates = false;
@@ -19,7 +21,10 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Pengaturan Notifikasi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        title: const Text(
+          'Pengaturan Notifikasi',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
         backgroundColor: AppColors.white,
         elevation: 0,
         leading: IconButton(
@@ -39,7 +44,12 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
                 value: _orderUpdates,
                 onChanged: (val) => setState(() => _orderUpdates = val),
               ),
-              const Divider(height: 1, indent: 20, endIndent: 20, color: AppColors.border),
+              const Divider(
+                height: 1,
+                indent: 20,
+                endIndent: 20,
+                color: AppColors.border,
+              ),
               _buildSwitchTile(
                 title: 'Pesan Chat Baru',
                 subtitle: 'Notifikasi pesan baru dari driver, penjual, atau AI',
@@ -65,7 +75,10 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
     );
   }
 
-  Widget _buildSettingsGroup({required String title, required List<Widget> children}) {
+  Widget _buildSettingsGroup({
+    required String title,
+    required List<Widget> children,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -73,7 +86,11 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
           padding: const EdgeInsets.only(left: 8, bottom: 12),
           child: Text(
             title,
-            style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+            ),
           ),
         ),
         Container(
@@ -82,10 +99,8 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: AppColors.border),
           ),
-          child: Column(
-            children: children,
-          ),
-        )
+          child: Column(children: children),
+        ),
       ],
     );
   }
@@ -97,10 +112,16 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
     required ValueChanged<bool> onChanged,
   }) {
     return SwitchListTile(
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+      title: Text(
+        title,
+        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+      ),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 4),
-        child: Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+        child: Text(
+          subtitle,
+          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+        ),
       ),
       value: value,
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),

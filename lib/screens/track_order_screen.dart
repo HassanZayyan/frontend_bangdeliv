@@ -148,7 +148,10 @@ class TrackOrderScreen extends ConsumerWidget {
         backgroundColor: AppColors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.chevron_left, color: AppColors.textPrimary),
+          icon: const Icon(
+            Icons.arrow_back_rounded,
+            color: AppColors.textPrimary,
+          ),
           onPressed: () {
             if (context.canPop()) {
               context.pop();
@@ -373,10 +376,10 @@ class TrackOrderScreen extends ConsumerWidget {
                             physics: const AlwaysScrollableScrollPhysics(),
                             padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
                             children: [
-                              _buildStatusProgress(
-                                order.statusCode,
-                                statusLabel: order.statusLabel,
-                                isTerminalStatus: order.isTerminalStatus,
+                              _buildActiveTrackingCard(
+                                order: order,
+                                hasLiveDriver: hasLiveDriver,
+                                showEta: _shouldShowEta(order),
                                 isRide: isRide,
                               ),
                               const SizedBox(height: 12),
@@ -392,15 +395,9 @@ class TrackOrderScreen extends ConsumerWidget {
                                 ),
                                 const SizedBox(height: 12),
                               ],
-                              _buildStatusHeader(
-                                order: order,
-                                hasLiveDriver: hasLiveDriver,
-                                showEta: _shouldShowEta(order),
-                              ),
+                              _buildRouteCard(detail),
                               const SizedBox(height: 12),
-                              _buildAddressCard(order.deliveryAddress),
-                              const SizedBox(height: 12),
-                              _buildSummaryCard(
+                              _buildOrderDetailsCard(
                                 order,
                                 detail,
                                 showEta: _shouldShowEta(order),
@@ -417,8 +414,6 @@ class TrackOrderScreen extends ConsumerWidget {
                                 _buildProofsCard(context, detail.proofs),
                                 const SizedBox(height: 12),
                               ],
-                              _buildPaymentCard(order, detail),
-                              const SizedBox(height: 12),
                               _buildTimelineCard(
                                 detail.timeline,
                                 isRide: isRide,
@@ -450,9 +445,20 @@ class TrackOrderScreen extends ConsumerWidget {
     final driverName = (detail.driverName ?? '').trim();
     final driverVehicleLabel = _driverVehicleLabel(detail);
     final driverVehiclePlate = _driverVehiclePlate(detail);
+    final isWaitingDriver = _isWaitingDriverStatus(order);
+
+    if (isWaitingDriver && driverName.isEmpty && !order.isTerminalStatus) {
+      return _buildWaitingDriverLayout(
+        context: context,
+        order: order,
+        detail: detail,
+        infoMessage: infoMessage,
+        onRefresh: onRefresh,
+      );
+    }
 
     return ColoredBox(
-      color: AppColors.background,
+      color: Colors.transparent,
       child: SafeArea(
         top: false,
         child: RefreshIndicator(
@@ -461,10 +467,10 @@ class TrackOrderScreen extends ConsumerWidget {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
             children: [
-              _buildStatusProgress(
-                order.statusCode,
-                statusLabel: order.statusLabel,
-                isTerminalStatus: order.isTerminalStatus,
+              _buildActiveTrackingCard(
+                order: order,
+                hasLiveDriver: hasLiveDriver,
+                showEta: _shouldShowEta(order),
                 isRide:
                     normalizeServiceTypeCode(order.serviceTypeCode) ==
                     ServiceTypeCodes.ride,
@@ -480,15 +486,13 @@ class TrackOrderScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
               ],
-              _buildStatusHeader(
-                order: order,
-                hasLiveDriver: hasLiveDriver,
+              _buildRouteCard(detail),
+              const SizedBox(height: 12),
+              _buildOrderDetailsCard(
+                order,
+                detail,
                 showEta: _shouldShowEta(order),
               ),
-              const SizedBox(height: 12),
-              _buildAddressCard(order.deliveryAddress),
-              const SizedBox(height: 12),
-              _buildSummaryCard(order, detail, showEta: _shouldShowEta(order)),
               const SizedBox(height: 12),
               if (detail.isShoppingOrder) ...[
                 _ShoppingOrderItemsCard(detail: detail, onChanged: onRefresh),
@@ -498,11 +502,8 @@ class TrackOrderScreen extends ConsumerWidget {
                 _buildProofsCard(context, detail.proofs),
                 const SizedBox(height: 12),
               ],
-              _buildPaymentCard(order, detail),
-              const SizedBox(height: 12),
               _buildCard(
                 title: 'Info Tracking',
-                icon: Icons.info_outline,
                 child: Text(
                   infoMessage,
                   style: TextStyle(
@@ -512,6 +513,57 @@ class TrackOrderScreen extends ConsumerWidget {
                   ),
                 ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWaitingDriverLayout({
+    required BuildContext context,
+    required CustomerOrderSummaryModel order,
+    required CustomerOrderDetailModel detail,
+    required String infoMessage,
+    Future<void> Function()? onRefresh,
+  }) {
+    final isRide =
+        normalizeServiceTypeCode(order.serviceTypeCode) ==
+        ServiceTypeCodes.ride;
+
+    return ColoredBox(
+      color: Colors.transparent,
+      child: SafeArea(
+        top: false,
+        child: RefreshIndicator(
+          onRefresh: onRefresh ?? () async {},
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
+            children: [
+              const _WaitingDriverHeroCard(),
+              const SizedBox(height: 12),
+              _buildStatusProgress(
+                order.statusCode,
+                statusLabel: order.statusLabel,
+                isTerminalStatus: order.isTerminalStatus,
+                isRide: isRide,
+              ),
+              const SizedBox(height: 12),
+              _buildTrackingInfoBanner(infoMessage),
+              const SizedBox(height: 12),
+              _buildRouteCard(detail),
+              const SizedBox(height: 12),
+              _buildOrderDetailsCard(order, detail),
+              const SizedBox(height: 12),
+              if (detail.isShoppingOrder) ...[
+                _ShoppingOrderItemsCard(detail: detail, onChanged: onRefresh),
+                const SizedBox(height: 12),
+              ],
+              if (detail.proofs.isNotEmpty) ...[
+                _buildProofsCard(context, detail.proofs),
+                const SizedBox(height: 12),
+              ],
             ],
           ),
         ),
@@ -625,6 +677,7 @@ class TrackOrderScreen extends ConsumerWidget {
     String? statusLabel,
     bool isTerminalStatus = false,
     bool isRide = false,
+    bool embedded = false,
   }) {
     final stepLabels = isRide ? _kStepLabelsRide : _kStepLabelsDefault;
     final normalized = normalizeOrderStatusCode(statusCode);
@@ -643,6 +696,115 @@ class TrackOrderScreen extends ConsumerWidget {
       totalSteps: stepLabels.length,
     );
 
+    final content = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: List.generate(stepLabels.length, (stepIndex) {
+        final isFirst = stepIndex == 0;
+        final isLast = stepIndex == stepLabels.length - 1;
+        final isCurrentStep = stepIndex == currentIndex;
+        final isPast =
+            stepIndex < currentIndex || (shouldCheckFinalStep && isCurrentStep);
+        final isCurrent = isCurrentStep && !shouldCheckFinalStep;
+
+        final leftLineColor = (stepIndex <= currentIndex)
+            ? AppColors.primary
+            : AppColors.border;
+
+        final rightLineColor = (stepIndex < currentIndex)
+            ? AppColors.primary
+            : AppColors.border;
+
+        return Expanded(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: 22,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            height: 2,
+                            color: isFirst ? Colors.transparent : leftLineColor,
+                          ),
+                        ),
+                        Expanded(
+                          child: Container(
+                            height: 2,
+                            color: isLast ? Colors.transparent : rightLineColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      width: isCurrent ? 22 : 18,
+                      height: isCurrent ? 22 : 18,
+                      decoration: BoxDecoration(
+                        color: (isPast || isCurrent)
+                            ? AppColors.primary
+                            : AppColors.border,
+                        shape: BoxShape.circle,
+                        border: isCurrent
+                            ? Border.all(
+                                color: AppColors.primary.withValues(
+                                  alpha: 0.25,
+                                ),
+                                width: 4,
+                              )
+                            : null,
+                      ),
+                      child: Center(
+                        child: isPast
+                            ? const Icon(
+                                Icons.check,
+                                color: Colors.white,
+                                size: 10,
+                              )
+                            : isCurrent
+                            ? Container(
+                                width: 6,
+                                height: 6,
+                                decoration: const BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                ),
+                              )
+                            : null,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                stepLabels[stepIndex],
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.visible,
+                style: TextStyle(
+                  fontSize: 9.5,
+                  fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w500,
+                  color: isCurrent
+                      ? AppColors.primary
+                      : isPast
+                      ? AppColors.textPrimary
+                      : AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        );
+      }),
+    );
+
+    if (embedded) {
+      return content;
+    }
+
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 14, 8, 14),
       decoration: BoxDecoration(
@@ -658,115 +820,7 @@ class TrackOrderScreen extends ConsumerWidget {
         ],
         border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: List.generate(stepLabels.length, (stepIndex) {
-          final isFirst = stepIndex == 0;
-          final isLast = stepIndex == stepLabels.length - 1;
-          final isCurrentStep = stepIndex == currentIndex;
-          final isPast =
-              stepIndex < currentIndex ||
-              (shouldCheckFinalStep && isCurrentStep);
-          final isCurrent = isCurrentStep && !shouldCheckFinalStep;
-
-          final leftLineColor = (stepIndex <= currentIndex)
-              ? AppColors.primary
-              : AppColors.border;
-
-          final rightLineColor = (stepIndex < currentIndex)
-              ? AppColors.primary
-              : AppColors.border;
-
-          return Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  height: 22,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              height: 2,
-                              color: isFirst
-                                  ? Colors.transparent
-                                  : leftLineColor,
-                            ),
-                          ),
-                          Expanded(
-                            child: Container(
-                              height: 2,
-                              color: isLast
-                                  ? Colors.transparent
-                                  : rightLineColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 250),
-                        width: isCurrent ? 22 : 18,
-                        height: isCurrent ? 22 : 18,
-                        decoration: BoxDecoration(
-                          color: (isPast || isCurrent)
-                              ? AppColors.primary
-                              : AppColors.border,
-                          shape: BoxShape.circle,
-                          border: isCurrent
-                              ? Border.all(
-                                  color: AppColors.primary.withValues(
-                                    alpha: 0.25,
-                                  ),
-                                  width: 4,
-                                )
-                              : null,
-                        ),
-                        child: Center(
-                          child: isPast
-                              ? const Icon(
-                                  Icons.check,
-                                  color: Colors.white,
-                                  size: 10,
-                                )
-                              : isCurrent
-                              ? Container(
-                                  width: 6,
-                                  height: 6,
-                                  decoration: const BoxDecoration(
-                                    color: Colors.white,
-                                    shape: BoxShape.circle,
-                                  ),
-                                )
-                              : null,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  stepLabels[stepIndex],
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.visible,
-                  style: TextStyle(
-                    fontSize: 9.5,
-                    fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w500,
-                    color: isCurrent
-                        ? AppColors.primary
-                        : isPast
-                        ? AppColors.textPrimary
-                        : AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
-      ),
+      child: content,
     );
   }
 
@@ -794,18 +848,24 @@ class TrackOrderScreen extends ConsumerWidget {
   }
 
   // ---------------------------------------------------------------------------
-  // Status header card — order number, status badge, LIVE badge, ETA banner
+  // Active tracking card: order number, status badge, ETA, and progress
   // ---------------------------------------------------------------------------
 
-  Widget _buildStatusHeader({
+  Widget _buildActiveTrackingCard({
     required CustomerOrderSummaryModel order,
     required bool hasLiveDriver,
     bool showEta = true,
+    bool isRide = false,
   }) {
-    final statusColor = orderStatusColor(order.statusCode);
     final hasEta = showEta && order.estimatedDelivery != null;
+    final statusTitle = _detailStatusTitle(order);
+    final showProgress =
+        !order.isTerminalStatus &&
+        !isTerminalOrderStatus(normalizeOrderStatusCode(order.statusCode));
 
     return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
@@ -820,144 +880,118 @@ class TrackOrderScreen extends ConsumerWidget {
         border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(
-                        serviceTypeLeadingIcon(order.serviceTypeCode),
-                        color: statusColor,
-                        size: 26,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: SizedBox(
-                        height: 24,
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            order.orderNumber,
-                            style: GoogleFonts.poppins(
-                              color: AppColors.primaryDark,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              height: 1.1,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _buildServiceTypeBadge(order.serviceTypeLabel),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _buildStatusBadge(
-                      text: order.statusLabel,
-                      color: statusColor,
-                    ),
-                    if (hasLiveDriver) _buildLiveBadge(),
-                  ],
-                ),
-              ],
-            ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildServiceTypeBadge(
+                order.serviceTypeLabel,
+                icon: serviceTypeLeadingIcon(order.serviceTypeCode),
+              ),
+              if (hasLiveDriver) _buildLiveBadge(),
+            ],
           ),
-          if (hasEta)
+          if (statusTitle.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              statusTitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.primaryDark,
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                height: 1.05,
+              ),
+            ),
+          ],
+          if (hasEta) ...[
+            const SizedBox(height: 14),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.06),
-                borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(16),
-                ),
-                border: const Border(top: BorderSide(color: AppColors.border)),
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border),
               ),
               child: Row(
                 children: [
                   const Icon(
-                    Icons.access_time_rounded,
-                    size: 14,
-                    color: AppColors.primary,
+                    Icons.schedule_rounded,
+                    color: AppColors.textSecondary,
+                    size: 18,
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      'Estimasi tiba: ${_estimateArrivalText(order.estimatedDelivery)}',
-                      style: const TextStyle(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
+                    child: RichText(
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      text: TextSpan(
+                        style: GoogleFonts.nunitoSans(
+                          color: AppColors.textSecondary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          height: 1.25,
+                        ),
+                        children: [
+                          const TextSpan(text: 'Estimasi tiba: '),
+                          TextSpan(
+                            text: _estimateArrivalText(order.estimatedDelivery),
+                            style: GoogleFonts.nunitoSans(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ],
               ),
             ),
+          ],
+          if (showProgress) ...[
+            const SizedBox(height: 16),
+            _buildStatusProgress(
+              order.statusCode,
+              statusLabel: order.statusLabel,
+              isTerminalStatus: order.isTerminalStatus,
+              isRide: isRide,
+              embedded: true,
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildStatusBadge({required String text, required Color color}) {
-    return Container(
-      constraints: const BoxConstraints(minHeight: 30),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        text,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.w700,
-          fontSize: 12,
-          height: 1.15,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildServiceTypeBadge(String text) {
-    return Container(
-      constraints: const BoxConstraints(minHeight: 30, maxWidth: 130),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Text(
-        text,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          color: AppColors.textSecondary,
-          fontSize: 11.5,
-          fontWeight: FontWeight.w600,
-          height: 1.15,
-        ),
+  Widget _buildServiceTypeBadge(String text, {IconData? icon}) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 150),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 14, color: AppColors.primary),
+            const SizedBox(width: 5),
+          ],
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                height: 1.1,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -997,81 +1031,17 @@ class TrackOrderScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildVehicleInfoSection({
-    String? vehicleLabel,
-    String? vehiclePlate,
-  }) {
-    if (vehicleLabel == null && vehiclePlate == null) {
-      return const SizedBox.shrink();
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (vehicleLabel != null)
-          _buildVehicleInfoRow(
-            label: 'Motor',
-            value: vehicleLabel,
-            icon: Icons.two_wheeler_outlined,
-          ),
-        if (vehicleLabel != null && vehiclePlate != null)
-          const SizedBox(height: 6),
-        if (vehiclePlate != null)
-          _buildVehicleInfoRow(
-            label: 'Plat',
-            value: vehiclePlate,
-            icon: Icons.confirmation_number_outlined,
-          ),
-      ],
-    );
-  }
-
-  Widget _buildVehicleInfoRow({
-    required String label,
-    required String value,
-    required IconData icon,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 14, color: AppColors.textSecondary),
-        const SizedBox(width: 6),
-        SizedBox(
-          width: 44,
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        const Text(
-          ': ',
-          style: TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700,
-              height: 1.25,
-            ),
-          ),
-        ),
-      ],
-    );
+  String? _driverVehicleSubtitle({String? vehicleLabel, String? vehiclePlate}) {
+    final parts = [
+      vehicleLabel,
+      vehiclePlate,
+    ].where((part) => part != null && part.trim().isNotEmpty);
+    final subtitle = parts.map((part) => part!.trim()).join(' - ');
+    return subtitle.isEmpty ? null : subtitle;
   }
 
   // ---------------------------------------------------------------------------
-  // Driver card — avatar inisial + nama driver
+  // Driver card: avatar inisial + nama driver
   // ---------------------------------------------------------------------------
 
   Widget _buildDriverCard(
@@ -1081,8 +1051,13 @@ class TrackOrderScreen extends ConsumerWidget {
     String? vehiclePlate,
     VoidCallback? onChat,
   }) {
+    final vehicleSubtitle = _driverVehicleSubtitle(
+      vehicleLabel: vehicleLabel,
+      vehiclePlate: vehiclePlate,
+    );
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
@@ -1096,92 +1071,78 @@ class TrackOrderScreen extends ConsumerWidget {
         ],
         border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [AppColors.primary, AppColors.primaryDark],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Text(
-                    driverName[0].toUpperCase(),
-                    style: GoogleFonts.poppins(
-                      color: AppColors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 22,
-                    ),
-                  ),
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.18),
+              ),
+            ),
+            child: Center(
+              child: Text(
+                _driverInitials(driverName),
+                style: GoogleFonts.nunitoSans(
+                  color: AppColors.primaryDark,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 17,
                 ),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Driver Anda',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      driverName,
-                      style: GoogleFonts.poppins(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (onChat != null) ...[
-                const SizedBox(width: 10),
-                Consumer(
-                  builder: (context, ref, _) {
-                    final unreadCountAsync = ref.watch(
-                      orderChatUnreadCountProvider(orderId),
-                    );
-                    final unreadCount = unreadCountAsync.asData?.value ?? 0;
-
-                    return IconButton(
-                      onPressed: onChat,
-                      tooltip: 'Chat driver',
-                      icon: OrderChatBadgeIcon(unreadCount: unreadCount),
-                      color: AppColors.primary,
-                    );
-                  },
-                ),
-              ],
-            ],
+            ),
           ),
-          if (vehicleLabel != null || vehiclePlate != null) ...[
-            const SizedBox(height: 12),
-            const Divider(height: 1, thickness: 1, color: AppColors.border),
-            const SizedBox(height: 10),
-            _buildVehicleInfoSection(
-              vehicleLabel: vehicleLabel,
-              vehiclePlate: vehiclePlate,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  driverName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.nunitoSans(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                    height: 1.15,
+                  ),
+                ),
+                if (vehicleSubtitle != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    vehicleSubtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (onChat != null) ...[
+            const SizedBox(width: 10),
+            Consumer(
+              builder: (context, ref, _) {
+                final unreadCountAsync = ref.watch(
+                  orderChatUnreadCountProvider(orderId),
+                );
+                final unreadCount = unreadCountAsync.asData?.value ?? 0;
+
+                return IconButton(
+                  onPressed: onChat,
+                  tooltip: 'Chat driver',
+                  icon: OrderChatBadgeIcon(unreadCount: unreadCount),
+                  color: AppColors.primary,
+                );
+              },
             ),
           ],
         ],
@@ -1189,27 +1150,58 @@ class TrackOrderScreen extends ConsumerWidget {
     );
   }
 
+  String _detailStatusTitle(CustomerOrderSummaryModel order) {
+    final normalizedCode = normalizeOrderStatusCode(order.statusCode);
+    final label = order.statusLabel.trim();
+    final normalizedLabel = label.toUpperCase();
+
+    if (normalizedCode == OrderStatusCodes.completed ||
+        normalizedCode == OrderStatusCodes.delivered ||
+        normalizedLabel == 'SELESAI') {
+      return 'Pesanan selesai';
+    }
+
+    return label;
+  }
+
+  String _driverInitials(String driverName) {
+    final parts = driverName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .toList(growable: false);
+    if (parts.isEmpty) {
+      return '?';
+    }
+    if (parts.length == 1) {
+      return parts.first.characters.first.toUpperCase();
+    }
+    return '${parts.first.characters.first}${parts[1].characters.first}'
+        .toUpperCase();
+  }
+
   // ---------------------------------------------------------------------------
   // Order summary card
   // ---------------------------------------------------------------------------
 
-  Widget _buildSummaryCard(
+  Widget _buildOrderDetailsCard(
     CustomerOrderSummaryModel order,
     CustomerOrderDetailModel detail, {
-    bool showEta = true,
+    bool showEta = false,
   }) {
+    final deliveryFeeNotice = _deliveryFeeNotice(order, detail);
+    final serviceCode = normalizeServiceTypeCode(order.serviceTypeCode);
+    final isShopping = serviceCode == ServiceTypeCodes.shopping;
     final paymentMethod = paymentMethodLabel(detail.paymentMethod);
     final paymentStatus = paymentStatusLabel(detail.paymentStatus);
-    final deliveryFeeNotice = _deliveryFeeNotice(order, detail);
+    final isPaid = isPaymentPaid(detail.paymentStatus);
     final rows = <_InfoRow>[
       _InfoRow('No. Order', order.orderNumber),
       _InfoRow('Layanan', order.serviceTypeLabel),
-      if (normalizeServiceTypeCode(order.serviceTypeCode) ==
-              ServiceTypeCodes.courier &&
+      if (serviceCode == ServiceTypeCodes.courier &&
           order.itemsSummary.trim().isNotEmpty &&
           order.itemsSummary.trim().toLowerCase() != 'tanpa item')
         _InfoRow('Barang', order.itemsSummary.trim()),
-      _InfoRow('Total', formatCurrency(order.totalAmount)),
       if (showEta && order.estimatedDelivery != null)
         _InfoRow('ETA', _estimateArrivalText(order.estimatedDelivery)),
       if ((detail.deliveryDistanceText ?? '').trim().isNotEmpty)
@@ -1218,52 +1210,69 @@ class TrackOrderScreen extends ConsumerWidget {
     ];
 
     return _buildCard(
-      title: 'Ringkasan Order',
-      icon: Icons.receipt_long_outlined,
+      title: 'Detail Order',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ...List.generate(rows.length, (index) {
             final row = rows[index];
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (index > 0)
-                  const Divider(
-                    height: 1,
-                    thickness: 1,
-                    color: AppColors.border,
-                  ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  child: Row(
-                    children: [
-                      Text(
-                        row.label,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        row.value,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            );
+            return _summaryRow(row);
           }),
-          if (deliveryFeeNotice != null) ...[
+          if (!isShopping) ...[
+            const Divider(height: 18, thickness: 1, color: AppColors.border),
+            _summaryRow(
+              _InfoRow(
+                'Total',
+                formatCurrency(order.totalAmount),
+                emphasized: true,
+              ),
+            ),
             const SizedBox(height: 8),
+            Text(
+              _paymentMessage(order, detail, isPaid: isPaid),
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+                height: 1.4,
+              ),
+            ),
+          ],
+          if (deliveryFeeNotice != null) ...[
+            const SizedBox(height: 12),
             _DeliveryFeeNotice(text: deliveryFeeNotice),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryRow(_InfoRow row) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            row.label,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              row.value,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontWeight: row.emphasized ? FontWeight.w800 : FontWeight.w600,
+                fontSize: row.emphasized ? 15.5 : 13,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1291,6 +1300,35 @@ class TrackOrderScreen extends ConsumerWidget {
     return buffer.toString();
   }
 
+  String _paymentMessage(
+    CustomerOrderSummaryModel order,
+    CustomerOrderDetailModel detail, {
+    required bool isPaid,
+  }) {
+    final isCourier =
+        normalizeServiceTypeCode(order.serviceTypeCode) ==
+        ServiceTypeCodes.courier;
+    final isCancelledWithFee =
+        normalizeOrderStatusCode(order.statusCode) ==
+        OrderStatusCodes.cancelledWithFee;
+
+    if (isCancelledWithFee) {
+      return isPaid
+          ? 'Penalty merchant gagal sudah tercatat.'
+          : 'Bayar penalty merchant gagal sesuai nominal.';
+    }
+
+    if (isCourier) {
+      return isPaid
+          ? 'Pembayaran pickup sudah tercatat.'
+          : 'Bayar tunai ke driver saat menyerahkan barang di titik ambil.';
+    }
+
+    return isPaid
+        ? 'Pembayaran tunai sudah tercatat.'
+        : 'Bayar tunai ke driver saat pesanan sampai.';
+  }
+
   Widget _buildProofsCard(
     BuildContext context,
     List<CustomerOrderProofModel> proofs,
@@ -1309,7 +1347,6 @@ class TrackOrderScreen extends ConsumerWidget {
 
     return _buildCard(
       title: 'Bukti Foto',
-      icon: Icons.photo_library_outlined,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1407,139 +1444,147 @@ class TrackOrderScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildPaymentCard(
-    CustomerOrderSummaryModel order,
-    CustomerOrderDetailModel detail,
-  ) {
-    final isPaid = isPaymentPaid(detail.paymentStatus);
-    final statusColor = isPaid ? AppColors.success : AppColors.primary;
-    final isCourier =
-        normalizeServiceTypeCode(order.serviceTypeCode) ==
-        ServiceTypeCodes.courier;
-    final isCancelledWithFee =
-        normalizeOrderStatusCode(order.statusCode) ==
-        OrderStatusCodes.cancelledWithFee;
-    final paymentMessage = isCancelledWithFee
-        ? (isPaid
-              ? 'Penalty merchant gagal sudah tercatat.'
-              : 'Bayar penalty merchant gagal sesuai nominal.')
-        : isCourier
-        ? (isPaid
-              ? 'Pembayaran pickup sudah tercatat.'
-              : 'Bayar tunai ke driver saat menyerahkan barang di titik ambil.')
-        : (isPaid
-              ? 'Pembayaran tunai sudah tercatat.'
-              : 'Bayar tunai ke driver saat pesanan sampai.');
-
-    return _buildCard(
-      title: 'Pembayaran COD',
-      icon: Icons.payments_outlined,
-      child: Column(
+  Widget _buildTrackingInfoBanner(String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.14)),
+      ),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _paymentChip(
-                paymentMethodLabel(detail.paymentMethod),
-                statusColor,
-              ),
-              _paymentChip(
-                paymentStatusLabel(detail.paymentStatus),
-                statusColor,
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            paymentMessage,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-              height: 1.45,
-            ),
-          ),
-          if (!isPaid) ...[
-            const SizedBox(height: 6),
-            Text(
-              'Nominal: ${formatCurrency(order.totalAmount)}',
+          const Icon(Icons.info_outline, color: AppColors.primary, size: 18),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              message,
               style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12.5,
+                color: AppColors.textPrimary,
+                fontSize: 11.5,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
               ),
             ),
-          ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _paymentChip(String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-
   // ---------------------------------------------------------------------------
-  // Address card
+  // Route card
   // ---------------------------------------------------------------------------
 
-  Widget _buildAddressCard(String address) {
+  Widget _buildRouteCard(CustomerOrderDetailModel detail) {
+    final order = detail.summary;
+    final serviceCode = normalizeServiceTypeCode(order.serviceTypeCode);
+    final pickupLabel = _pickupLabel(serviceCode);
+    final dropoffLabel = _dropoffLabel(serviceCode);
+    final pickupText = _pickupText(detail, serviceCode);
+    final dropoffText =
+        (detail.dropoffAddress ?? order.deliveryAddress).trim().isEmpty
+        ? '-'
+        : (detail.dropoffAddress ?? order.deliveryAddress).trim();
+
     return _buildCard(
-      title: 'Alamat Tujuan',
-      icon: Icons.location_on_outlined,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      title: 'Rute Pesanan',
+      child: Column(
         children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: AppColors.error.withValues(alpha: 0.08),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.place_rounded,
-              color: AppColors.error,
-              size: 16,
-            ),
+          _RoutePoint(
+            icon: Icons.radio_button_checked,
+            iconColor: AppColors.primary,
+            label: pickupLabel,
+            value: pickupText,
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                address,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w500,
-                  height: 1.45,
-                  fontSize: 13,
+          const Padding(
+            padding: EdgeInsets.only(left: 9, top: 4, bottom: 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: SizedBox(
+                height: 18,
+                child: VerticalDivider(
+                  color: AppColors.border,
+                  thickness: 1.4,
+                  width: 1,
                 ),
               ),
             ),
           ),
+          _RoutePoint(
+            icon: Icons.location_on,
+            iconColor: AppColors.success,
+            label: dropoffLabel,
+            value: dropoffText,
+          ),
         ],
       ),
     );
   }
 
+  String _pickupLabel(String serviceCode) {
+    switch (serviceCode) {
+      case ServiceTypeCodes.ride:
+        return 'Jemput di';
+      case ServiceTypeCodes.courier:
+        return 'Ambil paket di';
+      case ServiceTypeCodes.shopping:
+        return 'Ambil di';
+      default:
+        return 'Ambil di';
+    }
+  }
+
+  String _dropoffLabel(String serviceCode) {
+    switch (serviceCode) {
+      case ServiceTypeCodes.ride:
+        return 'Tujuan';
+      case ServiceTypeCodes.courier:
+        return 'Kirim ke';
+      case ServiceTypeCodes.shopping:
+        return 'Antar ke';
+      default:
+        return 'Tujuan';
+    }
+  }
+
+  String _pickupText(CustomerOrderDetailModel detail, String serviceCode) {
+    if (serviceCode == ServiceTypeCodes.shopping &&
+        detail.shoppingStops.isNotEmpty) {
+      final activeStops = detail.shoppingStops
+          .where((stop) => stop.isActive)
+          .toList(growable: false);
+      final stops = activeStops.isEmpty ? detail.shoppingStops : activeStops;
+      final firstStop = stops.first;
+      final merchantName = firstStop.merchant.name.trim();
+      final merchantAddress = (firstStop.merchant.address ?? '').trim();
+      final buffer = StringBuffer(
+        merchantName.isNotEmpty && merchantName != '-' ? merchantName : 'Toko',
+      );
+
+      if (merchantAddress.isNotEmpty) {
+        buffer.write(' - $merchantAddress');
+      }
+      if (stops.length > 1) {
+        buffer.write(' +${stops.length - 1} lokasi ambil lainnya');
+      }
+
+      return buffer.toString();
+    }
+
+    final pickupAddress = (detail.pickupAddress ?? '').trim();
+    if (pickupAddress.isNotEmpty) {
+      return pickupAddress;
+    }
+
+    final fallbackName = detail.summary.restaurantName.trim();
+    return fallbackName.isNotEmpty && fallbackName != '-' ? fallbackName : '-';
+  }
+
   // ---------------------------------------------------------------------------
-  // Timeline card — vertical stepper with connectors
+  // Timeline card: vertical stepper with connectors
   // ---------------------------------------------------------------------------
 
   Widget _buildTimelineCard(
@@ -1549,7 +1594,6 @@ class TrackOrderScreen extends ConsumerWidget {
   }) {
     return _buildCard(
       title: 'Riwayat Status',
-      icon: Icons.history_outlined,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1585,39 +1629,31 @@ class TrackOrderScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   SizedBox(
-                    width: 24,
+                    width: 20,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
-                          width: isLast ? 16 : 14,
-                          height: isLast ? 16 : 14,
+                          width: isLast ? 12 : 9,
+                          height: isLast ? 12 : 9,
                           decoration: BoxDecoration(
-                            color: dotColor,
+                            color: isLast
+                                ? dotColor
+                                : dotColor.withValues(alpha: 0.72),
                             shape: BoxShape.circle,
-                            boxShadow: isLast
-                                ? [
-                                    BoxShadow(
-                                      color: dotColor.withValues(alpha: 0.4),
-                                      blurRadius: 6,
-                                      spreadRadius: 1,
-                                    ),
-                                  ]
+                            border: isLast
+                                ? Border.all(
+                                    color: dotColor.withValues(alpha: 0.16),
+                                    width: 3,
+                                  )
                                 : null,
                           ),
-                          child: !isLast
-                              ? const Icon(
-                                  Icons.check,
-                                  color: Colors.white,
-                                  size: 8,
-                                )
-                              : null,
                         ),
                         if (!isLast)
                           Container(
-                            width: 2,
-                            height: 30,
-                            margin: const EdgeInsets.symmetric(vertical: 3),
+                            width: 1.5,
+                            height: 24,
+                            margin: const EdgeInsets.symmetric(vertical: 4),
                             decoration: BoxDecoration(
                               color: AppColors.border,
                               borderRadius: BorderRadius.circular(1),
@@ -1629,7 +1665,7 @@ class TrackOrderScreen extends ConsumerWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Padding(
-                      padding: EdgeInsets.only(bottom: isLast ? 0 : 18),
+                      padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -1638,9 +1674,10 @@ class TrackOrderScreen extends ConsumerWidget {
                             style: TextStyle(
                               color: isLast ? dotColor : AppColors.textPrimary,
                               fontWeight: isLast
-                                  ? FontWeight.w800
+                                  ? FontWeight.w700
                                   : FontWeight.w600,
-                              fontSize: 13,
+                              fontSize: 12.5,
+                              height: 1.2,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -1648,7 +1685,8 @@ class TrackOrderScreen extends ConsumerWidget {
                             formatDateTime(item.changedAt),
                             style: const TextStyle(
                               color: AppColors.textSecondary,
-                              fontSize: 11.5,
+                              fontSize: 11.2,
+                              height: 1.25,
                             ),
                           ),
                         ],
@@ -1669,7 +1707,7 @@ class TrackOrderScreen extends ConsumerWidget {
 
   Widget _buildCard({
     required String title,
-    required IconData icon,
+    IconData? icon,
     required Widget child,
   }) {
     return Container(
@@ -1693,8 +1731,10 @@ class TrackOrderScreen extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 14, color: AppColors.textSecondary),
-              const SizedBox(width: 6),
+              if (icon != null) ...[
+                Icon(icon, size: 14, color: AppColors.textSecondary),
+                const SizedBox(width: 6),
+              ],
               Text(
                 title,
                 style: const TextStyle(
@@ -1751,14 +1791,24 @@ class TrackOrderScreen extends ConsumerWidget {
   }
 }
 
-class _ShoppingOrderItemsCard extends ConsumerWidget {
+class _ShoppingOrderItemsCard extends ConsumerStatefulWidget {
   final CustomerOrderDetailModel detail;
   final Future<void> Function()? onChanged;
 
   const _ShoppingOrderItemsCard({required this.detail, this.onChanged});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ShoppingOrderItemsCard> createState() =>
+      _ShoppingOrderItemsCardState();
+}
+
+class _ShoppingOrderItemsCardState
+    extends ConsumerState<_ShoppingOrderItemsCard> {
+  final Set<int> _expandedStopIds = <int>{};
+
+  @override
+  Widget build(BuildContext context) {
+    final detail = widget.detail;
     final stops = detail.shoppingStops;
     final activeStops = stops
         .where((stop) => stop.isActive)
@@ -1767,43 +1817,61 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
     final failedStops = stops
         .where((stop) => stop.isFailed)
         .toList(growable: false);
+    final paymentMessage = _shoppingPaymentMessage(detail);
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 16,
+            spreadRadius: 2,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.shopping_bag_outlined,
-                size: 18,
-                color: AppColors.primary,
-              ),
-              const SizedBox(width: 8),
               const Expanded(
                 child: Text(
-                  'Item Titip Belanja',
+                  'Item Nitip',
                   style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w800,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11.5,
+                    letterSpacing: 0.2,
                   ),
                 ),
               ),
               if (detail.canEditShoppingItems)
                 TextButton.icon(
                   onPressed: () => _openAddItemScreen(context, ref),
-                  icon: const Icon(Icons.add, size: 18),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    minimumSize: const Size(0, 30),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    textStyle: GoogleFonts.nunitoSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  icon: const Icon(Icons.add_rounded, size: 15),
                   label: const Text('Tambah'),
                 ),
             ],
           ),
-          const SizedBox(height: 8),
+          const Divider(height: 18, color: AppColors.border),
           if (failedStops.isNotEmpty) ...[
             ...failedStops.map((stop) => _failedStopNotice(context, ref, stop)),
             const SizedBox(height: 4),
@@ -1814,7 +1882,14 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
               style: TextStyle(color: AppColors.textSecondary),
             )
           else
-            ...activeStops.map((stop) => _stopSection(context, ref, stop)),
+            ...activeStops.indexed.map(
+              (entry) => _stopSection(
+                context,
+                ref,
+                entry.$2,
+                showDivider: entry.$1 > 0,
+              ),
+            ),
           if (pricing != null) ...[
             const Divider(height: 18, color: AppColors.border),
             _pricingRow('Subtotal barang', pricing.subtotal),
@@ -1832,11 +1907,40 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
                   .toList(growable: false),
             ),
             const SizedBox(height: 4),
-            _pricingRow('Total COD', pricing.totalPrice, isTotal: true),
+            _pricingRow('Total', pricing.totalPrice, isTotal: true),
+          ],
+          if (paymentMessage.isNotEmpty) ...[
+            SizedBox(height: pricing == null ? 10 : 8),
+            Text(
+              paymentMessage,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+                height: 1.4,
+              ),
+            ),
           ],
         ],
       ),
     );
+  }
+
+  String _shoppingPaymentMessage(CustomerOrderDetailModel detail) {
+    final isPaid = isPaymentPaid(detail.paymentStatus);
+    final isCancelledWithFee =
+        normalizeOrderStatusCode(detail.summary.statusCode) ==
+        OrderStatusCodes.cancelledWithFee;
+
+    if (isCancelledWithFee) {
+      return isPaid
+          ? 'Penalty merchant gagal sudah tercatat.'
+          : 'Bayar penalty merchant gagal sesuai nominal.';
+    }
+
+    return isPaid
+        ? 'Pembayaran tunai sudah tercatat.'
+        : 'Bayar tunai ke driver saat pesanan sampai.';
   }
 
   Widget _failedStopNotice(
@@ -1914,65 +2018,162 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
   Widget _stopSection(
     BuildContext context,
     WidgetRef ref,
-    CustomerShoppingStopModel stop,
-  ) {
+    CustomerShoppingStopModel stop, {
+    required bool showDivider,
+  }) {
+    const collapsedItemLimit = 5;
+    final showToggle = stop.items.length > collapsedItemLimit;
+    final isExpanded = _expandedStopIds.contains(stop.pickupLocationId);
+    final visibleItems = showToggle && !isExpanded
+        ? stop.items.take(collapsedItemLimit).toList(growable: false)
+        : stop.items;
+    final hiddenCount = stop.items.length - visibleItems.length;
+    final hasPendingPrice = stop.items.any((item) => item.isPricePending);
+    final address = _displayMerchantAddress(stop.merchant.address);
+    final activeStopCount = widget.detail.shoppingStops
+        .where((item) => item.isActive)
+        .length;
+    final sequenceNo = stop.sequenceNo <= 0 ? 1 : stop.sequenceNo;
+
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
+      padding: EdgeInsets.only(top: showDivider ? 12 : 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (showDivider) ...[
+            Divider(
+              height: 1,
+              thickness: 1,
+              color: AppColors.border.withValues(alpha: 0.75),
+            ),
+            const SizedBox(height: 12),
+          ],
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 22,
-                height: 22,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: Text(
-                  '${stop.sequenceNo <= 0 ? 1 : stop.sequenceNo}',
-                  style: const TextStyle(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
-                  ),
+              if (activeStopCount > 1) ...[
+                _stopNumberBadge(sequenceNo),
+                const SizedBox(width: 9),
+              ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      stop.merchant.name,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                        height: 1.25,
+                      ),
+                    ),
+                    if (address != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        address,
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 11.5,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  stop.merchant.name,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
               if (stop.isFailed || stop.isSkipped)
                 _stopStatusChip(stop.isFailed ? 'Gagal' : 'Dilewati'),
             ],
           ),
-          if ((stop.merchant.address ?? '').trim().isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Padding(
-              padding: const EdgeInsets.only(left: 30),
-              child: Text(
-                stop.merchant.address!.trim(),
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
-                  height: 1.35,
+          const SizedBox(height: 8),
+          ...visibleItems.map((item) => _itemRow(context, ref, item)),
+          if (showToggle) ...[
+            const SizedBox(height: 2),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: () {
+                  setState(() {
+                    if (isExpanded) {
+                      _expandedStopIds.remove(stop.pickupLocationId);
+                    } else {
+                      _expandedStopIds.add(stop.pickupLocationId);
+                    }
+                  });
+                },
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 32),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  textStyle: GoogleFonts.nunitoSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                child: Text(
+                  isExpanded
+                      ? 'Sembunyikan item'
+                      : 'Lihat semua item (${stop.items.length})'
+                            '${hiddenCount > 0 ? ' (+$hiddenCount)' : ''}',
                 ),
               ),
             ),
           ],
-          const SizedBox(height: 8),
-          ...stop.items.map((item) => _itemRow(context, ref, item)),
+          if (hasPendingPrice) ...[
+            const SizedBox(height: 4),
+            const Text(
+              'Harga barang mengikuti struk dari merchant.',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 11,
+                height: 1.3,
+              ),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  Widget _stopNumberBadge(int number) {
+    return Container(
+      width: 21,
+      height: 21,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        shape: BoxShape.circle,
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Text(
+        number.toString(),
+        style: const TextStyle(
+          color: AppColors.primaryDark,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          height: 1,
+        ),
+      ),
+    );
+  }
+
+  String? _displayMerchantAddress(String? rawAddress) {
+    final address = (rawAddress ?? '').trim();
+    if (address.isEmpty || address == '-') {
+      return null;
+    }
+
+    final lower = address.toLowerCase();
+    final looksLikeCoordinate = RegExp(
+      r'-?\d+\.\d+,\s*-?\d+\.\d+',
+    ).hasMatch(address);
+    if (looksLikeCoordinate || lower.contains('dummy')) {
+      return null;
+    }
+
+    return address;
   }
 
   Widget _stopStatusChip(String label) {
@@ -2001,7 +2202,7 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
     final priceText = !item.isAvailable
         ? 'Tidak tersedia'
         : item.isPricePending
-        ? 'Harga mengikuti struk'
+        ? ''
         : item.subtotal > 0
         ? formatCurrency(item.subtotal)
         : 'Termasuk total struk';
@@ -2010,9 +2211,9 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
         : AppColors.textSecondary;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 5),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
             child: Column(
@@ -2022,6 +2223,8 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
                   '${item.quantity <= 0 ? 1 : item.quantity}x ${item.name}',
                   style: TextStyle(
                     color: AppColors.textPrimary,
+                    fontSize: 13.5,
+                    height: 1.3,
                     fontWeight: FontWeight.w700,
                     decoration: item.isAvailable
                         ? TextDecoration.none
@@ -2033,31 +2236,38 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
                     item.notes!.trim(),
                     style: const TextStyle(
                       color: AppColors.textSecondary,
-                      fontSize: 12,
+                      fontSize: 11.5,
+                      height: 1.3,
                     ),
                   ),
               ],
             ),
           ),
           const SizedBox(width: 8),
-          Text(
-            priceText,
-            textAlign: TextAlign.right,
-            style: TextStyle(
-              color: statusColor,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
+          if (priceText.isNotEmpty)
+            Flexible(
+              child: Text(
+                priceText,
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                  color: statusColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
-          ),
-          if (detail.canEditShoppingItems && detail.shoppingItems.length > 1)
+          if (widget.detail.canEditShoppingItems &&
+              widget.detail.shoppingItems.length > 1)
             IconButton(
               tooltip: 'Hapus item',
-              visualDensity: VisualDensity.compact,
+              visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
               onPressed: () => _removeItem(context, ref, item),
-              icon: const Icon(
+              icon: Icon(
                 Icons.delete_outline,
-                color: AppColors.error,
-                size: 20,
+                color: AppColors.error.withValues(alpha: 0.82),
+                size: 18,
               ),
             ),
         ],
@@ -2078,6 +2288,7 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
                     ? AppColors.textPrimary
                     : AppColors.textSecondary,
                 fontWeight: isTotal ? FontWeight.w800 : FontWeight.w600,
+                fontSize: isTotal ? 13.5 : 12.8,
               ),
             ),
           ),
@@ -2086,6 +2297,7 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
             style: TextStyle(
               color: AppColors.textPrimary,
               fontWeight: isTotal ? FontWeight.w800 : FontWeight.w700,
+              fontSize: isTotal ? 14.5 : 12.8,
             ),
           ),
         ],
@@ -2099,9 +2311,9 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
     int? replacementForPickupLocationId,
   }) async {
     final result = await context.push<ShoppingAddItemResult>(
-      AppRoutes.shoppingAddItemPath(detail.summary.id),
+      AppRoutes.shoppingAddItemPath(widget.detail.summary.id),
       extra: ShoppingAddItemRouteArgs(
-        detail: detail,
+        detail: widget.detail,
         replacementForPickupLocationId: replacementForPickupLocationId,
       ),
     );
@@ -2110,9 +2322,9 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
       return;
     }
 
-    ref.invalidate(customerOrderTrackingProvider(detail.summary.id));
+    ref.invalidate(customerOrderTrackingProvider(widget.detail.summary.id));
     ref.invalidate(customerOrdersProvider);
-    await onChanged?.call();
+    await widget.onChanged?.call();
     if (!context.mounted) {
       return;
     }
@@ -2133,10 +2345,13 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
     try {
       await ref
           .read(customerOrderApiServiceProvider)
-          .skipFailedShoppingStop(detail.summary.id, stop.pickupLocationId);
-      ref.invalidate(customerOrderTrackingProvider(detail.summary.id));
+          .skipFailedShoppingStop(
+            widget.detail.summary.id,
+            stop.pickupLocationId,
+          );
+      ref.invalidate(customerOrderTrackingProvider(widget.detail.summary.id));
       ref.invalidate(customerOrdersProvider);
-      await onChanged?.call();
+      await widget.onChanged?.call();
       if (!context.mounted) {
         return;
       }
@@ -2164,10 +2379,10 @@ class _ShoppingOrderItemsCard extends ConsumerWidget {
     try {
       await ref
           .read(customerOrderApiServiceProvider)
-          .removeShoppingItem(detail.summary.id, item.id);
-      ref.invalidate(customerOrderTrackingProvider(detail.summary.id));
+          .removeShoppingItem(widget.detail.summary.id, item.id);
+      ref.invalidate(customerOrderTrackingProvider(widget.detail.summary.id));
       ref.invalidate(customerOrdersProvider);
-      await onChanged?.call();
+      await widget.onChanged?.call();
       if (!context.mounted) {
         return;
       }
@@ -2193,6 +2408,88 @@ class _TrackRouteArgs {
   final bool fromHistory;
 
   const _TrackRouteArgs({this.orderId, this.fromHistory = false});
+}
+
+class _WaitingDriverHeroCard extends StatelessWidget {
+  const _WaitingDriverHeroCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Container(
+          width: double.infinity,
+          height: 164,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.16),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.black.withValues(alpha: 0.035),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              Positioned(
+                right: 12,
+                bottom: 8,
+                child: Semantics(
+                  label: 'Ilustrasi driver BangDeliv sedang dicari',
+                  image: true,
+                  child: Image.asset(
+                    'assets/images/hero.png',
+                    width: (constraints.maxWidth * 0.40).clamp(128.0, 168.0),
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.high,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 20, 16, 18),
+                child: FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: 0.55,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Menunggu Driver',
+                        style: TextStyle(
+                          color: AppColors.primaryDark,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          height: 1.15,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Kami sedang mencari driver untuk Anda.',
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12.5,
+                          height: 1.32,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _DeliveryFeeNotice extends StatelessWidget {
@@ -2232,8 +2529,59 @@ class _DeliveryFeeNotice extends StatelessWidget {
   }
 }
 
-class _InfoRow {
-  const _InfoRow(this.label, this.value);
+class _RoutePoint extends StatelessWidget {
+  const _RoutePoint({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final Color iconColor;
   final String label;
   final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: iconColor, size: 19),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                  height: 1.4,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _InfoRow {
+  const _InfoRow(this.label, this.value, {this.emphasized = false});
+  final String label;
+  final String value;
+  final bool emphasized;
 }

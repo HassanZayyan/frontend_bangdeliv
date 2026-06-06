@@ -226,9 +226,10 @@ class CustomerOrderTrackingNotifier
       return;
     }
 
-    final statusLabel = (event.statusLabel ?? '').trim().isNotEmpty
-        ? event.statusLabel!.trim()
-        : orderStatusLabel(statusCode);
+    final statusLabel = orderStatusDisplayLabel(
+      statusCode,
+      fallbackLabel: event.statusLabel,
+    );
     final isTerminal = event.isTerminal ?? isTerminalOrderStatus(statusCode);
     final patchedSummary = current.detail.summary.copyWith(
       statusCode: statusCode,
