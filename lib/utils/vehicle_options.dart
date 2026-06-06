@@ -1,8 +1,6 @@
 const vehicleTypeOptions = <String>[
   'Motor Matic',
   'Motor Manual',
-  'Motor Listrik',
-  'Motor Sport',
   'Motor Lainnya',
 ];
 

@@ -10,6 +10,7 @@ import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../models/order_chat_model.dart';
 import '../providers/auth_session_provider.dart';
+import '../providers/customer_order_providers.dart';
 import '../providers/order_chat_provider.dart';
 import '../providers/order_chat_unread_provider.dart';
 import '../utils/order_formatters.dart';
@@ -211,7 +212,17 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
   @override
   Widget build(BuildContext context) {
     final chatAsync = ref.watch(orderChatProvider(widget.orderId));
-    final currentUserId = ref.watch(authSessionProvider).profile?.id ?? 0;
+    final session = ref.watch(authSessionProvider);
+    final currentUserId = session.profile?.id ?? 0;
+    final detailAsync = session.role == SessionUserRole.customer
+        ? ref.watch(customerOrderDetailProvider(widget.orderId))
+        : null;
+    final detail = detailAsync?.asData?.value;
+    final messages =
+        chatAsync.asData?.value.messages ?? const <OrderChatMessageModel>[];
+    final driverName = (detail?.driverName ?? _driverNameFromMessages(messages))
+        .trim();
+    final driverAvatarUrl = detail?.driverAvatarUrl?.trim();
 
     ref.listen<AsyncValue<OrderChatState>>(orderChatProvider(widget.orderId), (
       previous,
@@ -239,9 +250,9 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
       child: Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
-          title: const Text(
-            'Chat Order',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          title: _ChatDriverTitle(
+            driverName: driverName.isEmpty ? 'Driver' : driverName,
+            avatarUrl: driverAvatarUrl,
           ),
           backgroundColor: AppColors.white,
           elevation: 0,
@@ -346,6 +357,93 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
         ),
       ),
     );
+  }
+
+  String _driverNameFromMessages(List<OrderChatMessageModel> messages) {
+    for (final message in messages) {
+      if (message.senderRole == 'driver' &&
+          message.senderName.trim().isNotEmpty) {
+        return message.senderName.trim();
+      }
+    }
+
+    return '';
+  }
+}
+
+class _ChatDriverTitle extends StatelessWidget {
+  const _ChatDriverTitle({required this.driverName, this.avatarUrl});
+
+  final String driverName;
+  final String? avatarUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalizedAvatar = avatarUrl?.trim() ?? '';
+
+    return Row(
+      children: [
+        ClipOval(
+          child: SizedBox.square(
+            dimension: 36,
+            child: normalizedAvatar.isEmpty
+                ? _fallbackAvatar()
+                : Image.network(
+                    normalizedAvatar,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return _fallbackAvatar();
+                    },
+                  ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            driverName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+              fontSize: 17,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _fallbackAvatar() {
+    return Container(
+      alignment: Alignment.center,
+      color: AppColors.primary.withValues(alpha: 0.12),
+      child: Text(
+        _initials(driverName),
+        style: const TextStyle(
+          color: AppColors.primary,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+
+  String _initials(String name) {
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .toList(growable: false);
+    if (parts.isEmpty) {
+      return 'D';
+    }
+    if (parts.length == 1) {
+      return parts.first.characters.first.toUpperCase();
+    }
+
+    return '${parts.first.characters.first}${parts[1].characters.first}'
+        .toUpperCase();
   }
 }
 

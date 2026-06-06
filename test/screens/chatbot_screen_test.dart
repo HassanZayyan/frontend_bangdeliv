@@ -91,7 +91,7 @@ void main() {
   });
 
   for (final entry in const <String, String>{
-    'nitip': 'Sebelum titip belanja',
+    'nitip': 'Sebelum pakai Nitip',
     'antar_jemput': 'Sebelum pesan Antar Jemput',
     'kurir': 'Sebelum pesan Kurir',
   }.entries) {

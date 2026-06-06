@@ -60,6 +60,7 @@ class _ShoppingItemDraft {
     required this.name,
     required this.quantity,
     required this.notes,
+    required this.isFromMenu,
   });
 
   final String id;
@@ -67,6 +68,7 @@ class _ShoppingItemDraft {
   final String name;
   final int quantity;
   final String? notes;
+  final bool isFromMenu;
 }
 
 class ShoppingAddItemScreen extends ConsumerStatefulWidget {
@@ -91,12 +93,15 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       TextEditingController();
   final TextEditingController _manualItemController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
+  final GlobalKey _itemSectionKey = GlobalKey();
+  final GlobalKey _draftItemsSectionKey = GlobalKey();
 
   CustomerOrderDetailModel? _detail;
   List<ShoppingMerchantOption> _merchants = const <ShoppingMerchantOption>[];
   List<ShoppingMenuOption> _menus = const <ShoppingMenuOption>[];
   List<_ShoppingItemDraft> _draftItems = const <_ShoppingItemDraft>[];
   ShoppingMerchantOption? _selectedMerchant;
+  _ShoppingItemDraft? _editingDraftItem;
   bool _isLoadingDetail = false;
   bool _isLoadingMerchants = false;
   bool _isLoadingMenus = false;
@@ -190,7 +195,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       });
 
       if (_selectedMerchant != null) {
-        _selectMerchant(_selectedMerchant!);
+        _selectMerchant(_selectedMerchant!, scrollToItem: false);
       }
       return;
     }
@@ -220,6 +225,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
           if (matches.isEmpty) {
             _manualItemController.clear();
             _noteController.clear();
+            _editingDraftItem = null;
           }
         }
       });
@@ -235,7 +241,10 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
     }
   }
 
-  void _selectMerchant(ShoppingMerchantOption merchant) {
+  void _selectMerchant(
+    ShoppingMerchantOption merchant, {
+    bool scrollToItem = true,
+  }) {
     setState(() {
       _selectedMerchant = merchant;
       _manualItemController.clear();
@@ -243,12 +252,59 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       _menus = const <ShoppingMenuOption>[];
       _menuErrorText = null;
       _quantity = 1;
+      _editingDraftItem = null;
       _errorText = null;
     });
 
     if (_isRestaurantMerchant(merchant.merchantType)) {
       unawaited(_loadMerchantMenus(merchant));
     }
+
+    if (scrollToItem) {
+      _scrollToItemSection();
+    }
+  }
+
+  void _scrollToItemSection() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      final itemContext = _itemSectionKey.currentContext;
+      if (itemContext == null) {
+        return;
+      }
+
+      Scrollable.ensureVisible(
+        itemContext,
+        duration: const Duration(milliseconds: 360),
+        curve: Curves.easeOutCubic,
+        alignment: 0.08,
+        alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
+      );
+    });
+  }
+
+  void _scrollToDraftItemsSection() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      final draftContext = _draftItemsSectionKey.currentContext;
+      if (draftContext == null) {
+        return;
+      }
+
+      Scrollable.ensureVisible(
+        draftContext,
+        duration: const Duration(milliseconds: 360),
+        curve: Curves.easeOutCubic,
+        alignment: 0.34,
+        alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
+      );
+    });
   }
 
   Future<void> _loadMerchantMenus(ShoppingMerchantOption merchant) async {
@@ -280,7 +336,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
   void _addDraftItem() {
     final merchant = _selectedMerchant;
     if (merchant == null || merchant.id <= 0) {
-      setState(() => _errorText = 'Pilih merchant terlebih dahulu.');
+      setState(() => _errorText = 'Pilih toko/resto terlebih dahulu.');
       return;
     }
 
@@ -290,60 +346,131 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       return;
     }
 
-    if (_draftItems.length >= 30) {
+    final editingItem = _editingDraftItem;
+    if (editingItem == null && _draftItems.length >= 30) {
       setState(() => _errorText = 'Maksimal 30 item titipan sekali kirim.');
       return;
     }
 
     setState(() {
-      _draftItems = [
-        ..._draftItems,
-        _ShoppingItemDraft(
-          id: DateTime.now().microsecondsSinceEpoch.toString(),
-          merchant: merchant,
-          name: manualName,
-          quantity: _quantity,
-          notes: _noteController.text.trim().isEmpty
-              ? null
-              : _noteController.text.trim(),
-        ),
-      ];
+      final draft = _ShoppingItemDraft(
+        id: editingItem?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
+        merchant: merchant,
+        name: manualName,
+        quantity: _quantity,
+        notes: _noteController.text.trim().isEmpty
+            ? null
+            : _noteController.text.trim(),
+        isFromMenu: false,
+      );
+
+      _draftItems = _upsertDraftItem(draft, editingItem);
       _manualItemController.clear();
       _noteController.clear();
       _quantity = 1;
+      _editingDraftItem = null;
       _errorText = null;
     });
+
+    _scrollToDraftItemsSection();
   }
 
   void _addMenuDraftItem(ShoppingMenuOption menu) {
     final merchant = _selectedMerchant;
     if (merchant == null || merchant.id <= 0) {
-      setState(() => _errorText = 'Pilih merchant terlebih dahulu.');
+      setState(() => _errorText = 'Pilih toko/resto terlebih dahulu.');
       return;
     }
 
-    if (_draftItems.length >= 30) {
+    final editingItem = _editingDraftItem;
+    final notes = _noteController.text.trim().isEmpty
+        ? null
+        : _noteController.text.trim();
+    final existingMenuDraft = _draftItems.any(
+      (item) =>
+          item.isFromMenu &&
+          item.merchant.id == merchant.id &&
+          item.name == menu.name &&
+          (item.notes ?? '') == (notes ?? ''),
+    );
+    if (editingItem == null && _draftItems.length >= 30 && !existingMenuDraft) {
       setState(() => _errorText = 'Maksimal 30 item titipan sekali kirim.');
       return;
     }
 
     setState(() {
-      _draftItems = [
-        ..._draftItems,
-        _ShoppingItemDraft(
-          id: DateTime.now().microsecondsSinceEpoch.toString(),
-          merchant: merchant,
-          name: menu.name,
-          quantity: _quantity,
-          notes: _noteController.text.trim().isEmpty
-              ? null
-              : _noteController.text.trim(),
-        ),
-      ];
+      final draft = _ShoppingItemDraft(
+        id: editingItem?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
+        merchant: merchant,
+        name: menu.name,
+        quantity: _quantity,
+        notes: notes,
+        isFromMenu: true,
+      );
+
+      _draftItems = editingItem == null
+          ? _appendOrIncrementMenuDraftItem(draft)
+          : _upsertDraftItem(draft, editingItem);
+      _manualItemController.clear();
       _noteController.clear();
       _quantity = 1;
+      _editingDraftItem = null;
       _errorText = null;
     });
+
+    _scrollToDraftItemsSection();
+  }
+
+  List<_ShoppingItemDraft> _appendOrIncrementMenuDraftItem(
+    _ShoppingItemDraft draft,
+  ) {
+    var didUpdate = false;
+    final drafts = _draftItems
+        .map((item) {
+          final sameMenuItem =
+              item.isFromMenu &&
+              item.merchant.id == draft.merchant.id &&
+              item.name == draft.name &&
+              (item.notes ?? '') == (draft.notes ?? '');
+          if (!sameMenuItem) {
+            return item;
+          }
+
+          didUpdate = true;
+          return _ShoppingItemDraft(
+            id: item.id,
+            merchant: item.merchant,
+            name: item.name,
+            quantity: item.quantity + draft.quantity,
+            notes: item.notes,
+            isFromMenu: true,
+          );
+        })
+        .toList(growable: false);
+
+    return didUpdate ? drafts : [...drafts, draft];
+  }
+
+  List<_ShoppingItemDraft> _upsertDraftItem(
+    _ShoppingItemDraft draft,
+    _ShoppingItemDraft? editingItem,
+  ) {
+    if (editingItem == null) {
+      return [..._draftItems, draft];
+    }
+
+    var didReplace = false;
+    final drafts = _draftItems
+        .map((item) {
+          if (item.id == editingItem.id) {
+            didReplace = true;
+            return draft;
+          }
+          return item;
+        })
+        .toList(growable: false);
+
+    return didReplace ? drafts : [...drafts, draft];
   }
 
   void _removeDraftItem(_ShoppingItemDraft item) {
@@ -351,11 +478,21 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       _draftItems = _draftItems
           .where((draft) => draft.id != item.id)
           .toList(growable: false);
+      if (_editingDraftItem?.id == item.id) {
+        _editingDraftItem = null;
+        _manualItemController.clear();
+        _noteController.clear();
+        _quantity = 1;
+      }
       _errorText = null;
     });
   }
 
   void _editDraftItem(_ShoppingItemDraft item) {
+    if (item.isFromMenu) {
+      return;
+    }
+
     final merchantExists = _merchants.any(
       (merchant) => merchant.id == item.merchant.id,
     );
@@ -364,15 +501,21 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       if (!merchantExists) {
         _merchants = [item.merchant, ..._merchants];
       }
-      _draftItems = _draftItems
-          .where((draft) => draft.id != item.id)
-          .toList(growable: false);
+      _editingDraftItem = item;
       _selectedMerchant = item.merchant;
       _manualItemController.text = item.name;
       _noteController.text = item.notes ?? '';
+      _menus = const <ShoppingMenuOption>[];
+      _menuErrorText = null;
       _quantity = item.quantity;
       _errorText = null;
     });
+
+    if (_isRestaurantMerchant(item.merchant.merchantType)) {
+      unawaited(_loadMerchantMenus(item.merchant));
+    }
+
+    _scrollToItemSection();
   }
 
   Future<void> _submitDrafts() async {
@@ -384,6 +527,12 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
 
     if (_draftItems.isEmpty) {
       setState(() => _errorText = 'Tambahkan minimal satu item ke daftar.');
+      return;
+    }
+
+    if (_editingDraftItem != null) {
+      setState(() => _errorText = 'Simpan perubahan item terlebih dahulu.');
+      _scrollToItemSection();
       return;
     }
 
@@ -501,21 +650,23 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
                           ),
                           const SizedBox(height: 16),
                           if (_selectedMerchant != null)
-                            _buildItemSection(_selectedMerchant!),
+                            KeyedSubtree(
+                              key: _itemSectionKey,
+                              child: _buildItemSection(_selectedMerchant!),
+                            ),
                           const SizedBox(height: 16),
                           _DraftItemsSection(
+                            key: _draftItemsSectionKey,
                             items: _draftItems,
                             onEdit: _editDraftItem,
                             onRemove: _removeDraftItem,
                           ),
                           if ((_errorText ?? '').isNotEmpty) ...[
                             const SizedBox(height: 14),
-                            Text(
-                              _errorText!,
-                              style: const TextStyle(
-                                color: AppColors.error,
-                                fontWeight: FontWeight.w700,
-                              ),
+                            _InlineInfoPanel(
+                              icon: Icons.error_outline_rounded,
+                              text: _errorText!,
+                              isError: true,
                             ),
                           ],
                         ],
@@ -543,6 +694,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       noteController: _noteController,
       quantity: _quantity,
       isAddDisabled: _isSubmitting,
+      isEditing: _editingDraftItem != null,
       menus: _menus,
       isLoadingMenus: _isLoadingMenus,
       menuErrorText: _menuErrorText,
@@ -580,6 +732,11 @@ class _MerchantSearchSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const _SectionTitle(
+          title: 'Pilih Toko/Resto',
+          subtitle: 'Tentukan tempat pembelian item tambahan.',
+        ),
+        const SizedBox(height: 10),
         if (canSearch) ...[
           Row(
             children: [
@@ -587,60 +744,67 @@ class _MerchantSearchSection extends StatelessWidget {
                 child: TextField(
                   controller: controller,
                   textInputAction: TextInputAction.search,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                  ),
                   decoration: const InputDecoration(
-                    labelText: 'Cari merchant',
-                    hintText: 'Contoh: Resto Taman Kedai',
+                    hintText: 'Cari toko, resto, atau minimarket',
+                    prefixIcon: Icon(Icons.search_rounded, size: 20),
                   ),
                   onSubmitted: (_) => onSearch(),
                 ),
               ),
               const SizedBox(width: 8),
-              IconButton.filled(
-                tooltip: 'Cari merchant',
-                onPressed: isLoading ? null : onSearch,
-                icon: isLoading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.white,
-                        ),
-                      )
-                    : const Icon(Icons.search),
+              SizedBox(
+                width: 46,
+                height: 46,
+                child: IconButton.filled(
+                  tooltip: 'Cari toko/resto',
+                  style: IconButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: isLoading ? null : onSearch,
+                  icon: isLoading
+                      ? const SizedBox(
+                          width: 17,
+                          height: 17,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.white,
+                          ),
+                        )
+                      : const Icon(Icons.search_rounded, size: 20),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
         ],
-        const Text(
-          'Merchant',
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 8),
         if (isLoading && merchants.isEmpty)
-          const Center(
-            child: Padding(
-              padding: EdgeInsets.all(18),
-              child: CircularProgressIndicator(),
-            ),
+          const _InlineInfoPanel(
+            icon: Icons.storefront_outlined,
+            text: 'Memuat toko/resto...',
           )
         else if (merchants.isEmpty)
-          const _EmptyPanel(text: 'Merchant tidak ditemukan.')
+          const _EmptyPanel(text: 'Toko/resto tidak ditemukan.')
         else
-          ...merchants.map(
-            (merchant) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _MerchantOptionCard(
-                merchant: merchant,
-                selected: selectedMerchant?.id == merchant.id,
-                onTap: () => onSelect(merchant),
-              ),
-            ),
+          Column(
+            children: [
+              for (final merchant in merchants) ...[
+                _MerchantOptionCard(
+                  merchant: merchant,
+                  selected: selectedMerchant?.id == merchant.id,
+                  onTap: () => onSelect(merchant),
+                ),
+                if (merchant != merchants.last) const SizedBox(height: 8),
+              ],
+            ],
           ),
       ],
     );
@@ -667,7 +831,7 @@ class _MerchantOptionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
@@ -678,17 +842,19 @@ class _MerchantOptionCard extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                width: 38,
-                height: 38,
+                width: 36,
+                height: 36,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(12),
+                  color: selected
+                      ? AppColors.primaryLight
+                      : AppColors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
                   _merchantIcon(merchant.merchantType),
                   color: AppColors.primary,
-                  size: 21,
+                  size: 20,
                 ),
               ),
               const SizedBox(width: 10),
@@ -705,6 +871,7 @@ class _MerchantOptionCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: AppColors.textPrimary,
+                              fontSize: 13.5,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -722,6 +889,7 @@ class _MerchantOptionCard extends StatelessWidget {
                         style: const TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 12,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
@@ -731,13 +899,72 @@ class _MerchantOptionCard extends StatelessWidget {
               if (selected) ...[
                 const SizedBox(width: 8),
                 const Icon(
-                  Icons.check_circle,
+                  Icons.check_rounded,
                   color: AppColors.primary,
-                  size: 20,
+                  size: 19,
                 ),
               ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({required this.title, this.subtitle});
+
+  final String title;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalizedSubtitle = (subtitle ?? '').trim();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        if (normalizedSubtitle.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(
+            normalizedSubtitle,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              height: 1.28,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 5),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
@@ -750,6 +977,7 @@ class _ManualItemSection extends StatelessWidget {
     required this.noteController,
     required this.quantity,
     required this.isAddDisabled,
+    required this.isEditing,
     required this.menus,
     required this.isLoadingMenus,
     required this.menuErrorText,
@@ -765,6 +993,7 @@ class _ManualItemSection extends StatelessWidget {
   final TextEditingController noteController;
   final int quantity;
   final bool isAddDisabled;
+  final bool isEditing;
   final List<ShoppingMenuOption> menus;
   final bool isLoadingMenus;
   final String? menuErrorText;
@@ -780,50 +1009,13 @@ class _ManualItemSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            const Expanded(
-              child: Text(
-                'Item Belanja',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
+        _SectionTitle(
+          title: 'Item',
+          subtitle: isEditing
+              ? 'Ubah item yang dipilih, lalu simpan.'
+              : 'Tambahkan makanan atau barang yang ingin dititipkan.',
         ),
-        const SizedBox(height: 8),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          decoration: BoxDecoration(
-            color: AppColors.cardYellow,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.primary.withValues(alpha: .25)),
-          ),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.receipt_long_outlined,
-                color: AppColors.primary,
-                size: 18,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Harga dan status berat dikonfirmasi driver dari nota',
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         if (showMenus) ...[
           _MenuQuickPickSection(
             menus: menus,
@@ -833,42 +1025,93 @@ class _ManualItemSection extends StatelessWidget {
           ),
           const SizedBox(height: 12),
         ],
-        TextField(
-          controller: controller,
-          textInputAction: TextInputAction.next,
-          decoration: const InputDecoration(
-            labelText: 'Nama item',
-            hintText: 'Contoh: telur 1 kg',
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.border),
           ),
-          onChanged: (_) => onChanged(),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: noteController,
-          minLines: 1,
-          maxLines: 3,
-          decoration: const InputDecoration(
-            labelText: 'Catatan item',
-            hintText: 'Opsional',
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            _QuantityStepper(
-              quantity: quantity,
-              onDecrement: isAddDisabled || quantity <= 1 ? null : onDecrement,
-              onIncrement: isAddDisabled ? null : onIncrement,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: isAddDisabled ? null : onAdd,
-                icon: const Icon(Icons.playlist_add),
-                label: const Text('Tambah ke daftar'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _FieldLabel('Nama item'),
+              TextField(
+                controller: controller,
+                textInputAction: TextInputAction.next,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                ),
+                decoration: const InputDecoration(
+                  hintText: 'Contoh: telur 1 kg',
+                ),
+                onChanged: (_) => onChanged(),
               ),
-            ),
-          ],
+              const SizedBox(height: 10),
+              const _FieldLabel('Catatan'),
+              TextField(
+                controller: noteController,
+                minLines: 1,
+                maxLines: 3,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                ),
+                decoration: const InputDecoration(hintText: 'Opsional'),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  _QuantityStepper(
+                    quantity: quantity,
+                    onDecrement: isAddDisabled || quantity <= 1
+                        ? null
+                        : onDecrement,
+                    onIncrement: isAddDisabled ? null : onIncrement,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: SizedBox(
+                      height: 42,
+                      child: FilledButton.icon(
+                        onPressed: isAddDisabled ? null : onAdd,
+                        icon: Icon(
+                          isEditing ? Icons.check_rounded : Icons.add_rounded,
+                          size: 18,
+                        ),
+                        label: Text(isEditing ? 'Simpan' : 'Tambah'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              const Row(
+                children: [
+                  Icon(
+                    Icons.receipt_long_outlined,
+                    color: AppColors.textSecondary,
+                    size: 16,
+                  ),
+                  SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Harga dikonfirmasi driver dari nota.',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -912,44 +1155,85 @@ class _MenuQuickPickSection extends StatelessWidget {
       );
     }
 
+    final visibleMenus = menus.take(8).toList(growable: false);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Menu Resto',
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w800,
+        const _FieldLabel('Menu tersedia'),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            children: [
+              for (var index = 0; index < visibleMenus.length; index++) ...[
+                _MenuQuickPickTile(
+                  menu: visibleMenus[index],
+                  onAdd: () => onAdd(visibleMenus[index]),
+                ),
+                if (index < visibleMenus.length - 1)
+                  const Divider(height: 10, color: AppColors.divider),
+              ],
+            ],
           ),
         ),
-        const SizedBox(height: 8),
-        ...menus
-            .take(8)
-            .map(
-              (menu) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: OutlinedButton.icon(
-                  onPressed: () => onAdd(menu),
-                  icon: const Icon(Icons.add, size: 18),
-                  label: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          menu.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (menu.price > 0) ...[
-                        const SizedBox(width: 8),
-                        Text(formatCurrency(menu.price)),
-                      ],
-                    ],
+      ],
+    );
+  }
+}
+
+class _MenuQuickPickTile extends StatelessWidget {
+  const _MenuQuickPickTile({required this.menu, required this.onAdd});
+
+  final ShoppingMenuOption menu;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onAdd,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  menu.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
-            ),
-      ],
+              if (menu.price > 0) ...[
+                const SizedBox(width: 8),
+                Text(
+                  formatCurrency(menu.price),
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+              const SizedBox(width: 8),
+              const Icon(Icons.add_rounded, color: AppColors.primary, size: 18),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -971,11 +1255,17 @@ class _InlineInfoPanel extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: isError
+            ? AppColors.error.withValues(alpha: 0.06)
+            : AppColors.surfaceAlt,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(
+          color: isError
+              ? AppColors.error.withValues(alpha: 0.22)
+              : AppColors.border,
+        ),
       ),
       child: Row(
         children: [
@@ -999,6 +1289,7 @@ class _InlineInfoPanel extends StatelessWidget {
 
 class _DraftItemsSection extends StatelessWidget {
   const _DraftItemsSection({
+    super.key,
     required this.items,
     required this.onEdit,
     required this.onRemove,
@@ -1021,17 +1312,13 @@ class _DraftItemsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Daftar Titipan',
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-          ),
+        const _SectionTitle(
+          title: 'Daftar Item',
+          subtitle: 'Ringkasan item yang akan ditambahkan.',
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         if (items.isEmpty)
-          const _EmptyPanel(text: 'Daftar titipan masih kosong.')
+          const _EmptyPanel(text: 'Belum ada item yang ditambahkan.')
         else
           ...groups.entries.map(
             (entry) => Padding(
@@ -1084,6 +1371,7 @@ class _DraftMerchantGroup extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: AppColors.textPrimary,
+                    fontSize: 13.5,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -1096,7 +1384,7 @@ class _DraftMerchantGroup extends StatelessWidget {
           ...items.map(
             (item) => _DraftItemTile(
               item: item,
-              onEdit: () => onEdit(item),
+              onEdit: item.isFromMenu ? null : () => onEdit(item),
               onRemove: () => onRemove(item),
             ),
           ),
@@ -1114,7 +1402,7 @@ class _DraftItemTile extends StatelessWidget {
   });
 
   final _ShoppingItemDraft item;
-  final VoidCallback onEdit;
+  final VoidCallback? onEdit;
   final VoidCallback onRemove;
 
   @override
@@ -1122,20 +1410,23 @@ class _DraftItemTile extends StatelessWidget {
     final notes = (item.notes ?? '').trim();
 
     return Padding(
-      padding: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.only(top: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 32,
+            width: 34,
             child: Text(
               '${item.quantity}x',
+              textAlign: TextAlign.left,
               style: const TextStyle(
                 color: AppColors.primary,
+                fontSize: 13,
                 fontWeight: FontWeight.w800,
               ),
             ),
           ),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1146,6 +1437,7 @@ class _DraftItemTile extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: AppColors.textPrimary,
+                    fontSize: 13,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -1158,23 +1450,36 @@ class _DraftItemTile extends StatelessWidget {
                     style: const TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 12,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
               ],
             ),
           ),
-          IconButton(
-            tooltip: 'Edit item',
-            visualDensity: VisualDensity.compact,
-            onPressed: onEdit,
-            icon: const Icon(Icons.edit_outlined, size: 18),
-          ),
-          IconButton(
-            tooltip: 'Hapus item',
-            visualDensity: VisualDensity.compact,
-            onPressed: onRemove,
-            icon: const Icon(Icons.delete_outline, size: 18),
+          const SizedBox(width: 6),
+          if (onEdit != null)
+            SizedBox(
+              width: 32,
+              height: 32,
+              child: IconButton(
+                tooltip: 'Edit item',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                onPressed: onEdit,
+                icon: const Icon(Icons.edit_outlined, size: 17),
+              ),
+            ),
+          SizedBox(
+            width: 32,
+            height: 32,
+            child: IconButton(
+              tooltip: 'Hapus item',
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              onPressed: onRemove,
+              icon: const Icon(Icons.delete_outline, size: 17),
+            ),
           ),
         ],
       ),
@@ -1199,11 +1504,11 @@ class _SubmitBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final canSubmit = itemCount > 0;
     final title = itemCount == 0
-        ? 'Daftar titipan kosong'
-        : '$itemCount item, $totalQuantity barang';
+        ? 'Belum ada item'
+        : '$itemCount item ditambahkan';
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
       decoration: const BoxDecoration(
         color: AppColors.white,
         border: Border(top: BorderSide(color: AppColors.border)),
@@ -1221,15 +1526,18 @@ class _SubmitBar extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: AppColors.textPrimary,
+                    fontSize: 13.5,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: 2),
-                const Text(
-                  'Harga menunggu nota',
+                Text(
+                  canSubmit
+                      ? '$totalQuantity barang, harga dikonfirmasi driver'
+                      : 'Tambahkan item dulu untuk menyimpan',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -1239,18 +1547,27 @@ class _SubmitBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          ElevatedButton(
-            onPressed: isSubmitting || !canSubmit ? null : onSubmit,
-            child: isSubmitting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.white,
-                    ),
-                  )
-                : const Text('Kirim Titipan'),
+          SizedBox(
+            height: 44,
+            child: ElevatedButton(
+              onPressed: isSubmitting || !canSubmit ? null : onSubmit,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: isSubmitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.white,
+                      ),
+                    )
+                  : const Text('Simpan Item'),
+            ),
           ),
         ],
       ),
@@ -1276,29 +1593,40 @@ class _QuantityStepper extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border.all(color: AppColors.border),
         borderRadius: BorderRadius.circular(12),
+        color: AppColors.white,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
-            tooltip: 'Kurangi jumlah',
-            visualDensity: VisualDensity.compact,
-            onPressed: quantity <= 1 ? null : onDecrement,
-            icon: const Icon(Icons.remove, size: 18),
+          SizedBox(
+            width: 36,
+            height: 40,
+            child: IconButton(
+              tooltip: 'Kurangi jumlah',
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              onPressed: quantity <= 1 ? null : onDecrement,
+              icon: const Icon(Icons.remove_rounded, size: 18),
+            ),
           ),
           SizedBox(
-            width: 26,
+            width: 28,
             child: Text(
               '$quantity',
               textAlign: TextAlign.center,
               style: const TextStyle(fontWeight: FontWeight.w800),
             ),
           ),
-          IconButton(
-            tooltip: 'Tambah jumlah',
-            visualDensity: VisualDensity.compact,
-            onPressed: onIncrement,
-            icon: const Icon(Icons.add, size: 18),
+          SizedBox(
+            width: 36,
+            height: 40,
+            child: IconButton(
+              tooltip: 'Tambah jumlah',
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              onPressed: onIncrement,
+              icon: const Icon(Icons.add_rounded, size: 18),
+            ),
           ),
         ],
       ),
@@ -1316,13 +1644,14 @@ class _TypeBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.10),
+        color: AppColors.surfaceAlt,
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.border),
       ),
       child: Text(
         _merchantTypeLabel(type),
         style: const TextStyle(
-          color: AppColors.primary,
+          color: AppColors.textSecondary,
           fontSize: 11,
           fontWeight: FontWeight.w800,
         ),
@@ -1340,9 +1669,9 @@ class _EmptyPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.white,
+        color: AppColors.surfaceAlt,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.border),
       ),
@@ -1350,6 +1679,7 @@ class _EmptyPanel extends StatelessWidget {
         text,
         style: const TextStyle(
           color: AppColors.textSecondary,
+          fontSize: 13,
           fontWeight: FontWeight.w600,
         ),
       ),

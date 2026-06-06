@@ -10,13 +10,27 @@ class HomeApiService {
 
   final ApiClient _apiClient;
 
-  Future<HomeDataModel> fetchHomeData({String search = ''}) async {
+  Future<HomeDataModel> fetchHomeData({
+    String search = '',
+    int? limitMerchants,
+    double? latitude,
+    double? longitude,
+  }) async {
     try {
+      final queryParams = <String, dynamic>{
+        if (search.trim().isNotEmpty) 'search': search.trim(),
+        if (latitude != null && longitude != null) ...{
+          'latitude': latitude,
+          'longitude': longitude,
+        },
+      };
+      if (limitMerchants != null) {
+        queryParams['limit_merchants'] = limitMerchants;
+      }
+
       final response = await _apiClient.get(
         '/v1/home',
-        queryParams: <String, dynamic>{
-          if (search.trim().isNotEmpty) 'search': search.trim(),
-        },
+        queryParams: queryParams,
       );
 
       final data = (response['data'] is Map<String, dynamic>)
@@ -46,26 +60,40 @@ class HomeApiService {
       );
     } on ApiException catch (error) {
       if (error.statusCode == 404) {
-        return _fetchFromLegacyEndpoints(search: search);
+        return _fetchFromLegacyEndpoints(
+          search: search,
+          limitMerchants: limitMerchants,
+          latitude: latitude,
+          longitude: longitude,
+        );
       }
 
       rethrow;
     }
   }
 
-  Future<HomeDataModel> _fetchFromLegacyEndpoints({String search = ''}) async {
+  Future<HomeDataModel> _fetchFromLegacyEndpoints({
+    String search = '',
+    int? limitMerchants,
+    double? latitude,
+    double? longitude,
+  }) async {
+    final hasLocation = latitude != null && longitude != null;
+
     final restaurantsResponse = await _apiClient.get(
       '/v1/restaurants',
       queryParams: <String, dynamic>{
-        'per_page': 10,
-        'sort': 'rating',
+        'per_page': limitMerchants ?? 10,
+        'sort': hasLocation ? 'nearest' : 'rating',
         if (search.trim().isNotEmpty) 'search': search.trim(),
+        if (hasLocation) ...{'latitude': latitude, 'longitude': longitude},
       },
     );
 
     final restaurantItems = _extractList(restaurantsResponse['data']);
     final nearbyMerchants = restaurantItems
         .map((item) => MerchantModel.fromApiJson(item))
+        .take(limitMerchants ?? 10)
         .toList(growable: false);
 
     final categoriesByName = <String, CategoryModel>{};
