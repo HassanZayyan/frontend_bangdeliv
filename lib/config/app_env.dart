@@ -23,7 +23,7 @@ class AppEnv {
 
     return switch (defaultTargetPlatform) {
       // Fallback for physical Android devices on same LAN.
-      TargetPlatform.android => 'http://172.27.147.198:8000/api',
+      TargetPlatform.android => 'http://192.168.1.88:8000/api',
       _ => 'http://localhost:8000/api',
     };
   }
