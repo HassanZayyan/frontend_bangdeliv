@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
@@ -25,7 +26,15 @@ class DriverOrderService {
       return fetchOrderDetail(orderId);
     }
 
-    return DriverOrderModel.fromJson(data);
+    final order = DriverOrderModel.fromJson(data);
+    _debugLog(
+      'GET /v1/driver/orders/$orderId parsed '
+      'payment_method=${order.paymentMethod} '
+      'payment_status=${order.paymentStatus} '
+      'proofs=${order.proofs.map((proof) => '${proof.type}:${proof.photoUrl == null ? 'no_url' : 'url'}').join(',')}',
+    );
+
+    return order;
   }
 
   Future<void> rejectOrder(String orderId) async {
@@ -149,6 +158,10 @@ class DriverOrderService {
   }) async {
     final normalizedNote = note?.trim();
 
+    _debugLog(
+      'POST /v1/orders/$orderId/payment/transfer/confirm amount=$amount',
+    );
+
     final response = await _post(
       '/v1/orders/$orderId/payment/transfer/confirm',
       body: <String, dynamic>{
@@ -159,7 +172,21 @@ class DriverOrderService {
       fallback: 'Gagal mencatat pembayaran transfer.',
     );
 
-    return _orderFromMutationResponse(response, orderId);
+    try {
+      final order = await _orderFromMutationResponse(response, orderId);
+      _debugLog(
+        'Transfer confirm parsed orderId=$orderId '
+        'payment_method=${order.paymentMethod} '
+        'payment_status=${order.paymentStatus}',
+      );
+      return order;
+    } catch (error) {
+      _debugLog(
+        'Transfer confirm response parse failed for orderId=$orderId: $error. '
+        'Fetching fresh detail.',
+      );
+      return fetchOrderDetail(orderId);
+    }
   }
 
   Future<DriverOrderModel> updateDeliveryFeeOverride({
@@ -508,6 +535,7 @@ class DriverOrderService {
       return const <String, dynamic>{};
     }
 
+    _debugLog('POST $path failed status=${response.statusCode}');
     throw DriverOrderApiException(
       AuthService.extractErrorMessage(response, fallback: fallback),
       statusCode: response.statusCode,
@@ -665,4 +693,11 @@ class DriverOrderApiException implements Exception {
 
   @override
   String toString() => message;
+}
+
+void _debugLog(String message) {
+  assert(() {
+    debugPrint('[DriverOrderService] $message');
+    return true;
+  }());
 }

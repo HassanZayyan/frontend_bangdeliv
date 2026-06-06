@@ -28,6 +28,14 @@ void main() {
       ],
       'proofs': [
         {'id': 7, 'type': 'pickup', 'photo_url': '/storage/proofs/pickup.jpg'},
+        {
+          'id': 8,
+          'type': 'payment_transfer',
+          'photo_url': '/storage/proofs/transfer.jpg',
+          'status': 'pending',
+          'note': 'Transfer BCA',
+          'uploaded_at': '2026-06-06T14:30:00Z',
+        },
       ],
     });
 
@@ -39,6 +47,16 @@ void main() {
     expect(order.carefulCarryRequired, isTrue);
     expect(order.feeBreakdown.single.amount, 2000);
     expect(order.hasProof('pickup'), isTrue);
+    expect(order.hasProof('payment_transfer'), isTrue);
+
+    final transferProof = order.proofs.firstWhere(
+      (proof) => proof.type == 'payment_transfer',
+    );
+    expect(transferProof.label, 'Bukti transfer');
+    expect(transferProof.photoUrl, endsWith('/storage/proofs/transfer.jpg'));
+    expect(transferProof.status, 'pending');
+    expect(transferProof.note, 'Transfer BCA');
+    expect(transferProof.createdAt, DateTime.parse('2026-06-06T14:30:00Z'));
   });
 
   test('order chat message parses image attachment payloads', () {
@@ -62,5 +80,42 @@ void main() {
     expect(message.attachmentType, 'payment_transfer');
     expect(message.attachmentUrl, 'https://example.com/proof.jpg');
     expect(message.attachmentMimeType, 'image/jpeg');
+  });
+
+  test('driver order parses payment transfer from raw evidence payload', () {
+    final order = DriverOrderModel.fromJson({
+      'id': 77,
+      'customer_name': 'Courier Customer',
+      'pickup_address': 'Pickup',
+      'dropoff_address': 'Dropoff',
+      'eta_minutes': 8,
+      'fee': 5000,
+      'item_count': 1,
+      'payment_method': 'TRANSFER',
+      'payment_status': 'unpaid',
+      'evidences': [
+        {
+          'id': 19,
+          'evidence_type': 'PAYMENT_TRANSFER_PHOTO',
+          'file_url': '/storage/orders/77/payments/transfer.jpg',
+          'verification_status': 'PENDING',
+          'notes': 'Bukti transfer customer.',
+          'uploaded_at': '2026-06-06T15:38:00Z',
+        },
+      ],
+    });
+
+    expect(order.hasProof('payment_transfer'), isTrue);
+
+    final proof = order.proofs.single;
+    expect(proof.type, 'payment_transfer');
+    expect(proof.label, 'Bukti transfer');
+    expect(
+      proof.photoUrl,
+      endsWith('/storage/orders/77/payments/transfer.jpg'),
+    );
+    expect(proof.status, 'PENDING');
+    expect(proof.note, 'Bukti transfer customer.');
+    expect(proof.createdAt, DateTime.parse('2026-06-06T15:38:00Z'));
   });
 }

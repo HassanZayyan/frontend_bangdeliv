@@ -7,6 +7,7 @@ import '../models/driver_order_model.dart';
 import '../services/driver_order_service.dart';
 import '../utils/order_formatters.dart';
 import '../utils/order_status.dart';
+import '../utils/order_ui_helpers.dart';
 import 'api_providers.dart';
 import 'auth_session_provider.dart';
 import 'order_realtime_hub_provider.dart';
@@ -16,6 +17,7 @@ final driverOrderServiceProvider = Provider<DriverOrderService>((ref) {
 });
 
 Duration driverOrdersReconciliationInterval = const Duration(seconds: 2);
+Duration driverTransferProofReconciliationInterval = const Duration(seconds: 4);
 
 class DriverOrdersState {
   final List<DriverOrderModel> incoming;
@@ -151,6 +153,10 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       final processingOrderIds =
           previous?.processingOrderIds ?? const <String>{};
       final payload = await ref.read(driverOrderServiceProvider).fetchOrders();
+      if (!_isMounted) {
+        return;
+      }
+
       _syncRealtimeSubscription(session);
       _startIncomingReconciliation();
       final latest = state.asData?.value;
@@ -172,6 +178,10 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       state = AsyncData(next);
       _syncRunningOrderRealtime(next);
     } catch (error, stackTrace) {
+      if (!_isMounted) {
+        return;
+      }
+
       if (!showLoading && state.asData != null) {
         return;
       }
@@ -1341,6 +1351,38 @@ final driverOrderDetailRealtimeProvider = Provider.autoDispose
         hub.releaseOrder(parsedOrderId);
       });
     });
+
+final driverOrderTransferProofReconciliationProvider = Provider.autoDispose
+    .family<void, String>((ref, orderId) {
+      final detailState = ref.watch(driverOrderDetailProvider(orderId));
+      final order = detailState.asData?.value;
+      if (order == null || !_needsTransferProofReconciliation(order)) {
+        return;
+      }
+
+      final timer = Timer.periodic(driverTransferProofReconciliationInterval, (
+        _,
+      ) {
+        if (ref.mounted) {
+          ref.invalidate(driverOrderDetailProvider(orderId));
+        }
+      });
+
+      ref.onDispose(timer.cancel);
+    });
+
+bool _needsTransferProofReconciliation(DriverOrderModel order) {
+  final paymentMethod = order.paymentMethod.trim().toUpperCase();
+  if (paymentMethod != 'TRANSFER' || isPaymentPaid(order.paymentStatus)) {
+    return false;
+  }
+
+  return !order.proofs.any(
+    (proof) =>
+        proof.type == 'payment_transfer' &&
+        (proof.photoUrl ?? '').trim().isNotEmpty,
+  );
+}
 
 class DriverHistoryNotifier
     extends AsyncNotifier<List<DriverHistoryOrderModel>> {
