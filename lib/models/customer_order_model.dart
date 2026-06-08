@@ -57,6 +57,7 @@ class CustomerOrderSummaryModel {
   final String? deliveryDistanceText;
   final double? deliveryFee;
   final String? deliveryFeeSource;
+  final String? deliveryFeeChangeNote;
   final double? manualDeliveryFee;
   final String? manualDeliveryFeeReason;
   final bool carefulCarryRequired;
@@ -81,6 +82,7 @@ class CustomerOrderSummaryModel {
     this.deliveryDistanceText,
     this.deliveryFee,
     this.deliveryFeeSource,
+    this.deliveryFeeChangeNote,
     this.manualDeliveryFee,
     this.manualDeliveryFeeReason,
     this.carefulCarryRequired = false,
@@ -120,6 +122,7 @@ class CustomerOrderSummaryModel {
     String? deliveryDistanceText,
     double? deliveryFee,
     String? deliveryFeeSource,
+    String? deliveryFeeChangeNote,
     double? manualDeliveryFee,
     String? manualDeliveryFeeReason,
     bool? carefulCarryRequired,
@@ -144,6 +147,8 @@ class CustomerOrderSummaryModel {
       deliveryDistanceText: deliveryDistanceText ?? this.deliveryDistanceText,
       deliveryFee: deliveryFee ?? this.deliveryFee,
       deliveryFeeSource: deliveryFeeSource ?? this.deliveryFeeSource,
+      deliveryFeeChangeNote:
+          deliveryFeeChangeNote ?? this.deliveryFeeChangeNote,
       manualDeliveryFee: manualDeliveryFee ?? this.manualDeliveryFee,
       manualDeliveryFeeReason:
           manualDeliveryFeeReason ?? this.manualDeliveryFeeReason,
@@ -180,16 +185,17 @@ class CustomerOrderSummaryModel {
       deliveryFee: _asNullableDouble(
         json['delivery_fee'] ?? json['deliveryFee'],
       ),
-      deliveryFeeSource:
-          (json['delivery_fee_source'] ?? json['deliveryFeeSource'])
-              ?.toString(),
-      manualDeliveryFee: _asNullableDouble(
-        json['manual_delivery_fee'] ?? json['manualDeliveryFee'],
+      deliveryFeeSource: _normalizeDeliveryFeeSource(
+        json['delivery_fee_source'] ?? json['deliveryFeeSource'],
       ),
-      manualDeliveryFeeReason:
-          (json['manual_delivery_fee_reason'] ??
-                  json['manualDeliveryFeeReason'])
-              ?.toString(),
+      deliveryFeeChangeNote: _firstNonEmptyString([
+        json['delivery_fee_change_note'],
+        json['deliveryFeeChangeNote'],
+        json['delivery_fee_change_reason'],
+        json['deliveryFeeChangeReason'],
+      ]),
+      manualDeliveryFee: null,
+      manualDeliveryFeeReason: null,
       carefulCarryRequired: _asBool(
         json['careful_carry_required'] ?? json['carefulCarryRequired'],
       ),
@@ -362,6 +368,26 @@ class CustomerOrderSummaryModel {
     return normalized == 'true' || normalized == '1' || normalized == 'yes';
   }
 
+  static String? _normalizeDeliveryFeeSource(dynamic value) {
+    final source = value?.toString().trim().toLowerCase() ?? '';
+    if (source.isEmpty) {
+      return null;
+    }
+
+    return source == 'manual' ? 'driver_manual' : source;
+  }
+
+  static String? _firstNonEmptyString(List<dynamic> values) {
+    for (final value in values) {
+      final text = value?.toString().trim() ?? '';
+      if (text.isNotEmpty && text != '-') {
+        return text;
+      }
+    }
+
+    return null;
+  }
+
   static DateTime? _asDateTime(dynamic value) {
     final raw = value?.toString() ?? '';
     if (raw.trim().isEmpty) {
@@ -394,6 +420,7 @@ class CustomerOrderDetailModel {
   final String? deliveryDistanceText;
   final double? deliveryDistanceKm;
   final String? deliveryFeeSource;
+  final String? deliveryFeeChangeNote;
   final double? manualDeliveryFee;
   final String? manualDeliveryFeeReason;
   final bool carefulCarryRequired;
@@ -426,6 +453,7 @@ class CustomerOrderDetailModel {
     required this.deliveryDistanceText,
     this.deliveryDistanceKm,
     this.deliveryFeeSource,
+    this.deliveryFeeChangeNote,
     this.manualDeliveryFee,
     this.manualDeliveryFeeReason,
     this.carefulCarryRequired = false,
@@ -491,6 +519,7 @@ class CustomerOrderDetailModel {
     String? deliveryDistanceText,
     double? deliveryDistanceKm,
     String? deliveryFeeSource,
+    String? deliveryFeeChangeNote,
     double? manualDeliveryFee,
     String? manualDeliveryFeeReason,
     bool? carefulCarryRequired,
@@ -525,6 +554,8 @@ class CustomerOrderDetailModel {
       deliveryDistanceText: deliveryDistanceText ?? this.deliveryDistanceText,
       deliveryDistanceKm: deliveryDistanceKm ?? this.deliveryDistanceKm,
       deliveryFeeSource: deliveryFeeSource ?? this.deliveryFeeSource,
+      deliveryFeeChangeNote:
+          deliveryFeeChangeNote ?? this.deliveryFeeChangeNote,
       manualDeliveryFee: manualDeliveryFee ?? this.manualDeliveryFee,
       manualDeliveryFeeReason:
           manualDeliveryFeeReason ?? this.manualDeliveryFeeReason,
@@ -733,16 +764,17 @@ class CustomerOrderDetailModel {
       deliveryDistanceKm: _asNullableDouble(
         json['delivery_distance_km'] ?? json['deliveryDistanceKm'],
       ),
-      deliveryFeeSource:
-          (json['delivery_fee_source'] ?? json['deliveryFeeSource'])
-              ?.toString(),
-      manualDeliveryFee: _asNullableDouble(
-        json['manual_delivery_fee'] ?? json['manualDeliveryFee'],
+      deliveryFeeSource: CustomerOrderSummaryModel._normalizeDeliveryFeeSource(
+        json['delivery_fee_source'] ?? json['deliveryFeeSource'],
       ),
-      manualDeliveryFeeReason:
-          (json['manual_delivery_fee_reason'] ??
-                  json['manualDeliveryFeeReason'])
-              ?.toString(),
+      deliveryFeeChangeNote: _firstNonEmptyString([
+        json['delivery_fee_change_note'],
+        json['deliveryFeeChangeNote'],
+        json['delivery_fee_change_reason'],
+        json['deliveryFeeChangeReason'],
+      ]),
+      manualDeliveryFee: null,
+      manualDeliveryFeeReason: null,
       carefulCarryRequired: CustomerOrderSummaryModel._asBool(
         json['careful_carry_required'] ?? json['carefulCarryRequired'],
       ),

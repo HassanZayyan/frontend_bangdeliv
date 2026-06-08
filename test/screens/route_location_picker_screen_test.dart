@@ -57,6 +57,48 @@ void main() {
     );
     expect(find.text('Lokasi Saya'), findsOneWidget);
   });
+
+  testWidgets('destination map selection rejects point that overlaps pickup', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: RouteLocationPickerScreen(
+          args: RouteLocationPickerArgs(
+            serviceType: 'kurir',
+            pickupTarget: 'pickup',
+            destinationTarget: 'dropoff',
+            pickupLabel: 'Ambil',
+            destinationLabel: 'Tujuan',
+            title: 'Atur Rute Kurir',
+            confirmLabel: 'Simpan Rute Kurir',
+            defaultPickupAddress:
+                'Jalan Mawar No 1, Sraten, Kabupaten Semarang',
+            defaultPickupLatitude: -7.32006,
+            defaultPickupLongitude: 110.47065,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('Pilih Peta'));
+    await tester.pump();
+
+    expect(find.byType(GoogleMap), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Simpan'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(
+      find.text(
+        'Titik tujuan terlalu dekat dengan titik jemput. Pilih titik tujuan yang berbeda.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byType(RouteLocationPickerScreen), findsOneWidget);
+  });
 }
 
 class _FakeGoogleMapsFlutterPlatform extends GoogleMapsFlutterPlatform {

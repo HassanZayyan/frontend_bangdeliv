@@ -378,8 +378,10 @@ class _MapCard extends StatefulWidget {
 
 class _MapCardState extends State<_MapCard> {
   StreamSubscription<Position>? _driverPositionSubscription;
+  GoogleMapController? _mapController;
   BitmapDescriptor? _driverMarkerIcon;
   LatLng? _driverPosition;
+  bool _hasFittedDriverPosition = false;
 
   @override
   void initState() {
@@ -391,6 +393,7 @@ class _MapCardState extends State<_MapCard> {
   @override
   void dispose() {
     _driverPositionSubscription?.cancel();
+    _mapController?.dispose();
     super.dispose();
   }
 
@@ -444,9 +447,15 @@ class _MapCardState extends State<_MapCard> {
       return;
     }
 
+    final shouldFitFirstDriverPosition =
+        _driverPosition == null && !_hasFittedDriverPosition;
     setState(() {
       _driverPosition = LatLng(position.latitude, position.longitude);
     });
+    if (shouldFitFirstDriverPosition) {
+      _hasFittedDriverPosition = true;
+      unawaited(_fitCameraToMapPoints());
+    }
   }
 
   @override
@@ -536,6 +545,10 @@ class _MapCardState extends State<_MapCard> {
               mapToolbarEnabled: true,
               zoomControlsEnabled: false,
               compassEnabled: true,
+              onMapCreated: (controller) {
+                _mapController = controller;
+                unawaited(_fitCameraToMapPoints());
+              },
             ),
             if (showRouteUnavailableHint)
               Positioned(
@@ -617,16 +630,29 @@ class _MapCardState extends State<_MapCard> {
 
   Set<Polyline> _buildPolylines() {
     final decodedPoints = _decodePolyline(widget.order.route?.encodedPolyline);
-    if (decodedPoints.length < 2) {
+    if (decodedPoints.length >= 2) {
+      return {
+        Polyline(
+          polylineId: const PolylineId('order_route'),
+          points: decodedPoints,
+          color: AppColors.primary,
+          width: 5,
+          geodesic: true,
+        ),
+      };
+    }
+
+    final fallbackPoints = _routeLinePoints();
+    if (fallbackPoints.length < 2) {
       return const <Polyline>{};
     }
 
     return {
       Polyline(
-        polylineId: const PolylineId('order_route'),
-        points: decodedPoints,
-        color: AppColors.primary,
-        width: 5,
+        polylineId: const PolylineId('order_route_fallback'),
+        points: fallbackPoints,
+        color: AppColors.primary.withValues(alpha: 0.55),
+        width: 4,
         geodesic: true,
       ),
     };
@@ -640,6 +666,73 @@ class _MapCardState extends State<_MapCard> {
     return _pickupPoints().isNotEmpty &&
         _latLng(widget.order.dropoffLatitude, widget.order.dropoffLongitude) !=
             null;
+  }
+
+  List<LatLng> _routeLinePoints() {
+    final points = <LatLng>[..._pickupPoints().map((point) => point.position)];
+    final dropoff = _latLng(
+      widget.order.dropoffLatitude,
+      widget.order.dropoffLongitude,
+    );
+    if (dropoff != null) {
+      points.add(dropoff);
+    }
+
+    return points;
+  }
+
+  Future<void> _fitCameraToMapPoints() async {
+    final controller = _mapController;
+    if (controller == null || !mounted) {
+      return;
+    }
+
+    final points = <LatLng>[..._routeLinePoints(), ?_driverPosition];
+
+    if (points.isEmpty) {
+      return;
+    }
+
+    try {
+      if (points.length == 1) {
+        await controller.animateCamera(
+          CameraUpdate.newLatLngZoom(points.first, 15),
+        );
+        return;
+      }
+
+      double minLat = points.first.latitude;
+      double maxLat = points.first.latitude;
+      double minLng = points.first.longitude;
+      double maxLng = points.first.longitude;
+
+      for (final point in points.skip(1)) {
+        if (point.latitude < minLat) {
+          minLat = point.latitude;
+        }
+        if (point.latitude > maxLat) {
+          maxLat = point.latitude;
+        }
+        if (point.longitude < minLng) {
+          minLng = point.longitude;
+        }
+        if (point.longitude > maxLng) {
+          maxLng = point.longitude;
+        }
+      }
+
+      await controller.animateCamera(
+        CameraUpdate.newLatLngBounds(
+          LatLngBounds(
+            southwest: LatLng(minLat, minLng),
+            northeast: LatLng(maxLat, maxLng),
+          ),
+          64,
+        ),
+      );
+    } catch (_) {
+      // Camera animation can fail while the platform map is being recreated.
+    }
   }
 
   List<LatLng> _decodePolyline(String? encoded) {
@@ -1103,6 +1196,12 @@ class _OrderMetaCard extends StatelessWidget {
     final supportsCarefulCarry = serviceTypeSupportsCarefulCarry(
       order.serviceTypeCode,
     );
+    final deliveryFeeSource = (order.deliveryFeeSource ?? '')
+        .trim()
+        .toLowerCase();
+    final deliveryFeeSourceLabel = deliveryFeeSource == 'driver_manual'
+        ? 'manual driver'
+        : deliveryFeeSource;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -1161,18 +1260,12 @@ class _OrderMetaCard extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  if ((order.deliveryFeeSource ?? '').trim().isNotEmpty ||
-                      order.manualDeliveryFee != null ||
+                  if (deliveryFeeSourceLabel.isNotEmpty ||
                       (supportsCarefulCarry && order.carefulCarryRequired))
                     Text(
                       [
-                        if ((order.deliveryFeeSource ?? '').trim().isNotEmpty &&
-                            (order.deliveryFeeSource ?? '')
-                                    .trim()
-                                    .toLowerCase() !=
-                                'manual')
-                          order.deliveryFeeSource!.trim(),
-                        if (order.manualDeliveryFee != null) 'manual',
+                        if (deliveryFeeSourceLabel.isNotEmpty)
+                          deliveryFeeSourceLabel,
                         if (supportsCarefulCarry && order.carefulCarryRequired)
                           'perlu 2 orang',
                       ].join(' - '),
@@ -1520,10 +1613,15 @@ class _ManualDeliveryFeeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final manualReason = (order.manualDeliveryFeeReason ?? '').trim();
     final supportsCarefulCarry = serviceTypeSupportsCarefulCarry(
       order.serviceTypeCode,
     );
+    final deliveryFeeSource = (order.deliveryFeeSource ?? '')
+        .trim()
+        .toLowerCase();
+    final deliveryFeeSourceLabel = deliveryFeeSource == 'driver_manual'
+        ? 'manual driver'
+        : deliveryFeeSource;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1568,32 +1666,17 @@ class _ManualDeliveryFeeCard extends StatelessWidget {
                     : order.deliveryDistanceLabel,
               ),
               _summaryChip(
-                'Ongkir sistem',
+                'Ongkir final',
                 order.deliveryFee == null
                     ? '-'
                     : formatRupiah(order.deliveryFee!),
               ),
-              _summaryChip(
-                'Manual',
-                order.manualDeliveryFee == null
-                    ? '-'
-                    : formatRupiah(order.manualDeliveryFee!),
-              ),
+              if (deliveryFeeSourceLabel.isNotEmpty)
+                _summaryChip('Sumber', deliveryFeeSourceLabel),
               if (supportsCarefulCarry && order.carefulCarryRequired)
                 _summaryChip('Perlu 2 orang', 'aktif'),
             ],
           ),
-          if (manualReason.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              manualReason,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -1626,8 +1709,8 @@ class _ManualDeliveryFeeCard extends StatelessWidget {
     final result = await showDialog<_ManualDeliveryFeeInput>(
       context: context,
       builder: (context) => _ManualDeliveryFeeDialog(
-        initialAmount: order.manualDeliveryFee ?? order.deliveryFee,
-        initialReason: order.manualDeliveryFeeReason ?? '',
+        initialAmount: order.deliveryFee,
+        initialReason: '',
         initialCarefulCarryRequired:
             supportsCarefulCarry && order.carefulCarryRequired,
         supportsCarefulCarry: supportsCarefulCarry,
@@ -1966,10 +2049,14 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
       }
     }
 
+    final deliveryFeeSource = (widget.order.deliveryFeeSource ?? '')
+        .trim()
+        .toLowerCase();
     if (_deliveryFeeOverrideController.text.trim().isEmpty &&
-        widget.order.manualDeliveryFee != null &&
-        widget.order.manualDeliveryFee! > 0) {
-      _deliveryFeeOverrideController.text = widget.order.manualDeliveryFee!
+        deliveryFeeSource == 'driver_manual' &&
+        widget.order.deliveryFee != null &&
+        widget.order.deliveryFee! > 0) {
+      _deliveryFeeOverrideController.text = widget.order.deliveryFee!
           .round()
           .toString();
     }

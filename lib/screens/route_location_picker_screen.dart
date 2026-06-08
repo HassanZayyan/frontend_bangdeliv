@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
@@ -20,6 +22,9 @@ class RouteLocationPickerScreen extends StatefulWidget {
 
 class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
   static const LatLng _fallbackCenter = LatLng(-7.3294948, 110.5080427);
+  static const double _minimumRouteDistanceMeters = 20;
+  static const String _routeTooCloseMessage =
+      'Titik tujuan terlalu dekat dengan titik jemput. Pilih titik tujuan yang berbeda.';
   static const _bodyHintStyle = TextStyle(
     color: AppColors.textSecondary,
     fontSize: 12,
@@ -813,6 +818,21 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
       return;
     }
 
+    final routeDistanceMeters = _distanceMeters(
+      pickup.latitude,
+      pickup.longitude,
+      destination.latitude,
+      destination.longitude,
+    );
+    if (routeDistanceMeters < _minimumRouteDistanceMeters) {
+      _showMessage(_routeTooCloseMessage);
+      setState(() {
+        _activeTarget = _destinationTarget;
+        _statusHint = 'Geser peta atau cari alamat tujuan yang berbeda.';
+      });
+      return;
+    }
+
     final hasDefaultPickup =
         _validLatLng(
           widget.args.defaultPickupLatitude,
@@ -903,6 +923,32 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     if (latitude == 0 && longitude == 0) return null;
     return LatLng(latitude, longitude);
   }
+
+  double _distanceMeters(
+    double startLatitude,
+    double startLongitude,
+    double endLatitude,
+    double endLongitude,
+  ) {
+    const earthRadiusMeters = 6371000.0;
+    final startLatitudeRad = _degreesToRadians(startLatitude);
+    final endLatitudeRad = _degreesToRadians(endLatitude);
+    final deltaLatitudeRad = _degreesToRadians(endLatitude - startLatitude);
+    final deltaLongitudeRad = _degreesToRadians(endLongitude - startLongitude);
+
+    final haversine =
+        math.sin(deltaLatitudeRad / 2) * math.sin(deltaLatitudeRad / 2) +
+        math.cos(startLatitudeRad) *
+            math.cos(endLatitudeRad) *
+            math.sin(deltaLongitudeRad / 2) *
+            math.sin(deltaLongitudeRad / 2);
+    final centralAngle =
+        2 * math.atan2(math.sqrt(haversine), math.sqrt(1 - haversine));
+
+    return earthRadiusMeters * centralAngle;
+  }
+
+  double _degreesToRadians(double value) => value * math.pi / 180;
 }
 
 class _InfoHint extends StatelessWidget {

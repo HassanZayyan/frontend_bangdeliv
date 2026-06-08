@@ -372,22 +372,34 @@ class ShoppingMerchantOption {
 
 class ShoppingItemDraftPayload {
   final int? merchantId;
+  final int? menuId;
+  final String itemSource;
   final String name;
   final int quantity;
   final String? notes;
+  final double? unitPrice;
 
   const ShoppingItemDraftPayload({
     required this.merchantId,
+    this.menuId,
+    this.itemSource = 'MANUAL',
     required this.name,
     required this.quantity,
     required this.notes,
+    this.unitPrice,
   });
 
   Map<String, dynamic> toJson() {
+    final normalizedSource = itemSource.trim().toUpperCase() == 'MENU_DB'
+        ? 'MENU_DB'
+        : 'MANUAL';
+
     return <String, dynamic>{
       if (merchantId != null && merchantId! > 0) 'merchant_id': merchantId,
-      'item_source': 'MANUAL',
-      'menu_name': name.trim(),
+      'item_source': normalizedSource,
+      if (normalizedSource == 'MENU_DB' && menuId != null && menuId! > 0)
+        'menu_id': menuId,
+      if (normalizedSource == 'MANUAL') 'menu_name': name.trim(),
       'quantity': quantity,
       if ((notes ?? '').trim().isNotEmpty) 'notes': notes!.trim(),
     };

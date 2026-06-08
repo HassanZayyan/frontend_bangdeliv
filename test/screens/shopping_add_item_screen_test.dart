@@ -28,6 +28,40 @@ void main() {
     expect(merchant.address, 'Jl. Resto');
   });
 
+  test('ShoppingItemDraftPayload serializes manual item contract', () {
+    final payload = const ShoppingItemDraftPayload(
+      merchantId: 10,
+      name: 'Gula 1 kg',
+      quantity: 2,
+      notes: 'Putih',
+    ).toJson();
+
+    expect(payload['merchant_id'], 10);
+    expect(payload['item_source'], 'MANUAL');
+    expect(payload['menu_name'], 'Gula 1 kg');
+    expect(payload['quantity'], 2);
+    expect(payload['notes'], 'Putih');
+    expect(payload.containsKey('menu_id'), isFalse);
+  });
+
+  test('ShoppingItemDraftPayload serializes menu database item contract', () {
+    final payload = const ShoppingItemDraftPayload(
+      merchantId: 10,
+      menuId: 99,
+      itemSource: 'MENU_DB',
+      name: 'Soto Ayam',
+      quantity: 3,
+      notes: null,
+      unitPrice: 18000,
+    ).toJson();
+
+    expect(payload['merchant_id'], 10);
+    expect(payload['item_source'], 'MENU_DB');
+    expect(payload['menu_id'], 99);
+    expect(payload['quantity'], 3);
+    expect(payload.containsKey('menu_name'), isFalse);
+  });
+
   test(
     'shopping merchant search requests name sort accepted by backend',
     () async {
@@ -105,6 +139,56 @@ void main() {
       expect(service.lastItems, hasLength(1));
       expect(service.lastItems.first.merchantId, 10);
       expect(service.lastItems.first.name, 'Soto Ayam');
+    },
+  );
+
+  testWidgets(
+    'restaurant merchant queues menu catalog draft as menu database item',
+    (tester) async {
+      final service = _FakeCustomerOrderApiService(
+        merchants: const [
+          ShoppingMerchantOption(
+            id: 10,
+            name: 'Resto Satu',
+            slug: 'resto-satu',
+            merchantType: 'restaurant',
+            address: 'Jl. Resto',
+          ),
+        ],
+        menus: const [
+          ShoppingMenuOption(id: 99, name: 'Soto Ayam', price: 18000),
+        ],
+      );
+
+      await _pumpScreen(tester, service);
+
+      await tester.tap(find.text('Resto Satu'));
+      await tester.pumpAndSettle();
+
+      expect(service.menuSearchCalls, 1);
+      expect(find.text('Soto Ayam'), findsOneWidget);
+      expect(find.text('Rp 18.000'), findsOneWidget);
+
+      await tester.tap(find.text('Soto Ayam'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Daftar Item'), findsOneWidget);
+      expect(find.text('Harga menu: Rp 18.000'), findsOneWidget);
+
+      await _tapSubmitDrafts(tester);
+
+      expect(service.addCalls, 1);
+      expect(service.lastItems, hasLength(1));
+      expect(service.lastItems.first.merchantId, 10);
+      expect(service.lastItems.first.menuId, 99);
+      expect(service.lastItems.first.itemSource, 'MENU_DB');
+      expect(service.lastItems.first.name, 'Soto Ayam');
+      expect(service.lastItems.first.unitPrice, 18000);
+      expect(service.lastItems.first.toJson(), containsPair('menu_id', 99));
+      expect(
+        service.lastItems.first.toJson(),
+        isNot(containsPair('menu_name', 'Soto Ayam')),
+      );
     },
   );
 
@@ -194,9 +278,13 @@ Future<void> _pumpScreen(
 }
 
 class _FakeCustomerOrderApiService extends CustomerOrderApiService {
-  _FakeCustomerOrderApiService({required this.merchants}) : super(ApiClient());
+  _FakeCustomerOrderApiService({
+    required this.merchants,
+    this.menus = const <ShoppingMenuOption>[],
+  }) : super(ApiClient());
 
   final List<ShoppingMerchantOption> merchants;
+  final List<ShoppingMenuOption> menus;
   int addCalls = 0;
   int menuSearchCalls = 0;
   List<ShoppingItemDraftPayload> lastItems = const <ShoppingItemDraftPayload>[];
@@ -215,7 +303,7 @@ class _FakeCustomerOrderApiService extends CustomerOrderApiService {
     String query,
   ) async {
     menuSearchCalls += 1;
-    return const <ShoppingMenuOption>[];
+    return menus;
   }
 
   @override

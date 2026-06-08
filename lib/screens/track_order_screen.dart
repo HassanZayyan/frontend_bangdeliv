@@ -1335,22 +1335,28 @@ class TrackOrderScreen extends ConsumerWidget {
     CustomerOrderSummaryModel order,
     CustomerOrderDetailModel detail,
   ) {
-    final manualFee = detail.manualDeliveryFee ?? order.manualDeliveryFee;
-    if (manualFee == null || manualFee <= 0) {
+    final deliveryFeeSource =
+        (detail.deliveryFeeSource ?? order.deliveryFeeSource ?? '')
+            .trim()
+            .toLowerCase();
+    if (deliveryFeeSource != 'driver_manual') {
+      return null;
+    }
+
+    final deliveryFee = detail.summary.deliveryFee ?? order.deliveryFee;
+    if (deliveryFee == null || deliveryFee <= 0) {
       return null;
     }
 
     final reason =
-        (detail.manualDeliveryFeeReason ?? order.manualDeliveryFeeReason ?? '')
+        (detail.deliveryFeeChangeNote ?? order.deliveryFeeChangeNote ?? '')
             .trim();
-    final buffer = StringBuffer(
-      'Ongkir diperbarui driver menjadi ${formatCurrency(manualFee)}.',
-    );
-    if (reason.isNotEmpty) {
-      buffer.write(' Alasan: $reason.');
+
+    if (reason.isEmpty) {
+      return 'Ongkir diperbarui driver menjadi ${formatCurrency(deliveryFee)}.';
     }
 
-    return buffer.toString();
+    return 'Ongkir diperbarui driver menjadi ${formatCurrency(deliveryFee)}. Alasan: $reason.';
   }
 
   String _paymentMessage(

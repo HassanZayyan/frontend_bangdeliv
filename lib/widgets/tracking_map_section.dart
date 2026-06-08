@@ -65,6 +65,7 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
   GoogleMapController? _mapController;
   bool _isFollowingDriver = false;
   bool _isProgrammaticCameraMove = false;
+  bool _hasPerformedInitialFit = false;
   LatLng? _lastFocusedDriverPosition;
   DateTime? _lastFocusedDriverUpdatedAt;
   BitmapDescriptor? _driverMarkerIcon;
@@ -91,16 +92,20 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
   void didUpdateWidget(covariant TrackingMapSection oldWidget) {
     super.didUpdateWidget(oldWidget);
 
+    if (_routePointsChanged(oldWidget)) {
+      _hasPerformedInitialFit = false;
+    }
+
     if (!widget.followDriver) {
       _isFollowingDriver = false;
-      _fitCameraToMarkers();
+      unawaited(_fitCameraToMarkers());
       return;
     }
 
     if (!_hasDriverCoordinates) {
       _lastFocusedDriverPosition = null;
       _lastFocusedDriverUpdatedAt = null;
-      _fitCameraToMarkers();
+      unawaited(_fitCameraToMarkers());
       return;
     }
 
@@ -108,8 +113,13 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
       _isFollowingDriver = true;
     }
 
-    if (_isFollowingDriver) {
-      _focusCameraOnDriver();
+    if (!_hasPerformedInitialFit) {
+      unawaited(_fitInitialCamera());
+      return;
+    }
+
+    if (_isFollowingDriver && _driverPositionChanged(oldWidget)) {
+      unawaited(_focusCameraOnDriver());
     }
   }
 
@@ -131,16 +141,18 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
   }
 
   LatLng _initialCameraTarget(Set<Marker> markers) {
-    final driverPosition = _driverPosition;
-    if (widget.followDriver && driverPosition != null) {
-      return driverPosition;
+    final routePoints = _routeLinePoints();
+    if (routePoints.isNotEmpty) {
+      return routePoints.first;
     }
 
     return markers.first.position;
   }
 
   double _initialZoom() {
-    if (widget.followDriver && _hasDriverCoordinates) {
+    if (_routeLinePoints().length < 2 &&
+        widget.followDriver &&
+        _hasDriverCoordinates) {
       return _driverFollowZoom;
     }
 
@@ -282,6 +294,36 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
     await _animateCamera(CameraUpdate.newLatLngBounds(bounds, 64));
   }
 
+  Future<void> _fitInitialCamera() async {
+    if (_hasPerformedInitialFit) {
+      return;
+    }
+
+    _hasPerformedInitialFit = true;
+    await _fitCameraToMarkers();
+
+    if (widget.followDriver && _hasDriverCoordinates) {
+      _isFollowingDriver = true;
+      _lastFocusedDriverPosition = _driverPosition;
+      _lastFocusedDriverUpdatedAt = widget.driverLocationUpdatedAt;
+    }
+  }
+
+  bool _routePointsChanged(TrackingMapSection oldWidget) {
+    return oldWidget.pickupStops != widget.pickupStops ||
+        oldWidget.pickupLatitude != widget.pickupLatitude ||
+        oldWidget.pickupLongitude != widget.pickupLongitude ||
+        oldWidget.dropoffLatitude != widget.dropoffLatitude ||
+        oldWidget.dropoffLongitude != widget.dropoffLongitude ||
+        oldWidget.encodedPolyline != widget.encodedPolyline;
+  }
+
+  bool _driverPositionChanged(TrackingMapSection oldWidget) {
+    return oldWidget.driverLatitude != widget.driverLatitude ||
+        oldWidget.driverLongitude != widget.driverLongitude ||
+        oldWidget.driverLocationUpdatedAt != widget.driverLocationUpdatedAt;
+  }
+
   @override
   Widget build(BuildContext context) {
     final markers = _buildMarkers();
@@ -321,12 +363,7 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
               onCameraMoveStarted: _handleCameraMoveStarted,
               onMapCreated: (controller) {
                 _mapController = controller;
-                if (widget.followDriver && _hasDriverCoordinates) {
-                  _isFollowingDriver = true;
-                  _focusCameraOnDriver(force: true);
-                } else {
-                  _fitCameraToMarkers();
-                }
+                unawaited(_fitInitialCamera());
               },
             ),
             Positioned(top: 10, left: 10, right: 10, child: _buildTopHint()),
@@ -544,16 +581,29 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
 
   Set<Polyline> _buildPolylines() {
     final decodedPoints = _decodePolyline(widget.encodedPolyline);
-    if (decodedPoints.length < 2) {
+    if (decodedPoints.length >= 2) {
+      return {
+        Polyline(
+          polylineId: const PolylineId('order_route'),
+          points: decodedPoints,
+          color: AppColors.primary,
+          width: 5,
+          geodesic: true,
+        ),
+      };
+    }
+
+    final fallbackPoints = _routeLinePoints();
+    if (fallbackPoints.length < 2) {
       return const <Polyline>{};
     }
 
     return {
       Polyline(
-        polylineId: const PolylineId('order_route'),
-        points: decodedPoints,
-        color: AppColors.primary,
-        width: 5,
+        polylineId: const PolylineId('order_route_fallback'),
+        points: fallbackPoints,
+        color: AppColors.primary.withValues(alpha: 0.55),
+        width: 4,
         geodesic: true,
       ),
     };
@@ -567,6 +617,15 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
     return _pickupPoints().isNotEmpty &&
         widget.dropoffLatitude != null &&
         widget.dropoffLongitude != null;
+  }
+
+  List<LatLng> _routeLinePoints() {
+    final points = <LatLng>[..._pickupPoints().map((point) => point.position)];
+    if (widget.dropoffLatitude != null && widget.dropoffLongitude != null) {
+      points.add(LatLng(widget.dropoffLatitude!, widget.dropoffLongitude!));
+    }
+
+    return points;
   }
 
   List<_PickupPointView> _pickupPoints() {
