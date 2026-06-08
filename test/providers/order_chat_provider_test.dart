@@ -981,7 +981,7 @@ AuthSessionState _customerSession(int userId) {
       avatarUrl: null,
       role: 'customer',
       driverProfile: null,
-      stats: const UserStatsModel(totalOrders: 0, totalPaid: 0, rating: 0),
+      stats: const UserStatsModel(totalOrders: 0, totalPaid: 0),
       addresses: const <SavedAddressModel>[],
     ),
   );
@@ -998,7 +998,7 @@ AuthSessionState _driverSession(int userId) {
       avatarUrl: null,
       role: 'driver',
       driverProfile: _activeDriverProfile(),
-      stats: const UserStatsModel(totalOrders: 0, totalPaid: 0, rating: 0),
+      stats: const UserStatsModel(totalOrders: 0, totalPaid: 0),
       addresses: const <SavedAddressModel>[],
     ),
   );
@@ -1013,7 +1013,6 @@ DriverProfileModel _activeDriverProfile() {
     vehicleModel: 'Beat',
     vehiclePlate: 'BG 1234 DL',
     licenseNumber: 'SIM-DRIVER-001',
-    avgRating: 5,
     totalDeliveries: 12,
   );
 }

@@ -76,7 +76,6 @@ class DriverProfileModel {
   final String vehicleModel;
   final String vehiclePlate;
   final String licenseNumber;
-  final double avgRating;
   final int totalDeliveries;
 
   const DriverProfileModel({
@@ -87,7 +86,6 @@ class DriverProfileModel {
     required this.vehicleModel,
     required this.vehiclePlate,
     required this.licenseNumber,
-    required this.avgRating,
     required this.totalDeliveries,
   });
 
@@ -100,7 +98,6 @@ class DriverProfileModel {
       vehicleModel: (json['vehicle_model'] ?? '').toString(),
       vehiclePlate: (json['vehicle_plate'] ?? '').toString(),
       licenseNumber: (json['license_number'] ?? '').toString(),
-      avgRating: _asDouble(json['avg_rating']),
       totalDeliveries: _asInt(json['total_deliveries']),
     );
   }
@@ -112,32 +109,18 @@ class DriverProfileModel {
 
     return int.tryParse(value?.toString() ?? '') ?? 0;
   }
-
-  static double _asDouble(dynamic value) {
-    if (value is num) {
-      return value.toDouble();
-    }
-
-    return double.tryParse(value?.toString() ?? '') ?? 0;
-  }
 }
 
 class UserStatsModel {
   final int totalOrders;
   final double totalPaid;
-  final double rating;
 
-  const UserStatsModel({
-    required this.totalOrders,
-    required this.totalPaid,
-    required this.rating,
-  });
+  const UserStatsModel({required this.totalOrders, required this.totalPaid});
 
   factory UserStatsModel.fromJson(Map<String, dynamic> json) {
     return UserStatsModel(
       totalOrders: _asInt(json['total_orders']),
       totalPaid: _asDouble(json['total_paid']),
-      rating: _asDouble(json['rating']),
     );
   }
 

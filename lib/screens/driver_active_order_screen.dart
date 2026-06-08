@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -12,7 +13,6 @@ import 'package:image_picker/image_picker.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../models/driver_order_model.dart';
-import '../providers/driver_location_tracking_provider.dart';
 import '../providers/order_chat_unread_provider.dart';
 import '../providers/driver_order_providers.dart';
 import '../services/driver_order_service.dart';
@@ -78,7 +78,6 @@ class DriverActiveOrderScreen extends ConsumerWidget {
     ref.watch(driverOrderDetailRealtimeProvider(orderId));
     ref.watch(driverOrderTransferProofReconciliationProvider(orderId));
     final ordersState = ref.watch(driverOrdersProvider);
-    final trackingState = ref.watch(driverLocationTrackingProvider);
 
     final isProcessing = ordersState.maybeWhen(
       data: (value) => value.isProcessing(orderId),
@@ -121,13 +120,6 @@ class DriverActiveOrderScreen extends ConsumerWidget {
           );
         },
         data: (order) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!context.mounted) return;
-            ref
-                .read(driverLocationTrackingProvider.notifier)
-                .syncForOrder(orderId: order.id, statusCode: order.statusCode);
-          });
-
           return RefreshIndicator(
             onRefresh: () async {
               ref.invalidate(driverOrderDetailProvider(orderId));
@@ -137,9 +129,9 @@ class DriverActiveOrderScreen extends ConsumerWidget {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
               children: [
-                _MapCard(order: order, trackingState: trackingState),
+                _MapCard(order: order),
                 const SizedBox(height: 12),
-                _OrderMetaCard(order: order, trackingState: trackingState),
+                _OrderMetaCard(order: order),
                 const SizedBox(height: 12),
                 if (normalizeServiceTypeCode(order.serviceTypeCode) ==
                     ServiceTypeCodes.courier) ...[
@@ -327,8 +319,6 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                         orderId: order.id,
                         actionCode: action.actionCode,
                         targetStatusCode: action.targetStatusCode,
-                        latitude: trackingState.latitude,
-                        longitude: trackingState.longitude,
                       );
                     }
 
@@ -379,29 +369,84 @@ class DriverActiveOrderScreen extends ConsumerWidget {
 
 class _MapCard extends StatefulWidget {
   final DriverOrderModel order;
-  final DriverLocationTrackingState trackingState;
 
-  const _MapCard({required this.order, required this.trackingState});
+  const _MapCard({required this.order});
 
   @override
   State<_MapCard> createState() => _MapCardState();
 }
 
 class _MapCardState extends State<_MapCard> {
+  StreamSubscription<Position>? _driverPositionSubscription;
   BitmapDescriptor? _driverMarkerIcon;
+  LatLng? _driverPosition;
 
   @override
   void initState() {
     super.initState();
     unawaited(_loadDriverMarkerIcon());
+    unawaited(_startDriverPositionTracking());
+  }
+
+  @override
+  void dispose() {
+    _driverPositionSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadDriverMarkerIcon() async {
-    final icon = await buildMotorDriverMarker();
+    final icon = await buildMotorDriverMarker(size: 40);
     if (!mounted) {
       return;
     }
+
     setState(() => _driverMarkerIcon = icon);
+  }
+
+  Future<void> _startDriverPositionTracking() async {
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        return;
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+
+      final current = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+      _setDriverPosition(current);
+
+      await _driverPositionSubscription?.cancel();
+      _driverPositionSubscription = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 8,
+        ),
+      ).listen(_setDriverPosition);
+    } catch (_) {
+      // Location permission/service failures should not block order handling.
+    }
+  }
+
+  void _setDriverPosition(Position position) {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _driverPosition = LatLng(position.latitude, position.longitude);
+    });
   }
 
   @override
@@ -412,12 +457,8 @@ class _MapCardState extends State<_MapCard> {
       widget.order.dropoffLatitude,
       widget.order.dropoffLongitude,
     );
-    final driver = _latLng(
-      widget.trackingState.latitude,
-      widget.trackingState.longitude,
-    );
 
-    if (pickupPoints.isEmpty && dropoff == null && driver == null) {
+    if (pickupPoints.isEmpty && dropoff == null) {
       return Container(
         height: 220,
         decoration: BoxDecoration(
@@ -442,18 +483,9 @@ class _MapCardState extends State<_MapCard> {
       );
     }
 
-    final initial = driver ?? pickup ?? dropoff!;
+    final initial = pickup ?? dropoff!;
     final showRouteUnavailableHint = _shouldShowRouteUnavailableHint();
     final markers = <Marker>{
-      if (driver != null)
-        Marker(
-          markerId: const MarkerId('driver'),
-          position: driver,
-          icon:
-              _driverMarkerIcon ??
-              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
-          infoWindow: const InfoWindow(title: 'Posisi Anda'),
-        ),
       for (final pickupPoint in pickupPoints)
         Marker(
           markerId: MarkerId('pickup_${pickupPoint.id}'),
@@ -468,6 +500,16 @@ class _MapCardState extends State<_MapCard> {
           markerId: const MarkerId('dropoff'),
           position: dropoff,
           infoWindow: const InfoWindow(title: 'Dropoff'),
+        ),
+      if (_driverPosition != null)
+        Marker(
+          markerId: const MarkerId('driver_position'),
+          position: _driverPosition!,
+          icon:
+              _driverMarkerIcon ??
+              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+          anchor: const Offset(0.5, 0.5),
+          infoWindow: const InfoWindow(title: 'Posisi Anda'),
         ),
     };
 
@@ -495,15 +537,9 @@ class _MapCardState extends State<_MapCard> {
               zoomControlsEnabled: false,
               compassEnabled: true,
             ),
-            Positioned(
-              top: 10,
-              left: 10,
-              right: 10,
-              child: _TrackingBadge(state: widget.trackingState),
-            ),
             if (showRouteUnavailableHint)
               Positioned(
-                top: 52,
+                top: 10,
                 left: 10,
                 right: 10,
                 child: const _RouteUnavailableBadge(),
@@ -725,59 +761,10 @@ class _DriverPickupPoint {
   final LatLng position;
 }
 
-class _TrackingBadge extends StatelessWidget {
-  final DriverLocationTrackingState state;
-
-  const _TrackingBadge({required this.state});
-
-  @override
-  Widget build(BuildContext context) {
-    final hasPosition = state.latitude != null && state.longitude != null;
-    final text = state.isTracking
-        ? hasPosition
-              ? 'GPS aktif - lokasi dikirim realtime'
-              : 'GPS aktif - menunggu titik lokasi'
-        : state.isStarting
-        ? 'Mengaktifkan GPS driver...'
-        : 'GPS driver belum aktif';
-    final color = state.isTracking
-        ? AppColors.success
-        : AppColors.textSecondary;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(
-        color: AppColors.white.withValues(alpha: 0.94),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.my_location, size: 14, color: color),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              text,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: color,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _OrderMetaCard extends StatelessWidget {
   final DriverOrderModel order;
-  final DriverLocationTrackingState trackingState;
 
-  const _OrderMetaCard({required this.order, required this.trackingState});
+  const _OrderMetaCard({required this.order});
 
   @override
   Widget build(BuildContext context) {
@@ -865,36 +852,6 @@ class _OrderMetaCard extends StatelessWidget {
             _row('Jarak', order.deliveryDistanceLabel),
           ],
           ..._buildCourierPackageRows(packageDetails),
-          if ((trackingState.message ?? '').trim().isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.error_outline,
-                    color: AppColors.error,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      trackingState.message!.trim(),
-                      style: const TextStyle(
-                        color: AppColors.error,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
           const SizedBox(height: 14),
           _buildPricingSummary(),
         ],
@@ -1135,8 +1092,6 @@ class _OrderMetaCard extends StatelessWidget {
     }
 
     addRow('Barang', details.description);
-    addRow('Keamanan', details.safetyLine);
-    addRow('Catatan', details.packingNote);
 
     return rows;
   }
@@ -2159,8 +2114,8 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
     final isAvailable = _availability[item.id] ?? item.isAvailable;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(10),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(10),
@@ -2170,13 +2125,14 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
                 child: Text(
                   '${item.quantity}x ${item.name}',
                   style: TextStyle(
                     color: AppColors.textPrimary,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
                     decoration: isAvailable
                         ? TextDecoration.none
@@ -2186,6 +2142,11 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
               ),
               Checkbox(
                 value: isAvailable,
+                visualDensity: const VisualDensity(
+                  horizontal: -4,
+                  vertical: -4,
+                ),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 onChanged: (value) {
                   setState(() {
                     _dirtyAvailabilityIds.add(item.id);
@@ -2197,12 +2158,12 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
           ),
           if ((item.notes ?? '').trim().isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.only(top: 2, bottom: 2),
               child: Text(
                 item.notes!.trim(),
                 style: const TextStyle(
                   color: AppColors.textSecondary,
-                  fontSize: 12,
+                  fontSize: 11.5,
                 ),
               ),
             ),
@@ -2339,19 +2300,21 @@ class _ShoppingItemsCardState extends State<_ShoppingItemsCard> {
           });
         },
         dense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+        visualDensity: const VisualDensity(horizontal: -2, vertical: -3),
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
         controlAffinity: ListTileControlAffinity.leading,
         title: const Text(
           'Item berat',
           style: TextStyle(
             color: AppColors.textPrimary,
             fontWeight: FontWeight.w700,
-            fontSize: 13,
+            fontSize: 12.5,
           ),
         ),
         subtitle: const Text(
           'Tambahan biaya Rp6.000 sekali per order',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5),
         ),
       ),
     );

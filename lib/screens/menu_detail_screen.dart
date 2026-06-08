@@ -153,21 +153,6 @@ class _MenuDetailView extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Icon(Icons.star_rounded, size: 18, color: Colors.amber),
-                const SizedBox(width: 6),
-                Text(
-                  food.rating.toStringAsFixed(1),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ],
-            ),
             const SizedBox(height: 20),
             Container(
               width: double.infinity,

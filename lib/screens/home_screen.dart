@@ -132,7 +132,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 12, 8),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
         child: Column(
           children: [
             Row(
@@ -200,33 +200,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    IconButton(
-                      tooltip: 'Notifikasi',
-                      onPressed: () => context.push(AppRoutes.notifications),
-                      icon: const Icon(
-                        Icons.notifications_none_rounded,
-                        color: AppColors.textPrimary,
-                        size: 24,
-                      ),
-                    ),
-                    Positioned(
-                      top: 10,
-                      right: 10,
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: AppColors.primary,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),

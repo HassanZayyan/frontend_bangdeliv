@@ -78,12 +78,14 @@ class ChatbotShoppingDraft {
   final Map<String, dynamic>? delivery;
   final List<ChatbotShoppingItem> items;
   final bool readyToConfirm;
+  final String? paymentMethod;
 
   const ChatbotShoppingDraft({
     required this.merchant,
     required this.delivery,
     required this.items,
     required this.readyToConfirm,
+    required this.paymentMethod,
   });
 
   factory ChatbotShoppingDraft.fromJson(Map<String, dynamic> json) {
@@ -103,6 +105,7 @@ class ChatbotShoppingDraft {
           .map(ChatbotShoppingItem.fromJson)
           .toList(growable: false),
       readyToConfirm: json['ready_to_confirm'] == true,
+      paymentMethod: json['payment_method']?.toString(),
     );
   }
 }

@@ -20,6 +20,23 @@ import '../widgets/order_chat_badge_icon.dart';
 import '../widgets/shopping_fee_breakdown.dart';
 import '../widgets/tracking_map_section.dart';
 
+String _normalizedPaymentMethod(
+  CustomerOrderSummaryModel order,
+  CustomerOrderDetailModel detail,
+) {
+  final detailMethod = (detail.paymentMethod ?? '').trim();
+  if (detailMethod.isNotEmpty) {
+    return detailMethod.toUpperCase();
+  }
+
+  final summaryMethod = (order.paymentMethod ?? '').trim();
+  if (summaryMethod.isNotEmpty) {
+    return summaryMethod.toUpperCase();
+  }
+
+  return 'COD';
+}
+
 class TrackOrderScreen extends ConsumerWidget {
   const TrackOrderScreen({super.key}) : initialOrderId = null;
 
@@ -1220,9 +1237,15 @@ class TrackOrderScreen extends ConsumerWidget {
     final deliveryFeeNotice = _deliveryFeeNotice(order, detail);
     final serviceCode = normalizeServiceTypeCode(order.serviceTypeCode);
     final isShopping = serviceCode == ServiceTypeCodes.shopping;
-    final paymentMethod = paymentMethodLabel(detail.paymentMethod);
+    final normalizedPaymentMethod = _normalizedPaymentMethod(order, detail);
+    final paymentMethod = paymentMethodLabel(normalizedPaymentMethod);
     final paymentStatus = paymentStatusLabel(detail.paymentStatus);
     final isPaid = isPaymentPaid(detail.paymentStatus);
+    final summaryPaymentMessage = _paymentMessage(
+      order,
+      detail,
+      isPaid: isPaid,
+    );
     final rows = <_InfoRow>[
       _InfoRow('No. Order', order.orderNumber),
       _InfoRow('Layanan', order.serviceTypeLabel),
@@ -1255,16 +1278,18 @@ class TrackOrderScreen extends ConsumerWidget {
                 emphasized: true,
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              _paymentMessage(order, detail, isPaid: isPaid),
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-                height: 1.4,
+            if (summaryPaymentMessage.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                summaryPaymentMessage,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                  height: 1.4,
+                ),
               ),
-            ),
+            ],
           ],
           if (deliveryFeeNotice != null) ...[
             const SizedBox(height: 12),
@@ -1339,11 +1364,16 @@ class TrackOrderScreen extends ConsumerWidget {
     final isCancelledWithFee =
         normalizeOrderStatusCode(order.statusCode) ==
         OrderStatusCodes.cancelledWithFee;
+    final isTransfer = _normalizedPaymentMethod(order, detail) == 'TRANSFER';
 
     if (isCancelledWithFee) {
       return isPaid
           ? 'Penalty merchant gagal sudah tercatat.'
           : 'Bayar penalty merchant gagal sesuai nominal.';
+    }
+
+    if (isTransfer) {
+      return '';
     }
 
     if (isCourier) {
@@ -1481,9 +1511,7 @@ class TrackOrderScreen extends ConsumerWidget {
   ) {
     final isPaid = isPaymentPaid(detail.paymentStatus);
     final statusColor = isPaid ? AppColors.success : AppColors.primary;
-    final normalizedPaymentMethod = (detail.paymentMethod ?? 'COD')
-        .trim()
-        .toUpperCase();
+    final normalizedPaymentMethod = _normalizedPaymentMethod(order, detail);
     final isTransfer = normalizedPaymentMethod == 'TRANSFER';
     final isCourier =
         normalizeServiceTypeCode(order.serviceTypeCode) ==
@@ -1516,7 +1544,7 @@ class TrackOrderScreen extends ConsumerWidget {
             runSpacing: 8,
             children: [
               _paymentChip(
-                paymentMethodLabel(detail.paymentMethod),
+                paymentMethodLabel(normalizedPaymentMethod),
                 statusColor,
               ),
               _paymentChip(
@@ -1557,20 +1585,6 @@ class TrackOrderScreen extends ConsumerWidget {
                   ),
                   icon: const Icon(Icons.upload_file_outlined),
                   label: const Text('Upload Bukti Transfer'),
-                ),
-              )
-            else
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => _changePaymentMethodToTransfer(
-                    context,
-                    ref,
-                    order.id,
-                    onRefresh,
-                  ),
-                  icon: const Icon(Icons.swap_horiz),
-                  label: const Text('Ubah ke Transfer'),
                 ),
               ),
           ],
@@ -1644,31 +1658,6 @@ class TrackOrderScreen extends ConsumerWidget {
         : 'Bayar tunai ke driver saat pesanan sampai.';
   }
 
-  Future<void> _changePaymentMethodToTransfer(
-    BuildContext context,
-    WidgetRef ref,
-    int orderId,
-    Future<void> Function()? onRefresh,
-  ) async {
-    try {
-      await ref
-          .read(customerOrderApiServiceProvider)
-          .updatePaymentMethod(orderId, paymentMethod: 'TRANSFER');
-      ref.invalidate(customerOrderTrackingProvider(orderId));
-      ref.invalidate(customerOrdersProvider);
-      await onRefresh?.call();
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Metode pembayaran diubah ke transfer.')),
-      );
-    } catch (error) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
-    }
-  }
-
   Future<void> _uploadTransferEvidence(
     BuildContext context,
     WidgetRef ref,
@@ -1676,7 +1665,7 @@ class TrackOrderScreen extends ConsumerWidget {
     Future<void> Function()? onRefresh,
   ) async {
     final photo = await ImagePicker().pickImage(
-      source: ImageSource.camera,
+      source: ImageSource.gallery,
       imageQuality: 82,
       maxWidth: 1600,
     );
@@ -2064,7 +2053,6 @@ class _ShoppingOrderItemsCardState
     final failedStops = stops
         .where((stop) => stop.isFailed)
         .toList(growable: false);
-    final paymentMessage = _shoppingPaymentMessage(detail);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -2156,38 +2144,9 @@ class _ShoppingOrderItemsCardState
             const SizedBox(height: 4),
             _pricingRow('Total', pricing.totalPrice, isTotal: true),
           ],
-          if (paymentMessage.isNotEmpty) ...[
-            SizedBox(height: pricing == null ? 10 : 8),
-            Text(
-              paymentMessage,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-                height: 1.4,
-              ),
-            ),
-          ],
         ],
       ),
     );
-  }
-
-  String _shoppingPaymentMessage(CustomerOrderDetailModel detail) {
-    final isPaid = isPaymentPaid(detail.paymentStatus);
-    final isCancelledWithFee =
-        normalizeOrderStatusCode(detail.summary.statusCode) ==
-        OrderStatusCodes.cancelledWithFee;
-
-    if (isCancelledWithFee) {
-      return isPaid
-          ? 'Penalty merchant gagal sudah tercatat.'
-          : 'Bayar penalty merchant gagal sesuai nominal.';
-    }
-
-    return isPaid
-        ? 'Pembayaran tunai sudah tercatat.'
-        : 'Bayar tunai ke driver saat pesanan sampai.';
   }
 
   Widget _failedStopNotice(

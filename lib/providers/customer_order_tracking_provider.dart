@@ -23,7 +23,6 @@ class CustomerOrderTrackingState {
     this.realtimeUnavailable = false,
     this.lastRealtimeEventAt,
     this.lastStatusEventAt,
-    this.lastLocationEventAt,
     this.lastStatusHistoryId,
     this.realtimeMessage,
   });
@@ -33,11 +32,11 @@ class CustomerOrderTrackingState {
   final bool realtimeUnavailable;
   final DateTime? lastRealtimeEventAt;
   final DateTime? lastStatusEventAt;
-  final DateTime? lastLocationEventAt;
   final int? lastStatusHistoryId;
   final String? realtimeMessage;
 
-  bool get hasLiveDriverLocation => lastLocationEventAt != null;
+  bool get hasLiveDriverLocation =>
+      detail.driverLatitude != null && detail.driverLongitude != null;
 
   CustomerOrderTrackingState copyWith({
     CustomerOrderDetailModel? detail,
@@ -45,7 +44,6 @@ class CustomerOrderTrackingState {
     bool? realtimeUnavailable,
     DateTime? lastRealtimeEventAt,
     DateTime? lastStatusEventAt,
-    DateTime? lastLocationEventAt,
     int? lastStatusHistoryId,
     String? realtimeMessage,
     bool clearRealtimeMessage = false,
@@ -57,7 +55,6 @@ class CustomerOrderTrackingState {
       realtimeUnavailable: realtimeUnavailable ?? this.realtimeUnavailable,
       lastRealtimeEventAt: lastRealtimeEventAt ?? this.lastRealtimeEventAt,
       lastStatusEventAt: lastStatusEventAt ?? this.lastStatusEventAt,
-      lastLocationEventAt: lastLocationEventAt ?? this.lastLocationEventAt,
       lastStatusHistoryId: clearLastStatusHistoryId
           ? null
           : (lastStatusHistoryId ?? this.lastStatusHistoryId),
@@ -172,45 +169,6 @@ class CustomerOrderTrackingNotifier
     unawaited(_reconcileDetail());
   }
 
-  void _applyLocationEvent(OrderRealtimeEvent event) {
-    if (!_isMounted) {
-      return;
-    }
-
-    final current = state.asData?.value;
-    if (current == null ||
-        !isDriverLocationTrackable(
-          current.detail.summary.statusCode,
-          statusLabel: current.detail.summary.statusLabel,
-        )) {
-      return;
-    }
-
-    final lat = event.latitude;
-    final lng = event.longitude;
-    final updatedAt = event.updatedAt;
-    if (lat == null || lng == null || updatedAt == null) {
-      return;
-    }
-
-    final patchedDetail = current.detail.copyWith(
-      driverLatitude: lat,
-      driverLongitude: lng,
-      driverLocationUpdatedAt: updatedAt,
-    );
-
-    state = AsyncData(
-      current.copyWith(
-        detail: patchedDetail,
-        realtimeConnected: true,
-        realtimeUnavailable: false,
-        lastRealtimeEventAt: updatedAt,
-        lastLocationEventAt: updatedAt,
-        clearRealtimeMessage: true,
-      ),
-    );
-  }
-
   void _applyStatusEvent(OrderStatusRealtimeEvent event) {
     if (!_isMounted) {
       return;
@@ -310,6 +268,33 @@ class CustomerOrderTrackingNotifier
         realtimeConnected: true,
         realtimeUnavailable: false,
         lastRealtimeEventAt: DateTime.now(),
+        clearRealtimeMessage: true,
+      ),
+    );
+  }
+
+  void _applyLocationEvent(OrderRealtimeEvent event) {
+    if (!_isMounted || event.latitude == null || event.longitude == null) {
+      return;
+    }
+
+    final current = state.asData?.value;
+    if (current == null) {
+      return;
+    }
+
+    final patchedDetail = current.detail.copyWith(
+      driverLatitude: event.latitude,
+      driverLongitude: event.longitude,
+      driverLocationUpdatedAt: event.updatedAt ?? DateTime.now(),
+    );
+
+    state = AsyncData(
+      current.copyWith(
+        detail: patchedDetail,
+        realtimeConnected: true,
+        realtimeUnavailable: false,
+        lastRealtimeEventAt: event.updatedAt ?? DateTime.now(),
         clearRealtimeMessage: true,
       ),
     );
@@ -428,14 +413,6 @@ class CustomerOrderTrackingNotifier
       );
     }
 
-    if (_shouldPreserveRealtimeLocation(fetched, current)) {
-      merged = merged.copyWith(
-        driverLatitude: current.detail.driverLatitude,
-        driverLongitude: current.detail.driverLongitude,
-        driverLocationUpdatedAt: current.detail.driverLocationUpdatedAt,
-      );
-    }
-
     return merged;
   }
 
@@ -464,22 +441,6 @@ class CustomerOrderTrackingNotifier
           changedAt != null &&
           !changedAt.isBefore(lastStatusEventAt);
     });
-  }
-
-  bool _shouldPreserveRealtimeLocation(
-    CustomerOrderDetailModel fetched,
-    CustomerOrderTrackingState current,
-  ) {
-    final lastLocationEventAt = current.lastLocationEventAt;
-    if (lastLocationEventAt == null ||
-        current.detail.driverLatitude == null ||
-        current.detail.driverLongitude == null) {
-      return false;
-    }
-
-    final fetchedLocationUpdatedAt = fetched.driverLocationUpdatedAt;
-    return fetchedLocationUpdatedAt == null ||
-        fetchedLocationUpdatedAt.isBefore(lastLocationEventAt);
   }
 
   double? _asNullableDouble(dynamic value) {

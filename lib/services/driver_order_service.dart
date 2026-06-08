@@ -75,8 +75,6 @@ class DriverOrderService {
     required String actionCode,
     String? targetStatusCode,
     String? note,
-    double? latitude,
-    double? longitude,
   }) async {
     final normalizedTargetStatusCode = targetStatusCode?.trim();
     final normalizedNote = note?.trim();
@@ -90,8 +88,6 @@ class DriverOrderService {
           'target_status_code': normalizedTargetStatusCode,
         if (normalizedNote != null && normalizedNote.isNotEmpty)
           'note': normalizedNote,
-        'latitude': ?latitude,
-        'longitude': ?longitude,
       },
       fallback: 'Gagal memproses transisi status order.',
     );
@@ -105,32 +101,6 @@ class DriverOrderService {
     }
 
     return DriverOrderModel.fromJson(data);
-  }
-
-  Future<void> updateLocation(
-    String orderId,
-    double lat,
-    double lng,
-    double heading,
-  ) async {
-    final response = await _post(
-      '/v1/driver/orders/$orderId/location',
-      body: <String, dynamic>{
-        'latitude': lat,
-        'longitude': lng,
-        'heading': heading,
-      },
-      fallback: 'Gagal memancarkan lokasi.',
-      timeout: const Duration(seconds: 5),
-    );
-
-    final data = _extractData(response);
-    if (data.containsKey('location_saved') && data['location_saved'] != true) {
-      throw const DriverOrderApiException(
-        'Lokasi driver belum berhasil dikirim ke server.',
-        statusCode: 500,
-      );
-    }
   }
 
   Future<void> collectCod({

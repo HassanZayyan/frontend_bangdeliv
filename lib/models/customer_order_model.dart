@@ -547,12 +547,9 @@ class CustomerOrderDetailModel {
     final driverUser = (driver['user'] is Map<String, dynamic>)
         ? driver['user'] as Map<String, dynamic>
         : const <String, dynamic>{};
-    final driverLocation = (json['driver_location'] is Map<String, dynamic>)
-        ? json['driver_location'] as Map<String, dynamic>
-        : (driver['location'] is Map<String, dynamic>)
+    final driverLocation = (driver['location'] is Map<String, dynamic>)
         ? driver['location'] as Map<String, dynamic>
         : const <String, dynamic>{};
-
     final locations = _extractOrderLocations(json);
     final pickupLocation = _findLocationByRole(locations, 'PICKUP');
     final dropoffLocation = _findLocationByRole(locations, 'DROPOFF');
@@ -595,18 +592,25 @@ class CustomerOrderDetailModel {
       driverUser['avatarUrl'],
       driverUser['avatar'],
     ]);
-
-    final parsedDriverLatitude = _asNullableDouble(
-      driver['current_latitude'] ??
+    final driverLatitude = _asNullableDouble(
+      json['driver_latitude'] ??
+          json['driverLatitude'] ??
           driver['latitude'] ??
-          driverLocation['latitude'] ??
-          json['driver_latitude'],
+          driverLocation['latitude'],
     );
-    final parsedDriverLongitude = _asNullableDouble(
-      driver['current_longitude'] ??
+    final driverLongitude = _asNullableDouble(
+      json['driver_longitude'] ??
+          json['driverLongitude'] ??
           driver['longitude'] ??
-          driverLocation['longitude'] ??
-          json['driver_longitude'],
+          driverLocation['longitude'],
+    );
+    final driverLocationUpdatedAt = CustomerOrderSummaryModel._asDateTime(
+      json['driver_location_updated_at'] ??
+          json['driverLocationUpdatedAt'] ??
+          driver['location_updated_at'] ??
+          driver['locationUpdatedAt'] ??
+          driverLocation['updated_at'] ??
+          driverLocation['updatedAt'],
     );
 
     final histories = (json['status_histories'] is List)
@@ -717,20 +721,14 @@ class CustomerOrderDetailModel {
           dropoffLongitude != null && _isValidLongitude(dropoffLongitude)
           ? dropoffLongitude
           : null,
-      driverLatitude:
-          parsedDriverLatitude != null && _isValidLatitude(parsedDriverLatitude)
-          ? parsedDriverLatitude
+      driverLatitude: driverLatitude != null && _isValidLatitude(driverLatitude)
+          ? driverLatitude
           : null,
       driverLongitude:
-          parsedDriverLongitude != null &&
-              _isValidLongitude(parsedDriverLongitude)
-          ? parsedDriverLongitude
+          driverLongitude != null && _isValidLongitude(driverLongitude)
+          ? driverLongitude
           : null,
-      driverLocationUpdatedAt: CustomerOrderSummaryModel._asDateTime(
-        driver['location_updated_at'] ??
-            driverLocation['updated_at'] ??
-            driver['updated_at'],
-      ),
+      driverLocationUpdatedAt: driverLocationUpdatedAt,
       deliveryDistanceText: json['delivery_distance_text']?.toString(),
       deliveryDistanceKm: _asNullableDouble(
         json['delivery_distance_km'] ?? json['deliveryDistanceKm'],

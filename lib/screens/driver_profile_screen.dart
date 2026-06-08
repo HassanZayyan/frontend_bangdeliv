@@ -137,10 +137,6 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
         ? driverProfile!.totalDeliveries
         : profile.stats.totalOrders;
 
-    final resolvedRating = (driverProfile?.avgRating ?? 0) > 0
-        ? driverProfile!.avgRating
-        : profile.stats.rating;
-
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -194,21 +190,7 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
           const SizedBox(height: 12),
           const Divider(color: AppColors.border),
           const SizedBox(height: 6),
-          Row(
-            children: [
-              Expanded(
-                child: _miniStat('Order Selesai', completedOrders.toString()),
-              ),
-              Expanded(
-                child: _miniStat(
-                  'Rating',
-                  resolvedRating <= 0
-                      ? '-'
-                      : '${resolvedRating.toStringAsFixed(1)}★',
-                ),
-              ),
-            ],
-          ),
+          _miniStat('Order Selesai', completedOrders.toString()),
         ],
       ),
     );

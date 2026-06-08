@@ -103,9 +103,12 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           iconAsset:
               'assets/images/services/service_shopping_basket_simplified.png',
           welcomeMessage:
-              'Halo! Saya BangBot untuk layanan Nitip. Titip beli makanan, sembako, atau kebutuhan minimarket. Tulis toko/resto dan item, lalu pilih titik antar di map.',
+              'Halo! Saya BangBot untuk layanan Nitip. Tulis resto/toko yang tersedia di Bang Deliv, item, dan jumlah lewat chat, atau atur titik antar di map.\n'
+              'Contoh: Beli di Ayam Geprek Pak Roni:\n'
+              '- ayam geprek 2\n'
+              '- es teh 1',
           addressRequiredMessage:
-              'Sebelum pakai Nitip, isi Alamat Saya dulu supaya titik antar pesanan kamu siap dipakai.',
+              'Sebelum pesan Nitip, isi Alamat Saya dulu supaya titik antar pesanan kamu siap dipakai.',
           suggestions: [
             'Beli ayam geprek',
             'Beli sembako',
@@ -286,7 +289,35 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     });
   }
 
-  void _handleBack() {
+  String _currentWelcomeMessage() {
+    final addresses =
+        ref.read(authSessionProvider).profile?.addresses ??
+        const <SavedAddressModel>[];
+
+    return _serviceContext.welcomeMessageFor(hasUsableSavedAddress(addresses));
+  }
+
+  Future<void> _clearCompletedActiveChatbotSession() async {
+    final state = ref.read(chatbotConversationProvider);
+    if (state.serviceType != _serviceContext.serviceType ||
+        !state.pendingClearAfterOrderCreated) {
+      return;
+    }
+
+    await ref
+        .read(chatbotConversationProvider.notifier)
+        .clearCompletedActiveSession(
+          serviceType: _serviceContext.serviceType,
+          welcomeMessage: _currentWelcomeMessage(),
+        );
+  }
+
+  Future<void> _handleBack() async {
+    await _clearCompletedActiveChatbotSession();
+    if (!mounted) {
+      return;
+    }
+
     if (context.canPop()) {
       context.pop();
       return;
@@ -306,6 +337,10 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     final state = ref.watch(chatbotConversationProvider);
     final isServiceMismatch = state.serviceType != _serviceContext.serviceType;
     final effectiveBusy = state.isBusy || isServiceMismatch;
+    final inputEnabled = !effectiveBusy && !state.pendingClearAfterOrderCreated;
+    final latestActionMessageIndex = state.messages.lastIndexWhere(
+      (message) => !message.isUser && message.actionHints.isNotEmpty,
+    );
 
     // Auto-scroll whenever the message list grows (new send / map-pin response)
     ref.listen<ChatbotConversationState>(chatbotConversationProvider, (
@@ -357,7 +392,9 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.history, color: AppColors.textPrimary),
-            onPressed: effectiveBusy ? null : _openSessionPicker,
+            onPressed: effectiveBusy || state.pendingClearAfterOrderCreated
+                ? null
+                : _openSessionPicker,
           ),
         ],
       ),
@@ -385,14 +422,14 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                 : ListView(
                     controller: _scrollController,
                     padding: const EdgeInsets.all(20),
-                    children: state.messages
-                        .map(
-                          (message) => _buildMessageItem(
-                            message,
-                            actionsEnabled: !effectiveBusy,
-                          ),
-                        )
-                        .toList(growable: false),
+                    children: List.generate(state.messages.length, (index) {
+                      final message = state.messages[index];
+                      return _buildMessageItem(
+                        message,
+                        actionsEnabled:
+                            !effectiveBusy && index == latestActionMessageIndex,
+                      );
+                    }),
                   ),
           ),
           Container(
@@ -415,7 +452,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                             in _serviceContext.suggestions) ...[
                           _buildSuggestionChip(
                             suggestion,
-                            enabled: !effectiveBusy,
+                            enabled: inputEnabled,
                           ),
                           const SizedBox(width: 8),
                         ],
@@ -428,19 +465,15 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                       Expanded(
                         child: TextField(
                           controller: _inputController,
+                          enabled: inputEnabled,
                           minLines: 1,
                           maxLines: 3,
                           style: const TextStyle(
                             color: AppColors.textPrimary,
                             fontSize: 14,
                           ),
-                          textInputAction: TextInputAction.send,
-                          onSubmitted: (_) {
-                            if (effectiveBusy) {
-                              return;
-                            }
-                            _sendMessage();
-                          },
+                          keyboardType: TextInputType.multiline,
+                          textInputAction: TextInputAction.newline,
                           decoration: InputDecoration(
                             filled: true,
                             fillColor: AppColors.white,
@@ -478,14 +511,14 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                       const SizedBox(width: 12),
                       InkWell(
                         borderRadius: BorderRadius.circular(25),
-                        onTap: effectiveBusy ? null : _sendMessage,
+                        onTap: inputEnabled ? _sendMessage : null,
                         child: Container(
                           width: 50,
                           height: 50,
                           decoration: BoxDecoration(
-                            color: effectiveBusy
-                                ? AppColors.primary.withValues(alpha: 0.7)
-                                : AppColors.primary,
+                            color: inputEnabled
+                                ? AppColors.primary
+                                : AppColors.primary.withValues(alpha: 0.55),
                             shape: BoxShape.circle,
                           ),
                           child: effectiveBusy
@@ -882,8 +915,9 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             parts.instructionLine,
             style: const TextStyle(
               color: AppColors.textSecondary,
-              fontSize: 12,
-              height: 1.4,
+              fontSize: 14.5,
+              height: 1.45,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
