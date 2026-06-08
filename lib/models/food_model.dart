@@ -7,7 +7,6 @@ class FoodModel {
   final String description;
   final String restaurantName;
   final double price;
-  final double rating;
   final String imageUrl;
 
   FoodModel({
@@ -16,14 +15,12 @@ class FoodModel {
     required this.description,
     required this.restaurantName,
     required this.price,
-    required this.rating,
     required this.imageUrl,
   });
 
   factory FoodModel.fromApiJson(
     Map<String, dynamic> json, {
     required String restaurantName,
-    required double restaurantRating,
   }) {
     return FoodModel(
       id: (json['id'] ?? '').toString(),
@@ -31,7 +28,6 @@ class FoodModel {
       description: json['description']?.toString() ?? '',
       restaurantName: restaurantName,
       price: _toDouble(json['price']),
-      rating: restaurantRating,
       imageUrl: AppEnv.resolveBackendAssetUrl(json['image']?.toString()),
     );
   }

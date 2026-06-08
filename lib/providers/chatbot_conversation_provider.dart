@@ -96,6 +96,7 @@ class ChatbotConversationState {
     required this.isSending,
     required this.isApplyingAction,
     required this.hasInitialized,
+    required this.pendingClearAfterOrderCreated,
     required this.errorMessage,
   });
 
@@ -107,6 +108,7 @@ class ChatbotConversationState {
   final bool isSending;
   final bool isApplyingAction;
   final bool hasInitialized;
+  final bool pendingClearAfterOrderCreated;
   final String? errorMessage;
 
   bool get isBusy => isBootstrapping || isSending || isApplyingAction;
@@ -120,18 +122,22 @@ class ChatbotConversationState {
     bool? isSending,
     bool? isApplyingAction,
     bool? hasInitialized,
+    bool? pendingClearAfterOrderCreated,
     String? errorMessage,
+    bool clearSessionId = false,
     bool clearErrorMessage = false,
   }) {
     return ChatbotConversationState(
       serviceType: serviceType ?? this.serviceType,
-      sessionId: sessionId ?? this.sessionId,
+      sessionId: clearSessionId ? null : (sessionId ?? this.sessionId),
       messages: messages ?? this.messages,
       sessions: sessions ?? this.sessions,
       isBootstrapping: isBootstrapping ?? this.isBootstrapping,
       isSending: isSending ?? this.isSending,
       isApplyingAction: isApplyingAction ?? this.isApplyingAction,
       hasInitialized: hasInitialized ?? this.hasInitialized,
+      pendingClearAfterOrderCreated:
+          pendingClearAfterOrderCreated ?? this.pendingClearAfterOrderCreated,
       errorMessage: clearErrorMessage
           ? null
           : (errorMessage ?? this.errorMessage),
@@ -151,6 +157,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       isSending: false,
       isApplyingAction: false,
       hasInitialized: false,
+      pendingClearAfterOrderCreated: false,
       errorMessage: null,
     );
   }
@@ -169,6 +176,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       isSending: false,
       isApplyingAction: false,
       hasInitialized: false,
+      pendingClearAfterOrderCreated: false,
       errorMessage: null,
     );
   }
@@ -186,6 +194,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     state = state.copyWith(
       isBootstrapping: true,
       hasInitialized: true,
+      pendingClearAfterOrderCreated: false,
       clearErrorMessage: true,
     );
 
@@ -237,6 +246,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         sessions: sessions,
         messages: messages,
         isBootstrapping: false,
+        pendingClearAfterOrderCreated: false,
         clearErrorMessage: true,
       );
     } catch (_) {
@@ -251,6 +261,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
           ),
         ],
         isBootstrapping: false,
+        pendingClearAfterOrderCreated: false,
         errorMessage: 'Gagal memuat histori chat. Sesi baru dibuat.',
       );
 
@@ -282,7 +293,11 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       return;
     }
 
-    state = state.copyWith(isBootstrapping: true, clearErrorMessage: true);
+    state = state.copyWith(
+      isBootstrapping: true,
+      pendingClearAfterOrderCreated: false,
+      clearErrorMessage: true,
+    );
 
     final api = ref.read(chatbotApiServiceProvider);
     try {
@@ -312,6 +327,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         sessionId: resolvedSessionId,
         messages: messages,
         isBootstrapping: false,
+        pendingClearAfterOrderCreated: false,
         clearErrorMessage: true,
       );
 
@@ -331,7 +347,10 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     _ensureService(serviceType);
 
     final message = rawMessage.trim();
-    if (message.isEmpty || state.isSending || state.isBootstrapping) {
+    if (message.isEmpty ||
+        state.isSending ||
+        state.isBootstrapping ||
+        state.pendingClearAfterOrderCreated) {
       return;
     }
 
@@ -345,7 +364,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       serviceType: serviceType,
       sessionId: sessionId,
       messages: <ChatbotConversationMessage>[
-        ...state.messages,
+        ..._clearActionHints(state.messages),
         ChatbotConversationMessage(
           text: message,
           timestamp: _nowLabel(),
@@ -380,6 +399,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
           ...state.messages,
           _messageFromResult(result, serviceType),
         ],
+        pendingClearAfterOrderCreated: result.isOrderCreated,
         clearErrorMessage: true,
       );
 
@@ -425,7 +445,11 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       return;
     }
 
-    state = state.copyWith(isApplyingAction: true, clearErrorMessage: true);
+    state = state.copyWith(
+      isApplyingAction: true,
+      messages: _clearActionHints(state.messages),
+      clearErrorMessage: true,
+    );
 
     final api = ref.read(chatbotApiServiceProvider);
     try {
@@ -454,6 +478,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
           ...state.messages,
           _messageFromResult(result, serviceType),
         ],
+        pendingClearAfterOrderCreated: result.isOrderCreated,
         clearErrorMessage: true,
       );
 
@@ -480,7 +505,11 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       return;
     }
 
-    state = state.copyWith(isApplyingAction: true, clearErrorMessage: true);
+    state = state.copyWith(
+      isApplyingAction: true,
+      messages: _clearActionHints(state.messages),
+      clearErrorMessage: true,
+    );
 
     final api = ref.read(chatbotApiServiceProvider);
     try {
@@ -515,6 +544,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
           ...state.messages,
           _messageFromResult(result, serviceType),
         ],
+        pendingClearAfterOrderCreated: result.isOrderCreated,
         clearErrorMessage: true,
       );
 
@@ -524,6 +554,81 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         isApplyingAction: false,
         errorMessage: 'Gagal memperbarui titik rute.',
       );
+    }
+  }
+
+  Future<void> clearCompletedActiveSession({
+    required String serviceType,
+    required String welcomeMessage,
+  }) async {
+    _ensureService(serviceType);
+
+    if (!state.pendingClearAfterOrderCreated) {
+      return;
+    }
+
+    final sessionId = state.sessionId?.trim();
+    final api = ref.read(chatbotApiServiceProvider);
+
+    if (sessionId != null && sessionId.isNotEmpty) {
+      try {
+        await api.clearSession(sessionId);
+      } catch (_) {
+        // Best effort: the completed session is still cleared locally.
+      }
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_sessionStorageKey(serviceType));
+    } catch (_) {
+      // Best effort cache removal.
+    }
+
+    List<ChatbotSessionSummary> withoutCompletedSession(
+      List<ChatbotSessionSummary> sessions,
+    ) {
+      if (sessionId == null || sessionId.isEmpty) {
+        return sessions;
+      }
+
+      return sessions
+          .where((session) => session.sessionId.trim() != sessionId)
+          .toList(growable: false);
+    }
+
+    final normalizedWelcome = welcomeMessage.trim();
+    state = state.copyWith(
+      serviceType: serviceType,
+      clearSessionId: true,
+      messages: normalizedWelcome.isEmpty
+          ? const <ChatbotConversationMessage>[]
+          : <ChatbotConversationMessage>[
+              _botMessage(
+                text: normalizedWelcome,
+                timestamp: _nowLabel(),
+                actionHints: _bootstrapActionHints(serviceType),
+              ),
+            ],
+      sessions: withoutCompletedSession(state.sessions),
+      isBootstrapping: false,
+      isSending: false,
+      isApplyingAction: false,
+      hasInitialized: normalizedWelcome.isNotEmpty,
+      pendingClearAfterOrderCreated: false,
+      clearErrorMessage: true,
+    );
+
+    try {
+      final sessions = await api.fetchSessions(serviceType: serviceType);
+      if (state.serviceType == serviceType) {
+        state = state.copyWith(
+          sessions: withoutCompletedSession(sessions),
+          clearErrorMessage: true,
+        );
+      }
+    } catch (_) {
+      // Silent refresh failure.
     }
   }
 
@@ -676,6 +781,25 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     );
   }
 
+  List<ChatbotConversationMessage> _clearActionHints(
+    List<ChatbotConversationMessage> messages,
+  ) {
+    return messages
+        .map((message) {
+          if (message.actionHints.isEmpty) {
+            return message;
+          }
+
+          return ChatbotConversationMessage(
+            text: message.text,
+            timestamp: message.timestamp,
+            isUser: message.isUser,
+            meta: message.meta,
+          );
+        })
+        .toList(growable: false);
+  }
+
   List<ChatbotMessageActionHint> _resolveActionHintsFromResult(
     ChatbotResult result,
   ) {
@@ -692,11 +816,20 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         .map((item) => item.trim().toUpperCase())
         .where((item) => item.isNotEmpty)
         .toList(growable: false);
+    final serviceType = result.serviceType ?? state.serviceType;
+    final effectiveNextActions = _sanitizePaymentActionsForResolvedDraft(
+      nextActions: nextActions,
+      serviceType: serviceType,
+      readyToConfirm:
+          result.shopping?.readyToConfirm == true ||
+          result.validation?.isValidOrder == true,
+      paymentMethod: result.shopping?.paymentMethod,
+    );
 
     return _resolveActionHints(
-      nextActions: nextActions,
+      nextActions: effectiveNextActions,
       actionPayloads: result.actionPayloads,
-      serviceType: result.serviceType ?? state.serviceType,
+      serviceType: serviceType,
     );
   }
 
@@ -715,16 +848,59 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         .map((item) => item.toString().trim().toUpperCase())
         .where((item) => item.isNotEmpty)
         .toList(growable: false);
+    final shopping = (payload['shopping'] is Map<String, dynamic>)
+        ? payload['shopping'] as Map<String, dynamic>
+        : const <String, dynamic>{};
+    final effectiveNextActions = _sanitizePaymentActionsForResolvedDraft(
+      nextActions: nextActions,
+      serviceType: serviceType,
+      readyToConfirm:
+          shopping['ready_to_confirm'] == true ||
+          validation?['is_valid_order'] == true,
+      paymentMethod:
+          shopping['payment_method']?.toString() ??
+          ((payload['order'] is Map<String, dynamic>)
+              ? (payload['order'] as Map<String, dynamic>)['payment_method']
+                    ?.toString()
+              : null),
+    );
 
     final actionPayloads = (payload['action_payloads'] is Map<String, dynamic>)
         ? payload['action_payloads'] as Map<String, dynamic>
         : null;
 
     return _resolveActionHints(
-      nextActions: nextActions,
+      nextActions: effectiveNextActions,
       actionPayloads: actionPayloads,
       serviceType: serviceType,
     );
+  }
+
+  List<String> _sanitizePaymentActionsForResolvedDraft({
+    required List<String> nextActions,
+    required String serviceType,
+    required bool readyToConfirm,
+    required String? paymentMethod,
+  }) {
+    final normalizedPayment = (paymentMethod ?? '').trim().toUpperCase();
+    if (serviceType != 'nitip' ||
+        !readyToConfirm ||
+        (normalizedPayment != 'COD' && normalizedPayment != 'TRANSFER')) {
+      return nextActions;
+    }
+
+    final filtered = nextActions
+        .where(
+          (action) =>
+              action != 'SET_PAYMENT_COD' && action != 'SET_PAYMENT_TRANSFER',
+        )
+        .toList(growable: true);
+
+    if (!filtered.contains('CONFIRM_DRAFT')) {
+      filtered.add('CONFIRM_DRAFT');
+    }
+
+    return filtered;
   }
 
   List<ChatbotMessageActionHint> _resolveActionHints({
@@ -871,7 +1047,9 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         _presetMessageHintFromPayload(
           actionPayloads,
           'CONFIRM_DRAFT',
-          fallbackLabel: 'Konfirmasi',
+          fallbackLabel: serviceType == 'nitip'
+              ? 'Konfirmasi Nitip'
+              : 'Konfirmasi',
           fallbackMessage: 'Konfirmasi',
         ),
       );

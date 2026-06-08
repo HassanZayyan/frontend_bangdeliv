@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:frontend_bangdeliv/models/customer_order_model.dart';
 import 'package:frontend_bangdeliv/models/driver_order_model.dart';
 import 'package:frontend_bangdeliv/models/order_chat_model.dart';
 
@@ -117,5 +118,31 @@ void main() {
     expect(proof.status, 'PENDING');
     expect(proof.note, 'Bukti transfer customer.');
     expect(proof.createdAt, DateTime.parse('2026-06-06T15:38:00Z'));
+  });
+
+  test('customer detail parses driver location for live tracking marker', () {
+    final detail = CustomerOrderDetailModel.fromJson({
+      'id': 91,
+      'order_number': 'BD-260607-0091',
+      'service_type': {'code': 'SHOPPING', 'display_name': 'Nitip'},
+      'status': 'DRIVER_ASSIGNED',
+      'total_amount': 5000,
+      'delivery_address': 'Jl. Tujuan',
+      'payment_status': 'unpaid',
+      'payment_method': 'TRANSFER',
+      'driver': {
+        'latitude': '-7.056100',
+        'longitude': '110.438400',
+        'location_updated_at': '2026-06-07T15:45:00Z',
+        'user': {'name': 'Driver Satu'},
+      },
+    });
+
+    expect(detail.driverLatitude, -7.0561);
+    expect(detail.driverLongitude, 110.4384);
+    expect(
+      detail.driverLocationUpdatedAt,
+      DateTime.parse('2026-06-07T15:45:00Z'),
+    );
   });
 }

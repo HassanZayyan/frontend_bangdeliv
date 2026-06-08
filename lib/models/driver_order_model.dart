@@ -38,14 +38,6 @@ class DriverOrderModel {
   final List<DriverOrderActionModel> availableActions;
   final List<DriverOrderTimelineItemModel> statusTimeline;
   final String? packageDescription;
-  final double? packageEstimatedWeightKg;
-  final int? packageLengthCm;
-  final int? packageWidthCm;
-  final int? packageHeightCm;
-  final String? packageSizeClass;
-  final String? packageSafetyStatus;
-  final String? packageSafetyReason;
-  final String? packagePackingNote;
   final List<DriverShoppingItemModel> shoppingItems;
   final List<DriverShoppingStopModel> shoppingStops;
   final OrderRouteModel? route;
@@ -86,14 +78,6 @@ class DriverOrderModel {
     this.availableActions = const <DriverOrderActionModel>[],
     this.statusTimeline = const <DriverOrderTimelineItemModel>[],
     this.packageDescription,
-    this.packageEstimatedWeightKg,
-    this.packageLengthCm,
-    this.packageWidthCm,
-    this.packageHeightCm,
-    this.packageSizeClass,
-    this.packageSafetyStatus,
-    this.packageSafetyReason,
-    this.packagePackingNote,
     this.shoppingItems = const <DriverShoppingItemModel>[],
     this.shoppingStops = const <DriverShoppingStopModel>[],
     OrderRouteModel? route,
@@ -169,14 +153,6 @@ class DriverOrderModel {
       availableActions: availableActions ?? this.availableActions,
       statusTimeline: statusTimeline ?? this.statusTimeline,
       packageDescription: packageDescription,
-      packageEstimatedWeightKg: packageEstimatedWeightKg,
-      packageLengthCm: packageLengthCm,
-      packageWidthCm: packageWidthCm,
-      packageHeightCm: packageHeightCm,
-      packageSizeClass: packageSizeClass,
-      packageSafetyStatus: packageSafetyStatus,
-      packageSafetyReason: packageSafetyReason,
-      packagePackingNote: packagePackingNote,
       shoppingItems: shoppingItems,
       shoppingStops: shoppingStops,
       route: route,
@@ -325,29 +301,6 @@ class DriverOrderModel {
       statusTimeline: timeline,
       packageDescription:
           (json['package_description'] ?? json['packageDescription'])
-              ?.toString(),
-      packageEstimatedWeightKg: _asDoubleOrNull(
-        json['package_estimated_weight_kg'] ?? json['packageEstimatedWeightKg'],
-      ),
-      packageLengthCm: _asIntOrNull(
-        json['package_length_cm'] ?? json['packageLengthCm'],
-      ),
-      packageWidthCm: _asIntOrNull(
-        json['package_width_cm'] ?? json['packageWidthCm'],
-      ),
-      packageHeightCm: _asIntOrNull(
-        json['package_height_cm'] ?? json['packageHeightCm'],
-      ),
-      packageSizeClass: (json['package_size_class'] ?? json['packageSizeClass'])
-          ?.toString(),
-      packageSafetyStatus:
-          (json['package_safety_status'] ?? json['packageSafetyStatus'])
-              ?.toString(),
-      packageSafetyReason:
-          (json['package_safety_reason'] ?? json['packageSafetyReason'])
-              ?.toString(),
-      packagePackingNote:
-          (json['package_packing_note'] ?? json['packagePackingNote'])
               ?.toString(),
       shoppingItems: shoppingItems,
       shoppingStops: shoppingStops.isEmpty && shoppingItems.isNotEmpty

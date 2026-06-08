@@ -39,7 +39,6 @@ import '../providers/customer_order_tracking_provider.dart';
 import '../providers/driver_order_providers.dart';
 import '../providers/order_chat_provider.dart';
 import '../providers/order_realtime_hub_provider.dart';
-import '../screens/notifications_screen.dart';
 import '../screens/notification_settings_screen.dart';
 import '../screens/privacy_map_screen.dart';
 import '../screens/main_layout.dart';
@@ -289,10 +288,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             body: Center(child: Text('Route picker tidak valid.')),
           );
         },
-      ),
-      _rootRoute(
-        path: AppRoutes.notifications,
-        builder: (context, state) => const NotificationsScreen(),
       ),
       _rootRoute(
         path: AppRoutes.notificationSettings,

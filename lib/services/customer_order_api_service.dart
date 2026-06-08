@@ -85,24 +85,6 @@ class CustomerOrderApiService {
     return CustomerOrderDetailModel.fromJson(rawData);
   }
 
-  Future<CustomerOrderDetailModel> updatePaymentMethod(
-    int orderId, {
-    required String paymentMethod,
-  }) async {
-    Map<String, dynamic> response;
-    try {
-      response = await _apiClient.patch(
-        '/v1/orders/$orderId/payment-method',
-        body: <String, dynamic>{'payment_method': paymentMethod.trim()},
-        headers: await AuthService.authorizedHeaders(),
-      );
-    } on AuthException catch (error) {
-      throw ApiException(error.message);
-    }
-
-    return _extractDetail(response, fallback: 'Gagal mengubah metode bayar.');
-  }
-
   Future<CustomerOrderDetailModel> uploadTransferEvidence(
     int orderId, {
     required XFile photo,
@@ -217,7 +199,7 @@ class CustomerOrderApiService {
       '/v1/restaurants',
       queryParams: <String, dynamic>{
         'per_page': 20,
-        'sort': 'rating',
+        'sort': 'name',
         if ((merchantType ?? '').trim().isNotEmpty)
           'merchant_type': merchantType!.trim(),
         if (query.trim().isNotEmpty) 'search': query.trim(),

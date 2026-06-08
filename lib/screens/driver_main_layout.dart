@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../providers/auth_session_provider.dart';
-import '../providers/driver_location_tracking_provider.dart';
 import '../providers/driver_order_providers.dart';
 
 class DriverMainLayout extends ConsumerStatefulWidget {
@@ -59,24 +58,9 @@ class _DriverMainLayoutState extends ConsumerState<DriverMainLayout> {
     final session = ref.watch(authSessionProvider);
     final isActiveDriver =
         session.driverAccessState == DriverAccessState.active;
-    final ordersState = isActiveDriver ? ref.watch(driverOrdersProvider) : null;
-    final activeOrder = ordersState?.maybeWhen(
-      data: (value) => value.running.isEmpty ? null : value.running.first,
-      orElse: () => null,
-    );
     final incomingOrderCount = isActiveDriver
         ? ref.watch(driverIncomingOrderCountProvider)
         : 0;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      ref
-          .read(driverLocationTrackingProvider.notifier)
-          .syncForOrder(
-            orderId: activeOrder?.id,
-            statusCode: activeOrder?.statusCode,
-          );
-    });
 
     return Scaffold(
       backgroundColor: AppColors.background,

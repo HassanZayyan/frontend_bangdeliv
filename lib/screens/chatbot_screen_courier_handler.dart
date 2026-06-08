@@ -26,7 +26,7 @@ extension _CourierChatHandler on _ChatbotScreenState {
         await _handleOpenTrackOrderAction(actionHint);
         return;
       case ChatbotMessageActionType.openActivity:
-        _handleOpenActivityAction();
+        await _handleOpenActivityAction();
         return;
     }
   }
@@ -193,16 +193,18 @@ extension _CourierChatHandler on _ChatbotScreenState {
     ChatbotMessageActionHint actionHint,
   ) async {
     final orderId = actionHint.orderId;
-    if (orderId != null && orderId > 0) {
-      await context.push(AppRoutes.track, extra: orderId);
-      return;
-    }
+    final routeFuture = orderId != null && orderId > 0
+        ? context.push(AppRoutes.track, extra: orderId)
+        : context.push(AppRoutes.track);
 
-    await context.push(AppRoutes.track);
+    await _clearCompletedActiveChatbotSession();
+    await routeFuture;
   }
 
-  void _handleOpenActivityAction() {
+  Future<void> _handleOpenActivityAction() async {
+    final cleanupFuture = _clearCompletedActiveChatbotSession();
     context.go(AppRoutes.activity);
+    await cleanupFuture;
   }
 
   SavedAddressModel? _defaultSavedAddress() {

@@ -7,7 +7,6 @@ class OrderModel {
   final double price;
   final String date;
   final String status; // 'Selesai', 'Diantar', 'Dibatalkan'
-  final int rating; // 0 jika belum dirating
 
   OrderModel({
     required this.id,
@@ -16,7 +15,6 @@ class OrderModel {
     required this.price,
     required this.date,
     required this.status,
-    this.rating = 0,
   });
 
   String get formattedPrice {

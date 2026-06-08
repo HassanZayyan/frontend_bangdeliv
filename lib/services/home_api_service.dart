@@ -50,7 +50,6 @@ class HomeApiService {
               (item) => FoodModel.fromApiJson(
                 item,
                 restaurantName: item['restaurant_name']?.toString() ?? '-',
-                restaurantRating: _toDouble(item['restaurant_rating']),
               ),
             )
             .toList(growable: false),
@@ -84,7 +83,7 @@ class HomeApiService {
       '/v1/restaurants',
       queryParams: <String, dynamic>{
         'per_page': limitMerchants ?? 10,
-        'sort': hasLocation ? 'nearest' : 'rating',
+        'sort': hasLocation ? 'nearest' : 'name',
         if (search.trim().isNotEmpty) 'search': search.trim(),
         if (hasLocation) ...{'latitude': latitude, 'longitude': longitude},
       },
@@ -130,15 +129,9 @@ class HomeApiService {
         }
 
         final restaurantName = restaurant['name']?.toString() ?? '-';
-        final rating = _toDouble(restaurant['avg_rating']);
-
         for (final menu in menuItems.take(3)) {
           popularMenus.add(
-            FoodModel.fromApiJson(
-              menu,
-              restaurantName: restaurantName,
-              restaurantRating: rating,
-            ),
+            FoodModel.fromApiJson(menu, restaurantName: restaurantName),
           );
         }
       } catch (_) {
@@ -159,13 +152,5 @@ class HomeApiService {
     }
 
     return value.whereType<Map<String, dynamic>>().toList(growable: false);
-  }
-
-  double _toDouble(dynamic value) {
-    if (value is num) {
-      return value.toDouble();
-    }
-
-    return double.tryParse(value?.toString() ?? '') ?? 0;
   }
 }

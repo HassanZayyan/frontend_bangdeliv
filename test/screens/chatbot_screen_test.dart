@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -75,6 +77,105 @@ void main() {
     expect(find.text('Pilih Titik Tujuan'), findsNothing);
   });
 
+  testWidgets('nitip welcome shows Bang Deliv merchant guidance and example', (
+    WidgetTester tester,
+  ) async {
+    await _pumpChatbot(
+      tester,
+      serviceType: 'nitip',
+      chatbotApiService: _FakeChatbotApiService(),
+    );
+
+    expect(find.textContaining('tersedia di Bang Deliv'), findsOneWidget);
+    expect(find.textContaining('Contoh: Beli di'), findsOneWidget);
+    expect(find.textContaining('- ayam geprek 2'), findsOneWidget);
+    expect(find.textContaining('- es teh 1'), findsOneWidget);
+  });
+
+  testWidgets('chatbot input keyboard uses newline instead of keyboard send', (
+    WidgetTester tester,
+  ) async {
+    await _pumpChatbot(
+      tester,
+      serviceType: 'nitip',
+      chatbotApiService: _FakeChatbotApiService(),
+    );
+
+    final input = tester.widget<TextField>(find.byType(TextField));
+
+    expect(input.keyboardType, TextInputType.multiline);
+    expect(input.textInputAction, TextInputAction.newline);
+    expect(input.onSubmitted, isNull);
+  });
+
+  testWidgets(
+    'nitip payment selection shows confirmation, not payment choices',
+    (WidgetTester tester) async {
+      await _pumpChatbot(
+        tester,
+        serviceType: 'nitip',
+        chatbotApiService: _FakeChatbotApiService(),
+      );
+
+      await _sendMessage(tester, 'COD');
+
+      expect(
+        find.widgetWithText(OutlinedButton, 'Konfirmasi Nitip'),
+        findsOneWidget,
+      );
+      expect(find.widgetWithText(OutlinedButton, 'COD'), findsNothing);
+      expect(find.widgetWithText(OutlinedButton, 'Transfer'), findsNothing);
+    },
+  );
+
+  testWidgets('nitip COD button clears old payment choices after one tap', (
+    WidgetTester tester,
+  ) async {
+    final fakeService = _FakeChatbotApiService();
+    await _pumpChatbot(
+      tester,
+      serviceType: 'nitip',
+      chatbotApiService: fakeService,
+    );
+
+    await _sendMessage(tester, 'draft nitip payment');
+
+    expect(find.widgetWithText(OutlinedButton, 'COD'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Transfer'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'COD'));
+    await _pumpChatbotFrame(tester);
+
+    expect(fakeService.callCount, 2);
+    expect(
+      find.widgetWithText(OutlinedButton, 'Konfirmasi Nitip'),
+      findsOneWidget,
+    );
+    expect(find.widgetWithText(OutlinedButton, 'COD'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'Transfer'), findsNothing);
+  });
+
+  testWidgets('only latest chatbot action buttons stay enabled', (
+    WidgetTester tester,
+  ) async {
+    await _pumpChatbot(
+      tester,
+      serviceType: 'nitip',
+      chatbotApiService: _FakeChatbotApiService(),
+    );
+
+    await _sendMessage(tester, 'draft nitip payment');
+    await _sendMessage(tester, 'COD');
+
+    final oldCodButtons = find.widgetWithText(OutlinedButton, 'COD');
+    expect(oldCodButtons, findsNothing);
+
+    final confirmButton = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, 'Konfirmasi Nitip'),
+    );
+    expect(confirmButton.onPressed, isNotNull);
+  });
+
   testWidgets('back button from root chatbot falls back to home', (
     WidgetTester tester,
   ) async {
@@ -91,7 +192,7 @@ void main() {
   });
 
   for (final entry in const <String, String>{
-    'nitip': 'Sebelum pakai Nitip',
+    'nitip': 'Sebelum pesan Nitip',
     'antar_jemput': 'Sebelum pesan Antar Jemput',
     'kurir': 'Sebelum pesan Kurir',
   }.entries) {
@@ -161,6 +262,52 @@ void main() {
     expect(find.textContaining('Ongkir: Rp 9.000.'), findsNothing);
     expect(find.text('Lacak Pesanan'), findsOneWidget);
     expect(find.textContaining('belum bisa digunakan'), findsNothing);
+  });
+
+  testWidgets('track order action clears completed active session', (
+    WidgetTester tester,
+  ) async {
+    final fakeService = _FakeChatbotApiService();
+
+    await _pumpChatbot(
+      tester,
+      serviceType: 'antar_jemput',
+      chatbotApiService: fakeService,
+    );
+
+    await _sendMessage(tester, 'Konfirmasi');
+    await tester.tap(find.text('Lacak Pesanan'));
+    await _pumpChatbotFrame(tester);
+
+    final prefs = await SharedPreferences.getInstance();
+
+    expect(find.text('Track Screen 33'), findsOneWidget);
+    expect(fakeService.clearSessionCallCount, 1);
+    expect(fakeService.lastClearedSessionId, isNotEmpty);
+    expect(prefs.getString('chatbot_session_id_antar_jemput'), isNull);
+  });
+
+  testWidgets('back button clears completed active session', (
+    WidgetTester tester,
+  ) async {
+    final fakeService = _FakeChatbotApiService();
+
+    await _pumpChatbot(
+      tester,
+      serviceType: 'antar_jemput',
+      chatbotApiService: fakeService,
+    );
+
+    await _sendMessage(tester, 'Konfirmasi');
+    await tester.tap(find.byIcon(Icons.chevron_left));
+    await _pumpChatbotFrame(tester);
+
+    final prefs = await SharedPreferences.getInstance();
+
+    expect(find.text('Home Screen'), findsOneWidget);
+    expect(fakeService.clearSessionCallCount, 1);
+    expect(fakeService.lastClearedSessionId, isNotEmpty);
+    expect(prefs.getString('chatbot_session_id_antar_jemput'), isNull);
   });
 
   for (final entry in const <String, ({String message, String action})>{
@@ -339,6 +486,19 @@ void main() {
     expect(find.text('kecil/ringan untuk motor'), findsOneWidget);
     expect(find.textContaining('0 kg'), findsNothing);
   });
+
+  test('customer transfer evidence picker uses gallery', () {
+    final source = File(
+      'lib/screens/track_order_screen.dart',
+    ).readAsStringSync();
+    final uploadMethod = source.substring(
+      source.indexOf('Future<void> _uploadTransferEvidence'),
+      source.indexOf('if (photo == null)'),
+    );
+
+    expect(uploadMethod, contains('source: ImageSource.gallery'));
+    expect(uploadMethod, isNot(contains('source: ImageSource.camera')));
+  });
 }
 
 Future<GoRouter> _pumpChatbot(
@@ -371,6 +531,20 @@ Future<GoRouter> _pumpChatbot(
         path: '/home',
         builder: (BuildContext context, GoRouterState state) {
           return const Scaffold(body: Center(child: Text('Home Screen')));
+        },
+      ),
+      GoRoute(
+        path: '/track',
+        builder: (BuildContext context, GoRouterState state) {
+          return Scaffold(
+            body: Center(child: Text('Track Screen ${state.extra}')),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/activity',
+        builder: (BuildContext context, GoRouterState state) {
+          return const Scaffold(body: Center(child: Text('Activity Screen')));
         },
       ),
     ],
@@ -419,7 +593,7 @@ AuthSessionState _buildAuthenticatedSession() {
     avatarUrl: null,
     role: 'customer',
     driverProfile: null,
-    stats: UserStatsModel(totalOrders: 3, totalPaid: 100000, rating: 4.8),
+    stats: UserStatsModel(totalOrders: 3, totalPaid: 100000),
     addresses: <SavedAddressModel>[
       SavedAddressModel(
         id: 11,
@@ -448,7 +622,7 @@ AuthSessionState _buildAuthenticatedSessionWithoutAddress() {
     avatarUrl: null,
     role: 'customer',
     driverProfile: null,
-    stats: UserStatsModel(totalOrders: 0, totalPaid: 0, rating: 0),
+    stats: UserStatsModel(totalOrders: 0, totalPaid: 0),
     addresses: <SavedAddressModel>[],
   );
 
@@ -487,8 +661,10 @@ class _FakeChatbotApiService extends ChatbotApiService {
   int callCount = 0;
   int patchLocationCallCount = 0;
   int patchLocationsCallCount = 0;
+  int clearSessionCallCount = 0;
   String? lastServiceType;
   String? lastPatchTarget;
+  String? lastClearedSessionId;
   List<String> lastRouteTargets = const <String>[];
   List<String?> lastRouteAddresses = const <String?>[];
 
@@ -515,6 +691,12 @@ class _FakeChatbotApiService extends ChatbotApiService {
   }
 
   @override
+  Future<void> clearSession(String sessionId) async {
+    clearSessionCallCount += 1;
+    lastClearedSessionId = sessionId;
+  }
+
+  @override
   Future<ChatbotResult> sendMessage(
     String message, {
     required String serviceType,
@@ -526,6 +708,80 @@ class _FakeChatbotApiService extends ChatbotApiService {
     final normalized = message.trim().toLowerCase();
     if (normalized == 'trigger error') {
       throw const ApiException('Chatbot timeout');
+    }
+
+    if (serviceType == 'nitip' && normalized == 'draft nitip payment') {
+      return ChatbotResult.fromApiJson({
+        'status': 'success',
+        'session_id': sessionId,
+        'service_context': {'service_type': serviceType},
+        'model_used': 'gemini-3.1-flash-lite',
+        'data': {
+          'intent': 'shopping_order',
+          'assistant_text':
+              'Baik Hassan, saya sudah siapkan draft Nitip. Pilih metode pembayaran.',
+          'shopping': {
+            'ready_to_confirm': true,
+            'payment_method': null,
+            'merchant': {'name': 'Alfamart BangDeliv Point'},
+            'delivery': {'address': 'FISIP UNDIP'},
+            'items': [
+              {'name': 'kopi', 'quantity': 1, 'unit_price': 0},
+            ],
+          },
+          'validation': {
+            'is_valid_order': true,
+            'rejection_reasons': [],
+            'missing_fields': [],
+            'next_actions': ['SET_PAYMENT_COD', 'SET_PAYMENT_TRANSFER'],
+          },
+          'action_payloads': {
+            'SET_PAYMENT_COD': {'label': 'COD', 'message': 'COD'},
+            'SET_PAYMENT_TRANSFER': {
+              'label': 'Transfer',
+              'message': 'Transfer',
+            },
+          },
+          'order': {'created': false, 'payment_method': null},
+        },
+      });
+    }
+
+    if (serviceType == 'nitip' && normalized == 'cod') {
+      return ChatbotResult.fromApiJson({
+        'status': 'success',
+        'session_id': sessionId,
+        'service_context': {'service_type': serviceType},
+        'model_used': 'gemini-3.1-flash-lite',
+        'data': {
+          'intent': 'shopping_order',
+          'assistant_text':
+              'Baik, metode pembayaran COD sudah dipilih. Ketik "Konfirmasi" kalau sudah oke.',
+          'shopping': {
+            'ready_to_confirm': true,
+            'payment_method': 'COD',
+            'merchant': {'name': 'Alfamart BangDeliv Point'},
+            'delivery': {'address': 'FISIP UNDIP'},
+            'items': [
+              {'name': 'kopi', 'quantity': 1, 'unit_price': 0},
+            ],
+          },
+          'validation': {
+            'is_valid_order': true,
+            'rejection_reasons': [],
+            'missing_fields': [],
+            'next_actions': ['SET_PAYMENT_COD', 'SET_PAYMENT_TRANSFER'],
+          },
+          'action_payloads': {
+            'SET_PAYMENT_COD': {'label': 'COD', 'message': 'COD'},
+            'SET_PAYMENT_TRANSFER': {
+              'label': 'Transfer',
+              'message': 'Transfer',
+            },
+          },
+          'order': {'created': false, 'payment_method': 'COD'},
+        },
+      });
     }
 
     if (normalized == 'konfirmasi') {

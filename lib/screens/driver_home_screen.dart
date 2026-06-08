@@ -20,7 +20,6 @@ class DriverHomeScreen extends ConsumerWidget {
     final stats = session.profile?.stats;
     final totalPaid = stats?.totalPaid ?? 0;
     final totalOrders = stats?.totalOrders ?? 0;
-    final rating = stats?.rating ?? 0;
     final availabilityAsync = ref.watch(driverAvailabilityProvider);
     final availability = availabilityAsync.asData?.value;
     final availabilityStatus = availability?.status ?? 'offline';
@@ -154,14 +153,6 @@ class DriverHomeScreen extends ConsumerWidget {
                   title: 'Total Order Selesai',
                   value: totalOrders.toString(),
                   icon: Icons.check_circle_outline,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _SummaryTile(
-                  title: 'Rating',
-                  value: rating <= 0 ? '-' : '${rating.toStringAsFixed(1)}*',
-                  icon: Icons.star_border,
                 ),
               ),
             ],

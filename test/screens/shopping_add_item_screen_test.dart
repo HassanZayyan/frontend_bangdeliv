@@ -1,6 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 import 'package:frontend_bangdeliv/models/customer_order_model.dart';
 import 'package:frontend_bangdeliv/providers/api_providers.dart';
@@ -23,6 +27,44 @@ void main() {
     expect(merchant.merchantType, 'restaurant');
     expect(merchant.address, 'Jl. Resto');
   });
+
+  test(
+    'shopping merchant search requests name sort accepted by backend',
+    () async {
+      Uri? capturedUri;
+      final service = CustomerOrderApiService(
+        ApiClient(
+          httpClient: MockClient((request) async {
+            capturedUri = request.url;
+
+            return http.Response(
+              jsonEncode({
+                'success': true,
+                'data': [
+                  {
+                    'id': 20,
+                    'name': 'Alfamart BangDeliv Point',
+                    'slug': 'alfamart-bangdeliv-point',
+                    'merchant_type': 'convenience_store',
+                    'address': 'Jl. Alfa',
+                  },
+                ],
+              }),
+              200,
+            );
+          }),
+        ),
+      );
+
+      final merchants = await service.searchShoppingMerchants('alfa');
+
+      expect(merchants.single.name, 'Alfamart BangDeliv Point');
+      expect(capturedUri?.path, endsWith('/api/v1/restaurants'));
+      expect(capturedUri?.queryParameters['sort'], 'name');
+      expect(capturedUri?.queryParameters['search'], 'alfa');
+      expect(capturedUri?.queryParameters['per_page'], '20');
+    },
+  );
 
   testWidgets(
     'restaurant merchant queues manual draft and submits batch item',

@@ -29,7 +29,7 @@ void main() {
     },
   );
 
-  test('driver order parses courier package safety metadata', () {
+  test('driver order parses courier package description', () {
     final order = DriverOrderModel.fromJson({
       'id': '77',
       'order_number': 'BD-COU-0077',
@@ -45,20 +45,8 @@ void main() {
       'payment_status': 'unpaid',
       'payment_method': 'COD',
       'package_description': 'dokumen kontrak',
-      'package_estimated_weight_kg': 1.5,
-      'package_length_cm': 30,
-      'package_width_cm': 20,
-      'package_height_cm': 5,
-      'package_size_class': 'SMALL',
-      'package_safety_status': 'ALLOWED',
-      'package_safety_reason': 'Paket aman untuk layanan kurir motor.',
-      'package_packing_note': 'Amplop cokelat',
     });
 
     expect(order.packageDescription, 'dokumen kontrak');
-    expect(order.packageEstimatedWeightKg, 1.5);
-    expect(order.packageLengthCm, 30);
-    expect(order.packageSafetyStatus, 'ALLOWED');
-    expect(order.packagePackingNote, 'Amplop cokelat');
   });
 }

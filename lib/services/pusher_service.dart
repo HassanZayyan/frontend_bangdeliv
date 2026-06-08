@@ -735,18 +735,10 @@ class PusherService implements OrderRealtimeClient {
         : const <String, dynamic>{};
 
     final lat = _asDouble(
-      payload['latitude'] ??
-          payload['current_latitude'] ??
-          location['latitude'] ??
-          driver['current_latitude'] ??
-          driver['latitude'],
+      payload['latitude'] ?? location['latitude'] ?? driver['latitude'],
     );
     final lng = _asDouble(
-      payload['longitude'] ??
-          payload['current_longitude'] ??
-          location['longitude'] ??
-          driver['current_longitude'] ??
-          driver['longitude'],
+      payload['longitude'] ?? location['longitude'] ?? driver['longitude'],
     );
     final heading = _asDouble(payload['heading'] ?? location['heading']) ?? 0.0;
     final updatedAt = parseBackendDateTime(
