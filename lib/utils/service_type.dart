@@ -53,5 +53,5 @@ bool serviceTypeSupportsOrderProofs(String code) {
 }
 
 bool serviceTypeSupportsCarefulCarry(String code) {
-  return serviceTypeSupportsOrderProofs(code);
+  return normalizeServiceTypeCode(code) == ServiceTypeCodes.courier;
 }

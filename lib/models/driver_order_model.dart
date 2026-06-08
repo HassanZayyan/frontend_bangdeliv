@@ -258,23 +258,14 @@ class DriverOrderModel {
             pricingSnapshot['delivery_fee'],
       ),
       deliveryFeeSource:
-          (json['delivery_fee_source'] ??
-                  json['deliveryFeeSource'] ??
-                  pricingRaw?['delivery_fee_source'] ??
-                  pricingSnapshot['delivery_fee_source'])
-              ?.toString(),
-      manualDeliveryFee: _asDoubleOrNull(
-        json['manual_delivery_fee'] ??
-            json['manualDeliveryFee'] ??
-            pricingRaw?['manual_delivery_fee'] ??
-            pricingSnapshot['manual_delivery_fee'],
-      ),
-      manualDeliveryFeeReason:
-          (json['manual_delivery_fee_reason'] ??
-                  json['manualDeliveryFeeReason'] ??
-                  pricingRaw?['manual_delivery_fee_reason'] ??
-                  pricingSnapshot['manual_delivery_fee_reason'])
-              ?.toString(),
+          _normalizeDeliveryFeeSource(
+            json['delivery_fee_source'] ??
+                json['deliveryFeeSource'] ??
+                pricingRaw?['delivery_fee_source'] ??
+                pricingSnapshot['delivery_fee_source'],
+          ),
+      manualDeliveryFee: null,
+      manualDeliveryFeeReason: null,
       carefulCarryRequired: _asBool(
         json['careful_carry_required'] ??
             json['carefulCarryRequired'] ??
@@ -366,6 +357,15 @@ class DriverOrderModel {
     if (value is bool) return value;
     final normalized = value?.toString().trim().toLowerCase() ?? '';
     return normalized == 'true' || normalized == '1' || normalized == 'yes';
+  }
+
+  static String? _normalizeDeliveryFeeSource(dynamic value) {
+    final source = value?.toString().trim().toLowerCase() ?? '';
+    if (source.isEmpty) {
+      return null;
+    }
+
+    return source == 'manual' ? 'driver_manual' : source;
   }
 
   static List<DriverShoppingFeeBreakdownModel> _parseTopLevelFeeBreakdown(

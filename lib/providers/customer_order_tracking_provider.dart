@@ -232,10 +232,14 @@ class CustomerOrderTrackingNotifier
     }
 
     final deliveryFee = _asNullableDouble(pricing['delivery_fee']);
-    final manualDeliveryFee = _asNullableDouble(pricing['manual_delivery_fee']);
     final totalPrice = _asNullableDouble(pricing['total_price']);
     final deliveryFeeSource = pricing['delivery_fee_source']?.toString();
-    final manualReason = pricing['manual_delivery_fee_reason']?.toString();
+    final deliveryFeeChangeNote = _firstNonEmptyString([
+      pricing['delivery_fee_change_note'],
+      pricing['deliveryFeeChangeNote'],
+      pricing['delivery_fee_change_reason'],
+      pricing['deliveryFeeChangeReason'],
+    ]);
     final paymentMethod = pricing['payment_method']?.toString();
     final paymentStatus = pricing['payment_status']?.toString();
     final carefulCarryRequired = _asNullableBool(
@@ -246,8 +250,7 @@ class CustomerOrderTrackingNotifier
       totalAmount: totalPrice,
       deliveryFee: deliveryFee,
       deliveryFeeSource: deliveryFeeSource,
-      manualDeliveryFee: manualDeliveryFee,
-      manualDeliveryFeeReason: manualReason,
+      deliveryFeeChangeNote: deliveryFeeChangeNote,
       carefulCarryRequired: carefulCarryRequired,
       paymentMethod: paymentMethod,
       paymentStatus: paymentStatus,
@@ -255,8 +258,7 @@ class CustomerOrderTrackingNotifier
     final patchedDetail = current.detail.copyWith(
       summary: patchedSummary,
       deliveryFeeSource: deliveryFeeSource,
-      manualDeliveryFee: manualDeliveryFee,
-      manualDeliveryFeeReason: manualReason,
+      deliveryFeeChangeNote: deliveryFeeChangeNote,
       carefulCarryRequired: carefulCarryRequired,
       paymentMethod: paymentMethod,
       paymentStatus: paymentStatus,
@@ -458,6 +460,17 @@ class CustomerOrderTrackingNotifier
     }
     if (normalized == 'false' || normalized == '0' || normalized == 'no') {
       return false;
+    }
+
+    return null;
+  }
+
+  String? _firstNonEmptyString(List<dynamic> values) {
+    for (final value in values) {
+      final text = value?.toString().trim() ?? '';
+      if (text.isNotEmpty && text != '-') {
+        return text;
+      }
     }
 
     return null;

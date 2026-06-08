@@ -57,18 +57,24 @@ class _ShoppingItemDraft {
   const _ShoppingItemDraft({
     required this.id,
     required this.merchant,
+    required this.menuId,
     required this.name,
     required this.quantity,
     required this.notes,
+    required this.unitPrice,
     required this.isFromMenu,
   });
 
   final String id;
   final ShoppingMerchantOption merchant;
+  final int? menuId;
   final String name;
   final int quantity;
   final String? notes;
+  final double? unitPrice;
   final bool isFromMenu;
+
+  String get itemSource => isFromMenu ? 'MENU_DB' : 'MANUAL';
 }
 
 class ShoppingAddItemScreen extends ConsumerStatefulWidget {
@@ -356,11 +362,13 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       final draft = _ShoppingItemDraft(
         id: editingItem?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
         merchant: merchant,
+        menuId: null,
         name: manualName,
         quantity: _quantity,
         notes: _noteController.text.trim().isEmpty
             ? null
             : _noteController.text.trim(),
+        unitPrice: null,
         isFromMenu: false,
       );
 
@@ -402,9 +410,11 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       final draft = _ShoppingItemDraft(
         id: editingItem?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
         merchant: merchant,
+        menuId: menu.id,
         name: menu.name,
         quantity: _quantity,
         notes: notes,
+        unitPrice: menu.price,
         isFromMenu: true,
       );
 
@@ -440,9 +450,11 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
           return _ShoppingItemDraft(
             id: item.id,
             merchant: item.merchant,
+            menuId: item.menuId,
             name: item.name,
             quantity: item.quantity + draft.quantity,
             notes: item.notes,
+            unitPrice: item.unitPrice,
             isFromMenu: true,
           );
         })
@@ -555,9 +567,12 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
                 .map(
                   (item) => ShoppingItemDraftPayload(
                     merchantId: item.merchant.id,
+                    menuId: item.menuId,
+                    itemSource: item.itemSource,
                     name: item.name,
                     quantity: item.quantity,
                     notes: item.notes,
+                    unitPrice: item.unitPrice,
                   ),
                 )
                 .toList(growable: false),
@@ -1408,6 +1423,7 @@ class _DraftItemTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final notes = (item.notes ?? '').trim();
+    final unitPrice = item.unitPrice ?? 0;
 
     return Padding(
       padding: const EdgeInsets.only(top: 8),
@@ -1441,6 +1457,19 @@ class _DraftItemTile extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
+                if (item.isFromMenu && unitPrice > 0) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Harga menu: ${formatCurrency(unitPrice)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
                 if (notes.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(

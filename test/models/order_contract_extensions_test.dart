@@ -15,9 +15,7 @@ void main() {
       'item_count': 2,
       'delivery_distance_km': '3.7',
       'delivery_fee': 13000,
-      'delivery_fee_source': 'manual',
-      'manual_delivery_fee': 13000,
-      'manual_delivery_fee_reason': 'Rute sistem kurang akurat',
+      'delivery_fee_source': 'driver_manual',
       'careful_carry_required': true,
       'fee_breakdown': [
         {
@@ -43,8 +41,9 @@ void main() {
     expect(order.deliveryDistanceKm, 3.7);
     expect(order.deliveryDistanceLabel, '3.7 km');
     expect(order.deliveryFee, 13000);
-    expect(order.deliveryFeeSource, 'manual');
-    expect(order.manualDeliveryFeeReason, 'Rute sistem kurang akurat');
+    expect(order.deliveryFeeSource, 'driver_manual');
+    expect(order.manualDeliveryFee, isNull);
+    expect(order.manualDeliveryFeeReason, isNull);
     expect(order.carefulCarryRequired, isTrue);
     expect(order.feeBreakdown.single.amount, 2000);
     expect(order.hasProof('pickup'), isTrue);
@@ -130,6 +129,9 @@ void main() {
       'delivery_address': 'Jl. Tujuan',
       'payment_status': 'unpaid',
       'payment_method': 'TRANSFER',
+      'delivery_fee': 8000,
+      'delivery_fee_source': 'driver_manual',
+      'delivery_fee_change_note': 'BBM naik.',
       'driver': {
         'latitude': '-7.056100',
         'longitude': '110.438400',
@@ -140,6 +142,10 @@ void main() {
 
     expect(detail.driverLatitude, -7.0561);
     expect(detail.driverLongitude, 110.4384);
+    expect(detail.deliveryFeeSource, 'driver_manual');
+    expect(detail.deliveryFeeChangeNote, 'BBM naik.');
+    expect(detail.summary.deliveryFee, 8000);
+    expect(detail.summary.deliveryFeeChangeNote, 'BBM naik.');
     expect(
       detail.driverLocationUpdatedAt,
       DateTime.parse('2026-06-07T15:45:00Z'),
