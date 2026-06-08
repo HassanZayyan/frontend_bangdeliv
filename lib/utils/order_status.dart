@@ -29,6 +29,22 @@ bool isTerminalOrderStatus(String code) {
   }
 }
 
+bool isDriverRunningOrderStatus(String code) {
+  switch (normalizeOrderStatusCode(code)) {
+    case OrderStatusCodes.driverAssigned:
+    case OrderStatusCodes.arrivedMerchant:
+    case OrderStatusCodes.arrivedPickup:
+    case OrderStatusCodes.pickedUp:
+    case OrderStatusCodes.onTheWay:
+    case OrderStatusCodes.arrivedDropoff:
+    case OrderStatusCodes.delivered:
+    case OrderStatusCodes.cancelledWithFee:
+      return true;
+    default:
+      return false;
+  }
+}
+
 bool isCancelledOrderStatus(String code) {
   switch (normalizeOrderStatusCode(code)) {
     case OrderStatusCodes.cancelled:
@@ -165,9 +181,7 @@ bool _isPickupArrivalStatus(String compactCode, String compactLabel) {
       _containsAny(compactCode, compactLabel, const ['TIBA_DI_TITIK_JEMPUT']) ||
       _containsAny(compactCode, compactLabel, const ['TIBA_DI_JEMPUT']) ||
       _containsAny(compactCode, compactLabel, const ['TIBA_DI_MERCHANT']) ||
-      _containsAny(compactCode, compactLabel, const [
-        'TIBA_DI_LOKASI_AMBIL',
-      ]);
+      _containsAny(compactCode, compactLabel, const ['TIBA_DI_LOKASI_AMBIL']);
 }
 
 bool _containsAny(String compactCode, String compactLabel, List<String> keys) {

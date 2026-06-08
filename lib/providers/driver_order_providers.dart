@@ -582,10 +582,12 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
 
       final cleanedProcessingIds = <String>{...latest.processingOrderIds}
         ..remove(orderId);
-      final isTerminal = isTerminalOrderStatus(updated.statusCode);
-      final syncedRunning = isTerminal
-          ? _removeRunningOrder(latest.running, orderId)
-          : _upsertRunningOrder(latest.running, updated);
+      final isDriverRunning = isDriverRunningOrderStatus(updated.statusCode);
+      final syncedRunning = isDriverRunning
+          ? _upsertRunningOrder(latest.running, updated)
+          : _removeRunningOrder(latest.running, orderId);
+      final shouldRefreshHistory =
+          !isDriverRunning && isTerminalOrderStatus(updated.statusCode);
 
       state = AsyncData(
         latest.copyWith(
@@ -597,7 +599,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
 
       ref.invalidate(driverOrderDetailProvider(orderId));
       ref.invalidate(driverAvailabilityProvider);
-      if (isTerminal) {
+      if (shouldRefreshHistory) {
         unawaited(
           ref.read(driverHistoryProvider.notifier).refresh(showLoading: false),
         );
@@ -1050,8 +1052,10 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     final statusLabel = (statusEvent.statusLabel ?? '').trim().isEmpty
         ? orderStatusLabel(statusCode)
         : statusEvent.statusLabel!.trim();
+    final isDriverRunning = isDriverRunningOrderStatus(statusCode);
     final isTerminal =
-        statusEvent.isTerminal ?? isTerminalOrderStatus(statusCode);
+        !isDriverRunning &&
+        (statusEvent.isTerminal ?? isTerminalOrderStatus(statusCode));
     final running = isTerminal
         ? _removeRunningOrder(current.running, orderId)
         : _upsertRunningOrder(

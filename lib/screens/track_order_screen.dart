@@ -312,7 +312,6 @@ class TrackOrderScreen extends ConsumerWidget {
     final isRide =
         normalizeServiceTypeCode(order.serviceTypeCode) ==
         ServiceTypeCodes.ride;
-    final hasLiveDriver = tracking.hasLiveDriverLocation;
     final driverName = (detail.driverName ?? '').trim();
     final driverVehicleLabel = _driverVehicleLabel(detail);
     final driverVehiclePlate = _driverVehiclePlate(detail);
@@ -323,7 +322,6 @@ class TrackOrderScreen extends ConsumerWidget {
         order: order,
         detail: detail,
         ref: ref,
-        hasLiveDriver: hasLiveDriver,
         infoMessage: _fixedStatusInfoMessage(order),
         onRefresh: onRefresh,
       );
@@ -336,7 +334,6 @@ class TrackOrderScreen extends ConsumerWidget {
         order: order,
         detail: detail,
         ref: ref,
-        hasLiveDriver: hasLiveDriver,
         infoMessage: _fixedStatusInfoMessage(order),
         onRefresh: onRefresh,
       );
@@ -409,7 +406,6 @@ class TrackOrderScreen extends ConsumerWidget {
                             children: [
                               _buildActiveTrackingCard(
                                 order: order,
-                                hasLiveDriver: hasLiveDriver,
                                 showEta: _shouldShowEta(order),
                                 isRide: isRide,
                               ),
@@ -478,7 +474,6 @@ class TrackOrderScreen extends ConsumerWidget {
     required WidgetRef ref,
     required CustomerOrderSummaryModel order,
     required CustomerOrderDetailModel detail,
-    required bool hasLiveDriver,
     required String infoMessage,
     Future<void> Function()? onRefresh,
   }) {
@@ -510,7 +505,6 @@ class TrackOrderScreen extends ConsumerWidget {
             children: [
               _buildActiveTrackingCard(
                 order: order,
-                hasLiveDriver: hasLiveDriver,
                 showEta: _shouldShowEta(order),
                 isRide:
                     normalizeServiceTypeCode(order.serviceTypeCode) ==
@@ -898,7 +892,6 @@ class TrackOrderScreen extends ConsumerWidget {
 
   Widget _buildActiveTrackingCard({
     required CustomerOrderSummaryModel order,
-    required bool hasLiveDriver,
     bool showEta = true,
     bool isRide = false,
   }) {
@@ -935,7 +928,6 @@ class TrackOrderScreen extends ConsumerWidget {
                 order.serviceTypeLabel,
                 icon: serviceTypeLeadingIcon(order.serviceTypeCode),
               ),
-              if (hasLiveDriver) _buildLiveBadge(),
             ],
           ),
           if (statusTitle.isNotEmpty) ...[
@@ -1034,41 +1026,6 @@ class TrackOrderScreen extends ConsumerWidget {
                 fontWeight: FontWeight.w700,
                 height: 1.1,
               ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLiveBadge() {
-    return Container(
-      constraints: const BoxConstraints(minHeight: 30),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.green.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: const BoxDecoration(
-              color: Colors.green,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 4),
-          const Text(
-            'LIVE',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              color: Colors.green,
-              letterSpacing: 0.5,
-              height: 1.15,
             ),
           ),
         ],
@@ -2160,6 +2117,8 @@ class _ShoppingOrderItemsCardState
     WidgetRef ref,
     CustomerShoppingStopModel stop,
   ) {
+    final canResolveFailedStop = widget.detail.canEditShoppingItems;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -2201,27 +2160,29 @@ class _ShoppingOrderItemsCardState
               ),
             ),
           ],
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              OutlinedButton.icon(
-                onPressed: () => _openAddItemScreen(
-                  context,
-                  ref,
-                  replacementForPickupLocationId: stop.pickupLocationId,
+          if (canResolveFailedStop) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => _openAddItemScreen(
+                    context,
+                    ref,
+                    replacementForPickupLocationId: stop.pickupLocationId,
+                  ),
+                  icon: const Icon(Icons.add_business_outlined, size: 16),
+                  label: const Text('Tambah pengganti'),
                 ),
-                icon: const Icon(Icons.add_business_outlined, size: 16),
-                label: const Text('Tambah pengganti'),
-              ),
-              TextButton.icon(
-                onPressed: () => _skipFailedStop(context, ref, stop),
-                icon: const Icon(Icons.done_outline, size: 16),
-                label: const Text('Lanjut tanpa ini'),
-              ),
-            ],
-          ),
+                TextButton.icon(
+                  onPressed: () => _skipFailedStop(context, ref, stop),
+                  icon: const Icon(Icons.done_outline, size: 16),
+                  label: const Text('Lanjut tanpa ini'),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -2411,6 +2372,9 @@ class _ShoppingOrderItemsCardState
     WidgetRef ref,
     CustomerShoppingItemModel item,
   ) {
+    final canRemove =
+        widget.detail.canEditShoppingItems &&
+        widget.detail.shoppingItems.length > 1;
     final priceText = !item.isAvailable
         ? 'Tidak tersedia'
         : item.isPricePending
@@ -2420,12 +2384,14 @@ class _ShoppingOrderItemsCardState
         : 'Termasuk total struk';
     final statusColor = !item.isAvailable || item.isPricePending
         ? AppColors.error
+        : item.subtotal > 0
+        ? AppColors.primaryDark
         : AppColors.textSecondary;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 5),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: Column(
@@ -2435,9 +2401,9 @@ class _ShoppingOrderItemsCardState
                   '${item.quantity <= 0 ? 1 : item.quantity}x ${item.name}',
                   style: TextStyle(
                     color: AppColors.textPrimary,
-                    fontSize: 13.5,
+                    fontSize: 13.8,
                     height: 1.3,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                     decoration: item.isAvailable
                         ? TextDecoration.none
                         : TextDecoration.lineThrough,
@@ -2452,36 +2418,46 @@ class _ShoppingOrderItemsCardState
                       height: 1.3,
                     ),
                   ),
+                if (priceText.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    priceText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: statusColor,
+                      fontSize: 12.3,
+                      height: 1.25,
+                      fontWeight: item.subtotal > 0
+                          ? FontWeight.w800
+                          : FontWeight.w700,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          if (priceText.isNotEmpty)
-            Flexible(
-              child: Text(
-                priceText,
-                textAlign: TextAlign.right,
-                style: TextStyle(
-                  color: statusColor,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
+          if (canRemove) ...[
+            const SizedBox(width: 8),
+            Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: IconButton(
+                tooltip: 'Hapus item',
+                visualDensity: const VisualDensity(
+                  horizontal: -4,
+                  vertical: -4,
+                ),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                onPressed: () => _removeItem(context, ref, item),
+                icon: Icon(
+                  Icons.delete_outline,
+                  color: AppColors.error.withValues(alpha: 0.82),
+                  size: 18,
                 ),
               ),
             ),
-          if (widget.detail.canEditShoppingItems &&
-              widget.detail.shoppingItems.length > 1)
-            IconButton(
-              tooltip: 'Hapus item',
-              visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
-              onPressed: () => _removeItem(context, ref, item),
-              icon: Icon(
-                Icons.delete_outline,
-                color: AppColors.error.withValues(alpha: 0.82),
-                size: 18,
-              ),
-            ),
+          ],
         ],
       ),
     );

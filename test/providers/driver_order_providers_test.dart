@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:geolocator/geolocator.dart';
 
 import 'package:frontend_bangdeliv/models/driver_order_model.dart';
 import 'package:frontend_bangdeliv/models/order_chat_model.dart';
@@ -9,6 +10,7 @@ import 'package:frontend_bangdeliv/models/user_profile_model.dart';
 import 'package:frontend_bangdeliv/providers/api_providers.dart';
 import 'package:frontend_bangdeliv/providers/app_realtime_bootstrap_provider.dart';
 import 'package:frontend_bangdeliv/providers/auth_session_provider.dart';
+import 'package:frontend_bangdeliv/providers/driver_location_reporter_provider.dart';
 import 'package:frontend_bangdeliv/providers/driver_order_providers.dart';
 import 'package:frontend_bangdeliv/providers/driver_realtime_bootstrap_provider.dart';
 import 'package:frontend_bangdeliv/providers/order_chat_unread_provider.dart';
@@ -212,6 +214,43 @@ void main() {
     },
   );
 
+  test('cancelled with fee transition stays in running order', () async {
+    final fakeService = _FakeDriverOrderService(
+      payload: DriverOrdersPayload(
+        incoming: const <DriverOrderModel>[],
+        running: <DriverOrderModel>[_runningOrder('99')],
+      ),
+    );
+    final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+    final fakeRealtime = FakeOrderRealtimeClient();
+    final container = ProviderContainer(
+      overrides: [
+        authSessionProvider.overrideWith(() => fakeAuth),
+        driverOrderServiceProvider.overrideWithValue(fakeService),
+        orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(driverOrdersProvider.future);
+
+    final error = await container
+        .read(driverOrdersProvider.notifier)
+        .transitionOrderStatus(
+          orderId: '99',
+          actionCode: 'CANCEL_WITH_FEE',
+          targetStatusCode: OrderStatusCodes.cancelledWithFee,
+        );
+    await Future<void>.delayed(Duration.zero);
+
+    final state = container.read(driverOrdersProvider).asData!.value;
+    expect(error, isNull);
+    expect(state.running, hasLength(1));
+    expect(state.running.single.id, '99');
+    expect(state.running.single.statusCode, OrderStatusCodes.cancelledWithFee);
+    expect(fakeService.fetchHistoryCalls, 0);
+  });
+
   test(
     'terminal realtime status removes running order and refreshes history',
     () async {
@@ -251,6 +290,129 @@ void main() {
       final state = container.read(driverOrdersProvider).asData!.value;
       expect(state.running, isEmpty);
       expect(fakeService.fetchHistoryCalls, greaterThanOrEqualTo(1));
+    },
+  );
+
+  test('cancelled with fee realtime status stays in running order', () async {
+    final fakeService = _FakeDriverOrderService(
+      payload: DriverOrdersPayload(
+        incoming: const <DriverOrderModel>[],
+        running: <DriverOrderModel>[_runningOrder('99')],
+      ),
+    );
+    final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+    final fakeRealtime = FakeOrderRealtimeClient();
+    final container = ProviderContainer(
+      overrides: [
+        authSessionProvider.overrideWith(() => fakeAuth),
+        driverOrderServiceProvider.overrideWithValue(fakeService),
+        orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(driverOrdersProvider.future);
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    fakeRealtime.emitOrderStatus(
+      99,
+      OrderStatusRealtimeEvent(
+        statusCode: OrderStatusCodes.cancelledWithFee,
+        statusLabel: 'Dibatalkan Dengan Biaya',
+        changedAt: DateTime.utc(2026, 5, 10, 12),
+        isTerminal: true,
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    final state = container.read(driverOrdersProvider).asData!.value;
+    expect(state.running, hasLength(1));
+    expect(state.running.single.statusCode, OrderStatusCodes.cancelledWithFee);
+    expect(fakeService.fetchHistoryCalls, 0);
+  });
+
+  test(
+    'driver location reporter sends updates for trackable running order',
+    () async {
+      final previousInterval = driverLocationReportInterval;
+      driverLocationReportInterval = const Duration(milliseconds: 10);
+      addTearDown(() => driverLocationReportInterval = previousInterval);
+
+      final runningOrder = DriverOrderModel(
+        id: '99',
+        customerName: 'Rina',
+        pickupAddress: 'A',
+        dropoffAddress: 'B',
+        etaMinutes: 10,
+        fee: 10000,
+        itemCount: 1,
+        statusCode: OrderStatusCodes.driverAssigned,
+      );
+      final fakeService = _FakeDriverOrderService(
+        payload: DriverOrdersPayload(
+          incoming: const <DriverOrderModel>[],
+          running: <DriverOrderModel>[runningOrder],
+        ),
+      );
+      final fakeSource = _FakeDriverLocationSource(
+        initial: DriverLocationSnapshot(
+          latitude: -7.055,
+          longitude: 110.435,
+          updatedAt: DateTime.parse('2026-06-08T14:00:00Z'),
+        ),
+      );
+      final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+      final fakeRealtime = FakeOrderRealtimeClient();
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          driverOrderServiceProvider.overrideWithValue(fakeService),
+          driverLocationSourceProvider.overrideWithValue(fakeSource),
+          orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+        ],
+      );
+      final reporterSub = container.listen(
+        driverLocationReporterProvider,
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(() {
+        reporterSub.close();
+        fakeSource.dispose();
+        container.dispose();
+      });
+
+      await container.read(driverOrdersProvider.future);
+      await Future<void>.delayed(const Duration(milliseconds: 35));
+
+      expect(fakeService.locationUpdates.length, greaterThanOrEqualTo(2));
+      expect(fakeService.locationUpdates.first.orderId, '99');
+      expect(fakeService.locationUpdates.first.latitude, -7.055);
+
+      fakeSource.add(
+        DriverLocationSnapshot(
+          latitude: -7.056,
+          longitude: 110.436,
+          updatedAt: DateTime.parse('2026-06-08T14:00:10Z'),
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(fakeService.locationUpdates.last.latitude, -7.056);
+
+      final sentBeforeStop = fakeService.locationUpdates.length;
+      fakeService.payload = DriverOrdersPayload(
+        incoming: const <DriverOrderModel>[],
+        running: <DriverOrderModel>[
+          runningOrder.copyWith(statusCode: OrderStatusCodes.delivered),
+        ],
+      );
+      container.invalidate(driverOrdersProvider);
+      await container.read(driverOrdersProvider.future);
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+
+      expect(fakeService.locationUpdates.length, sentBeforeStop);
     },
   );
 
@@ -811,6 +973,7 @@ class _FakeDriverOrderService extends DriverOrderService {
   int fetchDetailCalls = 0;
   int fetchHistoryCalls = 0;
   final List<String> transitionedOrderIds = <String>[];
+  final List<_DriverLocationUpdate> locationUpdates = <_DriverLocationUpdate>[];
   List<DriverHistoryOrderModel> history = const <DriverHistoryOrderModel>[];
 
   _FakeDriverOrderService({
@@ -921,6 +1084,23 @@ class _FakeDriverOrderService extends DriverOrderService {
   }
 
   @override
+  Future<void> updateDriverLocation({
+    required String orderId,
+    required double latitude,
+    required double longitude,
+    DateTime? updatedAt,
+  }) async {
+    locationUpdates.add(
+      _DriverLocationUpdate(
+        orderId: orderId,
+        latitude: latitude,
+        longitude: longitude,
+        updatedAt: updatedAt,
+      ),
+    );
+  }
+
+  @override
   Future<DriverOrderModel> transitionStatus({
     required String orderId,
     required String actionCode,
@@ -949,6 +1129,57 @@ class _FakeDriverOrderService extends DriverOrderService {
   Future<List<DriverHistoryOrderModel>> fetchHistory() async {
     fetchHistoryCalls += 1;
     return history;
+  }
+}
+
+class _DriverLocationUpdate {
+  const _DriverLocationUpdate({
+    required this.orderId,
+    required this.latitude,
+    required this.longitude,
+    required this.updatedAt,
+  });
+
+  final String orderId;
+  final double latitude;
+  final double longitude;
+  final DateTime? updatedAt;
+}
+
+class _FakeDriverLocationSource implements DriverLocationSource {
+  _FakeDriverLocationSource({required DriverLocationSnapshot initial})
+    : _current = initial;
+
+  LocationPermission permission = LocationPermission.always;
+  DriverLocationSnapshot _current;
+  final StreamController<DriverLocationSnapshot> _controller =
+      StreamController<DriverLocationSnapshot>.broadcast();
+
+  @override
+  Future<bool> isLocationServiceEnabled() async => true;
+
+  @override
+  Future<LocationPermission> checkPermission() async => permission;
+
+  @override
+  Future<LocationPermission> requestPermission() async {
+    permission = LocationPermission.always;
+    return permission;
+  }
+
+  @override
+  Future<DriverLocationSnapshot> getCurrentPosition() async => _current;
+
+  @override
+  Stream<DriverLocationSnapshot> getPositionStream() => _controller.stream;
+
+  void add(DriverLocationSnapshot position) {
+    _current = position;
+    _controller.add(position);
+  }
+
+  void dispose() {
+    _controller.close();
   }
 }
 

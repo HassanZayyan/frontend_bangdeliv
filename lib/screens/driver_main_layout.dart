@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../providers/auth_session_provider.dart';
+import '../providers/driver_location_reporter_provider.dart';
 import '../providers/driver_order_providers.dart';
 
 class DriverMainLayout extends ConsumerStatefulWidget {
@@ -58,6 +59,9 @@ class _DriverMainLayoutState extends ConsumerState<DriverMainLayout> {
     final session = ref.watch(authSessionProvider);
     final isActiveDriver =
         session.driverAccessState == DriverAccessState.active;
+    if (isActiveDriver) {
+      ref.watch(driverLocationReporterProvider);
+    }
     final incomingOrderCount = isActiveDriver
         ? ref.watch(driverIncomingOrderCountProvider)
         : 0;
