@@ -69,13 +69,12 @@ class OrderRealtimeHub {
             message: 'Realtime order belum tersambung.',
           );
         },
-        onLocation: (lat, lng, heading, updatedAt) {
+        onLocation: (lat, lng, updatedAt) {
           _emit(
             OrderRealtimeEvent.location(
               orderId: orderId,
               latitude: lat,
               longitude: lng,
-              heading: heading,
               updatedAt: updatedAt,
             ),
           );
@@ -214,7 +213,6 @@ class OrderRealtimeEvent {
     this.payload,
     this.latitude,
     this.longitude,
-    this.heading,
     this.updatedAt,
     this.chatMessage,
     this.message,
@@ -265,7 +263,6 @@ class OrderRealtimeEvent {
     required int orderId,
     required double latitude,
     required double longitude,
-    required double heading,
     required DateTime updatedAt,
   }) {
     return OrderRealtimeEvent._(
@@ -273,7 +270,6 @@ class OrderRealtimeEvent {
       orderId: orderId,
       latitude: latitude,
       longitude: longitude,
-      heading: heading,
       updatedAt: updatedAt,
     );
   }
@@ -297,7 +293,6 @@ class OrderRealtimeEvent {
   final Map<String, dynamic>? payload;
   final double? latitude;
   final double? longitude;
-  final double? heading;
   final DateTime? updatedAt;
   final OrderChatMessageModel? chatMessage;
   final String? message;

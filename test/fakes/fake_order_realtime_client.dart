@@ -68,8 +68,7 @@ class FakeOrderRealtimeClient implements OrderRealtimeClient {
   @override
   StreamSubscription<Map<String, dynamic>> subscribeOrderTracking(
     int orderId, {
-    void Function(double lat, double lng, double heading, DateTime updatedAt)?
-    onLocation,
+    void Function(double lat, double lng, DateTime updatedAt)? onLocation,
     void Function(OrderStatusRealtimeEvent event)? onStatusChanged,
     void Function(Map<String, dynamic> payload)? onContentUpdated,
     void Function(OrderChatMessageModel message)? onChatMessage,

@@ -53,8 +53,7 @@ abstract class OrderRealtimeClient {
 
   StreamSubscription<Map<String, dynamic>> subscribeOrderTracking(
     int orderId, {
-    void Function(double lat, double lng, double heading, DateTime updatedAt)?
-    onLocation,
+    void Function(double lat, double lng, DateTime updatedAt)? onLocation,
     void Function(OrderStatusRealtimeEvent event)? onStatusChanged,
     void Function(Map<String, dynamic> payload)? onContentUpdated,
     void Function(OrderChatMessageModel message)? onChatMessage,
@@ -239,8 +238,7 @@ class PusherService implements OrderRealtimeClient {
   @override
   StreamSubscription<Map<String, dynamic>> subscribeOrderTracking(
     int orderId, {
-    void Function(double lat, double lng, double heading, DateTime updatedAt)?
-    onLocation,
+    void Function(double lat, double lng, DateTime updatedAt)? onLocation,
     void Function(OrderStatusRealtimeEvent event)? onStatusChanged,
     void Function(Map<String, dynamic> payload)? onContentUpdated,
     void Function(OrderChatMessageModel message)? onChatMessage,
@@ -724,8 +722,7 @@ class PusherService implements OrderRealtimeClient {
 
   void _handleLocationPayload(
     Map<String, dynamic> payload,
-    void Function(double lat, double lng, double heading, DateTime updatedAt)
-    onLocation,
+    void Function(double lat, double lng, DateTime updatedAt) onLocation,
   ) {
     final location = (payload['location'] is Map<String, dynamic>)
         ? payload['location'] as Map<String, dynamic>
@@ -740,7 +737,6 @@ class PusherService implements OrderRealtimeClient {
     final lng = _asDouble(
       payload['longitude'] ?? location['longitude'] ?? driver['longitude'],
     );
-    final heading = _asDouble(payload['heading'] ?? location['heading']) ?? 0.0;
     final updatedAt = parseBackendDateTime(
       payload['updated_at'] ??
           payload['timestamp'] ??
@@ -750,7 +746,7 @@ class PusherService implements OrderRealtimeClient {
     );
 
     if (lat != null && lng != null) {
-      onLocation(lat, lng, heading, updatedAt ?? DateTime.now().toUtc());
+      onLocation(lat, lng, updatedAt ?? DateTime.now().toUtc());
     }
   }
 

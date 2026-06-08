@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -13,6 +12,7 @@ import 'package:image_picker/image_picker.dart';
 import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../models/driver_order_model.dart';
+import '../providers/driver_location_reporter_provider.dart';
 import '../providers/order_chat_unread_provider.dart';
 import '../providers/driver_order_providers.dart';
 import '../services/driver_order_service.dart';
@@ -21,6 +21,7 @@ import '../utils/courier_package_formatter.dart';
 import '../utils/map_marker_icons.dart';
 import '../utils/order_formatters.dart' hide formatCurrency;
 import '../utils/order_status.dart';
+import '../utils/order_ui_helpers.dart';
 import '../utils/service_type.dart';
 import '../widgets/order_chat_badge_icon.dart';
 import '../widgets/driver_transfer_payment_card.dart';
@@ -120,6 +121,14 @@ class DriverActiveOrderScreen extends ConsumerWidget {
           );
         },
         data: (order) {
+          final locationState = ref.watch(driverLocationReporterProvider);
+          final latestPosition = locationState.activeOrderId == order.id
+              ? locationState.latestPosition
+              : null;
+          final driverPosition = latestPosition == null
+              ? null
+              : LatLng(latestPosition.latitude, latestPosition.longitude);
+
           return RefreshIndicator(
             onRefresh: () async {
               ref.invalidate(driverOrderDetailProvider(orderId));
@@ -129,7 +138,7 @@ class DriverActiveOrderScreen extends ConsumerWidget {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
               children: [
-                _MapCard(order: order),
+                _MapCard(order: order, driverPosition: driverPosition),
                 const SizedBox(height: 12),
                 _OrderMetaCard(order: order),
                 const SizedBox(height: 12),
@@ -369,32 +378,41 @@ class DriverActiveOrderScreen extends ConsumerWidget {
 
 class _MapCard extends StatefulWidget {
   final DriverOrderModel order;
+  final LatLng? driverPosition;
 
-  const _MapCard({required this.order});
+  const _MapCard({required this.order, this.driverPosition});
 
   @override
   State<_MapCard> createState() => _MapCardState();
 }
 
 class _MapCardState extends State<_MapCard> {
-  StreamSubscription<Position>? _driverPositionSubscription;
   GoogleMapController? _mapController;
   BitmapDescriptor? _driverMarkerIcon;
-  LatLng? _driverPosition;
   bool _hasFittedDriverPosition = false;
 
   @override
   void initState() {
     super.initState();
     unawaited(_loadDriverMarkerIcon());
-    unawaited(_startDriverPositionTracking());
   }
 
   @override
   void dispose() {
-    _driverPositionSubscription?.cancel();
     _mapController?.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MapCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.driverPosition == null &&
+        widget.driverPosition != null &&
+        !_hasFittedDriverPosition) {
+      _hasFittedDriverPosition = true;
+      unawaited(_fitCameraToMapPoints());
+    }
   }
 
   Future<void> _loadDriverMarkerIcon() async {
@@ -404,58 +422,6 @@ class _MapCardState extends State<_MapCard> {
     }
 
     setState(() => _driverMarkerIcon = icon);
-  }
-
-  Future<void> _startDriverPositionTracking() async {
-    try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        return;
-      }
-
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        return;
-      }
-
-      final current = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
-      );
-      _setDriverPosition(current);
-
-      await _driverPositionSubscription?.cancel();
-      _driverPositionSubscription = Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 8,
-        ),
-      ).listen(_setDriverPosition);
-    } catch (_) {
-      // Location permission/service failures should not block order handling.
-    }
-  }
-
-  void _setDriverPosition(Position position) {
-    if (!mounted) {
-      return;
-    }
-
-    final shouldFitFirstDriverPosition =
-        _driverPosition == null && !_hasFittedDriverPosition;
-    setState(() {
-      _driverPosition = LatLng(position.latitude, position.longitude);
-    });
-    if (shouldFitFirstDriverPosition) {
-      _hasFittedDriverPosition = true;
-      unawaited(_fitCameraToMapPoints());
-    }
   }
 
   @override
@@ -510,10 +476,10 @@ class _MapCardState extends State<_MapCard> {
           position: dropoff,
           infoWindow: const InfoWindow(title: 'Dropoff'),
         ),
-      if (_driverPosition != null)
+      if (widget.driverPosition != null)
         Marker(
           markerId: const MarkerId('driver_position'),
-          position: _driverPosition!,
+          position: widget.driverPosition!,
           icon:
               _driverMarkerIcon ??
               BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
@@ -687,7 +653,7 @@ class _MapCardState extends State<_MapCard> {
       return;
     }
 
-    final points = <LatLng>[..._routeLinePoints(), ?_driverPosition];
+    final points = <LatLng>[..._routeLinePoints(), ?widget.driverPosition];
 
     if (points.isEmpty) {
       return;
@@ -2754,6 +2720,11 @@ class _ActionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final actions = order.availableActions;
     final hasCodCollection = actions.any((action) => action.isCodCollection);
+    final isCancelledWithFee =
+        normalizeOrderStatusCode(order.statusCode) ==
+        OrderStatusCodes.cancelledWithFee;
+    final isWaitingCancellationFeePayment =
+        isCancelledWithFee && !isPaymentPaid(order.paymentStatus);
     final isCourier =
         normalizeServiceTypeCode(order.serviceTypeCode) ==
         ServiceTypeCodes.courier;
@@ -2860,9 +2831,14 @@ class _ActionCard extends StatelessWidget {
             const SizedBox(height: 10),
           ],
           if (actions.isEmpty)
-            const Text(
-              'Tidak ada aksi yang tersedia pada status ini.',
-              style: TextStyle(color: AppColors.textSecondary),
+            Text(
+              isWaitingCancellationFeePayment
+                  ? 'Menunggu pembayaran biaya pembatalan dari customer. Verifikasi transfer dulu, lalu selesaikan order.'
+                  : 'Tidak ada aksi yang tersedia pada status ini.',
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                height: 1.4,
+              ),
             )
           else
             ...actions.map(

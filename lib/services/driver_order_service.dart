@@ -178,6 +178,24 @@ class DriverOrderService {
     return _orderFromMutationResponse(response, orderId);
   }
 
+  Future<void> updateDriverLocation({
+    required String orderId,
+    required double latitude,
+    required double longitude,
+    DateTime? updatedAt,
+  }) async {
+    await _patch(
+      '/v1/driver/orders/$orderId/location',
+      body: <String, dynamic>{
+        'latitude': latitude,
+        'longitude': longitude,
+        if (updatedAt != null) 'updated_at': updatedAt.toIso8601String(),
+      },
+      fallback: 'Gagal mengirim lokasi driver.',
+      timeout: const Duration(seconds: 5),
+    );
+  }
+
   Future<DriverOrderModel> uploadProof({
     required String orderId,
     required String type,

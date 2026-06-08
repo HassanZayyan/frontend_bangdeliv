@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('driver active map tracks and renders driver position marker', () {
+  test('driver active map renders driver marker from foreground reporter', () {
     final source = File(
       'lib/screens/driver_active_order_screen.dart',
     ).readAsStringSync();
@@ -12,7 +12,8 @@ void main() {
       source.indexOf('class _RouteUnavailableBadge'),
     );
 
-    expect(mapCard, contains('Geolocator.getPositionStream'));
+    expect(source, contains('driverLocationReporterProvider'));
+    expect(mapCard, isNot(contains('Geolocator.getPositionStream')));
     expect(mapCard, contains("MarkerId('driver_position')"));
     expect(mapCard, contains("InfoWindow(title: 'Posisi Anda')"));
     expect(mapCard, contains('buildMotorDriverMarker(size: 40)'));
@@ -35,5 +36,21 @@ void main() {
     );
     expect(itemEditor, contains('MaterialTapTargetSize.shrinkWrap'));
     expect(itemEditor, contains('fontSize: 14'));
+  });
+
+  test('cancelled with fee unpaid order shows payment waiting message', () {
+    final source = File(
+      'lib/screens/driver_active_order_screen.dart',
+    ).readAsStringSync();
+    final actionCard = source.substring(
+      source.indexOf('class _ActionCard extends StatelessWidget'),
+      source.indexOf('class _FailedPickupReport'),
+    );
+
+    expect(actionCard, contains('isWaitingCancellationFeePayment'));
+    expect(
+      actionCard,
+      contains('Menunggu pembayaran biaya pembatalan dari customer.'),
+    );
   });
 }

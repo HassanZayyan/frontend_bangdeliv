@@ -53,4 +53,27 @@ void main() {
     expect(shoppingItemsCard, isNot(contains('Bayar tunai ke driver')));
     expect(shoppingItemsCard, isNot(contains('paymentMessage')));
   });
+
+  test(
+    'failed shopping merchant actions only show while order is editable',
+    () {
+      final source = File(
+        'lib/screens/track_order_screen.dart',
+      ).readAsStringSync();
+      final failedStopNotice = source.substring(
+        source.indexOf('Widget _failedStopNotice('),
+        source.indexOf('Widget _stopSection('),
+      );
+
+      expect(
+        failedStopNotice,
+        contains(
+          'final canResolveFailedStop = widget.detail.canEditShoppingItems',
+        ),
+      );
+      expect(failedStopNotice, contains('if (canResolveFailedStop)'));
+      expect(failedStopNotice, contains('Tambah pengganti'));
+      expect(failedStopNotice, contains('Lanjut tanpa ini'));
+    },
+  );
 }
