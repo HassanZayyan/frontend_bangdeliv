@@ -274,6 +274,7 @@ class TrackOrderScreen extends ConsumerWidget {
     final driverName = (detail.driverName ?? '').trim();
     final driverVehicleLabel = _driverVehicleLabel(detail);
     final driverVehiclePlate = _driverVehiclePlate(detail);
+    final driverEtaMessage = TrackOrderPresenter.driverEtaMessage(detail);
 
     if (!shouldShowMap) {
       return _buildFixedStatusLayout(
@@ -366,6 +367,7 @@ class TrackOrderScreen extends ConsumerWidget {
                               _buildActiveTrackingCard(
                                 order: order,
                                 isRide: isRide,
+                                driverEtaMessage: driverEtaMessage,
                               ),
                               const SizedBox(height: 12),
                               if (driverName.isNotEmpty) ...[
@@ -462,6 +464,7 @@ class TrackOrderScreen extends ConsumerWidget {
                 isRide:
                     normalizeServiceTypeCode(order.serviceTypeCode) ==
                     ServiceTypeCodes.ride,
+                driverEtaMessage: TrackOrderPresenter.driverEtaMessage(detail),
               ),
               const SizedBox(height: 12),
               if (driverName.isNotEmpty) ...[
@@ -791,8 +794,10 @@ class TrackOrderScreen extends ConsumerWidget {
   Widget _buildActiveTrackingCard({
     required CustomerOrderSummaryModel order,
     bool isRide = false,
+    String? driverEtaMessage,
   }) {
     final statusTitle = _detailStatusTitle(order);
+    final etaMessage = (driverEtaMessage ?? '').trim();
     final showProgress =
         !order.isTerminalStatus &&
         !isTerminalOrderStatus(normalizeOrderStatusCode(order.statusCode));
@@ -850,6 +855,44 @@ class TrackOrderScreen extends ConsumerWidget {
               embedded: true,
             ),
           ],
+          if (etaMessage.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _buildDriverEtaBanner(etaMessage),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDriverEtaBanner(String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.schedule_rounded,
+            color: AppColors.primaryDark,
+            size: 18,
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: AppColors.primaryDark,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
+            ),
+          ),
         ],
       ),
     );

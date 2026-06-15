@@ -7,12 +7,18 @@ import 'package:image_picker/image_picker.dart';
 
 import '../config/app_env.dart';
 import '../models/driver_order_model.dart';
+import '../utils/app_time.dart';
 import 'auth_service.dart';
 
 class DriverOrderService {
+  DriverOrderService({http.Client? httpClient})
+    : _httpClient = httpClient ?? http.Client();
+
   static const Duration _timeout = Duration(seconds: 12);
   static const Duration _listTimeout = Duration(seconds: 8);
   static const Duration _detailTimeout = Duration(seconds: 10);
+
+  final http.Client _httpClient;
 
   Future<DriverOrderModel> acceptOrder(String orderId) async {
     final response = await _post('/v1/driver/orders/$orderId/accept');
@@ -181,7 +187,7 @@ class DriverOrderService {
       body: <String, dynamic>{
         'latitude': latitude,
         'longitude': longitude,
-        if (updatedAt != null) 'updated_at': updatedAt.toIso8601String(),
+        if (updatedAt != null) 'updated_at': toBackendWibIsoString(updatedAt),
       },
       fallback: 'Gagal mengirim lokasi driver.',
       timeout: const Duration(seconds: 5),
@@ -352,7 +358,7 @@ class DriverOrderService {
       body: <String, dynamic>{
         'latitude': latitude,
         'longitude': longitude,
-        if (updatedAt != null) 'updated_at': updatedAt.toIso8601String(),
+        if (updatedAt != null) 'updated_at': toBackendWibIsoString(updatedAt),
       },
       fallback: 'Gagal mengirim lokasi standby driver.',
       timeout: const Duration(seconds: 5),
@@ -405,7 +411,7 @@ class DriverOrderService {
       includeJsonContentType: false,
     );
 
-    final response = await http
+    final response = await _httpClient
         .get(uri, headers: headers)
         .timeout(timeout ?? _timeout);
 
@@ -468,7 +474,7 @@ class DriverOrderService {
 
     late final http.Response response;
     try {
-      response = await http
+      response = await _httpClient
           .post(uri, headers: headers, body: jsonEncode(payload))
           .timeout(timeout);
     } on TimeoutException {
@@ -520,7 +526,7 @@ class DriverOrderService {
 
     late final http.Response response;
     try {
-      response = await http
+      response = await _httpClient
           .patch(uri, headers: headers, body: jsonEncode(payload))
           .timeout(timeout);
     } on TimeoutException {

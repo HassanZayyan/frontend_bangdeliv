@@ -66,6 +66,63 @@ void main() {
     );
   });
 
+  test('driverEtaMessage describes pickup and dropoff targets', () {
+    final summary = _summary();
+
+    expect(
+      TrackOrderPresenter.driverEtaMessage(
+        _detail(
+          summary,
+          driverEta: const DriverEtaModel(
+            target: 'PICKUP',
+            targetLabel: 'Titik jemput',
+            durationSeconds: 480,
+            durationText: '8 menit',
+            locationFresh: true,
+          ),
+        ),
+      ),
+      'Driver tiba di titik jemput sekitar 8 menit lagi',
+    );
+
+    expect(
+      TrackOrderPresenter.driverEtaMessage(
+        _detail(
+          summary,
+          driverEta: const DriverEtaModel(
+            target: 'DROPOFF',
+            targetLabel: 'Alamat customer',
+            durationSeconds: 720,
+            durationText: '12 menit',
+            locationFresh: true,
+          ),
+        ),
+      ),
+      'Driver sampai ke alamatmu sekitar 12 menit lagi',
+    );
+
+    expect(TrackOrderPresenter.driverEtaMessage(_detail(summary)), isNull);
+  });
+
+  test(
+    'detail copyWith can clear stale driver ETA after realtime status change',
+    () {
+      final detail = _detail(
+        _summary(),
+        driverEta: const DriverEtaModel(
+          target: 'PICKUP',
+          targetLabel: 'Titik jemput',
+          durationSeconds: 480,
+          durationText: '8 menit',
+          locationFresh: true,
+        ),
+      );
+
+      expect(detail.driverEta, isNotNull);
+      expect(detail.copyWith(clearDriverEta: true).driverEta, isNull);
+    },
+  );
+
   test('status helpers protect fixed tracking layout', () {
     final waiting = _summary(statusCode: 'PENDING', statusLabel: 'Menunggu');
     final arrived = _summary(
@@ -116,6 +173,7 @@ CustomerOrderSummaryModel _summary({
 CustomerOrderDetailModel _detail(
   CustomerOrderSummaryModel summary, {
   String? paymentMethod = 'COD',
+  DriverEtaModel? driverEta,
 }) {
   return CustomerOrderDetailModel(
     summary: summary,
@@ -135,5 +193,6 @@ CustomerOrderDetailModel _detail(
     driverLocationUpdatedAt: null,
     deliveryDistanceText: null,
     timeline: const <OrderStatusSnapshot>[],
+    driverEta: driverEta,
   );
 }

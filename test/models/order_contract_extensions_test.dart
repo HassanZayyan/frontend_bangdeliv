@@ -151,4 +151,35 @@ void main() {
       DateTime.parse('2026-06-07T15:45:00Z'),
     );
   });
+
+  test('customer detail parses computed driver ETA payload', () {
+    final detail = CustomerOrderDetailModel.fromJson({
+      'id': 92,
+      'order_number': 'BD-260615-0092',
+      'service_type': {'code': 'RIDE', 'display_name': 'Antar Jemput'},
+      'status': 'DRIVER_ASSIGNED',
+      'total_amount': 12000,
+      'delivery_address': 'Jl. Tujuan',
+      'driver_eta': {
+        'target': 'PICKUP',
+        'target_label': 'Titik jemput',
+        'duration_seconds': 480,
+        'duration_text': '8 menit',
+        'distance_meters': 2100,
+        'distance_text': '2,1 km',
+        'estimated_arrival_at': '2026-06-15T10:20:00+07:00',
+        'location_fresh': true,
+        'route_provider': 'routes_api',
+      },
+    });
+
+    expect(detail.driverEta?.target, 'PICKUP');
+    expect(detail.driverEta?.targetLabel, 'Titik jemput');
+    expect(detail.driverEta?.durationSeconds, 480);
+    expect(detail.driverEta?.durationText, '8 menit');
+    expect(detail.driverEta?.distanceMeters, 2100);
+    expect(detail.driverEta?.distanceText, '2,1 km');
+    expect(detail.driverEta?.locationFresh, isTrue);
+    expect(detail.driverEta?.routeProvider, 'routes_api');
+  });
 }
