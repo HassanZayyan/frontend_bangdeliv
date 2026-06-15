@@ -84,6 +84,38 @@ void main() {
     expect(recordedAmount, 18000);
   });
 
+  testWidgets('shows QRIS loading only on verification action', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Padding(
+            padding: const EdgeInsets.all(16),
+            child: DriverTransferPaymentCard(
+              order: _order(
+                proofs: [
+                  DriverOrderProofModel(
+                    id: 1,
+                    type: 'payment_transfer',
+                    label: 'Bukti QRIS',
+                    photoUrl: 'https://example.com/transfer.jpg',
+                    status: 'pending',
+                    createdAt: DateTime.parse('2026-06-06T14:30:00Z'),
+                  ),
+                ],
+              ),
+              isOrderBusy: true,
+              isConfirmingQris: true,
+              onConfirmTransfer: ({required amount}) async {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text('Lihat Bukti'), findsOneWidget);
+  });
+
   testWidgets('hides transfer card for COD order without proof', (
     tester,
   ) async {
@@ -109,7 +141,8 @@ Future<void> _pumpCard(
           padding: const EdgeInsets.all(16),
           child: DriverTransferPaymentCard(
             order: order,
-            isProcessing: false,
+            isOrderBusy: false,
+            isConfirmingQris: false,
             onConfirmTransfer: onConfirmTransfer,
           ),
         ),

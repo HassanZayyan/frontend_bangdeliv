@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
+import '../../../../core/widgets/bang_action_button.dart';
 import '../../../../core/widgets/bang_async_state.dart';
 import '../../../../models/driver_order_model.dart';
 import '../../application/driver_order_providers.dart';
@@ -137,7 +138,7 @@ class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen>
             children: [
               _IncomingOrdersTab(
                 orders: data.incoming,
-                processingOrderIds: data.processingOrderIds,
+                ordersState: data,
                 canReceiveIncomingOrders: canReceiveIncomingOrders,
                 availabilityStatus: availabilityStatus,
                 onAcceptOrder: _acceptIncomingOrder,
@@ -235,14 +236,14 @@ class _TabWithBadge extends StatelessWidget {
 
 class _IncomingOrdersTab extends ConsumerWidget {
   final List<DriverOrderModel> orders;
-  final Set<String> processingOrderIds;
+  final DriverOrdersState ordersState;
   final bool canReceiveIncomingOrders;
   final String availabilityStatus;
   final Future<void> Function(DriverOrderModel order) onAcceptOrder;
 
   const _IncomingOrdersTab({
     required this.orders,
-    required this.processingOrderIds,
+    required this.ordersState,
     required this.canReceiveIncomingOrders,
     required this.availabilityStatus,
     required this.onAcceptOrder,
@@ -294,14 +295,22 @@ class _IncomingOrdersTab extends ConsumerWidget {
         separatorBuilder: (context, index) => const SizedBox(height: 14),
         itemBuilder: (context, index) {
           final order = orders[index];
-          final isProcessing = processingOrderIds.contains(order.id);
+          final isOrderBusy = ordersState.isProcessing(order.id);
+          final acceptKey = DriverOrderActionKeys.accept(order.id);
+          final rejectKey = DriverOrderActionKeys.reject(order.id);
+          final isAccepting = ordersState.isProcessingAction(acceptKey);
+          final isRejecting = ordersState.isProcessingAction(rejectKey);
 
           return _OrderCard(
             order: order,
             isIncoming: true,
-            isProcessing: isProcessing,
-            onAccept: isProcessing ? null : () => onAcceptOrder(order),
-            onReject: isProcessing
+            isOrderBusy: isOrderBusy,
+            isAccepting: isAccepting,
+            isRejecting: isRejecting,
+            onAccept: isOrderBusy && !isAccepting
+                ? null
+                : () => onAcceptOrder(order),
+            onReject: isOrderBusy && !isRejecting
                 ? null
                 : () async {
                     final error = await ref
@@ -402,7 +411,9 @@ class _RunningOrdersTab extends ConsumerWidget {
 class _OrderCard extends StatelessWidget {
   final DriverOrderModel order;
   final bool isIncoming;
-  final bool isProcessing;
+  final bool isOrderBusy;
+  final bool isAccepting;
+  final bool isRejecting;
   final VoidCallback? onAccept;
   final VoidCallback? onReject;
   final VoidCallback? onNavigate;
@@ -411,7 +422,9 @@ class _OrderCard extends StatelessWidget {
   const _OrderCard({
     required this.order,
     required this.isIncoming,
-    this.isProcessing = false,
+    this.isOrderBusy = false,
+    this.isAccepting = false,
+    this.isRejecting = false,
     this.onAccept,
     this.onReject,
     this.onNavigate,
@@ -632,8 +645,12 @@ class _OrderCard extends StatelessWidget {
                 ? Row(
                     children: [
                       Expanded(
-                        child: OutlinedButton(
-                          onPressed: isProcessing ? null : onReject,
+                        child: BangActionButton(
+                          label: 'Tolak',
+                          variant: BangActionButtonVariant.outlined,
+                          isLoading: isRejecting,
+                          isEnabled: !isOrderBusy || isRejecting,
+                          onPressed: onReject,
                           style: OutlinedButton.styleFrom(
                             foregroundColor: AppColors.textPrimary,
                             side: BorderSide(
@@ -649,14 +666,16 @@ class _OrderCard extends StatelessWidget {
                               fontSize: 15,
                             ),
                           ),
-                          child: const Text('Tolak'),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         flex: 2,
-                        child: FilledButton(
-                          onPressed: isProcessing ? null : onAccept,
+                        child: BangActionButton(
+                          label: 'Terima Order',
+                          isLoading: isAccepting,
+                          isEnabled: !isOrderBusy || isAccepting,
+                          onPressed: onAccept,
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.primary,
                             foregroundColor: AppColors.white,
@@ -673,16 +692,6 @@ class _OrderCard extends StatelessWidget {
                               fontSize: 15,
                             ),
                           ),
-                          child: isProcessing
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.white,
-                                  ),
-                                )
-                              : const Text('Terima Order'),
                         ),
                       ),
                     ],

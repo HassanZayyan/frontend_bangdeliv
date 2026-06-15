@@ -19,32 +19,103 @@ Duration driverTransferProofReconciliationInterval = const Duration(seconds: 4);
 class DriverOrdersState {
   final List<DriverOrderModel> incoming;
   final List<DriverOrderModel> running;
-  final Set<String> processingOrderIds;
+  final Set<String> processingActionKeys;
   final Set<String> suppressedIncomingOrderIds;
 
   const DriverOrdersState({
     required this.incoming,
     required this.running,
-    this.processingOrderIds = const <String>{},
+    this.processingActionKeys = const <String>{},
     this.suppressedIncomingOrderIds = const <String>{},
   });
 
   DriverOrdersState copyWith({
     List<DriverOrderModel>? incoming,
     List<DriverOrderModel>? running,
-    Set<String>? processingOrderIds,
+    Set<String>? processingActionKeys,
     Set<String>? suppressedIncomingOrderIds,
   }) {
     return DriverOrdersState(
       incoming: incoming ?? this.incoming,
       running: running ?? this.running,
-      processingOrderIds: processingOrderIds ?? this.processingOrderIds,
+      processingActionKeys: processingActionKeys ?? this.processingActionKeys,
       suppressedIncomingOrderIds:
           suppressedIncomingOrderIds ?? this.suppressedIncomingOrderIds,
     );
   }
 
-  bool isProcessing(String orderId) => processingOrderIds.contains(orderId);
+  Set<String> get processingOrderIds {
+    final orderIds = <String>{};
+    for (final key in processingActionKeys) {
+      final orderId = DriverOrderActionKeys.orderIdFromKey(key);
+      if (orderId != null) {
+        orderIds.add(orderId);
+      }
+    }
+    return Set<String>.unmodifiable(orderIds);
+  }
+
+  bool isProcessing(String orderId) => processingActionKeys.any(
+    (key) => DriverOrderActionKeys.belongsToOrder(key, orderId),
+  );
+
+  bool isProcessingAction(String actionKey) {
+    return processingActionKeys.contains(actionKey);
+  }
+}
+
+class DriverOrderActionKeys {
+  const DriverOrderActionKeys._();
+
+  static const _separator = '::';
+
+  static String accept(String orderId) => _build(orderId, 'accept');
+
+  static String reject(String orderId) => _build(orderId, 'reject');
+
+  static String transition(String orderId, String actionCode) {
+    return _build(orderId, 'transition:${_normalize(actionCode)}');
+  }
+
+  static String collectCod(String orderId) => _build(orderId, 'collectCod');
+
+  static String confirmQris(String orderId) => _build(orderId, 'confirmQris');
+
+  static String updateFee(String orderId) => _build(orderId, 'updateFee');
+
+  static String uploadProof(String orderId, String proofType) {
+    return _build(orderId, 'uploadProof:${_normalize(proofType)}');
+  }
+
+  static String shoppingCheckout(String orderId) {
+    return _build(orderId, 'shoppingCheckout');
+  }
+
+  static String updateShoppingItems(String orderId) {
+    return _build(orderId, 'updateShoppingItems');
+  }
+
+  static String pickupFailed(String orderId) => _build(orderId, 'pickupFailed');
+
+  static bool belongsToOrder(String actionKey, String orderId) {
+    return actionKey.startsWith('$orderId$_separator');
+  }
+
+  static String? orderIdFromKey(String actionKey) {
+    final separatorIndex = actionKey.indexOf(_separator);
+    if (separatorIndex <= 0) {
+      return null;
+    }
+    return actionKey.substring(0, separatorIndex);
+  }
+
+  static String _build(String orderId, String action) {
+    return '$orderId$_separator$action';
+  }
+
+  static String _normalize(String value) {
+    return value.trim().toLowerCase();
+  }
 }
 
 class DriverOrderAcceptResult {
@@ -102,7 +173,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     final next = DriverOrdersState(
       incoming: payload.incoming,
       running: payload.running,
-      processingOrderIds: const <String>{},
+      processingActionKeys: const <String>{},
     );
     _syncRunningOrderRealtime(next);
     return next;
@@ -147,8 +218,8 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
 
       final suppressedIncomingOrderIds =
           previous?.suppressedIncomingOrderIds ?? const <String>{};
-      final processingOrderIds =
-          previous?.processingOrderIds ?? const <String>{};
+      final processingActionKeys =
+          previous?.processingActionKeys ?? const <String>{};
       final payload = await ref
           .read(driverOrderRepositoryProvider)
           .fetchOrders();
@@ -163,15 +234,15 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         ...suppressedIncomingOrderIds,
         ...?latest?.suppressedIncomingOrderIds,
       };
-      final effectiveProcessingOrderIds =
-          latest?.processingOrderIds ?? processingOrderIds;
+      final effectiveProcessingActionKeys =
+          latest?.processingActionKeys ?? processingActionKeys;
       final next = DriverOrdersState(
         incoming: _filterSuppressedIncomingOrders(
           payload.incoming,
           effectiveSuppressedIncomingOrderIds,
         ),
         running: payload.running,
-        processingOrderIds: effectiveProcessingOrderIds,
+        processingActionKeys: effectiveProcessingActionKeys,
         suppressedIncomingOrderIds: effectiveSuppressedIncomingOrderIds,
       );
       state = AsyncData(next);
@@ -414,12 +485,35 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     );
   }
 
+  DriverOrdersState _markActionProcessing(
+    DriverOrdersState current, {
+    required String actionKey,
+  }) {
+    return current.copyWith(
+      processingActionKeys: <String>{
+        ...current.processingActionKeys,
+        actionKey,
+      },
+    );
+  }
+
+  DriverOrdersState _clearActionProcessing(
+    DriverOrdersState current, {
+    required String actionKey,
+  }) {
+    final nextActionKeys = <String>{...current.processingActionKeys}
+      ..remove(actionKey);
+
+    return current.copyWith(processingActionKeys: nextActionKeys);
+  }
+
   Future<DriverOrderAcceptResult> acceptOrder(String id) async {
     final current = state.asData?.value;
     if (current == null) {
       return const DriverOrderAcceptResult(error: 'Data order belum siap.');
     }
 
+    final actionKey = DriverOrderActionKeys.accept(id);
     if (current.isProcessing(id)) {
       return const DriverOrderAcceptResult();
     }
@@ -439,13 +533,10 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         );
     final running = <DriverOrderModel>[selected, ...current.running];
 
-    final processingOrderIds = <String>{...current.processingOrderIds, id};
-
     state = AsyncData(
-      current.copyWith(
-        incoming: incoming,
-        running: running,
-        processingOrderIds: processingOrderIds,
+      _markActionProcessing(
+        current.copyWith(incoming: incoming, running: running),
+        actionKey: actionKey,
       ),
     );
     _syncRunningOrderRealtime(state.asData!.value);
@@ -460,13 +551,11 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         return DriverOrderAcceptResult(order: syncedOrder);
       }
 
-      final cleanedProcessingIds = <String>{...latest.processingOrderIds}
-        ..remove(id);
       final syncedRunning = _upsertRunningOrder(latest.running, syncedOrder);
       state = AsyncData(
-        latest.copyWith(
-          running: syncedRunning,
-          processingOrderIds: cleanedProcessingIds,
+        _clearActionProcessing(
+          latest.copyWith(running: syncedRunning),
+          actionKey: actionKey,
         ),
       );
       _syncRunningOrderRealtime(state.asData!.value);
@@ -476,11 +565,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
 
       return DriverOrderAcceptResult(order: syncedOrder);
     } catch (error) {
-      final rollbackProcessingIds = <String>{...current.processingOrderIds}
-        ..remove(id);
-      state = AsyncData(
-        current.copyWith(processingOrderIds: rollbackProcessingIds),
-      );
+      state = AsyncData(_clearActionProcessing(current, actionKey: actionKey));
       _syncRunningOrderRealtime(state.asData!.value);
       return DriverOrderAcceptResult(error: error.toString());
     }
@@ -492,6 +577,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       return 'Data order belum siap.';
     }
 
+    final actionKey = DriverOrderActionKeys.reject(id);
     if (current.isProcessing(id)) {
       return null;
     }
@@ -504,17 +590,18 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       return 'Order tidak ditemukan.';
     }
 
-    final processingOrderIds = <String>{...current.processingOrderIds, id};
     final suppressedIncomingOrderIds = <String>{
       ...current.suppressedIncomingOrderIds,
       id,
     };
 
     state = AsyncData(
-      current.copyWith(
-        incoming: incoming,
-        processingOrderIds: processingOrderIds,
-        suppressedIncomingOrderIds: suppressedIncomingOrderIds,
+      _markActionProcessing(
+        current.copyWith(
+          incoming: incoming,
+          suppressedIncomingOrderIds: suppressedIncomingOrderIds,
+        ),
+        actionKey: actionKey,
       ),
     );
 
@@ -526,21 +613,13 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         return null;
       }
 
-      final cleanedProcessingIds = <String>{...latest.processingOrderIds}
-        ..remove(id);
-      state = AsyncData(
-        latest.copyWith(processingOrderIds: cleanedProcessingIds),
-      );
+      state = AsyncData(_clearActionProcessing(latest, actionKey: actionKey));
       ref.invalidate(driverAvailabilityProvider);
       _refreshAvailabilityThenSyncRealtime();
 
       return null;
     } catch (error) {
-      final rollbackProcessingIds = <String>{...current.processingOrderIds}
-        ..remove(id);
-      state = AsyncData(
-        current.copyWith(processingOrderIds: rollbackProcessingIds),
-      );
+      state = AsyncData(_clearActionProcessing(current, actionKey: actionKey));
       return error.toString();
     }
   }
@@ -560,9 +639,9 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       return 'Aksi order sebelumnya masih diproses. Tunggu sebentar.';
     }
 
-    final processingOrderIds = <String>{...current.processingOrderIds, orderId};
+    final actionKey = DriverOrderActionKeys.transition(orderId, actionCode);
 
-    state = AsyncData(current.copyWith(processingOrderIds: processingOrderIds));
+    state = AsyncData(_markActionProcessing(current, actionKey: actionKey));
 
     try {
       final updated = await ref
@@ -579,8 +658,6 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         return null;
       }
 
-      final cleanedProcessingIds = <String>{...latest.processingOrderIds}
-        ..remove(orderId);
       final isDriverRunning = isDriverRunningOrderStatus(updated.statusCode);
       final syncedRunning = isDriverRunning
           ? _upsertRunningOrder(latest.running, updated)
@@ -589,9 +666,9 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
           !isDriverRunning && isTerminalOrderStatus(updated.statusCode);
 
       state = AsyncData(
-        latest.copyWith(
-          running: syncedRunning,
-          processingOrderIds: cleanedProcessingIds,
+        _clearActionProcessing(
+          latest.copyWith(running: syncedRunning),
+          actionKey: actionKey,
         ),
       );
       _syncRunningOrderRealtime(state.asData!.value);
@@ -611,11 +688,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         return error.toString();
       }
 
-      final rollbackProcessingIds = <String>{...latest.processingOrderIds}
-        ..remove(orderId);
-      state = AsyncData(
-        latest.copyWith(processingOrderIds: rollbackProcessingIds),
-      );
+      state = AsyncData(_clearActionProcessing(latest, actionKey: actionKey));
       _syncRunningOrderRealtime(state.asData!.value);
       return error.toString();
     }
@@ -635,9 +708,9 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       return 'Aksi order sebelumnya masih diproses. Tunggu sebentar.';
     }
 
-    final processingOrderIds = <String>{...current.processingOrderIds, orderId};
+    final actionKey = DriverOrderActionKeys.collectCod(orderId);
 
-    state = AsyncData(current.copyWith(processingOrderIds: processingOrderIds));
+    state = AsyncData(_markActionProcessing(current, actionKey: actionKey));
 
     try {
       await ref
@@ -653,12 +726,12 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         return null;
       }
 
-      final cleanedProcessingIds = <String>{...latest.processingOrderIds}
-        ..remove(orderId);
       state = AsyncData(
-        latest.copyWith(
-          running: _upsertRunningOrder(latest.running, refreshed),
-          processingOrderIds: cleanedProcessingIds,
+        _clearActionProcessing(
+          latest.copyWith(
+            running: _upsertRunningOrder(latest.running, refreshed),
+          ),
+          actionKey: actionKey,
         ),
       );
       _syncRunningOrderRealtime(state.asData!.value);
@@ -671,11 +744,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         return error.toString();
       }
 
-      final rollbackProcessingIds = <String>{...latest.processingOrderIds}
-        ..remove(orderId);
-      state = AsyncData(
-        latest.copyWith(processingOrderIds: rollbackProcessingIds),
-      );
+      state = AsyncData(_clearActionProcessing(latest, actionKey: actionKey));
       return error.toString();
     }
   }
@@ -686,6 +755,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
   }) async {
     return _mutateRunningOrder(
       orderId: orderId,
+      actionKey: DriverOrderActionKeys.confirmQris(orderId),
       request: (service) =>
           service.confirmTransferPayment(orderId: orderId, amount: amount),
     );
@@ -699,6 +769,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
   }) async {
     return _mutateRunningOrder(
       orderId: orderId,
+      actionKey: DriverOrderActionKeys.updateFee(orderId),
       request: (service) => service.updateDeliveryFeeOverride(
         orderId: orderId,
         amount: amount,
@@ -717,6 +788,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
   }) async {
     return _mutateRunningOrder(
       orderId: orderId,
+      actionKey: DriverOrderActionKeys.uploadProof(orderId, type),
       request: (service) => service.uploadProof(
         orderId: orderId,
         type: type,
@@ -737,6 +809,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
   }) async {
     return _mutateRunningOrder(
       orderId: orderId,
+      actionKey: DriverOrderActionKeys.shoppingCheckout(orderId),
       request: (service) => service.updateShoppingCheckout(
         orderId: orderId,
         items: items,
@@ -750,6 +823,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
 
   Future<String?> _mutateRunningOrder({
     required String orderId,
+    required String actionKey,
     required Future<DriverOrderModel> Function(DriverOrderRepository repository)
     request,
   }) async {
@@ -762,8 +836,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       return 'Aksi order sebelumnya masih diproses. Tunggu sebentar.';
     }
 
-    final processingOrderIds = <String>{...current.processingOrderIds, orderId};
-    state = AsyncData(current.copyWith(processingOrderIds: processingOrderIds));
+    state = AsyncData(_markActionProcessing(current, actionKey: actionKey));
 
     try {
       final updated = await request(ref.read(driverOrderRepositoryProvider));
@@ -773,12 +846,12 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         return null;
       }
 
-      final cleanedProcessingIds = <String>{...latest.processingOrderIds}
-        ..remove(orderId);
       state = AsyncData(
-        latest.copyWith(
-          running: _upsertRunningOrder(latest.running, updated),
-          processingOrderIds: cleanedProcessingIds,
+        _clearActionProcessing(
+          latest.copyWith(
+            running: _upsertRunningOrder(latest.running, updated),
+          ),
+          actionKey: actionKey,
         ),
       );
       _syncRunningOrderRealtime(state.asData!.value);
@@ -791,11 +864,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         return error.toString();
       }
 
-      final rollbackProcessingIds = <String>{...latest.processingOrderIds}
-        ..remove(orderId);
-      state = AsyncData(
-        latest.copyWith(processingOrderIds: rollbackProcessingIds),
-      );
+      state = AsyncData(_clearActionProcessing(latest, actionKey: actionKey));
       return error.toString();
     }
   }
@@ -814,8 +883,8 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       return null;
     }
 
-    final processingOrderIds = <String>{...current.processingOrderIds, orderId};
-    state = AsyncData(current.copyWith(processingOrderIds: processingOrderIds));
+    final actionKey = DriverOrderActionKeys.updateShoppingItems(orderId);
+    state = AsyncData(_markActionProcessing(current, actionKey: actionKey));
 
     try {
       final updated = await ref
@@ -831,12 +900,12 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         return null;
       }
 
-      final cleanedProcessingIds = <String>{...latest.processingOrderIds}
-        ..remove(orderId);
       state = AsyncData(
-        latest.copyWith(
-          running: _upsertRunningOrder(latest.running, updated),
-          processingOrderIds: cleanedProcessingIds,
+        _clearActionProcessing(
+          latest.copyWith(
+            running: _upsertRunningOrder(latest.running, updated),
+          ),
+          actionKey: actionKey,
         ),
       );
       _syncRunningOrderRealtime(state.asData!.value);
@@ -849,11 +918,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         return error.toString();
       }
 
-      final rollbackProcessingIds = <String>{...latest.processingOrderIds}
-        ..remove(orderId);
-      state = AsyncData(
-        latest.copyWith(processingOrderIds: rollbackProcessingIds),
-      );
+      state = AsyncData(_clearActionProcessing(latest, actionKey: actionKey));
       return error.toString();
     }
   }
@@ -873,8 +938,8 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       return null;
     }
 
-    final processingOrderIds = <String>{...current.processingOrderIds, orderId};
-    state = AsyncData(current.copyWith(processingOrderIds: processingOrderIds));
+    final actionKey = DriverOrderActionKeys.pickupFailed(orderId);
+    state = AsyncData(_markActionProcessing(current, actionKey: actionKey));
 
     try {
       if (storeClosedPhoto != null) {
@@ -902,12 +967,12 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         return null;
       }
 
-      final cleanedProcessingIds = <String>{...latest.processingOrderIds}
-        ..remove(orderId);
       state = AsyncData(
-        latest.copyWith(
-          running: _upsertRunningOrder(latest.running, updated),
-          processingOrderIds: cleanedProcessingIds,
+        _clearActionProcessing(
+          latest.copyWith(
+            running: _upsertRunningOrder(latest.running, updated),
+          ),
+          actionKey: actionKey,
         ),
       );
       _syncRunningOrderRealtime(state.asData!.value);
@@ -920,11 +985,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         return error.toString();
       }
 
-      final rollbackProcessingIds = <String>{...latest.processingOrderIds}
-        ..remove(orderId);
-      state = AsyncData(
-        latest.copyWith(processingOrderIds: rollbackProcessingIds),
-      );
+      state = AsyncData(_clearActionProcessing(latest, actionKey: actionKey));
       return error.toString();
     }
   }

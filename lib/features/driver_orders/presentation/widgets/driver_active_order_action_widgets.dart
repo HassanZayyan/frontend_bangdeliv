@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../config/app_colors.dart';
+import '../../../../core/widgets/bang_action_button.dart';
 import '../../../../models/driver_order_model.dart';
 import '../../../../utils/currency_formatter.dart';
 import '../../../../utils/order_formatters.dart' show formatTime;
@@ -156,7 +157,9 @@ class DriverOrderTimelineCard extends StatelessWidget {
 
 class DriverOrderActionCard extends StatelessWidget {
   final DriverOrderModel order;
-  final bool isProcessing;
+  final bool isOrderBusy;
+  final bool isReportPickupFailedProcessing;
+  final bool Function(DriverOrderActionModel action) isActionProcessing;
   final Future<void> Function({
     required int pickupLocationId,
     required String reason,
@@ -168,7 +171,9 @@ class DriverOrderActionCard extends StatelessWidget {
   const DriverOrderActionCard({
     super.key,
     required this.order,
-    required this.isProcessing,
+    required this.isOrderBusy,
+    required this.isReportPickupFailedProcessing,
+    required this.isActionProcessing,
     required this.onReportPickupFailed,
     required this.onTapAction,
   });
@@ -227,8 +232,13 @@ class DriverOrderActionCard extends StatelessWidget {
           if (canReportPickupFailed) ...[
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: isProcessing || onReportPickupFailed == null
+              child: BangActionButton(
+                label: 'Merchant Tutup / Gagal Pickup',
+                variant: BangActionButtonVariant.outlined,
+                icon: Icons.storefront_outlined,
+                isLoading: isReportPickupFailedProcessing,
+                isEnabled: !isOrderBusy || isReportPickupFailedProcessing,
+                onPressed: onReportPickupFailed == null
                     ? null
                     : () async {
                         final report = await _showFailedPickupDialog(context);
@@ -241,8 +251,6 @@ class DriverOrderActionCard extends StatelessWidget {
                           storeClosedPhoto: report.storeClosedPhoto,
                         );
                       },
-                icon: const Icon(Icons.storefront_outlined, size: 18),
-                label: const Text('Merchant Tutup / Gagal Pickup'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.error,
                   side: const BorderSide(color: AppColors.error),
@@ -303,7 +311,12 @@ class DriverOrderActionCard extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: SizedBox(
                   width: double.infinity,
-                  child: FilledButton(
+                  child: BangActionButton(
+                    label: action.label,
+                    isLoading: isActionProcessing(action),
+                    isEnabled:
+                        (!isOrderBusy || isActionProcessing(action)) &&
+                        !action.blocked,
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: AppColors.white,
@@ -318,21 +331,9 @@ class DriverOrderActionCard extends StatelessWidget {
                         fontSize: 15,
                       ),
                     ),
-                    onPressed: isProcessing || action.blocked
-                        ? null
-                        : () async {
-                            await onTapAction(action);
-                          },
-                    child: isProcessing
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.white,
-                            ),
-                          )
-                        : Text(action.label),
+                    onPressed: () async {
+                      await onTapAction(action);
+                    },
                   ),
                 ),
               ),
