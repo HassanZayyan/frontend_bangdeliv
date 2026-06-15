@@ -43,6 +43,37 @@ class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen>
     }
   }
 
+  Future<void> _acceptIncomingOrder(DriverOrderModel order) async {
+    final result = await ref
+        .read(driverOrdersProvider.notifier)
+        .acceptOrder(order.id);
+
+    if (!mounted) {
+      return;
+    }
+
+    if (result.isSuccess) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Order diterima.')));
+
+      final acceptedOrderId = result.order?.id ?? order.id;
+      if (_isServerOrderId(acceptedOrderId)) {
+        context.go(AppRoutes.driverOrderActivePath(acceptedOrderId));
+      } else {
+        _goToRunningTab();
+      }
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result.error ?? 'Gagal menerima order.'),
+        backgroundColor: Colors.red.shade700,
+      ),
+    );
+  }
+
   void _syncInitialTab(DriverOrdersState data) {
     if (_didResolveInitialTab) {
       return;
@@ -109,7 +140,7 @@ class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen>
                 processingOrderIds: data.processingOrderIds,
                 canReceiveIncomingOrders: canReceiveIncomingOrders,
                 availabilityStatus: availabilityStatus,
-                onAcceptSuccess: _goToRunningTab,
+                onAcceptOrder: _acceptIncomingOrder,
               ),
               _RunningOrdersTab(orders: data.running),
             ],
@@ -122,6 +153,10 @@ class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen>
   bool _canReceiveIncomingOrders(String status) {
     final normalized = status.trim().toLowerCase();
     return normalized == 'available' || normalized == 'online';
+  }
+
+  bool _isServerOrderId(String orderId) {
+    return RegExp(r'^\d+$').hasMatch(orderId.trim());
   }
 }
 
@@ -203,19 +238,15 @@ class _IncomingOrdersTab extends ConsumerWidget {
   final Set<String> processingOrderIds;
   final bool canReceiveIncomingOrders;
   final String availabilityStatus;
-  final VoidCallback onAcceptSuccess;
+  final Future<void> Function(DriverOrderModel order) onAcceptOrder;
 
   const _IncomingOrdersTab({
     required this.orders,
     required this.processingOrderIds,
     required this.canReceiveIncomingOrders,
     required this.availabilityStatus,
-    required this.onAcceptSuccess,
+    required this.onAcceptOrder,
   });
-
-  bool _isServerOrderId(String orderId) {
-    return RegExp(r'^\d+$').hasMatch(orderId.trim());
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -269,39 +300,7 @@ class _IncomingOrdersTab extends ConsumerWidget {
             order: order,
             isIncoming: true,
             isProcessing: isProcessing,
-            onAccept: isProcessing
-                ? null
-                : () async {
-                    final result = await ref
-                        .read(driverOrdersProvider.notifier)
-                        .acceptOrder(order.id);
-
-                    if (!context.mounted) {
-                      return;
-                    }
-
-                    if (result.isSuccess) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Order diterima.')),
-                      );
-                      final acceptedOrderId = result.order?.id ?? order.id;
-                      if (_isServerOrderId(acceptedOrderId)) {
-                        context.go(
-                          AppRoutes.driverOrderActivePath(acceptedOrderId),
-                        );
-                      } else {
-                        onAcceptSuccess();
-                      }
-                      return;
-                    }
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(result.error ?? 'Gagal menerima order.'),
-                        backgroundColor: Colors.red.shade700,
-                      ),
-                    );
-                  },
+            onAccept: isProcessing ? null : () => onAcceptOrder(order),
             onReject: isProcessing
                 ? null
                 : () async {

@@ -6,6 +6,7 @@ class AppRoutes {
   static const String driverOrders = '/driver/orders';
   static const String driverOrderActive = '/driver/orders/:orderId/active';
   static const String driverHistory = '/driver/history';
+  static const String driverHistoryDetail = '/driver/history/:orderId';
   static const String driverProfile = '/driver/profile';
   static const String driverVerificationStatus = '/driver/verification-status';
   static const String chatbot = '/chatbot';
@@ -48,6 +49,10 @@ class AppRoutes {
 
   static String driverOrderActivePath(String orderId) {
     return '/driver/orders/$orderId/active';
+  }
+
+  static String driverHistoryDetailPath(Object orderId) {
+    return '/driver/history/$orderId';
   }
 
   static String orderChatPath(Object orderId) {
