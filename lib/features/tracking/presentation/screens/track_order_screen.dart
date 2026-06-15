@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
 import '../../../../config/payment_assets.dart';
+import '../../../../core/widgets/bang_image_preview.dart';
 import '../../../../services/qris_download_service.dart';
 import '../../../../models/customer_order_model.dart';
 import '../../../../core/di/app_providers.dart';
@@ -1471,19 +1472,32 @@ class TrackOrderScreen extends ConsumerWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              width: 72,
-              height: 92,
-              color: AppColors.white,
-              child: Image.network(
-                PaymentAssets.qrisUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => const Icon(
-                  Icons.qr_code_2,
-                  color: AppColors.primary,
-                  size: 32,
+          Semantics(
+            button: true,
+            label: 'Preview QRIS BangDeliv',
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Material(
+                color: AppColors.white,
+                child: InkWell(
+                  key: const ValueKey('qris-preview-thumbnail'),
+                  onTap: () => showBangNetworkImagePreview(
+                    context,
+                    imageUrl: PaymentAssets.qrisUrl,
+                  ),
+                  child: SizedBox(
+                    width: 72,
+                    height: 92,
+                    child: Image.network(
+                      PaymentAssets.qrisUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const Icon(
+                        Icons.qr_code_2,
+                        color: AppColors.primary,
+                        size: 32,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),

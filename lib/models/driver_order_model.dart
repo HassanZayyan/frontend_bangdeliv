@@ -896,6 +896,8 @@ class DriverOrderTimelineItemModel {
 
 class DriverHistoryOrderModel {
   final String id;
+  final int? orderId;
+  final String orderNumber;
   final String customerName;
   final DateTime date;
   final int fee;
@@ -903,17 +905,31 @@ class DriverHistoryOrderModel {
 
   const DriverHistoryOrderModel({
     required this.id,
+    this.orderId,
+    this.orderNumber = '',
     required this.customerName,
     required this.date,
     required this.fee,
     required this.status,
   });
 
+  String get displayOrderNumber {
+    final explicit = orderNumber.trim();
+    return explicit.isNotEmpty ? explicit : id;
+  }
+
   factory DriverHistoryOrderModel.fromJson(Map<String, dynamic> json) {
     final rawDate = (json['date'] ?? json['created_at'] ?? '').toString();
+    final rawId = (json['id'] ?? '').toString();
+    final rawOrderNumber =
+        (json['order_number'] ?? json['orderNumber'])?.toString().trim() ?? '';
 
     return DriverHistoryOrderModel(
-      id: (json['id'] ?? '').toString(),
+      id: rawId,
+      orderId: DriverOrderModel._asIntOrNull(
+        json['order_id'] ?? json['orderId'] ?? json['server_id'] ?? rawId,
+      ),
+      orderNumber: rawOrderNumber.isNotEmpty ? rawOrderNumber : rawId,
       customerName: (json['customer_name'] ?? json['customerName'] ?? '-')
           .toString(),
       date: parseBackendDateTime(rawDate) ?? DateTime.now().toUtc(),

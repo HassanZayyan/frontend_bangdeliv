@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../config/app_colors.dart';
+import '../../../../config/app_routes.dart';
 import '../../../../core/widgets/bang_async_state.dart';
 import '../../../../models/driver_order_model.dart';
 import '../../application/driver_order_providers.dart';
@@ -112,6 +114,13 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
                             return _HistoryCard(
                               order: order,
                               formatter: formatCurrency,
+                              onTap: order.orderId == null
+                                  ? null
+                                  : () => context.go(
+                                      AppRoutes.driverHistoryDetailPath(
+                                        order.orderId!,
+                                      ),
+                                    ),
                             );
                           },
                         ),
@@ -234,81 +243,101 @@ class _SummaryCard extends StatelessWidget {
 class _HistoryCard extends StatelessWidget {
   final DriverHistoryOrderModel order;
   final String Function(num amount) formatter;
+  final VoidCallback? onTap;
 
-  const _HistoryCard({required this.order, required this.formatter});
+  const _HistoryCard({
+    required this.order,
+    required this.formatter,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final isCompleted = order.status == 'Selesai';
     final statusColor = isCompleted ? AppColors.success : AppColors.error;
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.white,
+    return Material(
+      key: ValueKey('driver-history-order-${order.orderId ?? order.id}'),
+      color: AppColors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Row(
+                children: [
+                  Text(
+                    order.displayOrderNumber,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      order.status,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  if (onTap != null) ...[
+                    const SizedBox(width: 8),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppColors.textSecondary,
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 8),
               Text(
-                order.id,
+                'Customer: ${order.customerName}',
                 style: const TextStyle(
-                  color: AppColors.textSecondary,
+                  color: AppColors.textPrimary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
+              const SizedBox(height: 4),
+              Text(
+                _formatDate(order.date),
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
                 ),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  order.status,
-                  style: TextStyle(
-                    color: statusColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                isCompleted ? formatter(order.fee) : 'Tidak ada pendapatan',
+                style: TextStyle(
+                  color: isCompleted
+                      ? AppColors.primaryDark
+                      : AppColors.textSecondary,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Customer: ${order.customerName}',
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            _formatDate(order.date),
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            isCompleted ? formatter(order.fee) : 'Tidak ada pendapatan',
-            style: TextStyle(
-              color: isCompleted
-                  ? AppColors.primaryDark
-                  : AppColors.textSecondary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

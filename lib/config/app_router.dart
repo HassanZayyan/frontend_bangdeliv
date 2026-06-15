@@ -10,6 +10,7 @@ import '../features/auth/presentation/screens/splash_screen.dart';
 import '../features/driver_orders/presentation/screens/driver_home_screen.dart';
 import '../features/driver_orders/presentation/screens/driver_orders_screen.dart';
 import '../features/driver_orders/presentation/screens/driver_history_screen.dart';
+import '../features/driver_orders/presentation/screens/driver_order_history_detail_screen.dart';
 import '../features/profile/presentation/screens/driver_profile_screen.dart';
 import '../features/driver_orders/presentation/screens/driver_active_order_screen.dart';
 import '../features/profile/presentation/screens/driver_verification_status_screen.dart';
@@ -360,6 +361,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppRoutes.driverHistory,
             builder: (context, state) => const DriverHistoryScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.driverHistoryDetail,
+            builder: (context, state) {
+              final orderId = state.pathParameters['orderId'] ?? '';
+              return DriverOrderHistoryDetailScreen(orderId: orderId);
+            },
           ),
           GoRoute(
             path: AppRoutes.driverProfile,
