@@ -28,7 +28,6 @@ abstract class DriverOrderRepository {
   Future<DriverOrderModel> confirmTransferPayment({
     required String orderId,
     required double amount,
-    String? note,
   });
 
   Future<DriverOrderModel> updateDeliveryFeeOverride({
@@ -138,13 +137,8 @@ class ApiDriverOrderRepository implements DriverOrderRepository {
   Future<DriverOrderModel> confirmTransferPayment({
     required String orderId,
     required double amount,
-    String? note,
   }) {
-    return _service.confirmTransferPayment(
-      orderId: orderId,
-      amount: amount,
-      note: note,
-    );
+    return _service.confirmTransferPayment(orderId: orderId, amount: amount);
   }
 
   @override

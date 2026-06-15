@@ -851,7 +851,7 @@ void main() {
           DriverOrderProofModel(
             id: 19,
             type: 'payment_transfer',
-            label: 'Bukti transfer',
+            label: 'Bukti QRIS',
             photoUrl: 'https://example.com/transfer.jpg',
             status: 'pending',
             createdAt: DateTime.utc(2026, 6, 6, 15, 38),

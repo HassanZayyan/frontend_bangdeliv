@@ -14,6 +14,7 @@ import '../../services/driver_order_service.dart';
 import '../../services/home_api_service.dart';
 import '../../services/order_chat_api_service.dart';
 import '../../services/pusher_service.dart';
+import '../../services/qris_download_service.dart';
 import '../../services/ride_order_api_service.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) {
@@ -72,6 +73,12 @@ final orderChatApiServiceProvider = Provider<OrderChatApiService>((ref) {
 final deviceTokenApiServiceProvider = Provider<DeviceTokenApiService>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   return DeviceTokenApiService(apiClient);
+});
+
+final qrisDownloadServiceProvider = Provider<QrisDownloadService>((ref) {
+  final service = QrisDownloadService();
+  ref.onDispose(service.close);
+  return service;
 });
 
 final orderRealtimeClientProvider = Provider<OrderRealtimeClient>((ref) {

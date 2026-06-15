@@ -1073,7 +1073,7 @@ class CustomerOrderProofModel {
       case 'store_closed':
         return 'Foto toko tutup';
       case 'payment_transfer':
-        return 'Bukti transfer';
+        return 'Bukti QRIS';
       default:
         return 'Bukti order';
     }

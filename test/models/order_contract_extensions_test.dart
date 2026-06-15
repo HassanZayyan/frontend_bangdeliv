@@ -52,7 +52,7 @@ void main() {
     final transferProof = order.proofs.firstWhere(
       (proof) => proof.type == 'payment_transfer',
     );
-    expect(transferProof.label, 'Bukti transfer');
+    expect(transferProof.label, 'Bukti QRIS');
     expect(transferProof.photoUrl, endsWith('/storage/proofs/transfer.jpg'));
     expect(transferProof.status, 'pending');
     expect(transferProof.note, 'Transfer BCA');
@@ -66,19 +66,19 @@ void main() {
       'sender_user_id': 1,
       'sender_role': 'customer',
       'sender_name': 'Customer',
-      'body': 'Bukti transfer',
+      'body': 'Foto order',
       'client_message_id': 'client-1',
       'attachment': {
-        'type': 'payment_transfer',
-        'url': 'https://example.com/proof.jpg',
+        'type': 'image',
+        'url': 'https://example.com/order-photo.jpg',
         'mime_type': 'image/jpeg',
       },
       'created_at': '2026-05-30T10:00:00Z',
     });
 
     expect(message.hasAttachment, isTrue);
-    expect(message.attachmentType, 'payment_transfer');
-    expect(message.attachmentUrl, 'https://example.com/proof.jpg');
+    expect(message.attachmentType, 'image');
+    expect(message.attachmentUrl, 'https://example.com/order-photo.jpg');
     expect(message.attachmentMimeType, 'image/jpeg');
   });
 
@@ -99,7 +99,7 @@ void main() {
           'evidence_type': 'PAYMENT_TRANSFER_PHOTO',
           'file_url': '/storage/orders/77/payments/transfer.jpg',
           'verification_status': 'PENDING',
-          'notes': 'Bukti transfer customer.',
+          'notes': 'Bukti QRIS customer.',
           'uploaded_at': '2026-06-06T15:38:00Z',
         },
       ],
@@ -109,13 +109,13 @@ void main() {
 
     final proof = order.proofs.single;
     expect(proof.type, 'payment_transfer');
-    expect(proof.label, 'Bukti transfer');
+    expect(proof.label, 'Bukti QRIS');
     expect(
       proof.photoUrl,
       endsWith('/storage/orders/77/payments/transfer.jpg'),
     );
     expect(proof.status, 'PENDING');
-    expect(proof.note, 'Bukti transfer customer.');
+    expect(proof.note, 'Bukti QRIS customer.');
     expect(proof.createdAt, DateTime.parse('2026-06-06T15:38:00Z'));
   });
 

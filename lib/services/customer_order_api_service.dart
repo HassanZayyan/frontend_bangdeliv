@@ -115,12 +115,12 @@ class CustomerOrderApiService {
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw ApiException(
-          decoded['message']?.toString() ?? 'Gagal upload bukti transfer.',
+          decoded['message']?.toString() ?? 'Gagal upload bukti QRIS.',
           statusCode: response.statusCode,
         );
       }
 
-      return _extractDetail(decoded, fallback: 'Gagal upload bukti transfer.');
+      return _extractDetail(decoded, fallback: 'Gagal upload bukti QRIS.');
     } on AuthException catch (error) {
       throw ApiException(error.message);
     } on TimeoutException {

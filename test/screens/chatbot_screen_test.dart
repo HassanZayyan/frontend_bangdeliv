@@ -229,7 +229,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.widgetWithText(OutlinedButton, 'COD'), findsNothing);
-      expect(find.widgetWithText(OutlinedButton, 'Transfer'), findsNothing);
+      expect(find.widgetWithText(OutlinedButton, 'QRIS'), findsNothing);
     },
   );
 
@@ -246,7 +246,7 @@ void main() {
     await _sendMessage(tester, 'draft nitip payment');
 
     expect(find.widgetWithText(OutlinedButton, 'COD'), findsOneWidget);
-    expect(find.widgetWithText(OutlinedButton, 'Transfer'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'QRIS'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'COD'));
     await _pumpChatbotFrame(tester);
@@ -257,7 +257,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.widgetWithText(OutlinedButton, 'COD'), findsNothing);
-    expect(find.widgetWithText(OutlinedButton, 'Transfer'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'QRIS'), findsNothing);
   });
 
   testWidgets('only latest chatbot action buttons stay enabled', (
@@ -842,10 +842,7 @@ class _FakeChatbotApiService extends ChatbotApiService {
           },
           'action_payloads': {
             'SET_PAYMENT_COD': {'label': 'COD', 'message': 'COD'},
-            'SET_PAYMENT_TRANSFER': {
-              'label': 'Transfer',
-              'message': 'Transfer',
-            },
+            'SET_PAYMENT_TRANSFER': {'label': 'QRIS', 'message': 'QRIS'},
           },
           'order': {'created': false, 'payment_method': null},
         },
@@ -879,10 +876,7 @@ class _FakeChatbotApiService extends ChatbotApiService {
           },
           'action_payloads': {
             'SET_PAYMENT_COD': {'label': 'COD', 'message': 'COD'},
-            'SET_PAYMENT_TRANSFER': {
-              'label': 'Transfer',
-              'message': 'Transfer',
-            },
+            'SET_PAYMENT_TRANSFER': {'label': 'QRIS', 'message': 'QRIS'},
           },
           'order': {'created': false, 'payment_method': 'COD'},
         },
