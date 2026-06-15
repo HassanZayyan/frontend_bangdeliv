@@ -8,10 +8,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:frontend_bangdeliv/models/chatbot_model.dart';
 import 'package:frontend_bangdeliv/models/user_profile_model.dart';
-import 'package:frontend_bangdeliv/providers/api_providers.dart';
-import 'package:frontend_bangdeliv/providers/auth_session_provider.dart';
-import 'package:frontend_bangdeliv/providers/chatbot_conversation_provider.dart';
-import 'package:frontend_bangdeliv/screens/chatbot_screen.dart';
+import 'package:frontend_bangdeliv/core/di/app_providers.dart';
+import 'package:frontend_bangdeliv/features/auth/application/auth_session_provider.dart';
+import 'package:frontend_bangdeliv/features/chatbot/application/chatbot_conversation_provider.dart';
+import 'package:frontend_bangdeliv/features/chatbot/presentation/screens/chatbot_screen.dart';
 import 'package:frontend_bangdeliv/services/api_client.dart';
 import 'package:frontend_bangdeliv/services/api_exception.dart';
 import 'package:frontend_bangdeliv/services/chatbot_api_service.dart';
@@ -107,6 +107,111 @@ void main() {
     expect(input.textInputAction, TextInputAction.newline);
     expect(input.onSubmitted, isNull);
   });
+
+  testWidgets('chatbot app bar menu keeps history and restart actions', (
+    WidgetTester tester,
+  ) async {
+    await _pumpChatbot(
+      tester,
+      serviceType: 'antar_jemput',
+      chatbotApiService: _FakeChatbotApiService(),
+    );
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await _pumpChatbotFrame(tester);
+
+    expect(find.text('Riwayat Sesi'), findsOneWidget);
+    expect(find.text('Mulai Ulang Pesanan'), findsOneWidget);
+
+    await tester.tap(find.text('Riwayat Sesi'));
+    await _pumpChatbotFrame(tester);
+
+    expect(find.text('Pilih Sesi Chat'), findsOneWidget);
+    expect(
+      find.text('Belum ada sesi tersimpan untuk layanan ini.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('restart menu confirms and starts a fresh chatbot session', (
+    WidgetTester tester,
+  ) async {
+    final fakeService = _FakeChatbotApiService();
+
+    await _pumpChatbot(
+      tester,
+      serviceType: 'antar_jemput',
+      chatbotApiService: fakeService,
+    );
+
+    await _sendMessage(tester, 'antar ke polines');
+    final prefs = await SharedPreferences.getInstance();
+    final oldSessionId = prefs.getString('chatbot_session_id_antar_jemput');
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await _pumpChatbotFrame(tester);
+    await tester.tap(find.text('Mulai Ulang Pesanan'));
+    await _pumpChatbotFrame(tester);
+
+    expect(find.text('Mulai ulang pesanan?'), findsOneWidget);
+
+    await tester.tap(find.text('Mulai Ulang'));
+    await _pumpChatbotFrame(tester);
+
+    final newSessionId = prefs.getString('chatbot_session_id_antar_jemput');
+
+    expect(fakeService.clearSessionCallCount, 1);
+    expect(fakeService.lastClearedSessionId, oldSessionId);
+    expect(fakeService.callCount, 1);
+    expect(newSessionId, isNotNull);
+    expect(newSessionId, isNot(oldSessionId));
+    expect(
+      find.textContaining('Halo! Saya BangBot untuk layanan Antar Jemput'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Draft siap'), findsNothing);
+  });
+
+  test('restart command parser only accepts explicit refresh commands', () {
+    expect(ChatbotCommandParser.isRestartCommand('refresh'), isTrue);
+    expect(ChatbotCommandParser.isRestartCommand('/refresh'), isTrue);
+    expect(ChatbotCommandParser.isRestartCommand(' refresh '), isTrue);
+    expect(ChatbotCommandParser.isRestartCommand('tolong refresh'), isFalse);
+  });
+
+  for (final entry in const <String, String>{
+    'antar_jemput': 'chatbot_session_id_antar_jemput',
+    'kurir': 'chatbot_session_id_kurir',
+    'nitip': 'chatbot_session_id_nitip',
+  }.entries) {
+    testWidgets('manual refresh command restarts ${entry.key} order flow', (
+      WidgetTester tester,
+    ) async {
+      final fakeService = _FakeChatbotApiService();
+
+      await _pumpChatbot(
+        tester,
+        serviceType: entry.key,
+        chatbotApiService: fakeService,
+      );
+
+      await _sendMessage(tester, 'mulai draft');
+      final prefs = await SharedPreferences.getInstance();
+      final oldSessionId = prefs.getString(entry.value);
+
+      await _sendMessage(tester, 'refresh');
+
+      final newSessionId = prefs.getString(entry.value);
+
+      expect(fakeService.clearSessionCallCount, 1);
+      expect(fakeService.lastClearedSessionId, oldSessionId);
+      expect(fakeService.callCount, 1);
+      expect(newSessionId, isNotNull);
+      expect(newSessionId, isNot(oldSessionId));
+      expect(find.textContaining('Halo! Saya BangBot'), findsOneWidget);
+      expect(find.textContaining('Draft siap'), findsNothing);
+    });
+  }
 
   testWidgets(
     'nitip payment selection shows confirmation, not payment choices',
@@ -489,7 +594,7 @@ void main() {
 
   test('customer transfer evidence picker uses gallery', () {
     final source = File(
-      'lib/screens/track_order_screen.dart',
+      'lib/features/tracking/presentation/screens/track_order_screen.dart',
     ).readAsStringSync();
     final uploadMethod = source.substring(
       source.indexOf('Future<void> _uploadTransferEvidence'),

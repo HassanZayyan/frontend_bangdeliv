@@ -1,0 +1,40 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:frontend_bangdeliv/features/driver_orders/application/driver_dispatch_presenter.dart';
+import 'package:frontend_bangdeliv/models/driver_order_model.dart';
+
+void main() {
+  test('DriverOrderModel parses dispatch metadata', () {
+    final order = DriverOrderModel.fromJson(const <String, dynamic>{
+      'id': '10',
+      'customer_name': 'Customer',
+      'pickup_address': 'Pickup',
+      'dropoff_address': 'Dropoff',
+      'eta_minutes': 0,
+      'fee': 12000,
+      'item_count': 1,
+      'dispatch': <String, dynamic>{
+        'priority_rank': 1,
+        'distance_to_pickup_meters': 1250,
+        'distance_to_pickup_km': 1.25,
+        'distance_label': '1,3 km dari titik jemput',
+        'distance_bucket': 'NEAR',
+        'location_fresh': true,
+      },
+    });
+
+    expect(order.dispatch?.priorityRank, 1);
+    expect(order.dispatch?.distanceToPickupMeters, 1250);
+    expect(order.dispatch?.distanceToPickupKm, 1.25);
+    expect(order.dispatch?.distanceLabel, '1,3 km dari titik jemput');
+    expect(order.dispatch?.distanceBucket, 'NEAR');
+    expect(order.dispatch?.locationFresh, isTrue);
+  });
+
+  test('DriverDispatchPresenter falls back to unknown distance', () {
+    final viewData = DriverDispatchPresenter.present(null);
+
+    expect(viewData.label, 'Jarak belum tersedia');
+    expect(viewData.bucket, 'UNKNOWN');
+    expect(viewData.priorityRank, isNull);
+  });
+}

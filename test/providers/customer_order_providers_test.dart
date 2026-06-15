@@ -3,9 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:frontend_bangdeliv/models/customer_order_model.dart';
 import 'package:frontend_bangdeliv/models/user_profile_model.dart';
-import 'package:frontend_bangdeliv/providers/api_providers.dart';
-import 'package:frontend_bangdeliv/providers/auth_session_provider.dart';
-import 'package:frontend_bangdeliv/providers/customer_order_providers.dart';
+import 'package:frontend_bangdeliv/core/di/app_providers.dart';
+import 'package:frontend_bangdeliv/features/auth/application/auth_session_provider.dart';
+import 'package:frontend_bangdeliv/features/orders/application/customer_order_providers.dart';
 import 'package:frontend_bangdeliv/services/api_client.dart';
 import 'package:frontend_bangdeliv/services/customer_order_api_service.dart';
 

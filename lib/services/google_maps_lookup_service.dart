@@ -22,31 +22,50 @@ class GoogleMapsResolvedPlace {
   final String? address;
 }
 
+enum GoogleMapsLookupScope { indonesia, salatigaServiceAreaAddress }
+
 class GoogleMapsLookupService {
-  const GoogleMapsLookupService();
+  const GoogleMapsLookupService({http.Client? client, String? apiKey})
+    : _client = client,
+      _apiKeyOverride = apiKey;
 
-  bool get isConfigured => AppEnv.googleMapsApiKey.trim().isNotEmpty;
+  static const _salatigaServiceAreaCenter = LatLng(-7.3305, 110.5084);
+  static const _salatigaServiceAreaRadiusMeters = 45000;
+  static const _salatigaServiceAreaBounds = '-7.6500,110.1000|-7.0500,110.8500';
 
-  Future<List<GoogleMapsPrediction>> searchPlaces(String query) async {
+  final http.Client? _client;
+  final String? _apiKeyOverride;
+
+  bool get isConfigured => _apiKey.isNotEmpty;
+
+  String get _apiKey => (_apiKeyOverride ?? AppEnv.googleMapsApiKey).trim();
+
+  Future<List<GoogleMapsPrediction>> searchPlaces(
+    String query, {
+    GoogleMapsLookupScope scope = GoogleMapsLookupScope.indonesia,
+  }) async {
     final normalizedQuery = query.trim();
-    final apiKey = AppEnv.googleMapsApiKey.trim();
+    final apiKey = _apiKey;
     if (normalizedQuery.isEmpty || apiKey.isEmpty) {
       return const <GoogleMapsPrediction>[];
     }
 
+    final queryParameters = <String, String>{
+      'input': normalizedQuery,
+      'key': apiKey,
+      'components': 'country:id',
+      'language': 'id',
+    };
+    _applyAutocompleteScope(queryParameters, scope);
+
     final url = Uri.https(
       'maps.googleapis.com',
       '/maps/api/place/autocomplete/json',
-      <String, String>{
-        'input': normalizedQuery,
-        'key': apiKey,
-        'components': 'country:id',
-        'language': 'id',
-      },
+      queryParameters,
     );
 
     try {
-      final response = await http.get(url);
+      final response = await _get(url);
       if (response.statusCode != 200) {
         return const <GoogleMapsPrediction>[];
       }
@@ -74,8 +93,9 @@ class GoogleMapsLookupService {
   Future<GoogleMapsResolvedPlace?> resolvePlace({
     String? placeId,
     String? fallbackQuery,
+    GoogleMapsLookupScope scope = GoogleMapsLookupScope.indonesia,
   }) async {
-    final apiKey = AppEnv.googleMapsApiKey.trim();
+    final apiKey = _apiKey;
     if (apiKey.isEmpty) {
       return null;
     }
@@ -93,28 +113,34 @@ class GoogleMapsLookupService {
       return null;
     }
 
-    return geocodeQuery(normalizedFallback);
+    return geocodeQuery(normalizedFallback, scope: scope);
   }
 
-  Future<GoogleMapsResolvedPlace?> geocodeQuery(String query) async {
+  Future<GoogleMapsResolvedPlace?> geocodeQuery(
+    String query, {
+    GoogleMapsLookupScope scope = GoogleMapsLookupScope.indonesia,
+  }) async {
     final normalizedQuery = query.trim();
-    final apiKey = AppEnv.googleMapsApiKey.trim();
+    final apiKey = _apiKey;
     if (normalizedQuery.isEmpty || apiKey.isEmpty) {
       return null;
     }
 
+    final queryParameters = <String, String>{
+      'address': normalizedQuery,
+      'key': apiKey,
+      'language': 'id',
+    };
+    _applyGeocodeScope(queryParameters, scope);
+
     final url = Uri.https(
       'maps.googleapis.com',
       '/maps/api/geocode/json',
-      <String, String>{
-        'address': normalizedQuery,
-        'key': apiKey,
-        'language': 'id',
-      },
+      queryParameters,
     );
 
     try {
-      final response = await http.get(url);
+      final response = await _get(url);
       if (response.statusCode != 200) {
         return null;
       }
@@ -141,7 +167,7 @@ class GoogleMapsLookupService {
   }
 
   Future<String?> reverseGeocode(LatLng target) async {
-    final apiKey = AppEnv.googleMapsApiKey.trim();
+    final apiKey = _apiKey;
     if (apiKey.isEmpty) {
       return null;
     }
@@ -157,7 +183,7 @@ class GoogleMapsLookupService {
     });
 
     try {
-      final response = await http.get(url);
+      final response = await _get(url);
       if (response.statusCode != 200) {
         return null;
       }
@@ -207,7 +233,7 @@ class GoogleMapsLookupService {
     );
 
     try {
-      final response = await http.get(url);
+      final response = await _get(url);
       if (response.statusCode != 200) {
         return null;
       }
@@ -233,6 +259,41 @@ class GoogleMapsLookupService {
       description: (json['description'] ?? '').toString(),
       placeId: json['place_id']?.toString(),
     );
+  }
+
+  Future<http.Response> _get(Uri url) {
+    final client = _client;
+    return client == null ? http.get(url) : client.get(url);
+  }
+
+  void _applyAutocompleteScope(
+    Map<String, String> queryParameters,
+    GoogleMapsLookupScope scope,
+  ) {
+    switch (scope) {
+      case GoogleMapsLookupScope.indonesia:
+        return;
+      case GoogleMapsLookupScope.salatigaServiceAreaAddress:
+        queryParameters
+          ..['location'] =
+              '${_salatigaServiceAreaCenter.latitude},${_salatigaServiceAreaCenter.longitude}'
+          ..['radius'] = _salatigaServiceAreaRadiusMeters.toString()
+          ..['strictbounds'] = 'true';
+    }
+  }
+
+  void _applyGeocodeScope(
+    Map<String, String> queryParameters,
+    GoogleMapsLookupScope scope,
+  ) {
+    switch (scope) {
+      case GoogleMapsLookupScope.indonesia:
+        return;
+      case GoogleMapsLookupScope.salatigaServiceAreaAddress:
+        queryParameters
+          ..['bounds'] = _salatigaServiceAreaBounds
+          ..['components'] = 'country:ID';
+    }
   }
 
   GoogleMapsResolvedPlace? _resolvedPlaceFromResult(

@@ -161,6 +161,10 @@ class CustomerOrderSummaryModel {
   factory CustomerOrderSummaryModel.fromJson(Map<String, dynamic> json) {
     final status = _extractStatus(json);
     final serviceType = _extractServiceType(json);
+    final route = OrderRouteModel.fromRaw(
+      json['route'] ?? json['shopping_route'],
+    );
+    final distanceKm = _distanceKmFromJson(json, route);
 
     return CustomerOrderSummaryModel(
       id: _asInt(json['id']),
@@ -176,12 +180,8 @@ class CustomerOrderSummaryModel {
       createdAt: _asDateTime(json['created_at']),
       estimatedDelivery: _asDateTime(json['estimated_delivery']),
       deliveryAddress: (json['delivery_address'] ?? '-').toString(),
-      deliveryDistanceKm: _asNullableDouble(
-        json['delivery_distance_km'] ?? json['deliveryDistanceKm'],
-      ),
-      deliveryDistanceText:
-          (json['delivery_distance_text'] ?? json['deliveryDistanceText'])
-              ?.toString(),
+      deliveryDistanceKm: distanceKm,
+      deliveryDistanceText: _distanceTextFromJson(json, route, distanceKm),
       deliveryFee: _asNullableDouble(
         json['delivery_fee'] ?? json['deliveryFee'],
       ),
@@ -395,6 +395,29 @@ class CustomerOrderSummaryModel {
     }
 
     return parseBackendDateTime(raw);
+  }
+
+  static double? _distanceKmFromJson(
+    Map<String, dynamic> json,
+    OrderRouteModel? route,
+  ) {
+    return _asNullableDouble(
+          json['delivery_distance_km'] ?? json['deliveryDistanceKm'],
+        ) ??
+        route?.distanceKm;
+  }
+
+  static String? _distanceTextFromJson(
+    Map<String, dynamic> json,
+    OrderRouteModel? route,
+    double? distanceKm,
+  ) {
+    return _firstNonEmptyString([
+          json['delivery_distance_text'],
+          json['deliveryDistanceText'],
+          route?.distanceText,
+        ]) ??
+        (distanceKm == null ? null : '${distanceKm.toStringAsFixed(1)} km');
   }
 }
 
@@ -722,6 +745,14 @@ class CustomerOrderDetailModel {
         : (json['shoppingOrder'] is Map<String, dynamic>)
         ? json['shoppingOrder'] as Map<String, dynamic>
         : const <String, dynamic>{};
+    final route = OrderRouteModel.fromRaw(
+      json['route'] ?? json['shopping_route'],
+      shoppingOrder,
+    );
+    final distanceKm = CustomerOrderSummaryModel._distanceKmFromJson(
+      json,
+      route,
+    );
 
     return CustomerOrderDetailModel(
       summary: summary,
@@ -760,10 +791,12 @@ class CustomerOrderDetailModel {
           ? driverLongitude
           : null,
       driverLocationUpdatedAt: driverLocationUpdatedAt,
-      deliveryDistanceText: json['delivery_distance_text']?.toString(),
-      deliveryDistanceKm: _asNullableDouble(
-        json['delivery_distance_km'] ?? json['deliveryDistanceKm'],
+      deliveryDistanceText: CustomerOrderSummaryModel._distanceTextFromJson(
+        json,
+        route,
+        distanceKm,
       ),
+      deliveryDistanceKm: distanceKm,
       deliveryFeeSource: CustomerOrderSummaryModel._normalizeDeliveryFeeSource(
         json['delivery_fee_source'] ?? json['deliveryFeeSource'],
       ),
@@ -788,10 +821,7 @@ class CustomerOrderDetailModel {
           : rawStops
                 .map(CustomerShoppingStopModel.fromJson)
                 .toList(growable: false),
-      route: OrderRouteModel.fromRaw(
-        json['route'] ?? json['shopping_route'],
-        shoppingOrder,
-      ),
+      route: route,
       shoppingPricing: CustomerShoppingPricingModel.fromJson(
         json,
         shoppingOrder,

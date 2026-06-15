@@ -1,21 +1,23 @@
+import '../domain/order_domain.dart';
+
 class OrderStatusCodes {
   const OrderStatusCodes._();
 
-  static const pending = 'PENDING';
-  static const driverAssigned = 'DRIVER_ASSIGNED';
-  static const arrivedMerchant = 'ARRIVED_MERCHANT';
-  static const arrivedPickup = 'ARRIVED_PICKUP';
-  static const pickedUp = 'PICKED_UP';
-  static const onTheWay = 'ON_THE_WAY';
-  static const arrivedDropoff = 'ARRIVED_DROPOFF';
-  static const delivered = 'DELIVERED';
-  static const completed = 'COMPLETED';
-  static const cancelled = 'CANCELLED';
-  static const cancelledWithFee = 'CANCELLED_WITH_FEE';
+  static const pending = OrderStatusCode.pending;
+  static const driverAssigned = OrderStatusCode.driverAssigned;
+  static const arrivedMerchant = OrderStatusCode.arrivedMerchant;
+  static const arrivedPickup = OrderStatusCode.arrivedPickup;
+  static const pickedUp = OrderStatusCode.pickedUp;
+  static const onTheWay = OrderStatusCode.onTheWay;
+  static const arrivedDropoff = OrderStatusCode.arrivedDropoff;
+  static const delivered = OrderStatusCode.delivered;
+  static const completed = OrderStatusCode.completed;
+  static const cancelled = OrderStatusCode.cancelled;
+  static const cancelledWithFee = OrderStatusCode.cancelledWithFee;
 }
 
 String normalizeOrderStatusCode(String? code) {
-  return (code ?? '').trim().toUpperCase();
+  return OrderStatusCode.normalize(code);
 }
 
 bool isTerminalOrderStatus(String code) {

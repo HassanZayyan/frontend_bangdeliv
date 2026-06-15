@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('courier route saved prompt instruction uses readable text size', () {
-    final source = File('lib/screens/chatbot_screen.dart').readAsStringSync();
+    final source = File(
+      'lib/features/chatbot/presentation/screens/chatbot_screen.dart',
+    ).readAsStringSync();
     final promptContent = source.substring(
       source.indexOf('Widget _buildSimplePromptContent({'),
       source.indexOf('Widget _buildAssistantNotice(String text)'),
