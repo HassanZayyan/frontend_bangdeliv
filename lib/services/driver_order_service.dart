@@ -122,22 +122,15 @@ class DriverOrderService {
   Future<DriverOrderModel> confirmTransferPayment({
     required String orderId,
     required double amount,
-    String? note,
   }) async {
-    final normalizedNote = note?.trim();
-
     _debugLog(
       'POST /v1/orders/$orderId/payment/transfer/confirm amount=$amount',
     );
 
     final response = await _post(
       '/v1/orders/$orderId/payment/transfer/confirm',
-      body: <String, dynamic>{
-        'amount': amount,
-        if (normalizedNote != null && normalizedNote.isNotEmpty)
-          'note': normalizedNote,
-      },
-      fallback: 'Gagal mencatat pembayaran transfer.',
+      body: <String, dynamic>{'amount': amount},
+      fallback: 'Gagal mencatat pembayaran QRIS.',
     );
 
     try {

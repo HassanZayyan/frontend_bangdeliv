@@ -14,7 +14,6 @@ void main() {
         ServiceTypeCodes.shopping,
       ]) {
         double? verifiedAmount;
-        String? verifiedNote;
 
         await _pumpCard(
           tester,
@@ -24,7 +23,7 @@ void main() {
               DriverOrderProofModel(
                 id: 1,
                 type: 'payment_transfer',
-                label: 'Bukti transfer',
+                label: 'Bukti QRIS',
                 photoUrl: 'https://example.com/transfer.jpg',
                 status: 'pending',
                 note: 'Transfer BCA',
@@ -32,15 +31,14 @@ void main() {
               ),
             ],
           ),
-          onConfirmTransfer: ({required amount, required note}) async {
+          onConfirmTransfer: ({required amount}) async {
             verifiedAmount = amount;
-            verifiedNote = note;
           },
         );
 
-        expect(find.text('Bukti Transfer Customer'), findsOneWidget);
+        expect(find.text('Bukti QRIS Customer'), findsOneWidget);
         expect(find.text('Lihat Bukti'), findsOneWidget);
-        expect(find.text('Verifikasi Transfer'), findsOneWidget);
+        expect(find.text('Verifikasi QRIS'), findsOneWidget);
 
         await tester.tap(find.text('Lihat Bukti'));
         await tester.pumpAndSettle();
@@ -49,11 +47,10 @@ void main() {
         Navigator.of(tester.element(find.byType(Dialog))).pop();
         await tester.pumpAndSettle();
 
-        await tester.tap(find.text('Verifikasi Transfer'));
+        await tester.tap(find.text('Verifikasi QRIS'));
         await tester.pumpAndSettle();
 
         expect(verifiedAmount, 18000);
-        expect(verifiedNote, contains('Verifikasi bukti transfer customer'));
       }
     },
   );
@@ -62,31 +59,29 @@ void main() {
     tester,
   ) async {
     double? recordedAmount;
-    String? recordedNote;
 
     await _pumpCard(
       tester,
       order: _order(proofs: const []),
-      onConfirmTransfer: ({required amount, required note}) async {
+      onConfirmTransfer: ({required amount}) async {
         recordedAmount = amount;
-        recordedNote = note;
       },
     );
 
-    expect(find.text('Menunggu bukti transfer dari customer.'), findsOneWidget);
-    expect(find.text('Catat Transfer Manual'), findsOneWidget);
-    expect(find.text('Verifikasi Transfer'), findsNothing);
+    expect(find.text('Menunggu bukti QRIS dari customer.'), findsOneWidget);
+    expect(find.text('Catat Pembayaran QRIS Manual'), findsOneWidget);
+    expect(find.text('Verifikasi QRIS'), findsNothing);
 
-    await tester.tap(find.text('Catat Transfer Manual'));
+    await tester.tap(find.text('Catat Pembayaran QRIS Manual'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Catat Pembayaran Transfer'), findsOneWidget);
+    expect(find.text('Catat Pembayaran QRIS'), findsOneWidget);
+    expect(find.text('Catatan'), findsNothing);
 
     await tester.tap(find.text('Catat'));
     await tester.pumpAndSettle();
 
     expect(recordedAmount, 18000);
-    expect(recordedNote, 'Pembayaran transfer dicatat dari app driver.');
   });
 
   testWidgets('hides transfer card for COD order without proof', (
@@ -95,10 +90,10 @@ void main() {
     await _pumpCard(
       tester,
       order: _order(paymentMethod: 'COD', proofs: const []),
-      onConfirmTransfer: ({required amount, required note}) async {},
+      onConfirmTransfer: ({required amount}) async {},
     );
 
-    expect(find.text('Bukti Transfer Customer'), findsNothing);
+    expect(find.text('Bukti QRIS Customer'), findsNothing);
   });
 }
 

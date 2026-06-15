@@ -1129,8 +1129,8 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         _presetMessageHintFromPayload(
           actionPayloads,
           'SET_PAYMENT_TRANSFER',
-          fallbackLabel: 'Transfer',
-          fallbackMessage: 'Transfer',
+          fallbackLabel: 'QRIS',
+          fallbackMessage: 'QRIS',
         ),
       );
     }

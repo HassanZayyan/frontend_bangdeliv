@@ -6,6 +6,8 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
+import '../../../../config/payment_assets.dart';
+import '../../../../services/qris_download_service.dart';
 import '../../../../models/customer_order_model.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../orders/application/customer_order_providers.dart';
@@ -1319,7 +1321,7 @@ class TrackOrderScreen extends ConsumerWidget {
           if (hasPendingTransferProof) ...[
             const SizedBox(height: 12),
             const Text(
-              'Bukti transfer menunggu verifikasi driver/admin.',
+              'Bukti QRIS menunggu verifikasi driver/admin.',
               style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 12.5,
@@ -1434,7 +1436,9 @@ class TrackOrderScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 12),
-            if (isTransfer || isCancelledWithFee)
+            if (isTransfer || isCancelledWithFee) ...[
+              _buildQrisPaymentPanel(context, ref),
+              const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
@@ -1445,10 +1449,82 @@ class TrackOrderScreen extends ConsumerWidget {
                     onRefresh,
                   ),
                   icon: const Icon(Icons.upload_file_outlined),
-                  label: const Text('Upload Bukti Transfer'),
+                  label: const Text('Upload Bukti QRIS'),
                 ),
               ),
+            ],
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQrisPaymentPanel(BuildContext context, WidgetRef ref) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: 72,
+              height: 92,
+              color: AppColors.white,
+              child: Image.network(
+                PaymentAssets.qrisUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => const Icon(
+                  Icons.qr_code_2,
+                  color: AppColors.primary,
+                  size: 32,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Bayar dengan QRIS BangDeliv',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    height: 1.25,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Scan atau download QRIS, lalu upload bukti pembayaran.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () => _downloadQrisAsset(context, ref),
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                  ),
+                  icon: const Icon(Icons.download_outlined, size: 17),
+                  label: const Text('Download QRIS'),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -1496,16 +1572,16 @@ class TrackOrderScreen extends ConsumerWidget {
       if (isPaid) {
         return 'Fee pembatalan merchant sudah tercatat.';
       }
-      return 'Bayar fee pembatalan merchant sebesar 50% dari ongkir aktif terakhir lewat transfer.';
+      return 'Bayar fee pembatalan merchant sebesar 50% dari ongkir aktif terakhir lewat QRIS.';
     }
 
     if (isTransfer) {
       if (isPaid) {
-        return 'Pembayaran transfer sudah diverifikasi.';
+        return 'Pembayaran QRIS sudah diverifikasi.';
       }
       return hasPendingTransferProof
-          ? 'Bukti transfer menunggu verifikasi driver/admin.'
-          : 'Upload bukti transfer agar driver/admin bisa memverifikasi pembayaran.';
+          ? 'Bukti QRIS menunggu verifikasi driver/admin.'
+          : 'Scan QRIS BangDeliv lalu upload bukti pembayaran agar driver/admin bisa memverifikasi.';
     }
 
     if (isCourier) {
@@ -1543,13 +1619,36 @@ class TrackOrderScreen extends ConsumerWidget {
       await onRefresh?.call();
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bukti transfer berhasil diupload.')),
+        const SnackBar(content: Text('Bukti QRIS berhasil diupload.')),
       );
     } catch (error) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  Future<void> _downloadQrisAsset(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Mengunduh QRIS ke galeri...')),
+    );
+
+    try {
+      await ref.read(qrisDownloadServiceProvider).downloadQrisToGallery();
+      if (!context.mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('QRIS tersimpan di galeri.')),
+      );
+    } on QrisDownloadException catch (error) {
+      if (!context.mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (_) {
+      if (!context.mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('QRIS gagal disimpan ke galeri.')),
+      );
     }
   }
 

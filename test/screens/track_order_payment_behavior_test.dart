@@ -15,7 +15,9 @@ void main() {
 
       expect(source, isNot(contains('Ubah ke Transfer')));
       expect(source, isNot(contains('_changePaymentMethodToTransfer')));
-      expect(source, contains('Upload Bukti Transfer'));
+      expect(source, contains('Upload Bukti QRIS'));
+      expect(source, contains('Download QRIS'));
+      expect(source, isNot(contains('LaunchMode.externalApplication')));
       expect(source, contains('isTransfer || isCancelledWithFee'));
     },
   );

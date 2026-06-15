@@ -683,15 +683,11 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
   Future<String?> confirmTransferPayment({
     required String orderId,
     required double amount,
-    String? note,
   }) async {
     return _mutateRunningOrder(
       orderId: orderId,
-      request: (service) => service.confirmTransferPayment(
-        orderId: orderId,
-        amount: amount,
-        note: note,
-      ),
+      request: (service) =>
+          service.confirmTransferPayment(orderId: orderId, amount: amount),
     );
   }
 

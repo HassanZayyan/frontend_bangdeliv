@@ -86,44 +86,6 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
   }
 
   Future<void> _sendPhoto() async {
-    final intent = await showModalBottomSheet<_PhotoAttachmentIntent>(
-      context: context,
-      backgroundColor: AppColors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.photo_outlined),
-                title: const Text('Kirim Foto Biasa'),
-                subtitle: const Text('Foto order atau lampiran chat.'),
-                onTap: () =>
-                    Navigator.of(context).pop(_PhotoAttachmentIntent.image),
-              ),
-              ListTile(
-                leading: const Icon(Icons.receipt_long_outlined),
-                title: const Text('Kirim Bukti Transfer'),
-                subtitle: const Text('Masuk ke bukti pembayaran transfer.'),
-                onTap: () => Navigator.of(
-                  context,
-                ).pop(_PhotoAttachmentIntent.paymentTransfer),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-    if (intent == null) {
-      return;
-    }
-    if (!mounted) {
-      return;
-    }
-
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       backgroundColor: AppColors.white,
@@ -165,11 +127,7 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
 
     final error = await ref
         .read(orderChatProvider(widget.orderId).notifier)
-        .sendAttachment(
-          photo,
-          body: intent.body,
-          attachmentType: intent.attachmentType,
-        );
+        .sendAttachment(photo, body: 'Foto order', attachmentType: 'image');
 
     if (!mounted || error == null) {
       _scrollToBottom();
@@ -648,7 +606,7 @@ class _Composer extends StatelessWidget {
           children: [
             IconButton(
               onPressed: canSendAction ? onAttachPhoto : null,
-              tooltip: 'Upload bukti foto',
+              tooltip: 'Kirim foto',
               icon: const Icon(Icons.photo_camera_outlined),
               color: AppColors.primary,
             ),
@@ -792,28 +750,5 @@ class _EmptyChat extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-enum _PhotoAttachmentIntent {
-  image,
-  paymentTransfer;
-
-  String get attachmentType {
-    switch (this) {
-      case _PhotoAttachmentIntent.image:
-        return 'image';
-      case _PhotoAttachmentIntent.paymentTransfer:
-        return 'payment_transfer';
-    }
-  }
-
-  String get body {
-    switch (this) {
-      case _PhotoAttachmentIntent.image:
-        return 'Foto order';
-      case _PhotoAttachmentIntent.paymentTransfer:
-        return 'Bukti transfer';
-    }
   }
 }

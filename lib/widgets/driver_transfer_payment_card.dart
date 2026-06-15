@@ -8,7 +8,7 @@ import '../utils/order_formatters.dart';
 import '../utils/order_ui_helpers.dart';
 
 typedef DriverTransferPaymentCallback =
-    Future<void> Function({required double amount, required String? note});
+    Future<void> Function({required double amount});
 
 class DriverTransferPaymentCard extends StatelessWidget {
   const DriverTransferPaymentCard({
@@ -72,7 +72,7 @@ class DriverTransferPaymentCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Bukti Transfer Customer',
+                      'Bukti QRIS Customer',
                       style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 16,
@@ -100,9 +100,7 @@ class DriverTransferPaymentCard extends StatelessWidget {
             runSpacing: 8,
             children: [
               _chip(
-                order.paymentMethod.trim().isEmpty
-                    ? 'TRANSFER'
-                    : order.paymentMethod.toUpperCase(),
+                paymentMethodLabel(order.paymentMethod),
                 foreground: AppColors.primaryDark,
                 background: AppColors.primary.withValues(alpha: 0.08),
                 borderColor: AppColors.primary.withValues(alpha: 0.16),
@@ -209,11 +207,8 @@ class DriverTransferPaymentCard extends StatelessWidget {
         child: FilledButton(
           onPressed: isProcessing || onConfirmTransfer == null
               ? null
-              : () => onConfirmTransfer?.call(
-                  amount: order.totalPrice,
-                  note: 'Verifikasi bukti transfer customer dari app driver.',
-                ),
-          child: const Text('Verifikasi Transfer'),
+              : () => onConfirmTransfer?.call(amount: order.totalPrice),
+          child: const Text('Verifikasi QRIS'),
         ),
       );
     }
@@ -233,12 +228,9 @@ class DriverTransferPaymentCard extends StatelessWidget {
                   return;
                 }
 
-                await onConfirmTransfer?.call(
-                  amount: input.amount,
-                  note: input.note,
-                );
+                await onConfirmTransfer?.call(amount: input.amount);
               },
-        child: const Text('Catat Transfer Manual'),
+        child: const Text('Catat Pembayaran QRIS Manual'),
       ),
     );
   }
@@ -298,14 +290,14 @@ class DriverTransferPaymentCard extends StatelessWidget {
 
   String _statusMessage({required bool isPaid, required bool hasProof}) {
     if (isPaid) {
-      return 'Pembayaran transfer sudah diverifikasi.';
+      return 'Pembayaran QRIS sudah diverifikasi.';
     }
 
     if (hasProof) {
       return 'Cek bukti dari customer sebelum verifikasi pembayaran.';
     }
 
-    return 'Bukti transfer belum diunggah.';
+    return 'Bukti QRIS belum diunggah.';
   }
 
   String _proofStatusLabel(String? status) {
@@ -394,7 +386,7 @@ class _WaitingProofState extends StatelessWidget {
         border: Border.all(color: AppColors.primary.withValues(alpha: 0.12)),
       ),
       child: const Text(
-        'Menunggu bukti transfer dari customer.',
+        'Menunggu bukti QRIS dari customer.',
         style: TextStyle(
           color: AppColors.textPrimary,
           fontSize: 12.5,
@@ -435,10 +427,9 @@ InputDecoration _transferDialogInputDecoration({
 }
 
 class _TransferPaymentInput {
-  const _TransferPaymentInput({required this.amount, required this.note});
+  const _TransferPaymentInput({required this.amount});
 
   final double amount;
-  final String? note;
 }
 
 class _TransferPaymentDialog extends StatefulWidget {
@@ -452,9 +443,6 @@ class _TransferPaymentDialog extends StatefulWidget {
 
 class _TransferPaymentDialogState extends State<_TransferPaymentDialog> {
   late final TextEditingController _amountController;
-  final TextEditingController _noteController = TextEditingController(
-    text: 'Pembayaran transfer dicatat dari app driver.',
-  );
   String? _amountError;
 
   @override
@@ -470,7 +458,6 @@ class _TransferPaymentDialogState extends State<_TransferPaymentDialog> {
   @override
   void dispose() {
     _amountController.dispose();
-    _noteController.dispose();
     super.dispose();
   }
 
@@ -502,7 +489,7 @@ class _TransferPaymentDialogState extends State<_TransferPaymentDialog> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Catat Pembayaran Transfer',
+                        'Catat Pembayaran QRIS',
                         style: TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 17,
@@ -522,7 +509,7 @@ class _TransferPaymentDialogState extends State<_TransferPaymentDialog> {
                           fontWeight: FontWeight.w400,
                         ),
                         decoration: _transferDialogInputDecoration(
-                          labelText: 'Nominal transfer',
+                          labelText: 'Nominal QRIS',
                           prefixText: 'Rp ',
                         ).copyWith(errorText: _amountError),
                         onChanged: (_) {
@@ -530,20 +517,6 @@ class _TransferPaymentDialogState extends State<_TransferPaymentDialog> {
                             setState(() => _amountError = null);
                           }
                         },
-                      ),
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: _noteController,
-                        minLines: 2,
-                        maxLines: 3,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w400,
-                        ),
-                        decoration: _transferDialogInputDecoration(
-                          labelText: 'Catatan',
-                        ),
                       ),
                       const SizedBox(height: 16),
                       Row(
@@ -574,13 +547,11 @@ class _TransferPaymentDialogState extends State<_TransferPaymentDialog> {
   void _submit() {
     final amount = _parseCurrencyInput(_amountController.text);
     if (amount <= 0) {
-      setState(() => _amountError = 'Nominal transfer wajib diisi.');
+      setState(() => _amountError = 'Nominal QRIS wajib diisi.');
       return;
     }
 
-    Navigator.of(context).pop(
-      _TransferPaymentInput(amount: amount, note: _noteController.text.trim()),
-    );
+    Navigator.of(context).pop(_TransferPaymentInput(amount: amount));
   }
 }
 

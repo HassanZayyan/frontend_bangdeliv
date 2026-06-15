@@ -201,13 +201,12 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                   DriverTransferPaymentCard(
                     order: order,
                     isProcessing: isProcessing,
-                    onConfirmTransfer: ({required amount, required note}) async {
+                    onConfirmTransfer: ({required amount}) async {
                       final error = await ref
                           .read(driverOrdersProvider.notifier)
                           .confirmTransferPayment(
                             orderId: order.id,
                             amount: amount,
-                            note: note,
                           );
 
                       if (!context.mounted) {
@@ -217,8 +216,7 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
-                            error ??
-                                'Pembayaran transfer berhasil diverifikasi.',
+                            error ?? 'Pembayaran QRIS berhasil diverifikasi.',
                           ),
                           backgroundColor: error == null
                               ? null

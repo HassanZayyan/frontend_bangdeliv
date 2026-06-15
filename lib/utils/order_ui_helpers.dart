@@ -89,5 +89,9 @@ String paymentStatusLabel(String? status) {
 
 String paymentMethodLabel(String? method) {
   final normalized = (method ?? 'COD').trim().toUpperCase();
+  if (normalized == 'TRANSFER') {
+    return 'QRIS';
+  }
+
   return normalized.isEmpty ? 'COD' : normalized;
 }
