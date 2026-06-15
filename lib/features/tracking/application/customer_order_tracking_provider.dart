@@ -197,6 +197,7 @@ class CustomerOrderTrackingNotifier
     final patchedDetail = current.detail.copyWith(
       summary: patchedSummary,
       timeline: _upsertTimeline(current.detail.timeline, event, statusLabel),
+      clearDriverEta: true,
     );
 
     state = AsyncData(

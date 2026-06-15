@@ -421,6 +421,96 @@ class CustomerOrderSummaryModel {
   }
 }
 
+class DriverEtaModel {
+  final String target;
+  final String targetLabel;
+  final int durationSeconds;
+  final String durationText;
+  final int? distanceMeters;
+  final String? distanceText;
+  final DateTime? estimatedArrivalAt;
+  final bool locationFresh;
+  final String? routeProvider;
+
+  const DriverEtaModel({
+    required this.target,
+    required this.targetLabel,
+    required this.durationSeconds,
+    required this.durationText,
+    this.distanceMeters,
+    this.distanceText,
+    this.estimatedArrivalAt,
+    required this.locationFresh,
+    this.routeProvider,
+  });
+
+  static DriverEtaModel? fromRaw(dynamic raw) {
+    if (raw is! Map<String, dynamic>) {
+      return null;
+    }
+
+    final target = (raw['target'] ?? '').toString().trim().toUpperCase();
+    final durationSeconds = CustomerOrderSummaryModel._asInt(
+      raw['duration_seconds'] ?? raw['durationSeconds'],
+    );
+    final durationText = (raw['duration_text'] ?? raw['durationText'] ?? '')
+        .toString()
+        .trim();
+
+    if (target.isEmpty || durationSeconds <= 0 || durationText.isEmpty) {
+      return null;
+    }
+
+    final distanceText = _optionalText(
+      raw['distance_text'] ?? raw['distanceText'],
+    );
+
+    return DriverEtaModel(
+      target: target,
+      targetLabel:
+          _optionalText(raw['target_label'] ?? raw['targetLabel']) ??
+          (target == 'DROPOFF' ? 'Alamat customer' : 'Titik jemput'),
+      durationSeconds: durationSeconds,
+      durationText: durationText,
+      distanceMeters: _optionalInt(
+        raw['distance_meters'] ?? raw['distanceMeters'],
+      ),
+      distanceText: distanceText,
+      estimatedArrivalAt: CustomerOrderSummaryModel._asDateTime(
+        raw['estimated_arrival_at'] ?? raw['estimatedArrivalAt'],
+      ),
+      locationFresh: CustomerOrderSummaryModel._asBool(
+        raw['location_fresh'] ?? raw['locationFresh'],
+      ),
+      routeProvider: _optionalText(
+        raw['route_provider'] ?? raw['routeProvider'],
+      ),
+    );
+  }
+
+  static int? _optionalInt(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+
+    if (value is int) {
+      return value;
+    }
+
+    final raw = value.toString().trim();
+    if (raw.isEmpty) {
+      return null;
+    }
+
+    return int.tryParse(raw);
+  }
+
+  static String? _optionalText(dynamic value) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty || text == '-' ? null : text;
+  }
+}
+
 class CustomerOrderDetailModel {
   final CustomerOrderSummaryModel summary;
   final String? paymentStatus;
@@ -453,6 +543,7 @@ class CustomerOrderDetailModel {
   final OrderRouteModel? route;
   final CustomerShoppingPricingModel? shoppingPricing;
   final List<CustomerOrderProofModel> proofs;
+  final DriverEtaModel? driverEta;
 
   const CustomerOrderDetailModel({
     required this.summary,
@@ -487,6 +578,7 @@ class CustomerOrderDetailModel {
     OrderRouteModel? shoppingRoute,
     this.shoppingPricing,
     this.proofs = const <CustomerOrderProofModel>[],
+    this.driverEta,
   }) : route = route ?? shoppingRoute;
 
   OrderRouteModel? get shoppingRoute => route;
@@ -553,6 +645,8 @@ class CustomerOrderDetailModel {
     OrderRouteModel? shoppingRoute,
     CustomerShoppingPricingModel? shoppingPricing,
     List<CustomerOrderProofModel>? proofs,
+    DriverEtaModel? driverEta,
+    bool clearDriverEta = false,
   }) {
     return CustomerOrderDetailModel(
       summary: summary ?? this.summary,
@@ -589,6 +683,7 @@ class CustomerOrderDetailModel {
       route: route ?? shoppingRoute ?? this.route,
       shoppingPricing: shoppingPricing ?? this.shoppingPricing,
       proofs: proofs ?? this.proofs,
+      driverEta: clearDriverEta ? null : (driverEta ?? this.driverEta),
     );
   }
 
@@ -828,6 +923,9 @@ class CustomerOrderDetailModel {
       ),
       proofs: CustomerOrderProofModel.parseList(
         json['proofs'] ?? json['order_proofs'] ?? json['attachments'],
+      ),
+      driverEta: DriverEtaModel.fromRaw(
+        json['driver_eta'] ?? json['driverEta'],
       ),
     );
   }

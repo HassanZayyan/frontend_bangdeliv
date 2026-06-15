@@ -115,4 +115,23 @@ class TrackOrderPresenter {
 
     return 'COD';
   }
+
+  static String? driverEtaMessage(CustomerOrderDetailModel detail) {
+    final eta = detail.driverEta;
+    if (eta == null) {
+      return null;
+    }
+
+    final duration = eta.durationText.trim();
+    if (duration.isEmpty) {
+      return null;
+    }
+
+    final target = eta.target.trim().toUpperCase();
+    if (target == 'DROPOFF') {
+      return 'Driver sampai ke alamatmu sekitar $duration lagi';
+    }
+
+    return 'Driver tiba di titik jemput sekitar $duration lagi';
+  }
 }
