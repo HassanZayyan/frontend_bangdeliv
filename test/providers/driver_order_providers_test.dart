@@ -252,6 +252,120 @@ void main() {
   });
 
   test(
+    'confirmTransferPayment tracks only qris action while order is busy',
+    () async {
+      final completer = Completer<void>();
+      final fakeService = _FakeDriverOrderService(
+        payload: DriverOrdersPayload(
+          incoming: const <DriverOrderModel>[],
+          running: <DriverOrderModel>[_transferOrder('99')],
+        ),
+        confirmTransferCompleter: completer,
+      );
+      final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+      final fakeRealtime = FakeOrderRealtimeClient();
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          driverOrderServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(driverOrdersProvider.future);
+
+      final mutation = container
+          .read(driverOrdersProvider.notifier)
+          .confirmTransferPayment(orderId: '99', amount: 5000);
+      await Future<void>.delayed(Duration.zero);
+
+      var state = container.read(driverOrdersProvider).asData!.value;
+      expect(state.isProcessing('99'), isTrue);
+      expect(
+        state.isProcessingAction(DriverOrderActionKeys.confirmQris('99')),
+        isTrue,
+      );
+      expect(
+        state.isProcessingAction(
+          DriverOrderActionKeys.transition('99', 'COMPLETE'),
+        ),
+        isFalse,
+      );
+
+      final concurrentError = await container
+          .read(driverOrdersProvider.notifier)
+          .transitionOrderStatus(
+            orderId: '99',
+            actionCode: 'COMPLETE',
+            targetStatusCode: OrderStatusCodes.completed,
+          );
+      expect(concurrentError, contains('Aksi order sebelumnya'));
+
+      completer.complete();
+      final error = await mutation;
+      state = container.read(driverOrdersProvider).asData!.value;
+
+      expect(error, isNull);
+      expect(state.isProcessing('99'), isFalse);
+      expect(state.processingActionKeys, isEmpty);
+    },
+  );
+
+  test('transitionOrderStatus tracks only selected action key', () async {
+    final completer = Completer<void>();
+    final fakeService = _FakeDriverOrderService(
+      payload: DriverOrdersPayload(
+        incoming: const <DriverOrderModel>[],
+        running: <DriverOrderModel>[_runningOrder('99')],
+      ),
+      transitionCompleter: completer,
+    );
+    final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+    final fakeRealtime = FakeOrderRealtimeClient();
+    final container = ProviderContainer(
+      overrides: [
+        authSessionProvider.overrideWith(() => fakeAuth),
+        driverOrderServiceProvider.overrideWithValue(fakeService),
+        orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(driverOrdersProvider.future);
+
+    final mutation = container
+        .read(driverOrdersProvider.notifier)
+        .transitionOrderStatus(
+          orderId: '99',
+          actionCode: 'ARRIVE_PICKUP',
+          targetStatusCode: OrderStatusCodes.arrivedPickup,
+        );
+    await Future<void>.delayed(Duration.zero);
+
+    var state = container.read(driverOrdersProvider).asData!.value;
+    expect(state.isProcessing('99'), isTrue);
+    expect(
+      state.isProcessingAction(
+        DriverOrderActionKeys.transition('99', 'ARRIVE_PICKUP'),
+      ),
+      isTrue,
+    );
+    expect(
+      state.isProcessingAction(DriverOrderActionKeys.confirmQris('99')),
+      isFalse,
+    );
+
+    completer.complete();
+    final error = await mutation;
+    state = container.read(driverOrdersProvider).asData!.value;
+
+    expect(error, isNull);
+    expect(state.isProcessing('99'), isFalse);
+    expect(state.processingActionKeys, isEmpty);
+  });
+
+  test(
     'terminal realtime status removes running order and refreshes history',
     () async {
       final fakeService = _FakeDriverOrderService(
@@ -967,6 +1081,8 @@ class _FakeDriverOrderService extends DriverOrderService {
   final bool failAccept;
   final bool failReject;
   final Completer<void>? acceptCompleter;
+  final Completer<void>? confirmTransferCompleter;
+  final Completer<void>? transitionCompleter;
   final List<String> acceptedOrderIds = <String>[];
   final List<DriverOrderModel> detailResponses;
   int fetchCalls = 0;
@@ -981,6 +1097,8 @@ class _FakeDriverOrderService extends DriverOrderService {
     this.failAccept = false,
     this.failReject = false,
     this.acceptCompleter,
+    this.confirmTransferCompleter,
+    this.transitionCompleter,
     List<DriverOrderModel>? detailResponses,
   }) : detailResponses = List<DriverOrderModel>.from(
          detailResponses ?? const <DriverOrderModel>[],
@@ -1109,6 +1227,10 @@ class _FakeDriverOrderService extends DriverOrderService {
     double? latitude,
     double? longitude,
   }) async {
+    final completer = transitionCompleter;
+    if (completer != null) {
+      await completer.future;
+    }
     transitionedOrderIds.add(orderId);
     final updated = payload.running
         .firstWhere((order) => order.id == orderId)
@@ -1122,6 +1244,23 @@ class _FakeDriverOrderService extends DriverOrderService {
           .where((order) => order.id != orderId)
           .toList(growable: false),
     );
+    return updated;
+  }
+
+  @override
+  Future<DriverOrderModel> confirmTransferPayment({
+    required String orderId,
+    required double amount,
+  }) async {
+    final completer = confirmTransferCompleter;
+    if (completer != null) {
+      await completer.future;
+    }
+
+    final updated = payload.running
+        .firstWhere((order) => order.id == orderId)
+        .copyWith(paymentStatus: 'paid');
+    _upsertPayloadOrder(updated);
     return updated;
   }
 

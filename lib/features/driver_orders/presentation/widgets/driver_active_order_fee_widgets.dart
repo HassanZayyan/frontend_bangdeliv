@@ -10,12 +10,12 @@ class DriverManualDeliveryFeeCard extends StatelessWidget {
   const DriverManualDeliveryFeeCard({
     super.key,
     required this.order,
-    required this.isProcessing,
+    required this.isOrderBusy,
     required this.onSave,
   });
 
   final DriverOrderModel order;
-  final bool isProcessing;
+  final bool isOrderBusy;
   final Future<String?> Function({
     required double amount,
     required String reason,
@@ -60,7 +60,7 @@ class DriverManualDeliveryFeeCard extends StatelessWidget {
                 ),
               ),
               TextButton.icon(
-                onPressed: isProcessing ? null : () => _openDialog(context),
+                onPressed: isOrderBusy ? null : () => _openDialog(context),
                 icon: const Icon(Icons.edit, size: 16),
                 label: const Text('Edit'),
               ),

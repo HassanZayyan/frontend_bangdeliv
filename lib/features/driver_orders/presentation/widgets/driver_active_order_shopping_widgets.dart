@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../config/app_colors.dart';
+import '../../../../core/widgets/bang_action_button.dart';
 import '../../../../models/driver_order_model.dart';
 import 'driver_active_order_widget_helpers.dart';
 
 class DriverShoppingItemsCard extends StatefulWidget {
   final DriverOrderModel order;
-  final bool isProcessing;
+  final bool isOrderBusy;
+  final bool isSavingCheckout;
   final Future<String?> Function(XFile photo, String? note) onUploadReceipt;
   final Future<String?> Function(
     List<Map<String, dynamic>> items,
@@ -21,7 +23,8 @@ class DriverShoppingItemsCard extends StatefulWidget {
   const DriverShoppingItemsCard({
     super.key,
     required this.order,
-    required this.isProcessing,
+    required this.isOrderBusy,
+    required this.isSavingCheckout,
     required this.onUploadReceipt,
     required this.onSave,
   });
@@ -206,24 +209,15 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
             ),
           ),
           const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: widget.isProcessing || _isUploadingReceipt
-                ? null
-                : _uploadReceiptPhoto,
-            icon: _isUploadingReceipt
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.photo_camera_outlined, size: 18),
-            label: Text(
-              _isUploadingReceipt
-                  ? 'Mengupload Struk...'
-                  : !widget.order.hasProof('receipt')
-                  ? 'Upload Foto Struk'
-                  : 'Foto Struk Siap',
-            ),
+          BangActionButton(
+            label: !widget.order.hasProof('receipt')
+                ? 'Upload Foto Struk'
+                : 'Foto Struk Siap',
+            variant: BangActionButtonVariant.outlined,
+            icon: Icons.photo_camera_outlined,
+            isLoading: _isUploadingReceipt,
+            isEnabled: !widget.isOrderBusy || _isUploadingReceipt,
+            onPressed: _uploadReceiptPhoto,
           ),
           const SizedBox(height: 8),
           TextField(
@@ -243,21 +237,12 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: widget.isProcessing || _isUploadingReceipt
-                  ? null
-                  : _save,
-              icon: widget.isProcessing
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.white,
-                      ),
-                    )
-                  : const Icon(Icons.receipt_long, size: 18),
-              label: const Text('Simpan Checkout Nitip'),
+            child: BangActionButton(
+              label: 'Simpan Checkout Nitip',
+              icon: Icons.receipt_long,
+              isLoading: widget.isSavingCheckout,
+              isEnabled: !widget.isOrderBusy || widget.isSavingCheckout,
+              onPressed: _save,
             ),
           ),
         ],

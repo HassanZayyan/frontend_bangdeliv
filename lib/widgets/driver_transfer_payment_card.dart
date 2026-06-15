@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../config/app_colors.dart';
+import '../core/widgets/bang_action_button.dart';
 import '../models/driver_order_model.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/order_formatters.dart';
@@ -14,12 +15,14 @@ class DriverTransferPaymentCard extends StatelessWidget {
   const DriverTransferPaymentCard({
     super.key,
     required this.order,
-    required this.isProcessing,
+    required this.isOrderBusy,
+    required this.isConfirmingQris,
     required this.onConfirmTransfer,
   });
 
   final DriverOrderModel order;
-  final bool isProcessing;
+  final bool isOrderBusy;
+  final bool isConfirmingQris;
   final DriverTransferPaymentCallback? onConfirmTransfer;
 
   static bool shouldShow(DriverOrderModel order) {
@@ -204,19 +207,25 @@ class DriverTransferPaymentCard extends StatelessWidget {
     if (hasProof) {
       return SizedBox(
         width: double.infinity,
-        child: FilledButton(
-          onPressed: isProcessing || onConfirmTransfer == null
+        child: BangActionButton(
+          label: 'Verifikasi QRIS',
+          isLoading: isConfirmingQris,
+          isEnabled: !isOrderBusy || isConfirmingQris,
+          onPressed: onConfirmTransfer == null
               ? null
               : () => onConfirmTransfer?.call(amount: order.totalPrice),
-          child: const Text('Verifikasi QRIS'),
         ),
       );
     }
 
     return SizedBox(
       width: double.infinity,
-      child: OutlinedButton(
-        onPressed: isProcessing || onConfirmTransfer == null
+      child: BangActionButton(
+        label: 'Catat Pembayaran QRIS Manual',
+        variant: BangActionButtonVariant.outlined,
+        isLoading: isConfirmingQris,
+        isEnabled: !isOrderBusy || isConfirmingQris,
+        onPressed: onConfirmTransfer == null
             ? null
             : () async {
                 final input = await showDialog<_TransferPaymentInput>(
@@ -230,7 +239,6 @@ class DriverTransferPaymentCard extends StatelessWidget {
 
                 await onConfirmTransfer?.call(amount: input.amount);
               },
-        child: const Text('Catat Pembayaran QRIS Manual'),
       ),
     );
   }

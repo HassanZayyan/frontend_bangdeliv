@@ -37,11 +37,12 @@ class DriverActiveOrderScreen extends ConsumerWidget {
     ref.watch(driverOrderDetailRealtimeProvider(orderId));
     ref.watch(driverOrderTransferProofReconciliationProvider(orderId));
     final ordersState = ref.watch(driverOrdersProvider);
+    final ordersSnapshot = ordersState.asData?.value;
+    final isOrderBusy = ordersSnapshot?.isProcessing(orderId) ?? false;
+    bool isProcessingAction(String actionKey) {
+      return ordersSnapshot?.isProcessingAction(actionKey) ?? false;
+    }
 
-    final isProcessing = ordersState.maybeWhen(
-      data: (value) => value.isProcessing(orderId),
-      orElse: () => false,
-    );
     final parsedOrderId = int.tryParse(orderId);
     final unreadCountAsync = parsedOrderId == null
         ? const AsyncData<int>(0)
@@ -107,7 +108,10 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                     ServiceTypeCodes.courier) ...[
                   DriverOrderProofChecklistCard(
                     order: order,
-                    isProcessing: isProcessing,
+                    isOrderBusy: isOrderBusy,
+                    isProofUploading: (type) => isProcessingAction(
+                      DriverOrderActionKeys.uploadProof(order.id, type),
+                    ),
                     onUploadProof:
                         ({
                           required type,
@@ -130,7 +134,7 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                 ],
                 DriverManualDeliveryFeeCard(
                   order: order,
-                  isProcessing: isProcessing,
+                  isOrderBusy: isOrderBusy,
                   onSave:
                       ({
                         required amount,
@@ -151,7 +155,10 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                 if (order.shoppingItems.isNotEmpty) ...[
                   DriverShoppingItemsCard(
                     order: order,
-                    isProcessing: isProcessing,
+                    isOrderBusy: isOrderBusy,
+                    isSavingCheckout: isProcessingAction(
+                      DriverOrderActionKeys.shoppingCheckout(order.id),
+                    ),
                     onUploadReceipt: (photo, note) {
                       return ref
                           .read(driverOrdersProvider.notifier)
@@ -200,7 +207,10 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                 if (DriverTransferPaymentCard.shouldShow(order)) ...[
                   DriverTransferPaymentCard(
                     order: order,
-                    isProcessing: isProcessing,
+                    isOrderBusy: isOrderBusy,
+                    isConfirmingQris: isProcessingAction(
+                      DriverOrderActionKeys.confirmQris(order.id),
+                    ),
                     onConfirmTransfer: ({required amount}) async {
                       final error = await ref
                           .read(driverOrdersProvider.notifier)
@@ -234,7 +244,18 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                 const SizedBox(height: 12),
                 DriverOrderActionCard(
                   order: order,
-                  isProcessing: isProcessing,
+                  isOrderBusy: isOrderBusy,
+                  isReportPickupFailedProcessing: isProcessingAction(
+                    DriverOrderActionKeys.pickupFailed(order.id),
+                  ),
+                  isActionProcessing: (action) => isProcessingAction(
+                    action.isCodCollection
+                        ? DriverOrderActionKeys.collectCod(order.id)
+                        : DriverOrderActionKeys.transition(
+                            order.id,
+                            action.actionCode,
+                          ),
+                  ),
                   onReportPickupFailed:
                       ({
                         required pickupLocationId,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../config/app_colors.dart';
+import '../../../../core/widgets/bang_action_button.dart';
 import '../../../../models/driver_order_model.dart';
 import '../../../../utils/service_type.dart';
 import 'driver_active_order_widget_helpers.dart';
@@ -10,12 +11,14 @@ class DriverOrderProofChecklistCard extends StatelessWidget {
   const DriverOrderProofChecklistCard({
     super.key,
     required this.order,
-    required this.isProcessing,
+    required this.isOrderBusy,
+    required this.isProofUploading,
     required this.onUploadProof,
   });
 
   final DriverOrderModel order;
-  final bool isProcessing;
+  final bool isOrderBusy;
+  final bool Function(String type) isProofUploading;
   final Future<String?> Function({
     required String type,
     required XFile photo,
@@ -102,6 +105,7 @@ class DriverOrderProofChecklistCard extends StatelessWidget {
     final uploaded = order.hasProof(requirement.type);
     final proof = _proofFor(requirement.type);
     final proofPhotoUrl = proof?.photoUrl;
+    final isUploading = isProofUploading(requirement.type);
 
     return Container(
       padding: const EdgeInsets.all(10),
@@ -167,12 +171,13 @@ class DriverOrderProofChecklistCard extends StatelessWidget {
             ),
             const SizedBox(width: 8),
           ],
-          OutlinedButton.icon(
-            onPressed: isProcessing
-                ? null
-                : () => _handleUpload(context, requirement),
-            icon: const Icon(Icons.upload_file, size: 16),
-            label: Text(uploaded ? 'Ganti' : 'Upload'),
+          BangActionButton(
+            label: uploaded ? 'Ganti' : 'Upload',
+            icon: Icons.upload_file,
+            variant: BangActionButtonVariant.outlined,
+            isLoading: isUploading,
+            isEnabled: !isOrderBusy || isUploading,
+            onPressed: () => _handleUpload(context, requirement),
           ),
         ],
       ),
