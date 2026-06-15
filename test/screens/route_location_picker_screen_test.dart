@@ -9,7 +9,7 @@ import 'package:google_maps_flutter_platform_interface/google_maps_flutter_platf
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import 'package:frontend_bangdeliv/models/route_location_picker_result.dart';
-import 'package:frontend_bangdeliv/screens/route_location_picker_screen.dart';
+import 'package:frontend_bangdeliv/features/addresses/presentation/screens/route_location_picker_screen.dart';
 
 void main() {
   setUpAll(() {

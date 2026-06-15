@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('home header no longer exposes the local notification inbox', () {
-    final homeSource = File('lib/screens/home_screen.dart').readAsStringSync();
+    final homeSource = File(
+      'lib/features/home/presentation/screens/home_screen.dart',
+    ).readAsStringSync();
     final routerSource = File('lib/config/app_router.dart').readAsStringSync();
     final routesSource = File('lib/config/app_routes.dart').readAsStringSync();
 

@@ -2,13 +2,16 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+const _trackOrderSourcePath =
+    'lib/features/tracking/presentation/screens/track_order_screen.dart';
+const _trackOrderWidgetsPath =
+    'lib/features/tracking/presentation/widgets/track_order_widgets.dart';
+
 void main() {
   test(
     'customer payment card does not expose manual payment method switch',
     () {
-      final source = File(
-        'lib/screens/track_order_screen.dart',
-      ).readAsStringSync();
+      final source = File(_trackOrderSourcePath).readAsStringSync();
 
       expect(source, isNot(contains('Ubah ke Transfer')));
       expect(source, isNot(contains('_changePaymentMethodToTransfer')));
@@ -28,9 +31,7 @@ void main() {
   });
 
   test('transfer orders do not show cash payment instructions in summary', () {
-    final source = File(
-      'lib/screens/track_order_screen.dart',
-    ).readAsStringSync();
+    final source = File(_trackOrderSourcePath).readAsStringSync();
     final summaryMethod = source.substring(
       source.indexOf('String _paymentMessage('),
       source.indexOf('Widget _buildProofsCard('),
@@ -41,12 +42,13 @@ void main() {
   });
 
   test('shopping item card does not duplicate COD payment instruction', () {
-    final source = File(
-      'lib/screens/track_order_screen.dart',
-    ).readAsStringSync();
-    final shoppingItemsCard = source.substring(
-      source.indexOf('class _ShoppingOrderItemsCard'),
-      source.indexOf('Widget _failedStopNotice('),
+    final source =
+        File(_trackOrderSourcePath).readAsStringSync() +
+        File(_trackOrderWidgetsPath).readAsStringSync();
+    final widgetsSource = File(_trackOrderWidgetsPath).readAsStringSync();
+    final shoppingItemsCard = widgetsSource.substring(
+      widgetsSource.indexOf('class TrackShoppingOrderItemsCard'),
+      widgetsSource.indexOf('Widget _failedStopNotice('),
     );
 
     expect(source, isNot(contains('String _shoppingPaymentMessage(')));
@@ -57,12 +59,10 @@ void main() {
   test(
     'failed shopping merchant actions only show while order is editable',
     () {
-      final source = File(
-        'lib/screens/track_order_screen.dart',
-      ).readAsStringSync();
-      final failedStopNotice = source.substring(
-        source.indexOf('Widget _failedStopNotice('),
-        source.indexOf('Widget _stopSection('),
+      final widgetsSource = File(_trackOrderWidgetsPath).readAsStringSync();
+      final failedStopNotice = widgetsSource.substring(
+        widgetsSource.indexOf('Widget _failedStopNotice('),
+        widgetsSource.indexOf('Widget _stopSection('),
       );
 
       expect(

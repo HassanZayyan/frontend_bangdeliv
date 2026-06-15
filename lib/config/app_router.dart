@@ -1,51 +1,51 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../screens/login_screen.dart';
-import '../screens/register_screen.dart';
-import '../screens/register_driver_screen.dart';
-import '../screens/register_success_screen.dart';
-import '../screens/forgot_password_screen.dart';
-import '../screens/splash_screen.dart';
-import '../screens/driver_home_screen.dart';
-import '../screens/driver_orders_screen.dart';
-import '../screens/driver_history_screen.dart';
-import '../screens/driver_profile_screen.dart';
-import '../screens/driver_active_order_screen.dart';
-import '../screens/driver_verification_status_screen.dart';
-import '../screens/activity_screen.dart';
-import '../screens/home_screen.dart';
-import '../screens/chatbot_screen.dart';
-import '../screens/order_history_screen.dart';
-import '../screens/order_chat_screen.dart';
-import '../screens/shopping_add_item_screen.dart';
-import '../screens/track_order_screen.dart';
-import '../screens/profile_screen.dart';
-import '../screens/edit_profile_screen.dart';
-import '../screens/change_password_screen.dart';
-import '../screens/saved_addresses_screen.dart';
-import '../screens/add_address_screen.dart';
-import '../screens/address_location_picker_screen.dart';
-import '../screens/route_location_picker_screen.dart';
+import '../features/auth/presentation/screens/login_screen.dart';
+import '../features/auth/presentation/screens/register_screen.dart';
+import '../features/auth/presentation/screens/register_driver_screen.dart';
+import '../features/auth/presentation/screens/register_success_screen.dart';
+import '../features/auth/presentation/screens/forgot_password_screen.dart';
+import '../features/auth/presentation/screens/splash_screen.dart';
+import '../features/driver_orders/presentation/screens/driver_home_screen.dart';
+import '../features/driver_orders/presentation/screens/driver_orders_screen.dart';
+import '../features/driver_orders/presentation/screens/driver_history_screen.dart';
+import '../features/profile/presentation/screens/driver_profile_screen.dart';
+import '../features/driver_orders/presentation/screens/driver_active_order_screen.dart';
+import '../features/profile/presentation/screens/driver_verification_status_screen.dart';
+import '../features/orders/presentation/screens/activity_screen.dart';
+import '../features/home/presentation/screens/home_screen.dart';
+import '../features/chatbot/presentation/screens/chatbot_screen.dart';
+import '../features/orders/presentation/screens/order_history_screen.dart';
+import '../features/orders/presentation/screens/order_chat_screen.dart';
+import '../features/shopping/presentation/screens/shopping_add_item_screen.dart';
+import '../features/tracking/presentation/screens/track_order_screen.dart';
+import '../features/profile/presentation/screens/profile_screen.dart';
+import '../features/profile/presentation/screens/edit_profile_screen.dart';
+import '../features/profile/presentation/screens/change_password_screen.dart';
+import '../features/addresses/presentation/screens/saved_addresses_screen.dart';
+import '../features/addresses/presentation/screens/add_address_screen.dart';
+import '../features/addresses/presentation/screens/address_location_picker_screen.dart';
+import '../features/addresses/presentation/screens/route_location_picker_screen.dart';
 import '../models/user_profile_model.dart';
 import '../models/route_location_picker_result.dart';
 import '../models/food_model.dart';
 import '../models/merchant_model.dart';
 import '../models/customer_order_model.dart';
-import '../providers/api_providers.dart';
-import '../providers/auth_session_provider.dart';
-import '../providers/customer_order_providers.dart';
-import '../providers/customer_order_tracking_provider.dart';
-import '../providers/driver_order_providers.dart';
-import '../providers/order_chat_provider.dart';
-import '../providers/order_realtime_hub_provider.dart';
-import '../screens/notification_settings_screen.dart';
-import '../screens/privacy_map_screen.dart';
-import '../screens/main_layout.dart';
-import '../screens/driver_main_layout.dart';
-import '../screens/menu_detail_screen.dart';
-import '../screens/merchant_detail_screen.dart';
-import '../screens/nearby_merchants_screen.dart';
+import '../features/auth/application/auth_session_provider.dart';
+import '../features/driver_orders/application/driver_order_providers.dart';
+import '../features/orders/application/customer_order_providers.dart';
+import '../features/orders/application/order_chat_provider.dart';
+import '../features/realtime/application/order_realtime_hub_provider.dart';
+import '../features/tracking/application/customer_order_tracking_provider.dart';
+import '../core/di/app_providers.dart';
+import '../features/profile/presentation/screens/notification_settings_screen.dart';
+import '../features/profile/presentation/screens/privacy_map_screen.dart';
+import '../features/navigation/presentation/screens/main_layout.dart';
+import '../features/navigation/presentation/screens/driver_main_layout.dart';
+import '../features/home/presentation/screens/menu_detail_screen.dart';
+import '../features/home/presentation/screens/merchant_detail_screen.dart';
+import '../features/home/presentation/screens/nearby_merchants_screen.dart';
 import 'app_routes.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -251,6 +251,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           double? initialLatitude;
           double? initialLongitude;
+          var restrictAddressSearchToServiceArea = false;
 
           final extra = state.extra;
           if (extra is Map) {
@@ -268,11 +269,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             } else if (rawLng is String) {
               initialLongitude = double.tryParse(rawLng);
             }
+
+            restrictAddressSearchToServiceArea =
+                extra['restrictAddressSearchToServiceArea'] == true;
           }
 
           return AddressLocationPickerScreen(
             initialLatitude: initialLatitude,
             initialLongitude: initialLongitude,
+            restrictAddressSearchToServiceArea:
+                restrictAddressSearchToServiceArea,
           );
         },
       ),

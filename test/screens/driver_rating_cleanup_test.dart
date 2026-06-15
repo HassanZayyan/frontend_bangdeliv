@@ -7,10 +7,10 @@ void main() {
     'driver UI and profile models no longer expose inactive rating fields',
     () {
       final driverHome = File(
-        'lib/screens/driver_home_screen.dart',
+        'lib/features/driver_orders/presentation/screens/driver_home_screen.dart',
       ).readAsStringSync();
       final driverProfile = File(
-        'lib/screens/driver_profile_screen.dart',
+        'lib/features/profile/presentation/screens/driver_profile_screen.dart',
       ).readAsStringSync();
       final userProfileModel = File(
         'lib/models/user_profile_model.dart',

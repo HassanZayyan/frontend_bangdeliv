@@ -3,13 +3,25 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  const screenPath =
+      'lib/features/driver_orders/presentation/screens/driver_active_order_screen.dart';
+  const mapWidgetsPath =
+      'lib/features/driver_orders/presentation/widgets/driver_active_order_map_widgets.dart';
+  const shoppingWidgetsPath =
+      'lib/features/driver_orders/presentation/widgets/driver_active_order_shopping_widgets.dart';
+  const actionWidgetsPath =
+      'lib/features/driver_orders/presentation/widgets/driver_active_order_action_widgets.dart';
+
   test('driver active map renders driver marker from foreground reporter', () {
-    final source = File(
-      'lib/screens/driver_active_order_screen.dart',
-    ).readAsStringSync();
-    final mapCard = source.substring(
-      source.indexOf('class _MapCardState extends State<_MapCard>'),
-      source.indexOf('class _RouteUnavailableBadge'),
+    final source =
+        File(screenPath).readAsStringSync() +
+        File(mapWidgetsPath).readAsStringSync();
+    final widgetsSource = File(mapWidgetsPath).readAsStringSync();
+    final mapCard = widgetsSource.substring(
+      widgetsSource.indexOf(
+        'class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard>',
+      ),
+      widgetsSource.indexOf('class _RouteUnavailableBadge'),
     );
 
     expect(source, contains('driverLocationReporterProvider'));
@@ -20,12 +32,14 @@ void main() {
   });
 
   test('shopping checkout item cards use compact spacing', () {
-    final source = File(
-      'lib/screens/driver_active_order_screen.dart',
-    ).readAsStringSync();
-    final itemEditor = source.substring(
-      source.indexOf('Widget _buildItemEditor(DriverShoppingItemModel item)'),
-      source.indexOf('Widget _buildStopSection(DriverShoppingStopModel stop)'),
+    final widgetsSource = File(shoppingWidgetsPath).readAsStringSync();
+    final itemEditor = widgetsSource.substring(
+      widgetsSource.indexOf(
+        'Widget _buildItemEditor(DriverShoppingItemModel item)',
+      ),
+      widgetsSource.indexOf(
+        'Widget _buildStopSection(DriverShoppingStopModel stop)',
+      ),
     );
 
     expect(
@@ -39,12 +53,12 @@ void main() {
   });
 
   test('cancelled with fee unpaid order shows payment waiting message', () {
-    final source = File(
-      'lib/screens/driver_active_order_screen.dart',
-    ).readAsStringSync();
-    final actionCard = source.substring(
-      source.indexOf('class _ActionCard extends StatelessWidget'),
-      source.indexOf('class _FailedPickupReport'),
+    final widgetsSource = File(actionWidgetsPath).readAsStringSync();
+    final actionCard = widgetsSource.substring(
+      widgetsSource.indexOf(
+        'class DriverOrderActionCard extends StatelessWidget',
+      ),
+      widgetsSource.indexOf('class _FailedPickupReport'),
     );
 
     expect(actionCard, contains('isWaitingCancellationFeePayment'));

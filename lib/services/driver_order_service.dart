@@ -15,11 +15,7 @@ class DriverOrderService {
   static const Duration _detailTimeout = Duration(seconds: 10);
 
   Future<DriverOrderModel> acceptOrder(String orderId) async {
-    final response = await _postWithFallbackPaths([
-      '/v1/driver/orders/$orderId/accept',
-      '/v1/driver/order/$orderId/accept',
-      '/v1/driver/orders/$orderId/actions/accept',
-    ]);
+    final response = await _post('/v1/driver/orders/$orderId/accept');
     final data = _extractData(response);
 
     if (data.isEmpty) {
@@ -38,11 +34,7 @@ class DriverOrderService {
   }
 
   Future<void> rejectOrder(String orderId) async {
-    await _postWithFallbackPaths([
-      '/v1/driver/orders/$orderId/reject',
-      '/v1/driver/order/$orderId/reject',
-      '/v1/driver/orders/$orderId/actions/reject',
-    ]);
+    await _post('/v1/driver/orders/$orderId/reject');
   }
 
   Future<DriverOrderModel> fetchOrderDetail(String orderId) async {
@@ -350,6 +342,23 @@ class DriverOrderService {
     return status.isEmpty ? 'offline' : status;
   }
 
+  Future<void> updateCurrentDriverLocation({
+    required double latitude,
+    required double longitude,
+    DateTime? updatedAt,
+  }) async {
+    await _patch(
+      '/v1/driver/location',
+      body: <String, dynamic>{
+        'latitude': latitude,
+        'longitude': longitude,
+        if (updatedAt != null) 'updated_at': updatedAt.toIso8601String(),
+      },
+      fallback: 'Gagal mengirim lokasi standby driver.',
+      timeout: const Duration(seconds: 5),
+    );
+  }
+
   Future<DriverOrdersPayload> fetchOrders() async {
     final response = await _safeGet('/v1/driver/orders', timeout: _listTimeout);
     final data = _extractData(response);
@@ -445,37 +454,6 @@ class DriverOrderService {
         statusCode: 500,
       );
     }
-  }
-
-  Future<Map<String, dynamic>> _postWithFallbackPaths(
-    List<String> paths,
-  ) async {
-    DriverOrderApiException? lastError;
-
-    for (final path in paths) {
-      try {
-        return await _post(path);
-      } on DriverOrderApiException catch (error) {
-        if (error.statusCode == 404) {
-          lastError = error;
-          continue;
-        }
-        rethrow;
-      }
-    }
-
-    if (lastError != null && lastError.statusCode == 404) {
-      throw const DriverOrderApiException(
-        'Aksi order belum tersedia di server. Coba lagi nanti.',
-        statusCode: 404,
-      );
-    }
-
-    throw lastError ??
-        const DriverOrderApiException(
-          'Gagal memproses aksi order driver.',
-          statusCode: 500,
-        );
   }
 
   Future<Map<String, dynamic>> _post(

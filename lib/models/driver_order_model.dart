@@ -45,6 +45,7 @@ class DriverOrderModel {
   final List<DriverShoppingFeeBreakdownModel> feeBreakdown;
   final List<DriverOrderProofModel> proofs;
   final bool hasPendingShoppingPrices;
+  final DriverDispatchModel? dispatch;
 
   const DriverOrderModel({
     required this.id,
@@ -86,6 +87,7 @@ class DriverOrderModel {
     this.feeBreakdown = const <DriverShoppingFeeBreakdownModel>[],
     this.proofs = const <DriverOrderProofModel>[],
     this.hasPendingShoppingPrices = false,
+    this.dispatch,
   }) : route = route ?? shoppingRoute;
 
   OrderRouteModel? get shoppingRoute => route;
@@ -160,6 +162,7 @@ class DriverOrderModel {
       feeBreakdown: feeBreakdown,
       proofs: proofs,
       hasPendingShoppingPrices: hasPendingShoppingPrices,
+      dispatch: dispatch,
     );
   }
 
@@ -196,6 +199,24 @@ class DriverOrderModel {
     final pricingSnapshot = (json['pricing_snapshot'] is Map<String, dynamic>)
         ? json['pricing_snapshot'] as Map<String, dynamic>
         : const <String, dynamic>{};
+    final route = OrderRouteModel.fromRaw(
+      json['route'] ?? json['shopping_route'],
+    );
+    final deliveryDistanceKm =
+        _asDoubleOrNull(
+          json['delivery_distance_km'] ??
+              json['deliveryDistanceKm'] ??
+              pricingRaw?['delivery_distance_km'] ??
+              pricingSnapshot['delivery_distance_km'],
+        ) ??
+        route?.distanceKm;
+    final deliveryDistanceText =
+        (json['delivery_distance_text'] ??
+                json['deliveryDistanceText'] ??
+                pricingRaw?['delivery_distance_text'] ??
+                pricingSnapshot['delivery_distance_text'])
+            ?.toString()
+            .trim();
 
     return DriverOrderModel(
       id: (json['id'] ?? '').toString(),
@@ -239,31 +260,26 @@ class DriverOrderModel {
         fallback: 0,
       ),
       fee: _asInt(json['fee'], fallback: 0),
-      deliveryDistanceKm: _asDoubleOrNull(
-        json['delivery_distance_km'] ??
-            json['deliveryDistanceKm'] ??
-            pricingRaw?['delivery_distance_km'] ??
-            pricingSnapshot['delivery_distance_km'],
-      ),
+      deliveryDistanceKm: deliveryDistanceKm,
       deliveryDistanceText:
-          (json['delivery_distance_text'] ??
-                  json['deliveryDistanceText'] ??
-                  pricingRaw?['delivery_distance_text'] ??
-                  pricingSnapshot['delivery_distance_text'])
-              ?.toString(),
+          deliveryDistanceText == null || deliveryDistanceText.isEmpty
+          ? route?.distanceText ??
+                (deliveryDistanceKm == null
+                    ? null
+                    : '${deliveryDistanceKm.toStringAsFixed(1)} km')
+          : deliveryDistanceText,
       deliveryFee: _asDoubleOrNull(
         json['delivery_fee'] ??
             json['deliveryFee'] ??
             pricingRaw?['delivery_fee'] ??
             pricingSnapshot['delivery_fee'],
       ),
-      deliveryFeeSource:
-          _normalizeDeliveryFeeSource(
-            json['delivery_fee_source'] ??
-                json['deliveryFeeSource'] ??
-                pricingRaw?['delivery_fee_source'] ??
-                pricingSnapshot['delivery_fee_source'],
-          ),
+      deliveryFeeSource: _normalizeDeliveryFeeSource(
+        json['delivery_fee_source'] ??
+            json['deliveryFeeSource'] ??
+            pricingRaw?['delivery_fee_source'] ??
+            pricingSnapshot['delivery_fee_source'],
+      ),
       manualDeliveryFee: null,
       manualDeliveryFeeReason: null,
       carefulCarryRequired: _asBool(
@@ -302,7 +318,7 @@ class DriverOrderModel {
               shoppingItems,
             )
           : shoppingStops,
-      route: OrderRouteModel.fromRaw(json['route'] ?? json['shopping_route']),
+      route: route,
       shoppingPricing: pricingRaw == null
           ? null
           : DriverShoppingPricingModel.fromJson(pricingRaw),
@@ -322,6 +338,7 @@ class DriverOrderModel {
       hasPendingShoppingPrices:
           json['has_pending_shopping_prices'] == true ||
           pricingRaw?['has_pending_manual_prices'] == true,
+      dispatch: DriverDispatchModel.fromRaw(json['dispatch']),
     );
   }
 
@@ -903,6 +920,59 @@ class DriverHistoryOrderModel {
       fee: DriverOrderModel._asInt(json['fee'], fallback: 0),
       status: (json['status'] ?? 'Selesai').toString(),
     );
+  }
+}
+
+class DriverDispatchModel {
+  final int? priorityRank;
+  final int? distanceToPickupMeters;
+  final double? distanceToPickupKm;
+  final String distanceLabel;
+  final String distanceBucket;
+  final bool locationFresh;
+
+  const DriverDispatchModel({
+    this.priorityRank,
+    this.distanceToPickupMeters,
+    this.distanceToPickupKm,
+    this.distanceLabel = 'Jarak belum tersedia',
+    this.distanceBucket = 'UNKNOWN',
+    this.locationFresh = false,
+  });
+
+  bool get hasDistance => distanceToPickupKm != null;
+
+  factory DriverDispatchModel.fromJson(Map<String, dynamic> json) {
+    final bucket = (json['distance_bucket'] ?? json['distanceBucket'])
+        .toString()
+        .trim()
+        .toUpperCase();
+    final label =
+        (json['distance_label'] ?? json['distanceLabel'])?.toString().trim() ??
+        '';
+
+    return DriverDispatchModel(
+      priorityRank: DriverOrderModel._asIntOrNull(
+        json['priority_rank'] ?? json['priorityRank'],
+      ),
+      distanceToPickupMeters: DriverOrderModel._asIntOrNull(
+        json['distance_to_pickup_meters'] ?? json['distanceToPickupMeters'],
+      ),
+      distanceToPickupKm: DriverOrderModel._asDoubleOrNull(
+        json['distance_to_pickup_km'] ?? json['distanceToPickupKm'],
+      ),
+      distanceLabel: label.isEmpty ? 'Jarak belum tersedia' : label,
+      distanceBucket: bucket.isEmpty ? 'UNKNOWN' : bucket,
+      locationFresh:
+          json['location_fresh'] == true || json['locationFresh'] == true,
+    );
+  }
+
+  static DriverDispatchModel? fromRaw(dynamic raw) {
+    if (raw is Map<String, dynamic>) {
+      return DriverDispatchModel.fromJson(raw);
+    }
+    return null;
   }
 }
 

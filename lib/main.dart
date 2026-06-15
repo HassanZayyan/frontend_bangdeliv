@@ -5,10 +5,11 @@ import 'config/app_colors.dart';
 import 'config/app_env.dart';
 import 'config/app_theme.dart';
 import 'config/app_router.dart';
-import 'providers/app_realtime_bootstrap_provider.dart';
-import 'providers/auth_session_provider.dart';
-import 'providers/chat_heads_up_notification_provider.dart';
-import 'providers/firebase_notification_provider.dart';
+import 'features/realtime/application/app_realtime_bootstrap_provider.dart';
+import 'features/auth/application/auth_session_provider.dart';
+import 'features/driver_orders/application/driver_availability_location_reporter_provider.dart';
+import 'features/realtime/application/chat_heads_up_notification_provider.dart';
+import 'features/realtime/application/firebase_notification_provider.dart';
 import 'services/firebase_notification_service.dart';
 
 Future<void> main() async {
@@ -52,6 +53,7 @@ class _MyAppState extends ConsumerState<MyApp> {
     ref.watch(appRealtimeBootstrapProvider);
     ref.watch(firebaseNotificationBootstrapProvider);
     ref.watch(chatHeadsUpNotificationProvider);
+    ref.watch(driverAvailabilityLocationReporterProvider);
     final router = ref.watch(appRouterProvider);
 
     return MaterialApp.router(

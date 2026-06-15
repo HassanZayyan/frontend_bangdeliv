@@ -4,20 +4,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
 
+import 'package:frontend_bangdeliv/data/repositories/realtime_order_client.dart';
 import 'package:frontend_bangdeliv/models/driver_order_model.dart';
 import 'package:frontend_bangdeliv/models/order_chat_model.dart';
 import 'package:frontend_bangdeliv/models/user_profile_model.dart';
-import 'package:frontend_bangdeliv/providers/api_providers.dart';
-import 'package:frontend_bangdeliv/providers/app_realtime_bootstrap_provider.dart';
-import 'package:frontend_bangdeliv/providers/auth_session_provider.dart';
-import 'package:frontend_bangdeliv/providers/driver_location_reporter_provider.dart';
-import 'package:frontend_bangdeliv/providers/driver_order_providers.dart';
-import 'package:frontend_bangdeliv/providers/driver_realtime_bootstrap_provider.dart';
-import 'package:frontend_bangdeliv/providers/order_chat_unread_provider.dart';
+import 'package:frontend_bangdeliv/core/di/app_providers.dart';
+import 'package:frontend_bangdeliv/features/realtime/application/app_realtime_bootstrap_provider.dart';
+import 'package:frontend_bangdeliv/features/auth/application/auth_session_provider.dart';
+import 'package:frontend_bangdeliv/features/driver_orders/application/driver_location_reporter_provider.dart';
+import 'package:frontend_bangdeliv/features/driver_orders/application/driver_order_providers.dart';
+import 'package:frontend_bangdeliv/features/driver_orders/application/driver_realtime_bootstrap_provider.dart';
+import 'package:frontend_bangdeliv/features/orders/application/order_chat_unread_provider.dart';
 import 'package:frontend_bangdeliv/services/api_client.dart';
 import 'package:frontend_bangdeliv/services/driver_order_service.dart';
 import 'package:frontend_bangdeliv/services/order_chat_api_service.dart';
-import 'package:frontend_bangdeliv/services/pusher_service.dart';
 import 'package:frontend_bangdeliv/utils/order_status.dart';
 import '../fakes/fake_order_realtime_client.dart';
 

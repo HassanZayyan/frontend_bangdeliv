@@ -7,8 +7,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 import 'package:frontend_bangdeliv/models/customer_order_model.dart';
-import 'package:frontend_bangdeliv/providers/api_providers.dart';
-import 'package:frontend_bangdeliv/screens/shopping_add_item_screen.dart';
+import 'package:frontend_bangdeliv/core/di/app_providers.dart';
+import 'package:frontend_bangdeliv/features/shopping/presentation/screens/shopping_add_item_screen.dart';
 import 'package:frontend_bangdeliv/services/api_client.dart';
 import 'package:frontend_bangdeliv/services/customer_order_api_service.dart';
 
