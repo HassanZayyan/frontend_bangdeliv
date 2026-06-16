@@ -41,6 +41,19 @@ abstract class CustomerOrderRepository {
     int pickupLocationId,
   );
 
+  Future<CustomerOrderDetailModel> respondShoppingPriceQuote(
+    int orderId, {
+    required String action,
+    double? counterAmount,
+    int? pickupLocationId,
+  });
+
+  Future<CustomerOrderDetailModel> respondDeliveryFeeOverride(
+    int orderId, {
+    required String action,
+    double? counterAmount,
+  });
+
   Future<List<ShoppingMerchantOption>> searchShoppingMerchants(
     String query, {
     String? merchantType,
@@ -126,6 +139,34 @@ class ApiCustomerOrderRepository implements CustomerOrderRepository {
     int pickupLocationId,
   ) {
     return _service.skipFailedShoppingStop(orderId, pickupLocationId);
+  }
+
+  @override
+  Future<CustomerOrderDetailModel> respondShoppingPriceQuote(
+    int orderId, {
+    required String action,
+    double? counterAmount,
+    int? pickupLocationId,
+  }) {
+    return _service.respondShoppingPriceQuote(
+      orderId,
+      action: action,
+      counterAmount: counterAmount,
+      pickupLocationId: pickupLocationId,
+    );
+  }
+
+  @override
+  Future<CustomerOrderDetailModel> respondDeliveryFeeOverride(
+    int orderId, {
+    required String action,
+    double? counterAmount,
+  }) {
+    return _service.respondDeliveryFeeOverride(
+      orderId,
+      action: action,
+      counterAmount: counterAmount,
+    );
   }
 
   @override

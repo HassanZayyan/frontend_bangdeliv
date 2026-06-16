@@ -37,6 +37,11 @@ abstract class DriverOrderRepository {
     bool? carefulCarryRequired,
   });
 
+  Future<DriverOrderModel> acceptDeliveryFeeCounterOffer({
+    required String orderId,
+    String? note,
+  });
+
   Future<void> updateDriverLocation({
     required String orderId,
     required double latitude,
@@ -71,6 +76,18 @@ abstract class DriverOrderRepository {
     required String orderId,
     required List<Map<String, dynamic>> items,
     String? receiptNote,
+  });
+
+  Future<DriverOrderModel> submitShoppingPriceQuote({
+    required String orderId,
+    required double amount,
+    int? pickupLocationId,
+    String? note,
+  });
+
+  Future<DriverOrderModel> acceptShoppingCounterOffer({
+    required String orderId,
+    String? note,
   });
 
   Future<DriverOrderModel> recordShoppingPickupFailed({
@@ -157,6 +174,14 @@ class ApiDriverOrderRepository implements DriverOrderRepository {
   }
 
   @override
+  Future<DriverOrderModel> acceptDeliveryFeeCounterOffer({
+    required String orderId,
+    String? note,
+  }) {
+    return _service.acceptDeliveryFeeCounterOffer(orderId: orderId, note: note);
+  }
+
+  @override
   Future<void> updateDriverLocation({
     required String orderId,
     required double latitude,
@@ -231,6 +256,29 @@ class ApiDriverOrderRepository implements DriverOrderRepository {
       items: items,
       receiptNote: receiptNote,
     );
+  }
+
+  @override
+  Future<DriverOrderModel> submitShoppingPriceQuote({
+    required String orderId,
+    required double amount,
+    int? pickupLocationId,
+    String? note,
+  }) {
+    return _service.submitShoppingPriceQuote(
+      orderId: orderId,
+      amount: amount,
+      pickupLocationId: pickupLocationId,
+      note: note,
+    );
+  }
+
+  @override
+  Future<DriverOrderModel> acceptShoppingCounterOffer({
+    required String orderId,
+    String? note,
+  }) {
+    return _service.acceptShoppingCounterOffer(orderId: orderId, note: note);
   }
 
   @override

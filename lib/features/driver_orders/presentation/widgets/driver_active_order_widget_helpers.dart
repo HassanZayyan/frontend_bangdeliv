@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../config/app_colors.dart';
+import '../../../../utils/currency_input_parser.dart';
 
 InputDecoration driverDialogInputDecoration({
   String? labelText,
@@ -39,12 +40,7 @@ InputDecoration driverDialogInputDecoration({
 }
 
 double parseDriverCurrencyInput(String raw) {
-  final cleaned = raw.replaceAll(RegExp(r'[^0-9]'), '');
-  if (cleaned.isEmpty) {
-    return 0;
-  }
-
-  return double.tryParse(cleaned) ?? 0;
+  return parseCurrencyInput(raw);
 }
 
 Future<XFile?> pickDriverOrderImage(BuildContext context) async {

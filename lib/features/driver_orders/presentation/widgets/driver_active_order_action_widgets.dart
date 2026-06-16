@@ -233,7 +233,7 @@ class DriverOrderActionCard extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: BangActionButton(
-                label: 'Merchant Tutup / Gagal Pickup',
+                label: 'Resto tutup/order batal',
                 variant: BangActionButtonVariant.outlined,
                 icon: Icons.storefront_outlined,
                 isLoading: isReportPickupFailedProcessing,
@@ -398,7 +398,7 @@ class _FailedPickupDialog extends StatefulWidget {
 
 class _FailedPickupDialogState extends State<_FailedPickupDialog> {
   final TextEditingController _reasonController = TextEditingController(
-    text: 'Merchant tutup saat driver tiba.',
+    text: 'Resto tutup/order batal saat driver tiba.',
   );
   late int _selectedPickupLocationId;
   XFile? _storeClosedPhoto;

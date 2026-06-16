@@ -83,12 +83,24 @@ class DriverOrderActionKeys {
 
   static String updateFee(String orderId) => _build(orderId, 'updateFee');
 
+  static String acceptDeliveryFeeCounter(String orderId) {
+    return _build(orderId, 'acceptDeliveryFeeCounter');
+  }
+
   static String uploadProof(String orderId, String proofType) {
     return _build(orderId, 'uploadProof:${_normalize(proofType)}');
   }
 
   static String shoppingCheckout(String orderId) {
     return _build(orderId, 'shoppingCheckout');
+  }
+
+  static String shoppingPriceQuote(String orderId) {
+    return _build(orderId, 'shoppingPriceQuote');
+  }
+
+  static String acceptShoppingCounter(String orderId) {
+    return _build(orderId, 'acceptShoppingCounter');
   }
 
   static String updateShoppingItems(String orderId) {
@@ -779,6 +791,20 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     );
   }
 
+  Future<String?> acceptDeliveryFeeCounterOffer({
+    required String orderId,
+    String? note,
+  }) async {
+    return _mutateRunningOrder(
+      orderId: orderId,
+      actionKey: DriverOrderActionKeys.acceptDeliveryFeeCounter(orderId),
+      request: (repository) => repository.acceptDeliveryFeeCounterOffer(
+        orderId: orderId,
+        note: note,
+      ),
+    );
+  }
+
   Future<String?> uploadProof({
     required String orderId,
     required String type,
@@ -818,6 +844,36 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         receiptNote: receiptNote,
         receiptPhoto: receiptPhoto,
       ),
+    );
+  }
+
+  Future<String?> submitShoppingPriceQuote({
+    required String orderId,
+    required double amount,
+    int? pickupLocationId,
+    String? note,
+  }) async {
+    return _mutateRunningOrder(
+      orderId: orderId,
+      actionKey: DriverOrderActionKeys.shoppingPriceQuote(orderId),
+      request: (repository) => repository.submitShoppingPriceQuote(
+        orderId: orderId,
+        amount: amount,
+        pickupLocationId: pickupLocationId,
+        note: note,
+      ),
+    );
+  }
+
+  Future<String?> acceptShoppingCounterOffer({
+    required String orderId,
+    String? note,
+  }) async {
+    return _mutateRunningOrder(
+      orderId: orderId,
+      actionKey: DriverOrderActionKeys.acceptShoppingCounter(orderId),
+      request: (repository) =>
+          repository.acceptShoppingCounterOffer(orderId: orderId, note: note),
     );
   }
 

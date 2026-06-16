@@ -45,7 +45,10 @@ class NotificationNavigationService {
     final isOrderTrackRoute = RegExp(
       r'^/orders/[1-9]\d*/track$',
     ).hasMatch(path);
-    if (!isOrderChatRoute && !isOrderTrackRoute) {
+    final isDriverActiveOrderRoute = RegExp(
+      r'^/driver/orders/[1-9]\d*/active$',
+    ).hasMatch(path);
+    if (!isOrderChatRoute && !isOrderTrackRoute && !isDriverActiveOrderRoute) {
       return null;
     }
 

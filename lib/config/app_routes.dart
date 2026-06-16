@@ -25,6 +25,8 @@ class AppRoutes {
   static const String track = '/track';
   static const String orderTrack = '/orders/:orderId/track';
   static const String shoppingAddItem = '/orders/:orderId/shopping/add-item';
+  static const String shoppingMerchantMapPicker =
+      '/orders/:orderId/shopping/merchant-map-picker';
   static const String orderChat = '/orders/:orderId/chat';
   static const String menuDetail = '/menu/:menuId';
   static const String merchantDetail = '/merchant/:merchantId';
@@ -45,6 +47,10 @@ class AppRoutes {
 
   static String shoppingAddItemPath(Object orderId) {
     return '/orders/$orderId/shopping/add-item';
+  }
+
+  static String shoppingMerchantMapPickerPath(Object orderId) {
+    return '/orders/$orderId/shopping/merchant-map-picker';
   }
 
   static String driverOrderActivePath(String orderId) {

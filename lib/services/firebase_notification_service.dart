@@ -215,7 +215,9 @@ class FirebaseNotificationService {
 
   static String? routeForNotificationData(Map<String, dynamic> data) {
     final type = (data['type'] ?? '').toString();
-    if (type != 'order_chat_message' && type != 'order_status_changed') {
+    if (type != 'order_chat_message' &&
+        type != 'order_status_changed' &&
+        type != 'order_price_changed') {
       return null;
     }
 
@@ -231,9 +233,14 @@ class FirebaseNotificationService {
       return null;
     }
 
-    return type == 'order_status_changed'
-        ? AppRoutes.orderTrackPath(orderId)
-        : AppRoutes.orderChatPath(orderId);
+    return switch (type) {
+      'order_chat_message' => AppRoutes.orderChatPath(orderId),
+      'order_price_changed' =>
+        (data['recipient_role'] ?? '').toString().toLowerCase() == 'driver'
+            ? AppRoutes.driverOrderActivePath(orderId.toString())
+            : AppRoutes.orderTrackPath(orderId),
+      _ => AppRoutes.orderTrackPath(orderId),
+    };
   }
 
   static Future<void> showLocalOrderChatNotification({
@@ -381,8 +388,11 @@ class FirebaseNotificationService {
     final historyId = int.tryParse(
       (message.data['history_id'] ?? '').toString(),
     );
+    final priceEventId = int.tryParse(
+      (message.data['price_event_id'] ?? '').toString(),
+    );
     final type = (message.data['type'] ?? '').toString();
-    final notificationRefId = messageId ?? historyId ?? 0;
+    final notificationRefId = messageId ?? historyId ?? priceEventId ?? 0;
     final key = orderId != null && orderId > 0 && notificationRefId > 0
         ? '$type:$orderId:$notificationRefId'
         : 'fcm:${message.messageId ?? ''}:${orderId ?? 0}:$notificationRefId';
@@ -399,9 +409,9 @@ class FirebaseNotificationService {
     final body =
         (notification?.body ??
                 message.data['body'] ??
-                (type == 'order_status_changed'
-                    ? 'Status order diperbarui.'
-                    : 'Pesan chat baru.'))
+                (type == 'order_chat_message'
+                    ? 'Pesan chat baru.'
+                    : 'Order diperbarui.'))
             .toString()
             .trim();
 
@@ -409,9 +419,9 @@ class FirebaseNotificationService {
       id: _notificationId(orderId: orderId ?? 0, messageId: notificationRefId),
       title: title.isEmpty ? 'Bang Deliv' : title,
       body: body.isEmpty
-          ? (type == 'order_status_changed'
-                ? 'Status order diperbarui.'
-                : 'Pesan chat baru.')
+          ? (type == 'order_chat_message'
+                ? 'Pesan chat baru.'
+                : 'Order diperbarui.')
           : body,
       payload: route,
       data: message.data,
@@ -427,7 +437,8 @@ class FirebaseNotificationService {
   }) async {
     try {
       final isStatusNotification =
-          (data['type'] ?? '').toString() == 'order_status_changed';
+          (data['type'] ?? '').toString() == 'order_status_changed' ||
+          (data['type'] ?? '').toString() == 'order_price_changed';
       final android = AndroidNotificationDetails(
         isStatusNotification
             ? statusNotificationChannelId
@@ -446,7 +457,7 @@ class FirebaseNotificationService {
         enableVibration: true,
         channelShowBadge: true,
         ticker: isStatusNotification
-            ? 'Status order diperbarui'
+            ? 'Order diperbarui'
             : 'Pesan chat order baru',
       );
       const darwin = DarwinNotificationDetails(

@@ -135,7 +135,7 @@ class DriverOrderMetaCard extends StatelessWidget {
               final sequence = stop.sequenceNo <= 0 ? 1 : stop.sequenceNo;
               final address = (stop.merchant.address ?? '').trim();
               final status = stop.isFailed
-                  ? 'Tutup/gagal pickup'
+                  ? 'Resto tutup/order batal'
                   : stop.isSkipped
                   ? 'Dilewati'
                   : null;

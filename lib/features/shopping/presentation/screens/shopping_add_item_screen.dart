@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../config/app_colors.dart';
+import '../../../../config/app_routes.dart';
 import '../../../../models/customer_order_model.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../services/customer_order_api_service.dart';
@@ -17,6 +20,7 @@ import '../widgets/shopping_manual_item_section.dart';
 import '../widgets/shopping_merchant_search_section.dart';
 import '../widgets/shopping_submit_bar.dart';
 import '../widgets/shopping_widget_helpers.dart';
+import 'shopping_merchant_map_picker_screen.dart';
 
 class ShoppingAddItemRouteArgs {
   const ShoppingAddItemRouteArgs({
@@ -92,6 +96,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
   List<ShoppingMenuOption> _menus = const <ShoppingMenuOption>[];
   List<ShoppingItemDraft> _draftItems = const <ShoppingItemDraft>[];
   ShoppingMerchantOption? _selectedMerchant;
+  ShoppingMerchantPlacePayload? _selectedMerchantPlace;
   ShoppingItemDraft? _editingDraftItem;
   bool _isLoadingDetail = false;
   bool _isLoadingMerchants = false;
@@ -176,6 +181,8 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
               slug: null,
               merchantType: stop.merchant.merchantType,
               address: stop.merchant.address,
+              latitude: stop.merchant.latitude,
+              longitude: stop.merchant.longitude,
             ),
           )
           .toList(growable: false);
@@ -216,6 +223,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
           if (matches.isEmpty) {
             _manualItemController.clear();
             _noteController.clear();
+            _selectedMerchantPlace = null;
             _editingDraftItem = null;
           }
         }
@@ -238,6 +246,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
   }) {
     setState(() {
       _selectedMerchant = merchant;
+      _selectedMerchantPlace = null;
       _manualItemController.clear();
       _noteController.clear();
       _menus = const <ShoppingMenuOption>[];
@@ -254,6 +263,107 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
     if (scrollToItem) {
       _scrollToItemSection();
     }
+  }
+
+  Future<void> _openMapPicker() async {
+    final detail = _detail;
+    final orderId = widget.orderId;
+    if (orderId == null || orderId <= 0) {
+      setState(() => _errorText = 'Order tidak valid.');
+      return;
+    }
+
+    final result = await context.push<ShoppingMerchantPlacePayload>(
+      AppRoutes.shoppingMerchantMapPickerPath(orderId),
+      extra: ShoppingMerchantMapPickerArgs(
+        initialLatitude: detail?.dropoffLatitude,
+        initialLongitude: detail?.dropoffLongitude,
+      ),
+    );
+
+    if (!mounted || result == null) {
+      return;
+    }
+
+    final matchedMerchant = await _resolveDatabaseMerchantForPlace(result);
+    if (!mounted) {
+      return;
+    }
+
+    if (matchedMerchant != null) {
+      final exists = _merchants.any((item) => item.id == matchedMerchant.id);
+      if (!exists) {
+        setState(() => _merchants = [matchedMerchant, ..._merchants]);
+      }
+      _selectMerchant(matchedMerchant);
+      return;
+    }
+
+    _selectExternalMerchantPlace(result);
+  }
+
+  Future<ShoppingMerchantOption?> _resolveDatabaseMerchantForPlace(
+    ShoppingMerchantPlacePayload place,
+  ) async {
+    try {
+      final candidates = await ref
+          .read(customerOrderRepositoryProvider)
+          .searchShoppingMerchants(place.name);
+
+      for (final candidate in candidates) {
+        if (_normalizeMerchantName(candidate.name) !=
+            _normalizeMerchantName(place.name)) {
+          continue;
+        }
+
+        final latitude = candidate.latitude;
+        final longitude = candidate.longitude;
+        if (latitude == null || longitude == null) {
+          return candidate;
+        }
+
+        if (_distanceMeters(
+              latitude,
+              longitude,
+              place.latitude,
+              place.longitude,
+            ) <=
+            180) {
+          return candidate;
+        }
+      }
+    } catch (_) {
+      return null;
+    }
+
+    return null;
+  }
+
+  void _selectExternalMerchantPlace(ShoppingMerchantPlacePayload place) {
+    final merchant = ShoppingMerchantOption(
+      id: 0,
+      name: place.name,
+      slug: null,
+      merchantType: _merchantTypeFromPlaceTypes(place.types),
+      address: place.address,
+      latitude: place.latitude,
+      longitude: place.longitude,
+    );
+
+    setState(() {
+      _selectedMerchant = merchant;
+      _selectedMerchantPlace = place;
+      _manualItemController.clear();
+      _noteController.clear();
+      _menus = const <ShoppingMenuOption>[];
+      _menuErrorText = null;
+      _quantity = 1;
+      _editingDraftItem = null;
+      _errorText = null;
+      _merchants = [merchant, ..._merchants.where((item) => item.id > 0)];
+    });
+
+    _scrollToItemSection();
   }
 
   void _scrollToItemSection() {
@@ -326,7 +436,8 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
 
   void _addDraftItem() {
     final merchant = _selectedMerchant;
-    if (merchant == null || merchant.id <= 0) {
+    final merchantPlace = _selectedMerchantPlace;
+    if (merchant == null || (merchant.id <= 0 && merchantPlace == null)) {
       setState(() => _errorText = 'Pilih toko/resto terlebih dahulu.');
       return;
     }
@@ -347,6 +458,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       final draft = ShoppingItemDraft(
         id: editingItem?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
         merchant: merchant,
+        merchantPlace: merchantPlace,
         menuId: null,
         name: manualName,
         quantity: _quantity,
@@ -395,6 +507,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       final draft = ShoppingItemDraft(
         id: editingItem?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
         merchant: merchant,
+        merchantPlace: null,
         menuId: menu.id,
         name: menu.name,
         quantity: _quantity,
@@ -435,6 +548,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
           return ShoppingItemDraft(
             id: item.id,
             merchant: item.merchant,
+            merchantPlace: item.merchantPlace,
             menuId: item.menuId,
             name: item.name,
             quantity: item.quantity + draft.quantity,
@@ -491,7 +605,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
     }
 
     final merchantExists = _merchants.any(
-      (merchant) => merchant.id == item.merchant.id,
+      (merchant) => _isSameMerchantOption(merchant, item.merchant),
     );
 
     setState(() {
@@ -500,6 +614,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       }
       _editingDraftItem = item;
       _selectedMerchant = item.merchant;
+      _selectedMerchantPlace = item.merchantPlace;
       _manualItemController.text = item.name;
       _noteController.text = item.notes ?? '';
       _menus = const <ShoppingMenuOption>[];
@@ -508,7 +623,8 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       _errorText = null;
     });
 
-    if (isRestaurantMerchantType(item.merchant.merchantType)) {
+    if (item.merchant.id > 0 &&
+        isRestaurantMerchantType(item.merchant.merchantType)) {
       unawaited(_loadMerchantMenus(item.merchant));
     }
 
@@ -552,6 +668,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
                 .map(
                   (item) => ShoppingItemDraftPayload(
                     merchantId: item.merchant.id,
+                    merchantPlace: item.merchantPlace,
                     menuId: item.menuId,
                     itemSource: item.itemSource,
                     name: item.name,
@@ -576,14 +693,6 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
         newTotal: newTotal,
         oldStopCount: oldStopCount,
         newStopCount: updated.shoppingStops.length,
-      );
-
-      debugPrint(
-        '[ShoppingAddItem] order=${widget.orderId} '
-        'oldDeliveryFee=$oldDeliveryFee newDeliveryFee=$newDeliveryFee '
-        'oldTotal=$oldTotal newTotal=$newTotal '
-        'oldStops=$oldStopCount newStops=${updated.shoppingStops.length} '
-        'draftItems=${_draftItems.length}',
       );
 
       if (!mounted) {
@@ -646,6 +755,9 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
                             merchants: _merchants,
                             selectedMerchant: _selectedMerchant,
                             onSearch: _searchMerchants,
+                            onOpenMapPicker: detail.canAddShoppingMerchant
+                                ? _openMapPicker
+                                : null,
                             onSelect: _selectMerchant,
                           ),
                           const SizedBox(height: 16),
@@ -698,7 +810,8 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       menus: _menus,
       isLoadingMenus: _isLoadingMenus,
       menuErrorText: _menuErrorText,
-      showMenus: isRestaurantMerchantType(merchant.merchantType),
+      showMenus:
+          merchant.id > 0 && isRestaurantMerchantType(merchant.merchantType),
       onDecrement: () => _setQuantity(_quantity - 1),
       onIncrement: () => _setQuantity(_quantity + 1),
       onAdd: _addDraftItem,
@@ -706,4 +819,91 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       onChanged: () => setState(() {}),
     );
   }
+}
+
+String _normalizeMerchantName(String value) {
+  return value.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+}
+
+bool _isSameMerchantOption(
+  ShoppingMerchantOption first,
+  ShoppingMerchantOption second,
+) {
+  if (first.id > 0 || second.id > 0) {
+    return first.id == second.id;
+  }
+
+  final sameName =
+      _normalizeMerchantName(first.name) == _normalizeMerchantName(second.name);
+  if (!sameName) {
+    return false;
+  }
+
+  final firstLatitude = first.latitude;
+  final firstLongitude = first.longitude;
+  final secondLatitude = second.latitude;
+  final secondLongitude = second.longitude;
+  if (firstLatitude == null ||
+      firstLongitude == null ||
+      secondLatitude == null ||
+      secondLongitude == null) {
+    return true;
+  }
+
+  return _distanceMeters(
+        firstLatitude,
+        firstLongitude,
+        secondLatitude,
+        secondLongitude,
+      ) <=
+      30;
+}
+
+String _merchantTypeFromPlaceTypes(List<String> types) {
+  final normalized = types.map((type) => type.toLowerCase()).toSet();
+  if (normalized.any(
+    (type) =>
+        type.contains('restaurant') ||
+        type == 'food' ||
+        type == 'meal_takeaway' ||
+        type == 'cafe',
+  )) {
+    return 'restaurant';
+  }
+
+  if (normalized.any(
+    (type) =>
+        type == 'convenience_store' ||
+        type == 'supermarket' ||
+        type == 'grocery_or_supermarket',
+  )) {
+    return 'convenience_store';
+  }
+
+  return 'other';
+}
+
+double _distanceMeters(
+  double originLatitude,
+  double originLongitude,
+  double targetLatitude,
+  double targetLongitude,
+) {
+  const earthRadiusMeters = 6371000.0;
+  final originLatitudeRad = originLatitude * math.pi / 180;
+  final targetLatitudeRad = targetLatitude * math.pi / 180;
+  final deltaLatitudeRad = (targetLatitude - originLatitude) * math.pi / 180;
+  final deltaLongitudeRad = (targetLongitude - originLongitude) * math.pi / 180;
+
+  final haversine =
+      math.sin(deltaLatitudeRad / 2) * math.sin(deltaLatitudeRad / 2) +
+      math.cos(originLatitudeRad) *
+          math.cos(targetLatitudeRad) *
+          math.sin(deltaLongitudeRad / 2) *
+          math.sin(deltaLongitudeRad / 2);
+  final safeHaversine = math.min(1.0, math.max(0.0, haversine));
+
+  return earthRadiusMeters *
+      2 *
+      math.atan2(math.sqrt(safeHaversine), math.sqrt(1 - safeHaversine));
 }

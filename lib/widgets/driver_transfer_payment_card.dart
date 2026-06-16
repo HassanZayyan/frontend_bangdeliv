@@ -5,6 +5,7 @@ import '../config/app_colors.dart';
 import '../core/widgets/bang_action_button.dart';
 import '../models/driver_order_model.dart';
 import '../utils/currency_formatter.dart';
+import '../utils/currency_input_parser.dart';
 import '../utils/order_formatters.dart';
 import '../utils/order_ui_helpers.dart';
 
@@ -553,7 +554,7 @@ class _TransferPaymentDialogState extends State<_TransferPaymentDialog> {
   }
 
   void _submit() {
-    final amount = _parseCurrencyInput(_amountController.text);
+    final amount = parseCurrencyInput(_amountController.text);
     if (amount <= 0) {
       setState(() => _amountError = 'Nominal QRIS wajib diisi.');
       return;
@@ -561,13 +562,4 @@ class _TransferPaymentDialogState extends State<_TransferPaymentDialog> {
 
     Navigator.of(context).pop(_TransferPaymentInput(amount: amount));
   }
-}
-
-double _parseCurrencyInput(String raw) {
-  final cleaned = raw.replaceAll(RegExp(r'[^0-9]'), '');
-  if (cleaned.isEmpty) {
-    return 0;
-  }
-
-  return double.tryParse(cleaned) ?? 0;
 }
