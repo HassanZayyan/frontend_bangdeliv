@@ -3,8 +3,258 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../core/widgets/bang_action_button.dart';
+import '../../../../core/widgets/bang_negotiation_status_panel.dart';
 import '../../../../models/driver_order_model.dart';
+import '../../../../utils/order_formatters.dart';
 import 'driver_active_order_widget_helpers.dart';
+
+class DriverShoppingPriceNegotiationCard extends StatefulWidget {
+  final DriverOrderModel order;
+  final bool isOrderBusy;
+  final bool isSubmittingQuote;
+  final bool isAcceptingCounter;
+  final Future<String?> Function({
+    required double amount,
+    int? pickupLocationId,
+    String? note,
+  })
+  onSubmitQuote;
+  final Future<String?> Function() onAcceptCounter;
+
+  const DriverShoppingPriceNegotiationCard({
+    super.key,
+    required this.order,
+    required this.isOrderBusy,
+    required this.isSubmittingQuote,
+    required this.isAcceptingCounter,
+    required this.onSubmitQuote,
+    required this.onAcceptCounter,
+  });
+
+  static bool shouldShow(DriverOrderModel order) {
+    if (order.serviceTypeCode.toUpperCase() != 'SHOPPING') {
+      return false;
+    }
+
+    final negotiation = order.shoppingNegotiation;
+    if (negotiation?.hasQuote == true) {
+      return true;
+    }
+
+    return (negotiation?.canDriverSubmitQuote ?? false) ||
+        order.statusCode.toUpperCase() == 'ARRIVED_MERCHANT';
+  }
+
+  @override
+  State<DriverShoppingPriceNegotiationCard> createState() =>
+      _DriverShoppingPriceNegotiationCardState();
+}
+
+class _DriverShoppingPriceNegotiationCardState
+    extends State<DriverShoppingPriceNegotiationCard> {
+  final TextEditingController _amountController = TextEditingController();
+  final TextEditingController _noteController = TextEditingController();
+
+  @override
+  void didUpdateWidget(covariant DriverShoppingPriceNegotiationCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.order.shoppingNegotiation?.displayAmount !=
+            widget.order.shoppingNegotiation?.displayAmount &&
+        _amountController.text.trim().isEmpty) {
+      _primeAmount();
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _primeAmount();
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  void _primeAmount() {
+    final amount =
+        widget.order.shoppingNegotiation?.quotedAmount ??
+        widget.order.shoppingPricing?.subtotal ??
+        widget.order.shoppingItems.fold<double>(
+          0,
+          (sum, item) => sum + item.subtotal,
+        );
+    if (amount > 0) {
+      _amountController.text = amount.round().toString();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final negotiation = widget.order.shoppingNegotiation;
+    final status = negotiation?.status ?? 'NONE';
+    final isApproved = negotiation?.isApproved ?? false;
+    final isPendingDriver = negotiation?.isPendingDriver ?? false;
+    final canSubmitQuote =
+        (negotiation?.canDriverSubmitQuote ?? false) ||
+        widget.order.statusCode.toUpperCase() == 'ARRIVED_MERCHANT';
+    final activeStops = widget.order.shoppingStops
+        .where((stop) => !stop.isFailed && !stop.isSkipped && !stop.isReplaced)
+        .toList(growable: false);
+    final activePickup = activeStops.isEmpty ? null : activeStops.first;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.request_quote_outlined, color: AppColors.primary),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Harga Nitip',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (isApproved) ...[
+            BangNegotiationStatusPanel(
+              icon: Icons.verified_outlined,
+              label: 'Disetujui',
+              amountText: formatCurrency(negotiation?.approvedAmount ?? 0),
+              color: AppColors.success,
+            ),
+          ] else if (isPendingDriver) ...[
+            BangNegotiationStatusPanel(
+              icon: Icons.handshake_outlined,
+              label: 'Tawaran customer',
+              amountText: formatCurrency(negotiation?.counterAmount ?? 0),
+              color: AppColors.primary,
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: BangActionButton(
+                    label: 'Setujui Tawaran',
+                    icon: Icons.check_rounded,
+                    isLoading: widget.isAcceptingCounter,
+                    isEnabled: !widget.isOrderBusy || widget.isAcceptingCounter,
+                    onPressed: _acceptCounter,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            _quoteForm(canSubmitQuote, activePickup?.pickupLocationId),
+          ] else ...[
+            _quoteForm(canSubmitQuote, activePickup?.pickupLocationId),
+            if (status == 'PENDING_CUSTOMER') ...[
+              const SizedBox(height: 8),
+              BangNegotiationStatusPanel(
+                icon: Icons.schedule_outlined,
+                label: 'Menunggu customer',
+                amountText: formatCurrency(negotiation?.quotedAmount ?? 0),
+                color: AppColors.textSecondary,
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _quoteForm(bool canSubmitQuote, int? pickupLocationId) {
+    return Column(
+      children: [
+        TextField(
+          controller: _amountController,
+          keyboardType: TextInputType.number,
+          enabled: canSubmitQuote && !widget.isOrderBusy,
+          decoration: driverDialogInputDecoration(
+            labelText: 'Harga merchant',
+            prefixText: 'Rp ',
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _noteController,
+          minLines: 1,
+          maxLines: 2,
+          enabled: canSubmitQuote && !widget.isOrderBusy,
+          decoration: driverDialogInputDecoration(
+            labelText: 'Catatan',
+            hintText: 'Opsional',
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          child: BangActionButton(
+            label: 'Kirim Harga Baru',
+            icon: Icons.send_outlined,
+            isLoading: widget.isSubmittingQuote,
+            isEnabled:
+                canSubmitQuote &&
+                (!widget.isOrderBusy || widget.isSubmittingQuote),
+            onPressed: () => _submitQuote(pickupLocationId),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _submitQuote(int? pickupLocationId) async {
+    final amount = parseDriverCurrencyInput(_amountController.text);
+    if (amount <= 0) {
+      _showSnack('Harga merchant harus lebih dari 0.', isError: true);
+      return;
+    }
+
+    final error = await widget.onSubmitQuote(
+      amount: amount,
+      pickupLocationId: pickupLocationId,
+      note: _noteController.text,
+    );
+    if (!mounted) {
+      return;
+    }
+
+    _showSnack(error ?? 'Harga Nitip dikirim.');
+  }
+
+  Future<void> _acceptCounter() async {
+    final error = await widget.onAcceptCounter();
+    if (!mounted) {
+      return;
+    }
+
+    _showSnack(error ?? 'Tawaran customer disetujui.');
+  }
+
+  void _showSnack(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? AppColors.error : null,
+      ),
+    );
+  }
+}
 
 class DriverShoppingItemsCard extends StatefulWidget {
   final DriverOrderModel order;
@@ -37,8 +287,6 @@ class DriverShoppingItemsCard extends StatefulWidget {
 class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
   final TextEditingController _shoppingTotalController =
       TextEditingController();
-  final TextEditingController _deliveryFeeOverrideController =
-      TextEditingController();
   final TextEditingController _receiptNoteController = TextEditingController();
   final Map<int, bool> _availability = {};
   final Map<int, bool> _heavy = {};
@@ -63,7 +311,6 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
   @override
   void dispose() {
     _shoppingTotalController.dispose();
-    _deliveryFeeOverrideController.dispose();
     _receiptNoteController.dispose();
     super.dispose();
   }
@@ -119,22 +366,13 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
         _shoppingTotalController.text = subtotal.round().toString();
       }
     }
-
-    final deliveryFeeSource = (widget.order.deliveryFeeSource ?? '')
-        .trim()
-        .toLowerCase();
-    if (_deliveryFeeOverrideController.text.trim().isEmpty &&
-        deliveryFeeSource == 'driver_manual' &&
-        widget.order.deliveryFee != null &&
-        widget.order.deliveryFee! > 0) {
-      _deliveryFeeOverrideController.text = widget.order.deliveryFee!
-          .round()
-          .toString();
-    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final checkoutAllowed =
+        widget.order.shoppingNegotiation?.checkoutAllowed ?? false;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -195,20 +433,6 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
             ),
           ),
           const SizedBox(height: 8),
-          TextField(
-            controller: _deliveryFeeOverrideController,
-            keyboardType: TextInputType.number,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-            ),
-            decoration: driverDialogInputDecoration(
-              labelText: 'Edit ongkir nitip (opsional)',
-              prefixText: 'Rp ',
-            ),
-          ),
-          const SizedBox(height: 8),
           BangActionButton(
             label: !widget.order.hasProof('receipt')
                 ? 'Upload Foto Struk'
@@ -234,14 +458,29 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
               hintText: 'Contoh: satu item kosong, diganti ukuran lain',
             ),
           ),
+          if (!checkoutAllowed) ...[
+            const SizedBox(height: 8),
+            const Text(
+              'Harga Nitip perlu disetujui customer sebelum checkout.',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
             child: BangActionButton(
-              label: 'Simpan Checkout Nitip',
+              label: checkoutAllowed
+                  ? 'Simpan Checkout Nitip'
+                  : 'Menunggu Persetujuan Harga',
               icon: Icons.receipt_long,
               isLoading: widget.isSavingCheckout,
-              isEnabled: !widget.isOrderBusy || widget.isSavingCheckout,
+              isEnabled:
+                  checkoutAllowed &&
+                  (!widget.isOrderBusy || widget.isSavingCheckout),
               onPressed: _save,
             ),
           ),
@@ -361,7 +600,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
                   ),
                   child: Text(
                     stop.isFailed
-                        ? 'Gagal'
+                        ? 'Resto tutup/order batal'
                         : stop.isReplaced
                         ? 'Diganti'
                         : 'Dilewati',
@@ -578,10 +817,6 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     final shoppingTotalAmount = parseDriverCurrencyInput(
       _shoppingTotalController.text,
     );
-    final deliveryFeeOverrideRaw = _deliveryFeeOverrideController.text.trim();
-    final deliveryFeeOverride = deliveryFeeOverrideRaw.isEmpty
-        ? null
-        : parseDriverCurrencyInput(deliveryFeeOverrideRaw);
 
     if (shoppingTotalAmount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -618,9 +853,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     final error = await widget.onSave(
       payload,
       shoppingTotalAmount,
-      deliveryFeeOverride == null || deliveryFeeOverride <= 0
-          ? null
-          : deliveryFeeOverride,
+      null,
       _receiptNoteController.text.trim(),
       null,
     );

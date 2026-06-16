@@ -20,12 +20,12 @@ class ShoppingDraftItemsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final groups = <int, List<ShoppingItemDraft>>{};
-    final merchantsById = <int, ShoppingMerchantOption>{};
+    final groups = <String, List<ShoppingItemDraft>>{};
+    final merchantsByKey = <String, ShoppingMerchantOption>{};
     for (final item in items) {
-      final merchantId = item.merchant.id;
-      groups.putIfAbsent(merchantId, () => <ShoppingItemDraft>[]).add(item);
-      merchantsById[merchantId] = item.merchant;
+      final merchantKey = _merchantGroupKey(item);
+      groups.putIfAbsent(merchantKey, () => <ShoppingItemDraft>[]).add(item);
+      merchantsByKey[merchantKey] = item.merchant;
     }
 
     return Column(
@@ -43,7 +43,7 @@ class ShoppingDraftItemsSection extends StatelessWidget {
             (entry) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: _DraftMerchantGroup(
-                merchant: merchantsById[entry.key]!,
+                merchant: merchantsByKey[entry.key]!,
                 items: entry.value,
                 onEdit: onEdit,
                 onRemove: onRemove,
@@ -53,6 +53,21 @@ class ShoppingDraftItemsSection extends StatelessWidget {
       ],
     );
   }
+}
+
+String _merchantGroupKey(ShoppingItemDraft item) {
+  final merchantId = item.merchant.id;
+  if (merchantId > 0) {
+    return 'merchant:$merchantId';
+  }
+
+  final place = item.merchantPlace;
+  final placeId = place?.placeId?.trim();
+  if (placeId != null && placeId.isNotEmpty) {
+    return 'place:$placeId';
+  }
+
+  return 'external:${item.merchant.name}:${item.merchant.latitude}:${item.merchant.longitude}';
 }
 
 class _DraftMerchantGroup extends StatelessWidget {

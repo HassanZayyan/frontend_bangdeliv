@@ -6,6 +6,9 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../../../core/widgets/bang_amount_negotiation_card.dart';
+import '../../../../core/widgets/bang_counter_amount_dialog.dart';
+import '../../../../core/widgets/bang_negotiation_cancel_sheet.dart';
 import '../../../../models/customer_order_model.dart';
 import '../../../../utils/order_formatters.dart';
 import '../../../../widgets/shopping_fee_breakdown.dart';
@@ -101,6 +104,10 @@ class _TrackShoppingOrderItemsCardState
             ...failedStops.map((stop) => _failedStopNotice(context, ref, stop)),
             const SizedBox(height: 4),
           ],
+          if (detail.shoppingNegotiation?.canCustomerRespond == true) ...[
+            _shoppingNegotiationCard(context, ref, detail),
+            const SizedBox(height: 10),
+          ],
           if (activeStops.isEmpty)
             const Text(
               'Belum ada item belanja.',
@@ -167,7 +174,7 @@ class _TrackShoppingOrderItemsCardState
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '${stop.merchant.name} tutup/gagal pickup',
+                  '${stop.merchant.name} - Resto tutup/order batal',
                   style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontWeight: FontWeight.w800,
@@ -212,6 +219,24 @@ class _TrackShoppingOrderItemsCardState
           ],
         ],
       ),
+    );
+  }
+
+  Widget _shoppingNegotiationCard(
+    BuildContext context,
+    WidgetRef ref,
+    CustomerOrderDetailModel detail,
+  ) {
+    final negotiation = detail.shoppingNegotiation;
+    final quotedAmount = negotiation?.quotedAmount ?? 0;
+
+    return BangAmountNegotiationCard(
+      label: 'Harga merchant',
+      amount: quotedAmount,
+      onApprove: () =>
+          _respondShoppingQuote(context, ref, detail, action: 'APPROVE'),
+      onCounter: () => _showCounterDialog(context, ref, detail),
+      onCancel: () => _showCancelQuoteSheet(context, ref, detail),
     );
   }
 
@@ -284,7 +309,9 @@ class _TrackShoppingOrderItemsCardState
               ),
               const SizedBox(width: 8),
               if (stop.isFailed || stop.isSkipped)
-                _stopStatusChip(stop.isFailed ? 'Gagal' : 'Dilewati'),
+                _stopStatusChip(
+                  stop.isFailed ? 'Resto tutup/order batal' : 'Dilewati',
+                ),
             ],
           ),
           const SizedBox(height: 8),
@@ -518,6 +545,97 @@ class _TrackShoppingOrderItemsCardState
         ],
       ),
     );
+  }
+
+  Future<void> _showCounterDialog(
+    BuildContext context,
+    WidgetRef ref,
+    CustomerOrderDetailModel detail,
+  ) async {
+    final amount = await showBangCounterAmountDialog(
+      context,
+      title: 'Tawar harga',
+    );
+
+    if (amount == null || amount <= 0 || !context.mounted) {
+      return;
+    }
+
+    await _respondShoppingQuote(
+      context,
+      ref,
+      detail,
+      action: 'COUNTER',
+      counterAmount: amount,
+    );
+  }
+
+  Future<void> _showCancelQuoteSheet(
+    BuildContext context,
+    WidgetRef ref,
+    CustomerOrderDetailModel detail,
+  ) async {
+    final action = await showBangNegotiationCancelSheet(
+      context,
+      options: const [
+        BangNegotiationCancelOption(
+          action: 'CANCEL_MERCHANT',
+          label: 'Batalkan merchant ini',
+          icon: Icons.storefront_outlined,
+        ),
+        BangNegotiationCancelOption(
+          action: 'CANCEL_ORDER',
+          label: 'Batalkan pesanan',
+          icon: Icons.cancel_outlined,
+        ),
+      ],
+    );
+
+    if (action == null || !context.mounted) {
+      return;
+    }
+
+    await _respondShoppingQuote(context, ref, detail, action: action);
+  }
+
+  Future<void> _respondShoppingQuote(
+    BuildContext context,
+    WidgetRef ref,
+    CustomerOrderDetailModel detail, {
+    required String action,
+    double? counterAmount,
+  }) async {
+    try {
+      await ref
+          .read(customerOrderRepositoryProvider)
+          .respondShoppingPriceQuote(
+            detail.summary.id,
+            action: action,
+            counterAmount: counterAmount,
+            pickupLocationId: detail.shoppingNegotiation?.pickupLocationId,
+          );
+      ref.invalidate(customerOrderTrackingProvider(detail.summary.id));
+      ref.invalidate(customerOrdersProvider);
+      await widget.onChanged?.call();
+
+      if (!context.mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Respons harga Nitip diproses.')),
+      );
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString()),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   Future<void> _openAddItemScreen(

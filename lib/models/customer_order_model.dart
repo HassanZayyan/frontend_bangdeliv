@@ -2,7 +2,9 @@ import '../config/app_env.dart';
 import '../utils/order_status.dart' as order_status;
 import '../utils/order_formatters.dart';
 import '../utils/service_type.dart' as service_type;
+import 'delivery_fee_negotiation_model.dart';
 import 'order_route_model.dart';
+import 'shopping_negotiation_model.dart';
 
 class OrderStatusSnapshot {
   final String code;
@@ -544,6 +546,8 @@ class CustomerOrderDetailModel {
   final CustomerShoppingPricingModel? shoppingPricing;
   final List<CustomerOrderProofModel> proofs;
   final DriverEtaModel? driverEta;
+  final DeliveryFeeNegotiationModel? deliveryFeeNegotiation;
+  final ShoppingNegotiationModel? shoppingNegotiation;
 
   const CustomerOrderDetailModel({
     required this.summary,
@@ -579,6 +583,8 @@ class CustomerOrderDetailModel {
     this.shoppingPricing,
     this.proofs = const <CustomerOrderProofModel>[],
     this.driverEta,
+    this.deliveryFeeNegotiation,
+    this.shoppingNegotiation,
   }) : route = route ?? shoppingRoute;
 
   OrderRouteModel? get shoppingRoute => route;
@@ -646,6 +652,8 @@ class CustomerOrderDetailModel {
     CustomerShoppingPricingModel? shoppingPricing,
     List<CustomerOrderProofModel>? proofs,
     DriverEtaModel? driverEta,
+    DeliveryFeeNegotiationModel? deliveryFeeNegotiation,
+    ShoppingNegotiationModel? shoppingNegotiation,
     bool clearDriverEta = false,
   }) {
     return CustomerOrderDetailModel(
@@ -684,6 +692,9 @@ class CustomerOrderDetailModel {
       shoppingPricing: shoppingPricing ?? this.shoppingPricing,
       proofs: proofs ?? this.proofs,
       driverEta: clearDriverEta ? null : (driverEta ?? this.driverEta),
+      deliveryFeeNegotiation:
+          deliveryFeeNegotiation ?? this.deliveryFeeNegotiation,
+      shoppingNegotiation: shoppingNegotiation ?? this.shoppingNegotiation,
     );
   }
 
@@ -926,6 +937,12 @@ class CustomerOrderDetailModel {
       ),
       driverEta: DriverEtaModel.fromRaw(
         json['driver_eta'] ?? json['driverEta'],
+      ),
+      deliveryFeeNegotiation: DeliveryFeeNegotiationModel.fromRaw(
+        json['delivery_fee_negotiation'] ?? json['deliveryFeeNegotiation'],
+      ),
+      shoppingNegotiation: ShoppingNegotiationModel.fromRaw(
+        json['shopping_negotiation'] ?? json['shoppingNegotiation'],
       ),
     );
   }

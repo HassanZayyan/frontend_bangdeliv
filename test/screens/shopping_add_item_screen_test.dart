@@ -20,12 +20,16 @@ void main() {
       'slug': 'resto-satu',
       'merchant_type': 'restaurant',
       'address': 'Jl. Resto',
+      'latitude': -7.001,
+      'longitude': 110.401,
     });
 
     expect(merchant.id, 12);
     expect(merchant.slug, 'resto-satu');
     expect(merchant.merchantType, 'restaurant');
     expect(merchant.address, 'Jl. Resto');
+    expect(merchant.latitude, -7.001);
+    expect(merchant.longitude, 110.401);
   });
 
   test('ShoppingItemDraftPayload serializes manual item contract', () {
@@ -42,6 +46,32 @@ void main() {
     expect(payload['quantity'], 2);
     expect(payload['notes'], 'Putih');
     expect(payload.containsKey('menu_id'), isFalse);
+  });
+
+  test('ShoppingItemDraftPayload serializes Google place merchant contract', () {
+    final payload = const ShoppingItemDraftPayload(
+      merchantId: null,
+      merchantPlace: ShoppingMerchantPlacePayload(
+        placeId: 'google-place-1',
+        name: 'Warung Google',
+        address: 'Jl. Google',
+        latitude: -7.0061,
+        longitude: 110.4061,
+        types: ['food', 'store'],
+      ),
+      name: 'Es teh',
+      quantity: 1,
+      notes: null,
+    ).toJson();
+
+    expect(payload.containsKey('merchant_id'), isFalse);
+    expect(payload['item_source'], 'MANUAL');
+    expect(payload['menu_name'], 'Es teh');
+    expect(payload['merchant_place'], isA<Map<String, dynamic>>());
+    expect(payload['merchant_place']['place_id'], 'google-place-1');
+    expect(payload['merchant_place']['name'], 'Warung Google');
+    expect(payload['merchant_place']['latitude'], -7.0061);
+    expect(payload['merchant_place']['types'], ['food', 'store']);
   });
 
   test('ShoppingItemDraftPayload serializes menu database item contract', () {

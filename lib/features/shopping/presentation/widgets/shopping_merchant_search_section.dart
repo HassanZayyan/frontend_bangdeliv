@@ -14,6 +14,7 @@ class ShoppingMerchantSearchSection extends StatelessWidget {
     required this.merchants,
     required this.selectedMerchant,
     required this.onSearch,
+    this.onOpenMapPicker,
     required this.onSelect,
   });
 
@@ -23,6 +24,7 @@ class ShoppingMerchantSearchSection extends StatelessWidget {
   final List<ShoppingMerchantOption> merchants;
   final ShoppingMerchantOption? selectedMerchant;
   final VoidCallback onSearch;
+  final VoidCallback? onOpenMapPicker;
   final ValueChanged<ShoppingMerchantOption> onSelect;
 
   @override
@@ -80,6 +82,25 @@ class ShoppingMerchantSearchSection extends StatelessWidget {
                       : const Icon(Icons.search_rounded, size: 20),
                 ),
               ),
+              if (onOpenMapPicker != null) ...[
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 46,
+                  height: 46,
+                  child: IconButton.outlined(
+                    tooltip: 'Pilih lewat peta',
+                    style: IconButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.primary),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: isLoading ? null : onOpenMapPicker,
+                    icon: const Icon(Icons.map_outlined, size: 20),
+                  ),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 12),
@@ -97,7 +118,7 @@ class ShoppingMerchantSearchSection extends StatelessWidget {
               for (final merchant in merchants) ...[
                 _MerchantOptionCard(
                   merchant: merchant,
-                  selected: selectedMerchant?.id == merchant.id,
+                  selected: _isSameMerchantOption(selectedMerchant, merchant),
                   onTap: () => onSelect(merchant),
                 ),
                 if (merchant != merchants.last) const SizedBox(height: 8),
@@ -107,6 +128,22 @@ class ShoppingMerchantSearchSection extends StatelessWidget {
       ],
     );
   }
+}
+
+bool _isSameMerchantOption(
+  ShoppingMerchantOption? selected,
+  ShoppingMerchantOption merchant,
+) {
+  if (selected == null) {
+    return false;
+  }
+
+  if (selected.id > 0 || merchant.id > 0) {
+    return selected.id == merchant.id;
+  }
+
+  return selected.name.trim().toLowerCase() == merchant.name.trim().toLowerCase() &&
+      selected.address?.trim().toLowerCase() == merchant.address?.trim().toLowerCase();
 }
 
 class _MerchantOptionCard extends StatelessWidget {

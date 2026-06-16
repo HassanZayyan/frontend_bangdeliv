@@ -135,13 +135,19 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                 DriverManualDeliveryFeeCard(
                   order: order,
                   isOrderBusy: isOrderBusy,
+                  isSubmittingQuote: isProcessingAction(
+                    DriverOrderActionKeys.updateFee(order.id),
+                  ),
+                  isAcceptingCounter: isProcessingAction(
+                    DriverOrderActionKeys.acceptDeliveryFeeCounter(order.id),
+                  ),
                   onSave:
                       ({
                         required amount,
                         required reason,
                         required carefulCarryRequired,
-                      }) {
-                        return ref
+                      }) async {
+                        final error = await ref
                             .read(driverOrdersProvider.notifier)
                             .updateDeliveryFeeOverride(
                               orderId: order.id,
@@ -149,10 +155,62 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                               reason: reason,
                               carefulCarryRequired: carefulCarryRequired,
                             );
+                        if (error == null) {
+                          ref.invalidate(driverOrderDetailProvider(order.id));
+                        }
+                        return error;
                       },
+                  onAcceptCounter: () async {
+                    final error = await ref
+                        .read(driverOrdersProvider.notifier)
+                        .acceptDeliveryFeeCounterOffer(orderId: order.id);
+                    if (error == null) {
+                      ref.invalidate(driverOrderDetailProvider(order.id));
+                    }
+                    return error;
+                  },
                 ),
                 const SizedBox(height: 12),
                 if (order.shoppingItems.isNotEmpty) ...[
+                  if (DriverShoppingPriceNegotiationCard.shouldShow(order)) ...[
+                    DriverShoppingPriceNegotiationCard(
+                      order: order,
+                      isOrderBusy: isOrderBusy,
+                      isSubmittingQuote: isProcessingAction(
+                        DriverOrderActionKeys.shoppingPriceQuote(order.id),
+                      ),
+                      isAcceptingCounter: isProcessingAction(
+                        DriverOrderActionKeys.acceptShoppingCounter(order.id),
+                      ),
+                      onSubmitQuote:
+                          ({required amount, pickupLocationId, note}) async {
+                            final error = await ref
+                                .read(driverOrdersProvider.notifier)
+                                .submitShoppingPriceQuote(
+                                  orderId: order.id,
+                                  amount: amount,
+                                  pickupLocationId: pickupLocationId,
+                                  note: note,
+                                );
+                            if (error == null) {
+                              ref.invalidate(
+                                driverOrderDetailProvider(order.id),
+                              );
+                            }
+                            return error;
+                          },
+                      onAcceptCounter: () async {
+                        final error = await ref
+                            .read(driverOrdersProvider.notifier)
+                            .acceptShoppingCounterOffer(orderId: order.id);
+                        if (error == null) {
+                          ref.invalidate(driverOrderDetailProvider(order.id));
+                        }
+                        return error;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   DriverShoppingItemsCard(
                     order: order,
                     isOrderBusy: isOrderBusy,
@@ -278,7 +336,8 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
-                              error ?? 'Merchant tutup berhasil dicatat.',
+                              error ??
+                                  'Resto tutup/order batal berhasil dicatat.',
                             ),
                             backgroundColor: error == null
                                 ? null

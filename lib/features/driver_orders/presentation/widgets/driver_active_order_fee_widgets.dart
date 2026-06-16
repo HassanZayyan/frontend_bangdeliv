@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../../config/app_colors.dart';
+import '../../../../core/widgets/bang_action_button.dart';
+import '../../../../core/widgets/bang_negotiation_status_panel.dart';
+import '../../../../models/delivery_fee_negotiation_model.dart';
 import '../../../../models/driver_order_model.dart';
 import '../../../../utils/currency_formatter.dart';
 import '../../../../utils/service_type.dart';
@@ -11,17 +14,23 @@ class DriverManualDeliveryFeeCard extends StatelessWidget {
     super.key,
     required this.order,
     required this.isOrderBusy,
+    required this.isSubmittingQuote,
+    required this.isAcceptingCounter,
     required this.onSave,
+    required this.onAcceptCounter,
   });
 
   final DriverOrderModel order;
   final bool isOrderBusy;
+  final bool isSubmittingQuote;
+  final bool isAcceptingCounter;
   final Future<String?> Function({
     required double amount,
     required String reason,
     required bool carefulCarryRequired,
   })
   onSave;
+  final Future<String?> Function() onAcceptCounter;
 
   @override
   Widget build(BuildContext context) {
@@ -34,6 +43,10 @@ class DriverManualDeliveryFeeCard extends StatelessWidget {
     final deliveryFeeSourceLabel = deliveryFeeSource == 'driver_manual'
         ? 'manual driver'
         : deliveryFeeSource;
+    final negotiation = order.deliveryFeeNegotiation;
+    final canSubmitQuote = negotiation?.canDriverSubmitQuote ?? true;
+    final canAcceptCounter = negotiation?.canDriverAcceptCounter ?? false;
+    final counterAmount = negotiation?.counterAmount;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -51,7 +64,7 @@ class DriverManualDeliveryFeeCard extends StatelessWidget {
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
-                  'Ongkir Driver',
+                  'Revisi Ongkir',
                   style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 15,
@@ -59,10 +72,24 @@ class DriverManualDeliveryFeeCard extends StatelessWidget {
                   ),
                 ),
               ),
+              if (isSubmittingQuote) ...[
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: 8),
+              ],
               TextButton.icon(
-                onPressed: isOrderBusy ? null : () => _openDialog(context),
+                onPressed: isOrderBusy || isSubmittingQuote || !canSubmitQuote
+                    ? null
+                    : () => _openDialog(context),
                 icon: const Icon(Icons.edit, size: 16),
-                label: const Text('Edit'),
+                label: Text(
+                  negotiation?.isPendingDriver == true
+                      ? 'Kirim Harga Baru'
+                      : 'Edit',
+                ),
               ),
             ],
           ),
@@ -89,8 +116,48 @@ class DriverManualDeliveryFeeCard extends StatelessWidget {
                 _summaryChip('Perlu 2 orang', 'aktif'),
             ],
           ),
+          if (negotiation != null && negotiation.hasQuote) ...[
+            const SizedBox(height: 10),
+            _buildNegotiationStatus(negotiation),
+          ],
+          if (canAcceptCounter && counterAmount != null) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: BangActionButton(
+                label: 'Setujui Tawaran Ongkir',
+                icon: Icons.check_circle_outline,
+                isLoading: isAcceptingCounter,
+                isEnabled: !isOrderBusy || isAcceptingCounter,
+                onPressed: () => _acceptCounter(context),
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _buildNegotiationStatus(DeliveryFeeNegotiationModel negotiation) {
+    final amount = negotiation.displayAmount;
+    final status = negotiation.status;
+    final label = switch (status) {
+      'PENDING_CUSTOMER' => 'Menunggu persetujuan customer',
+      'PENDING_DRIVER' => 'Customer menawar',
+      'APPROVED' => 'Disetujui',
+      _ => 'Revisi ongkir',
+    };
+
+    return BangNegotiationStatusPanel(
+      icon: status == 'APPROVED'
+          ? Icons.verified_outlined
+          : status == 'PENDING_DRIVER'
+          ? Icons.handshake_outlined
+          : Icons.schedule_outlined,
+      label: label,
+      amountText: amount == null ? null : formatRupiah(amount),
+      color: status == 'APPROVED' ? AppColors.success : AppColors.primary,
+      compact: true,
     );
   }
 
@@ -146,7 +213,21 @@ class DriverManualDeliveryFeeCard extends StatelessWidget {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(error ?? 'Ongkir manual berhasil disimpan.'),
+        content: Text(error ?? 'Proposal revisi ongkir berhasil dikirim.'),
+        backgroundColor: error == null ? null : AppColors.error,
+      ),
+    );
+  }
+
+  Future<void> _acceptCounter(BuildContext context) async {
+    final error = await onAcceptCounter();
+    if (!context.mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error ?? 'Tawaran ongkir customer disetujui.'),
         backgroundColor: error == null ? null : AppColors.error,
       ),
     );

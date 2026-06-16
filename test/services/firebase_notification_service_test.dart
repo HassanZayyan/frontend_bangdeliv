@@ -16,6 +16,30 @@ void main() {
     expect(route, '/orders/42/chat');
   });
 
+  test('order price notification routes customer to tracking screen', () {
+    final route = FirebaseNotificationService.routeForNotificationData(
+      const <String, dynamic>{
+        'type': 'order_price_changed',
+        'order_id': '42',
+        'recipient_role': 'customer',
+      },
+    );
+
+    expect(route, '/orders/42/track');
+  });
+
+  test('order price notification routes driver to active order screen', () {
+    final route = FirebaseNotificationService.routeForNotificationData(
+      const <String, dynamic>{
+        'type': 'order_price_changed',
+        'order_id': '42',
+        'recipient_role': 'driver',
+      },
+    );
+
+    expect(route, '/driver/orders/42/active');
+  });
+
   test('invalid notification data does not resolve to route', () {
     expect(
       FirebaseNotificationService.routeForNotificationData(
@@ -56,6 +80,30 @@ void main() {
       isNull,
     );
   });
+
+  test(
+    'notification navigation allows tracking chat and driver active routes only',
+    () {
+      expect(
+        NotificationNavigationService.normalizeRoute('/orders/42/track'),
+        '/orders/42/track',
+      );
+      expect(
+        NotificationNavigationService.normalizeRoute('/orders/42/chat'),
+        '/orders/42/chat',
+      );
+      expect(
+        NotificationNavigationService.normalizeRoute(
+          '/driver/orders/42/active',
+        ),
+        '/driver/orders/42/active',
+      );
+      expect(
+        NotificationNavigationService.normalizeRoute('/driver/history/42'),
+        isNull,
+      );
+    },
+  );
 
   test('pending notification route is persisted and consumed once', () async {
     await NotificationNavigationService.queueRoute('/orders/42/chat');

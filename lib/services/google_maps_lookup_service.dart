@@ -9,17 +9,28 @@ class GoogleMapsPrediction {
   const GoogleMapsPrediction({
     required this.description,
     required this.placeId,
+    this.name,
   });
 
   final String description;
   final String? placeId;
+  final String? name;
 }
 
 class GoogleMapsResolvedPlace {
-  const GoogleMapsResolvedPlace({required this.target, this.address});
+  const GoogleMapsResolvedPlace({
+    required this.target,
+    this.placeId,
+    this.name,
+    this.address,
+    this.types = const <String>[],
+  });
 
   final LatLng target;
+  final String? placeId;
+  final String? name;
   final String? address;
+  final List<String> types;
 }
 
 enum GoogleMapsLookupScope { indonesia, salatigaServiceAreaAddress }
@@ -43,6 +54,7 @@ class GoogleMapsLookupService {
   Future<List<GoogleMapsPrediction>> searchPlaces(
     String query, {
     GoogleMapsLookupScope scope = GoogleMapsLookupScope.indonesia,
+    String? sessionToken,
   }) async {
     final normalizedQuery = query.trim();
     final apiKey = _apiKey;
@@ -55,6 +67,8 @@ class GoogleMapsLookupService {
       'key': apiKey,
       'components': 'country:id',
       'language': 'id',
+      if ((sessionToken ?? '').trim().isNotEmpty)
+        'sessiontoken': sessionToken!.trim(),
     };
     _applyAutocompleteScope(queryParameters, scope);
 
@@ -94,6 +108,7 @@ class GoogleMapsLookupService {
     String? placeId,
     String? fallbackQuery,
     GoogleMapsLookupScope scope = GoogleMapsLookupScope.indonesia,
+    String? sessionToken,
   }) async {
     final apiKey = _apiKey;
     if (apiKey.isEmpty) {
@@ -102,7 +117,11 @@ class GoogleMapsLookupService {
 
     final normalizedPlaceId = placeId?.trim() ?? '';
     if (normalizedPlaceId.isNotEmpty) {
-      final resolved = await _resolvePlaceId(normalizedPlaceId, apiKey);
+      final resolved = await _resolvePlaceId(
+        normalizedPlaceId,
+        apiKey,
+        sessionToken: sessionToken,
+      );
       if (resolved != null) {
         return resolved;
       }
@@ -224,12 +243,20 @@ class GoogleMapsLookupService {
 
   Future<GoogleMapsResolvedPlace?> _resolvePlaceId(
     String placeId,
-    String apiKey,
-  ) async {
+    String apiKey, {
+    String? sessionToken,
+  }) async {
     final url = Uri.https(
       'maps.googleapis.com',
       '/maps/api/place/details/json',
-      <String, String>{'place_id': placeId, 'key': apiKey, 'language': 'id'},
+      <String, String>{
+        'place_id': placeId,
+        'key': apiKey,
+        'language': 'id',
+        'fields': 'place_id,name,formatted_address,geometry,type',
+        if ((sessionToken ?? '').trim().isNotEmpty)
+          'sessiontoken': sessionToken!.trim(),
+      },
     );
 
     try {
@@ -255,9 +282,15 @@ class GoogleMapsLookupService {
   }
 
   GoogleMapsPrediction _predictionFromJson(Map<String, dynamic> json) {
+    final structuredFormatting = json['structured_formatting'];
+    final name = structuredFormatting is Map<String, dynamic>
+        ? cleanAddress(structuredFormatting['main_text'])
+        : null;
+
     return GoogleMapsPrediction(
       description: (json['description'] ?? '').toString(),
       placeId: json['place_id']?.toString(),
+      name: name,
     );
   }
 
@@ -309,15 +342,26 @@ class GoogleMapsLookupService {
       return null;
     }
 
+    final placeId = cleanAddress(result['place_id']);
     final formattedAddress = cleanAddress(result['formatted_address']);
     final placeName = cleanAddress(result['name']);
+    final rawTypes = result['types'];
+    final types = rawTypes is List
+        ? rawTypes
+              .map((type) => type.toString().trim())
+              .where((type) => type.isNotEmpty)
+              .toList(growable: false)
+        : const <String>[];
 
     return GoogleMapsResolvedPlace(
       target: LatLng(lat.toDouble(), lng.toDouble()),
+      placeId: placeId,
+      name: placeName,
       address: _buildDisplayAddress(
         placeName: placeName,
         formattedAddress: formattedAddress,
       ),
+      types: types,
     );
   }
 

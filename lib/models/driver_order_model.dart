@@ -2,7 +2,9 @@ import '../config/app_env.dart';
 import '../utils/order_status.dart';
 import '../utils/order_formatters.dart';
 import '../utils/service_type.dart';
+import 'delivery_fee_negotiation_model.dart';
 import 'order_route_model.dart';
+import 'shopping_negotiation_model.dart';
 
 typedef DriverOrderAction = DriverOrderActionModel;
 
@@ -42,6 +44,8 @@ class DriverOrderModel {
   final List<DriverShoppingStopModel> shoppingStops;
   final OrderRouteModel? route;
   final DriverShoppingPricingModel? shoppingPricing;
+  final DeliveryFeeNegotiationModel? deliveryFeeNegotiation;
+  final ShoppingNegotiationModel? shoppingNegotiation;
   final List<DriverShoppingFeeBreakdownModel> feeBreakdown;
   final List<DriverOrderProofModel> proofs;
   final bool hasPendingShoppingPrices;
@@ -84,6 +88,8 @@ class DriverOrderModel {
     OrderRouteModel? route,
     OrderRouteModel? shoppingRoute,
     this.shoppingPricing,
+    this.deliveryFeeNegotiation,
+    this.shoppingNegotiation,
     this.feeBreakdown = const <DriverShoppingFeeBreakdownModel>[],
     this.proofs = const <DriverOrderProofModel>[],
     this.hasPendingShoppingPrices = false,
@@ -159,6 +165,8 @@ class DriverOrderModel {
       shoppingStops: shoppingStops,
       route: route,
       shoppingPricing: shoppingPricing,
+      deliveryFeeNegotiation: deliveryFeeNegotiation,
+      shoppingNegotiation: shoppingNegotiation,
       feeBreakdown: feeBreakdown,
       proofs: proofs,
       hasPendingShoppingPrices: hasPendingShoppingPrices,
@@ -322,6 +330,12 @@ class DriverOrderModel {
       shoppingPricing: pricingRaw == null
           ? null
           : DriverShoppingPricingModel.fromJson(pricingRaw),
+      deliveryFeeNegotiation: DeliveryFeeNegotiationModel.fromRaw(
+        json['delivery_fee_negotiation'] ?? json['deliveryFeeNegotiation'],
+      ),
+      shoppingNegotiation: ShoppingNegotiationModel.fromRaw(
+        json['shopping_negotiation'] ?? json['shoppingNegotiation'],
+      ),
       feeBreakdown: _parseTopLevelFeeBreakdown(
         json['fee_breakdown'] ??
             pricingRaw?['fee_breakdown'] ??

@@ -7,7 +7,10 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
 import '../../../../config/payment_assets.dart';
+import '../../../../core/widgets/bang_amount_negotiation_card.dart';
+import '../../../../core/widgets/bang_counter_amount_dialog.dart';
 import '../../../../core/widgets/bang_image_preview.dart';
+import '../../../../core/widgets/bang_negotiation_cancel_sheet.dart';
 import '../../../../services/qris_download_service.dart';
 import '../../../../models/customer_order_model.dart';
 import '../../../../core/di/app_providers.dart';
@@ -387,7 +390,12 @@ class TrackOrderScreen extends ConsumerWidget {
                               ],
                               _buildRouteCard(detail),
                               const SizedBox(height: 12),
-                              _buildOrderDetailsCard(order, detail),
+                              _buildOrderDetailsCard(
+                                context,
+                                ref,
+                                order,
+                                detail,
+                              ),
                               const SizedBox(height: 12),
                               if (detail.isShoppingOrder) ...[
                                 TrackShoppingOrderItemsCard(
@@ -482,7 +490,7 @@ class TrackOrderScreen extends ConsumerWidget {
               ],
               _buildRouteCard(detail),
               const SizedBox(height: 12),
-              _buildOrderDetailsCard(order, detail),
+              _buildOrderDetailsCard(context, ref, order, detail),
               const SizedBox(height: 12),
               if (detail.isShoppingOrder) ...[
                 TrackShoppingOrderItemsCard(
@@ -550,7 +558,7 @@ class TrackOrderScreen extends ConsumerWidget {
               const SizedBox(height: 12),
               _buildRouteCard(detail),
               const SizedBox(height: 12),
-              _buildOrderDetailsCard(order, detail),
+              _buildOrderDetailsCard(context, ref, order, detail),
               const SizedBox(height: 12),
               if (detail.isShoppingOrder) ...[
                 TrackShoppingOrderItemsCard(
@@ -1083,6 +1091,8 @@ class TrackOrderScreen extends ConsumerWidget {
   // ---------------------------------------------------------------------------
 
   Widget _buildOrderDetailsCard(
+    BuildContext context,
+    WidgetRef ref,
     CustomerOrderSummaryModel order,
     CustomerOrderDetailModel detail,
   ) {
@@ -1148,8 +1158,31 @@ class TrackOrderScreen extends ConsumerWidget {
             const SizedBox(height: 12),
             TrackDeliveryFeeNotice(text: deliveryFeeNotice),
           ],
+          if (detail.deliveryFeeNegotiation?.canCustomerRespond == true) ...[
+            const SizedBox(height: 12),
+            _deliveryFeeNegotiationCard(context, ref, detail),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _deliveryFeeNegotiationCard(
+    BuildContext context,
+    WidgetRef ref,
+    CustomerOrderDetailModel detail,
+  ) {
+    final negotiation = detail.deliveryFeeNegotiation;
+    final amount = negotiation?.quotedAmount ?? 0;
+
+    return BangAmountNegotiationCard(
+      label: 'Revisi ongkir',
+      amount: amount,
+      icon: Icons.edit_road_outlined,
+      onApprove: () =>
+          _respondDeliveryFeeOverride(context, ref, detail, action: 'APPROVE'),
+      onCounter: () => _showDeliveryFeeCounterDialog(context, ref, detail),
+      onCancel: () => _showDeliveryFeeCancelSheet(context, ref, detail),
     );
   }
 
@@ -1182,6 +1215,90 @@ class TrackOrderScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _showDeliveryFeeCounterDialog(
+    BuildContext context,
+    WidgetRef ref,
+    CustomerOrderDetailModel detail,
+  ) async {
+    final amount = await showBangCounterAmountDialog(
+      context,
+      title: 'Tawar ongkir',
+    );
+
+    if (amount == null || amount <= 0 || !context.mounted) {
+      return;
+    }
+
+    await _respondDeliveryFeeOverride(
+      context,
+      ref,
+      detail,
+      action: 'COUNTER',
+      counterAmount: amount,
+    );
+  }
+
+  Future<void> _showDeliveryFeeCancelSheet(
+    BuildContext context,
+    WidgetRef ref,
+    CustomerOrderDetailModel detail,
+  ) async {
+    final action = await showBangNegotiationCancelSheet(
+      context,
+      options: const [
+        BangNegotiationCancelOption(
+          action: 'CANCEL_ORDER',
+          label: 'Batalkan pesanan',
+          icon: Icons.cancel_outlined,
+        ),
+      ],
+    );
+
+    if (action == null || !context.mounted) {
+      return;
+    }
+
+    await _respondDeliveryFeeOverride(context, ref, detail, action: action);
+  }
+
+  Future<void> _respondDeliveryFeeOverride(
+    BuildContext context,
+    WidgetRef ref,
+    CustomerOrderDetailModel detail, {
+    required String action,
+    double? counterAmount,
+  }) async {
+    try {
+      await ref
+          .read(customerOrderRepositoryProvider)
+          .respondDeliveryFeeOverride(
+            detail.summary.id,
+            action: action,
+            counterAmount: counterAmount,
+          );
+      ref.invalidate(customerOrderTrackingProvider(detail.summary.id));
+      ref.invalidate(customerOrdersProvider);
+
+      if (!context.mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Respons revisi ongkir diproses.')),
+      );
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString()),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   String? _deliveryFeeNotice(

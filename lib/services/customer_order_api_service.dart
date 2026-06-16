@@ -283,6 +283,48 @@ class CustomerOrderApiService {
     return CustomerOrderDetailModel.fromJson(response);
   }
 
+  Future<CustomerOrderDetailModel> respondShoppingPriceQuote(
+    int orderId, {
+    required String action,
+    double? counterAmount,
+    int? pickupLocationId,
+  }) async {
+    final response = await _shoppingItemRequest(
+      () async => _apiClient.post(
+        '/v1/orders/$orderId/shopping/price-quote/respond',
+        body: <String, dynamic>{
+          'action': action.trim().toUpperCase(),
+          'counter_amount': ?counterAmount,
+          'pickup_location_id': ?((pickupLocationId ?? 0) > 0
+              ? pickupLocationId
+              : null),
+        },
+        headers: await AuthService.authorizedHeaders(),
+      ),
+    );
+
+    return CustomerOrderDetailModel.fromJson(response);
+  }
+
+  Future<CustomerOrderDetailModel> respondDeliveryFeeOverride(
+    int orderId, {
+    required String action,
+    double? counterAmount,
+  }) async {
+    final response = await _shoppingItemRequest(
+      () async => _apiClient.post(
+        '/v1/orders/$orderId/delivery-fee-override/respond',
+        body: <String, dynamic>{
+          'action': action.trim().toUpperCase(),
+          'counter_amount': ?counterAmount,
+        },
+        headers: await AuthService.authorizedHeaders(),
+      ),
+    );
+
+    return CustomerOrderDetailModel.fromJson(response);
+  }
+
   Future<Map<String, dynamic>> _shoppingItemRequest(
     Future<Map<String, dynamic>> Function() request,
   ) async {
@@ -350,6 +392,8 @@ class ShoppingMerchantOption {
   final String? slug;
   final String? merchantType;
   final String? address;
+  final double? latitude;
+  final double? longitude;
 
   const ShoppingMerchantOption({
     required this.id,
@@ -357,6 +401,8 @@ class ShoppingMerchantOption {
     required this.slug,
     required this.merchantType,
     required this.address,
+    this.latitude,
+    this.longitude,
   });
 
   factory ShoppingMerchantOption.fromJson(Map<String, dynamic> json) {
@@ -366,12 +412,44 @@ class ShoppingMerchantOption {
       slug: json['slug']?.toString(),
       merchantType: json['merchant_type']?.toString(),
       address: json['address']?.toString(),
+      latitude: _toNullableDouble(json['latitude']),
+      longitude: _toNullableDouble(json['longitude']),
     );
+  }
+}
+
+class ShoppingMerchantPlacePayload {
+  final String? placeId;
+  final String name;
+  final String address;
+  final double latitude;
+  final double longitude;
+  final List<String> types;
+
+  const ShoppingMerchantPlacePayload({
+    required this.placeId,
+    required this.name,
+    required this.address,
+    required this.latitude,
+    required this.longitude,
+    this.types = const <String>[],
+  });
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      if ((placeId ?? '').trim().isNotEmpty) 'place_id': placeId!.trim(),
+      'name': name.trim(),
+      'address': address.trim(),
+      'latitude': latitude,
+      'longitude': longitude,
+      if (types.isNotEmpty) 'types': types,
+    };
   }
 }
 
 class ShoppingItemDraftPayload {
   final int? merchantId;
+  final ShoppingMerchantPlacePayload? merchantPlace;
   final int? menuId;
   final String itemSource;
   final String name;
@@ -381,6 +459,7 @@ class ShoppingItemDraftPayload {
 
   const ShoppingItemDraftPayload({
     required this.merchantId,
+    this.merchantPlace,
     this.menuId,
     this.itemSource = 'MANUAL',
     required this.name,
@@ -396,6 +475,8 @@ class ShoppingItemDraftPayload {
 
     return <String, dynamic>{
       if (merchantId != null && merchantId! > 0) 'merchant_id': merchantId,
+      if ((merchantId == null || merchantId! <= 0) && merchantPlace != null)
+        'merchant_place': merchantPlace!.toJson(),
       'item_source': normalizedSource,
       if (normalizedSource == 'MENU_DB' && menuId != null && menuId! > 0)
         'menu_id': menuId,
@@ -431,4 +512,15 @@ class ShoppingMenuOption {
     }
     return double.tryParse(value?.toString() ?? '') ?? 0;
   }
+}
+
+double? _toNullableDouble(dynamic value) {
+  if (value == null) {
+    return null;
+  }
+  if (value is num) {
+    return value.toDouble();
+  }
+  final parsed = double.tryParse(value.toString());
+  return parsed;
 }

@@ -169,6 +169,19 @@ class DriverOrderService {
     return _orderFromMutationResponse(response, orderId);
   }
 
+  Future<DriverOrderModel> acceptDeliveryFeeCounterOffer({
+    required String orderId,
+    String? note,
+  }) async {
+    final response = await _post(
+      '/v1/driver/orders/$orderId/delivery-fee-override/accept-counter',
+      body: <String, dynamic>{'note': ?note?.trim()},
+      fallback: 'Gagal menyetujui tawaran ongkir customer.',
+    );
+
+    return _orderFromMutationResponse(response, orderId);
+  }
+
   Future<void> updateDriverLocation({
     required String orderId,
     required double latitude,
@@ -278,6 +291,41 @@ class DriverOrderService {
     }
 
     return DriverOrderModel.fromJson(data);
+  }
+
+  Future<DriverOrderModel> submitShoppingPriceQuote({
+    required String orderId,
+    required double amount,
+    int? pickupLocationId,
+    String? note,
+  }) async {
+    final response = await _post(
+      '/v1/driver/orders/$orderId/shopping/price-quote',
+      body: <String, dynamic>{
+        'amount': amount,
+        if (pickupLocationId != null && pickupLocationId > 0)
+          'pickup_location_id': pickupLocationId,
+        if ((note ?? '').trim().isNotEmpty) 'note': note!.trim(),
+      },
+      fallback: 'Gagal mengirim quote harga Nitip.',
+    );
+
+    return _orderFromMutationResponse(response, orderId);
+  }
+
+  Future<DriverOrderModel> acceptShoppingCounterOffer({
+    required String orderId,
+    String? note,
+  }) async {
+    final response = await _post(
+      '/v1/driver/orders/$orderId/shopping/price-quote/accept-counter',
+      body: <String, dynamic>{
+        if ((note ?? '').trim().isNotEmpty) 'note': note!.trim(),
+      },
+      fallback: 'Gagal menyetujui tawaran customer.',
+    );
+
+    return _orderFromMutationResponse(response, orderId);
   }
 
   Future<DriverOrderModel> recordShoppingPickupFailed({
