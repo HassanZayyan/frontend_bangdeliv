@@ -198,3 +198,51 @@ bool isRestaurantMerchantType(String? type) {
   final normalized = (type ?? '').trim().toLowerCase();
   return normalized == 'restaurant' || normalized == 'resto';
 }
+
+String shoppingMerchantTypeFromPlace({
+  required String name,
+  required List<String> types,
+}) {
+  final normalizedTypes = types.map((type) => type.toLowerCase()).toSet();
+  final normalizedName = name.toLowerCase();
+
+  if (normalizedTypes.any(
+        (type) =>
+            type == 'convenience_store' ||
+            type == 'supermarket' ||
+            type == 'grocery_or_supermarket',
+      ) ||
+      normalizedName.contains('alfamart') ||
+      normalizedName.contains('indomaret') ||
+      normalizedName.contains('minimarket')) {
+    return 'convenience_store';
+  }
+
+  if (normalizedName.contains('foto copy') ||
+      normalizedName.contains('fotocopy') ||
+      normalizedName.contains('print') ||
+      normalizedName.contains('atk')) {
+    return 'other';
+  }
+
+  if (normalizedTypes.any(
+    (type) =>
+        type.contains('restaurant') ||
+        type == 'meal_takeaway' ||
+        type == 'cafe',
+  )) {
+    return 'restaurant';
+  }
+
+  if (normalizedTypes.contains('food') &&
+      (normalizedName.contains('resto') ||
+          normalizedName.contains('warung') ||
+          normalizedName.contains('kedai') ||
+          normalizedName.contains('ayam') ||
+          normalizedName.contains('bakso') ||
+          normalizedName.contains('mie'))) {
+    return 'restaurant';
+  }
+
+  return 'other';
+}

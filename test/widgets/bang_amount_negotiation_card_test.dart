@@ -32,8 +32,8 @@ void main() {
     final counterButton = tester.widget<OutlinedButton>(
       find.widgetWithText(OutlinedButton, 'Tawar'),
     );
-    final cancelButton = tester.widget<OutlinedButton>(
-      find.widgetWithText(OutlinedButton, 'Batal'),
+    final cancelButton = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Batal'),
     );
 
     expect(counterButton.onPressed, isNull);

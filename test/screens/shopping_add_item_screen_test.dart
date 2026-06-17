@@ -48,31 +48,34 @@ void main() {
     expect(payload.containsKey('menu_id'), isFalse);
   });
 
-  test('ShoppingItemDraftPayload serializes Google place merchant contract', () {
-    final payload = const ShoppingItemDraftPayload(
-      merchantId: null,
-      merchantPlace: ShoppingMerchantPlacePayload(
-        placeId: 'google-place-1',
-        name: 'Warung Google',
-        address: 'Jl. Google',
-        latitude: -7.0061,
-        longitude: 110.4061,
-        types: ['food', 'store'],
-      ),
-      name: 'Es teh',
-      quantity: 1,
-      notes: null,
-    ).toJson();
+  test(
+    'ShoppingItemDraftPayload serializes Google place merchant contract',
+    () {
+      final payload = const ShoppingItemDraftPayload(
+        merchantId: null,
+        merchantPlace: ShoppingMerchantPlacePayload(
+          placeId: 'google-place-1',
+          name: 'Warung Google',
+          address: 'Jl. Google',
+          latitude: -7.0061,
+          longitude: 110.4061,
+          types: ['food', 'store'],
+        ),
+        name: 'Es teh',
+        quantity: 1,
+        notes: null,
+      ).toJson();
 
-    expect(payload.containsKey('merchant_id'), isFalse);
-    expect(payload['item_source'], 'MANUAL');
-    expect(payload['menu_name'], 'Es teh');
-    expect(payload['merchant_place'], isA<Map<String, dynamic>>());
-    expect(payload['merchant_place']['place_id'], 'google-place-1');
-    expect(payload['merchant_place']['name'], 'Warung Google');
-    expect(payload['merchant_place']['latitude'], -7.0061);
-    expect(payload['merchant_place']['types'], ['food', 'store']);
-  });
+      expect(payload.containsKey('merchant_id'), isFalse);
+      expect(payload['item_source'], 'MANUAL');
+      expect(payload['menu_name'], 'Es teh');
+      expect(payload['merchant_place'], isA<Map<String, dynamic>>());
+      expect(payload['merchant_place']['place_id'], 'google-place-1');
+      expect(payload['merchant_place']['name'], 'Warung Google');
+      expect(payload['merchant_place']['latitude'], -7.0061);
+      expect(payload['merchant_place']['types'], ['food', 'store']);
+    },
+  );
 
   test('ShoppingItemDraftPayload serializes menu database item contract', () {
     final payload = const ShoppingItemDraftPayload(
@@ -88,8 +91,8 @@ void main() {
     expect(payload['merchant_id'], 10);
     expect(payload['item_source'], 'MENU_DB');
     expect(payload['menu_id'], 99);
+    expect(payload['menu_name'], 'Soto Ayam');
     expect(payload['quantity'], 3);
-    expect(payload.containsKey('menu_name'), isFalse);
   });
 
   test(
@@ -217,7 +220,7 @@ void main() {
       expect(service.lastItems.first.toJson(), containsPair('menu_id', 99));
       expect(
         service.lastItems.first.toJson(),
-        isNot(containsPair('menu_name', 'Soto Ayam')),
+        containsPair('menu_name', 'Soto Ayam'),
       );
     },
   );
@@ -367,8 +370,8 @@ CustomerOrderDetailModel _shoppingDetail({
       restaurantName: 'Resto Awal',
       itemsSummary: '1x Telur',
       totalAmount: totalPrice,
-      statusCode: 'DRIVER_ASSIGNED',
-      statusLabel: 'Driver Ditugaskan',
+      statusCode: 'PENDING',
+      statusLabel: 'Menunggu Driver',
       isTerminalStatus: false,
       createdAt: DateTime(2026, 5, 16),
       estimatedDelivery: null,

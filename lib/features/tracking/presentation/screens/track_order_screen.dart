@@ -17,6 +17,7 @@ import '../../../../core/di/app_providers.dart';
 import '../../../orders/application/customer_order_providers.dart';
 import '../../../orders/application/order_chat_unread_provider.dart';
 import '../../application/customer_order_tracking_provider.dart';
+import '../../application/tracking_focus_target.dart';
 import '../../../../utils/order_formatters.dart';
 import '../../../../utils/order_status.dart';
 import '../../../../utils/order_ui_helpers.dart';
@@ -27,13 +28,26 @@ import '../../application/track_order_presenter.dart';
 
 import '../widgets/track_order_widgets.dart';
 
-class TrackOrderScreen extends ConsumerWidget {
+class TrackOrderScreen extends ConsumerStatefulWidget {
   const TrackOrderScreen({super.key}) : initialOrderId = null;
 
   const TrackOrderScreen.route({super.key, required int orderId})
     : initialOrderId = orderId;
 
   final int? initialOrderId;
+
+  @override
+  ConsumerState<TrackOrderScreen> createState() => _TrackOrderScreenState();
+}
+
+class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
+  final GlobalKey _paymentFocusKey = GlobalKey(debugLabel: 'payment_focus');
+  final GlobalKey _deliveryFeeFocusKey = GlobalKey(
+    debugLabel: 'delivery_fee_focus',
+  );
+  final Map<int, GlobalKey> _shoppingPriceFocusKeys = <int, GlobalKey>{};
+  String? _scheduledFocusSignature;
+  String? _completedFocusSignature;
 
   static const _kStepLabelsDefault = [
     'Menunggu',
@@ -52,10 +66,12 @@ class TrackOrderScreen extends ConsumerWidget {
   ];
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final routeArgs = initialOrderId != null
-        ? TrackRouteArgs(orderId: initialOrderId)
-        : TrackOrderPresenter.extractRouteArgs(GoRouterState.of(context).extra);
+  Widget build(BuildContext context) {
+    final goRouterState = GoRouterState.of(context);
+    final focusTarget = TrackingFocusTarget.fromUri(goRouterState.uri);
+    final routeArgs = widget.initialOrderId != null
+        ? TrackRouteArgs(orderId: widget.initialOrderId)
+        : TrackOrderPresenter.extractRouteArgs(goRouterState.extra);
     final orderId = routeArgs.orderId;
 
     if (orderId != null) {
@@ -76,6 +92,7 @@ class TrackOrderScreen extends ConsumerWidget {
             // Errors are rendered by the provider state.
           }
         },
+        focusTarget: focusTarget,
       );
     }
 
@@ -88,6 +105,7 @@ class TrackOrderScreen extends ConsumerWidget {
         const AsyncLoading<CustomerOrderTrackingState>(),
         showEmptyForNoActiveOrder: false,
         onRetry: () => ref.invalidate(customerOrdersProvider),
+        focusTarget: focusTarget,
       ),
       error: (error, stackTrace) => _buildScaffold(
         context,
@@ -95,6 +113,7 @@ class TrackOrderScreen extends ConsumerWidget {
         AsyncError<CustomerOrderTrackingState>(error, stackTrace),
         showEmptyForNoActiveOrder: false,
         onRetry: () => ref.invalidate(customerOrdersProvider),
+        focusTarget: focusTarget,
       ),
       data: (_) {
         final activeOrder = ref.watch(customerActiveOrderProvider);
@@ -105,6 +124,7 @@ class TrackOrderScreen extends ConsumerWidget {
             const AsyncLoading<CustomerOrderTrackingState>(),
             showEmptyForNoActiveOrder: true,
             onRetry: () => ref.invalidate(customerOrdersProvider),
+            focusTarget: focusTarget,
           );
         }
         final trackingProvider = customerOrderTrackingProvider(activeOrder.id);
@@ -123,6 +143,7 @@ class TrackOrderScreen extends ConsumerWidget {
               // Errors are rendered by the provider state.
             }
           },
+          focusTarget: focusTarget,
         );
       },
     );
@@ -136,6 +157,7 @@ class TrackOrderScreen extends ConsumerWidget {
     required bool showEmptyForNoActiveOrder,
     required VoidCallback onRetry,
     Future<void> Function()? onRefresh,
+    TrackingFocusTarget? focusTarget,
   }) {
     final appBarTitle = TrackOrderPresenter.appBarTitle(
       forceHistoryTitle: forceHistoryTitle,
@@ -195,8 +217,66 @@ class TrackOrderScreen extends ConsumerWidget {
                 ref,
                 tracking,
                 onRefresh: onRefresh,
+                focusTarget: focusTarget,
               ),
             ),
+    );
+  }
+
+  void _scheduleFocusScroll(TrackingFocusTarget? target) {
+    if (target == null) {
+      return;
+    }
+
+    final signature = target.signature;
+    if (_completedFocusSignature == signature ||
+        _scheduledFocusSignature == signature) {
+      return;
+    }
+
+    _scheduledFocusSignature = signature;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scheduledFocusSignature = null;
+      if (!mounted) {
+        return;
+      }
+
+      final context = _contextForFocusTarget(target);
+      if (context == null) {
+        return;
+      }
+
+      _completedFocusSignature = signature;
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOutCubic,
+        alignment: 0.12,
+      );
+    });
+  }
+
+  BuildContext? _contextForFocusTarget(TrackingFocusTarget target) {
+    if (target.isPayment) {
+      return _paymentFocusKey.currentContext;
+    }
+    if (target.isDeliveryFee) {
+      return _deliveryFeeFocusKey.currentContext;
+    }
+    if (target.isShoppingPrice) {
+      final pickupLocationId = target.pickupLocationId;
+      if (pickupLocationId != null) {
+        return _shoppingPriceFocusKeys[pickupLocationId]?.currentContext;
+      }
+    }
+
+    return null;
+  }
+
+  GlobalKey _shoppingPriceFocusKey(int pickupLocationId) {
+    return _shoppingPriceFocusKeys.putIfAbsent(
+      pickupLocationId,
+      () => GlobalKey(debugLabel: 'shopping_price_focus_$pickupLocationId'),
     );
   }
 
@@ -264,7 +344,10 @@ class TrackOrderScreen extends ConsumerWidget {
     WidgetRef ref,
     CustomerOrderTrackingState tracking, {
     Future<void> Function()? onRefresh,
+    TrackingFocusTarget? focusTarget,
   }) {
+    _scheduleFocusScroll(focusTarget);
+
     final detail = tracking.detail;
     final order = detail.summary;
     final shouldShowMap = TrackOrderPresenter.shouldShowTrackingMap(order);
@@ -401,6 +484,8 @@ class TrackOrderScreen extends ConsumerWidget {
                                 TrackShoppingOrderItemsCard(
                                   detail: detail,
                                   onChanged: onRefresh,
+                                  shoppingPriceFocusKeyFor:
+                                      _shoppingPriceFocusKey,
                                 ),
                                 const SizedBox(height: 12),
                               ],
@@ -496,6 +581,7 @@ class TrackOrderScreen extends ConsumerWidget {
                 TrackShoppingOrderItemsCard(
                   detail: detail,
                   onChanged: onRefresh,
+                  shoppingPriceFocusKeyFor: _shoppingPriceFocusKey,
                 ),
                 const SizedBox(height: 12),
               ],
@@ -564,6 +650,7 @@ class TrackOrderScreen extends ConsumerWidget {
                 TrackShoppingOrderItemsCard(
                   detail: detail,
                   onChanged: onRefresh,
+                  shoppingPriceFocusKeyFor: _shoppingPriceFocusKey,
                 ),
                 const SizedBox(height: 12),
               ],
@@ -1175,14 +1262,21 @@ class TrackOrderScreen extends ConsumerWidget {
     final negotiation = detail.deliveryFeeNegotiation;
     final amount = negotiation?.quotedAmount ?? 0;
 
-    return BangAmountNegotiationCard(
-      label: 'Revisi ongkir',
-      amount: amount,
-      icon: Icons.edit_road_outlined,
-      onApprove: () =>
-          _respondDeliveryFeeOverride(context, ref, detail, action: 'APPROVE'),
-      onCounter: () => _showDeliveryFeeCounterDialog(context, ref, detail),
-      onCancel: () => _showDeliveryFeeCancelSheet(context, ref, detail),
+    return KeyedSubtree(
+      key: _deliveryFeeFocusKey,
+      child: BangAmountNegotiationCard(
+        label: 'Revisi ongkir',
+        amount: amount,
+        icon: Icons.edit_road_outlined,
+        onApprove: () => _respondDeliveryFeeOverride(
+          context,
+          ref,
+          detail,
+          action: 'APPROVE',
+        ),
+        onCounter: () => _showDeliveryFeeCounterDialog(context, ref, detail),
+        onCancel: () => _showDeliveryFeeCancelSheet(context, ref, detail),
+      ),
     );
   }
 
@@ -1514,65 +1608,68 @@ class TrackOrderScreen extends ConsumerWidget {
       hasPendingTransferProof: hasPendingTransferProof,
     );
 
-    return _buildCard(
-      title: 'Pembayaran',
-      icon: Icons.payments_outlined,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _paymentChip(
-                paymentMethodLabel(normalizedPaymentMethod),
-                statusColor,
-              ),
-              _paymentChip(
-                paymentStatusLabel(detail.paymentStatus),
-                statusColor,
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            paymentMessage,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-              height: 1.45,
-            ),
-          ),
-          if (!isPaid) ...[
-            const SizedBox(height: 6),
-            Text(
-              'Nominal: ${formatCurrency(order.totalAmount)}',
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12.5,
-              ),
+    return KeyedSubtree(
+      key: _paymentFocusKey,
+      child: _buildCard(
+        title: 'Pembayaran',
+        icon: Icons.payments_outlined,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _paymentChip(
+                  paymentMethodLabel(normalizedPaymentMethod),
+                  statusColor,
+                ),
+                _paymentChip(
+                  paymentStatusLabel(detail.paymentStatus),
+                  statusColor,
+                ),
+              ],
             ),
             const SizedBox(height: 12),
-            if (isTransfer || isCancelledWithFee) ...[
-              _buildQrisPaymentPanel(context, ref),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => _uploadTransferEvidence(
-                    context,
-                    ref,
-                    order.id,
-                    onRefresh,
-                  ),
-                  icon: const Icon(Icons.upload_file_outlined),
-                  label: const Text('Upload Bukti QRIS'),
+            Text(
+              paymentMessage,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                height: 1.45,
+              ),
+            ),
+            if (!isPaid) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Nominal: ${formatCurrency(order.totalAmount)}',
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12.5,
                 ),
               ),
+              const SizedBox(height: 12),
+              if (isTransfer || isCancelledWithFee) ...[
+                _buildQrisPaymentPanel(context, ref),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _uploadTransferEvidence(
+                      context,
+                      ref,
+                      order.id,
+                      onRefresh,
+                    ),
+                    icon: const Icon(Icons.upload_file_outlined),
+                    label: const Text('Upload Bukti QRIS'),
+                  ),
+                ),
+              ],
             ],
           ],
-        ],
+        ),
       ),
     );
   }

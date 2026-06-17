@@ -27,6 +27,8 @@ class AppRoutes {
   static const String shoppingAddItem = '/orders/:orderId/shopping/add-item';
   static const String shoppingMerchantMapPicker =
       '/orders/:orderId/shopping/merchant-map-picker';
+  static const String chatbotShoppingMerchantMapPicker =
+      '/chatbot/shopping/merchant-map-picker';
   static const String orderChat = '/orders/:orderId/chat';
   static const String menuDetail = '/menu/:menuId';
   static const String merchantDetail = '/merchant/:merchantId';
@@ -53,6 +55,10 @@ class AppRoutes {
     return '/orders/$orderId/shopping/merchant-map-picker';
   }
 
+  static String chatbotShoppingMerchantMapPickerPath() {
+    return chatbotShoppingMerchantMapPicker;
+  }
+
   static String driverOrderActivePath(String orderId) {
     return '/driver/orders/$orderId/active';
   }
@@ -65,7 +71,24 @@ class AppRoutes {
     return '/orders/$orderId/chat';
   }
 
-  static String orderTrackPath(Object orderId) {
-    return '/orders/$orderId/track';
+  static String orderTrackPath(
+    Object orderId, {
+    String? focus,
+    int? pickupLocationId,
+  }) {
+    final path = '/orders/$orderId/track';
+    if (focus == null || focus.trim().isEmpty) {
+      return path;
+    }
+
+    final query = Uri(
+      queryParameters: {
+        'focus': focus.trim(),
+        if (pickupLocationId != null)
+          'pickup_location_id': pickupLocationId.toString(),
+      },
+    ).query;
+
+    return '$path?$query';
   }
 }

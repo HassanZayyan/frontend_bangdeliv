@@ -1,34 +1,51 @@
 import 'package:flutter/material.dart';
 
+import '../../config/app_colors.dart';
 import '../../utils/currency_input_parser.dart';
+import '../../utils/order_formatters.dart';
 
 Future<double?> showBangCounterAmountDialog(
   BuildContext context, {
   required String title,
+  double? currentAmount,
   String hintText = 'Nominal tawaran',
 }) async {
-  final amount = await showDialog<double>(
+  final amount = await showModalBottomSheet<double>(
     context: context,
-    builder: (dialogContext) =>
-        _BangCounterAmountDialog(title: title, hintText: hintText),
+    isScrollControlled: true,
+    backgroundColor: AppColors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (dialogContext) => _BangCounterAmountSheet(
+      title: title,
+      hintText: hintText,
+      currentAmount: currentAmount,
+    ),
   );
 
   return amount != null && amount > 0 ? amount : null;
 }
 
-class _BangCounterAmountDialog extends StatefulWidget {
-  const _BangCounterAmountDialog({required this.title, required this.hintText});
+class _BangCounterAmountSheet extends StatefulWidget {
+  const _BangCounterAmountSheet({
+    required this.title,
+    required this.hintText,
+    this.currentAmount,
+  });
 
   final String title;
   final String hintText;
+  final double? currentAmount;
 
   @override
-  State<_BangCounterAmountDialog> createState() =>
-      _BangCounterAmountDialogState();
+  State<_BangCounterAmountSheet> createState() =>
+      _BangCounterAmountSheetState();
 }
 
-class _BangCounterAmountDialogState extends State<_BangCounterAmountDialog> {
+class _BangCounterAmountSheetState extends State<_BangCounterAmountSheet> {
   late final TextEditingController _controller;
+  String? _errorText;
 
   @override
   void initState() {
@@ -44,30 +61,91 @@ class _BangCounterAmountDialogState extends State<_BangCounterAmountDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.title),
-      content: TextField(
-        controller: _controller,
-        keyboardType: TextInputType.number,
-        autofocus: true,
-        decoration: InputDecoration(
-          prefixText: 'Rp ',
-          hintText: widget.hintText,
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+
+    return SafeArea(
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.fromLTRB(18, 18, 18, viewInsets.bottom + 18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 38,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            Text(
+              widget.title,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            if ((widget.currentAmount ?? 0) > 0) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Harga saat ini ${formatCurrency(widget.currentAmount!)}',
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+            TextField(
+              controller: _controller,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w700,
+              ),
+              decoration: InputDecoration(
+                labelText: widget.hintText,
+                prefixText: 'Rp ',
+                errorText: _errorText,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Batal'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: _submit,
+                    child: const Text('Kirim'),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Batal'),
-        ),
-        FilledButton(
-          onPressed: () {
-            final parsed = parseCurrencyInput(_controller.text);
-            Navigator.of(context).pop(parsed > 0 ? parsed : null);
-          },
-          child: const Text('Kirim'),
-        ),
-      ],
     );
+  }
+
+  void _submit() {
+    final parsed = parseCurrencyInput(_controller.text);
+    if (parsed <= 0) {
+      setState(() => _errorText = 'Nominal tawaran wajib lebih dari 0.');
+      return;
+    }
+
+    Navigator.of(context).pop(parsed);
   }
 }

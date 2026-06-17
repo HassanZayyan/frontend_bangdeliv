@@ -26,6 +26,16 @@ abstract class CustomerOrderRepository {
     int? replacementForPickupLocationId,
   });
 
+  Future<CustomerOrderDetailModel> requestShoppingItemChange(
+    int orderId, {
+    required String action,
+    String? requestKind,
+    List<ShoppingItemDraftPayload> items,
+    int? itemId,
+    int? targetPickupLocationId,
+    String? note,
+  });
+
   Future<CustomerOrderDetailModel> updateShoppingItem(
     int orderId,
     int itemId, {
@@ -108,6 +118,27 @@ class ApiCustomerOrderRepository implements CustomerOrderRepository {
       orderId,
       items,
       replacementForPickupLocationId: replacementForPickupLocationId,
+    );
+  }
+
+  @override
+  Future<CustomerOrderDetailModel> requestShoppingItemChange(
+    int orderId, {
+    required String action,
+    String? requestKind,
+    List<ShoppingItemDraftPayload> items = const <ShoppingItemDraftPayload>[],
+    int? itemId,
+    int? targetPickupLocationId,
+    String? note,
+  }) {
+    return _service.requestShoppingItemChange(
+      orderId,
+      action: action,
+      requestKind: requestKind,
+      items: items,
+      itemId: itemId,
+      targetPickupLocationId: targetPickupLocationId,
+      note: note,
     );
   }
 

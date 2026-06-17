@@ -170,16 +170,29 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               extra is ShoppingAddItemRouteArgs
               ? extra.replacementForPickupLocationId
               : null;
+          final targetPickupLocationId = extra is ShoppingAddItemRouteArgs
+              ? extra.targetPickupLocationId
+              : null;
 
           return ShoppingAddItemScreen(
             orderId: orderId,
             initialDetail: detail,
             replacementForPickupLocationId: replacementForPickupLocationId,
+            targetPickupLocationId: targetPickupLocationId,
           );
         },
       ),
       _rootRoute(
         path: AppRoutes.shoppingMerchantMapPicker,
+        builder: (context, state) {
+          final extra = state.extra;
+          return ShoppingMerchantMapPickerScreen(
+            args: extra is ShoppingMerchantMapPickerArgs ? extra : null,
+          );
+        },
+      ),
+      _rootRoute(
+        path: AppRoutes.chatbotShoppingMerchantMapPicker,
         builder: (context, state) {
           final extra = state.extra;
           return ShoppingMerchantMapPickerScreen(
@@ -540,6 +553,7 @@ const Set<String> _customerOnlyRoutes = {
   AppRoutes.track,
   AppRoutes.shoppingAddItem,
   AppRoutes.shoppingMerchantMapPicker,
+  AppRoutes.chatbotShoppingMerchantMapPicker,
   AppRoutes.addresses,
   AppRoutes.addressPicker,
   AppRoutes.addAddress,

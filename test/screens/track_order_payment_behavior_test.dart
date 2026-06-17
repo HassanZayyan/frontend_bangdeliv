@@ -61,7 +61,7 @@ void main() {
   });
 
   test(
-    'failed shopping merchant actions only show while order is editable',
+    'failed shopping merchant actions only show while merchant resolution is allowed',
     () {
       final widgetsSource = File(_trackOrderWidgetsPath).readAsStringSync();
       final failedStopNotice = widgetsSource.substring(
@@ -71,9 +71,7 @@ void main() {
 
       expect(
         failedStopNotice,
-        contains(
-          'final canResolveFailedStop = widget.detail.canEditShoppingItems',
-        ),
+        contains('widget.detail.canResolveFailedShoppingMerchant'),
       );
       expect(failedStopNotice, contains('if (canResolveFailedStop)'));
       expect(failedStopNotice, contains('Tambah pengganti'));

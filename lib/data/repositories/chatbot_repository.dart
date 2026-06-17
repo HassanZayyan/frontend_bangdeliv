@@ -1,5 +1,6 @@
 import '../../models/chatbot_model.dart';
 import '../../services/chatbot_api_service.dart';
+import '../../services/customer_order_api_service.dart';
 
 abstract class ChatbotRepository {
   Future<ChatbotResult> sendMessage(
@@ -32,6 +33,13 @@ abstract class ChatbotRepository {
     String sessionId, {
     required String serviceType,
     required List<ChatbotLocationPatchRequest> locations,
+  });
+
+  Future<ChatbotResult> patchSessionMerchant(
+    String sessionId, {
+    required String serviceType,
+    int? merchantId,
+    ShoppingMerchantPlacePayload? merchantPlace,
   });
 
   Future<void> clearSession(String sessionId);
@@ -105,6 +113,21 @@ class ApiChatbotRepository implements ChatbotRepository {
       sessionId,
       serviceType: serviceType,
       locations: locations,
+    );
+  }
+
+  @override
+  Future<ChatbotResult> patchSessionMerchant(
+    String sessionId, {
+    required String serviceType,
+    int? merchantId,
+    ShoppingMerchantPlacePayload? merchantPlace,
+  }) {
+    return _service.patchSessionMerchant(
+      sessionId,
+      serviceType: serviceType,
+      merchantId: merchantId,
+      merchantPlace: merchantPlace,
     );
   }
 

@@ -16,16 +16,45 @@ void main() {
     expect(route, '/orders/42/chat');
   });
 
-  test('order price notification routes customer to tracking screen', () {
+  test(
+    'order price notification routes customer to focused tracking screen',
+    () {
+      final route = FirebaseNotificationService.routeForNotificationData(
+        const <String, dynamic>{
+          'type': 'order_price_changed',
+          'order_id': '42',
+          'recipient_role': 'customer',
+          'change_type': 'DRIVER_FEE_QUOTED',
+        },
+      );
+
+      expect(route, '/orders/42/track?focus=delivery_fee');
+    },
+  );
+
+  test('shopping price notification keeps merchant focus query', () {
     final route = FirebaseNotificationService.routeForNotificationData(
       const <String, dynamic>{
         'type': 'order_price_changed',
         'order_id': '42',
         'recipient_role': 'customer',
+        'focus': 'shopping_price',
+        'pickup_location_id': '7',
       },
     );
 
-    expect(route, '/orders/42/track');
+    expect(route, '/orders/42/track?focus=shopping_price&pickup_location_id=7');
+  });
+
+  test('payment proof reminder notification routes to payment card', () {
+    final route = FirebaseNotificationService.routeForNotificationData(
+      const <String, dynamic>{
+        'type': 'payment_proof_required',
+        'order_id': '42',
+      },
+    );
+
+    expect(route, '/orders/42/track?focus=payment');
   });
 
   test('order price notification routes driver to active order screen', () {
@@ -85,8 +114,10 @@ void main() {
     'notification navigation allows tracking chat and driver active routes only',
     () {
       expect(
-        NotificationNavigationService.normalizeRoute('/orders/42/track'),
-        '/orders/42/track',
+        NotificationNavigationService.normalizeRoute(
+          '/orders/42/track?focus=payment',
+        ),
+        '/orders/42/track?focus=payment',
       );
       expect(
         NotificationNavigationService.normalizeRoute('/orders/42/chat'),

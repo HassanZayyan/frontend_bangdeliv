@@ -2,6 +2,7 @@ import '../models/chatbot_model.dart';
 import 'api_client.dart';
 import 'api_exception.dart';
 import 'auth_service.dart';
+import 'customer_order_api_service.dart';
 
 class ChatbotLocationPatchRequest {
   const ChatbotLocationPatchRequest({
@@ -226,6 +227,49 @@ class ChatbotApiService {
       throw ApiException(
         response['message']?.toString() ??
             'Gagal memperbarui titik rute chatbot.',
+      );
+    }
+
+    return ChatbotResult.fromApiJson(response);
+  }
+
+  Future<ChatbotResult> patchSessionMerchant(
+    String sessionId, {
+    required String serviceType,
+    int? merchantId,
+    ShoppingMerchantPlacePayload? merchantPlace,
+  }) async {
+    final normalizedSessionId = sessionId.trim();
+    if (normalizedSessionId.isEmpty) {
+      throw const ApiException('Session chat tidak valid.');
+    }
+    if ((merchantId == null || merchantId <= 0) && merchantPlace == null) {
+      throw const ApiException('Merchant belum dipilih.');
+    }
+
+    final requestBody = <String, dynamic>{
+      'service_type': serviceType,
+      if (merchantId != null && merchantId > 0) 'merchant_id': merchantId,
+      if (merchantPlace != null) 'merchant_place': merchantPlace.toJson(),
+    };
+
+    Map<String, dynamic> response;
+    try {
+      response = await _apiClient.post(
+        '/chatbot/sessions/$normalizedSessionId/merchant',
+        body: requestBody,
+        headers: await AuthService.authorizedHeaders(),
+        timeout: _historyTimeout,
+      );
+    } on AuthException catch (error) {
+      throw ApiException(error.message);
+    }
+
+    final status = response['status']?.toString().toLowerCase();
+    if (status == 'error') {
+      throw ApiException(
+        response['message']?.toString() ??
+            'Gagal memperbarui merchant chatbot.',
       );
     }
 

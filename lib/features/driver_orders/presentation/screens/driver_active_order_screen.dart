@@ -172,37 +172,31 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 if (order.shoppingItems.isNotEmpty) ...[
-                  if (DriverShoppingPriceNegotiationCard.shouldShow(order)) ...[
-                    DriverShoppingPriceNegotiationCard(
-                      order: order,
+                  if (DriverShoppingItemChangeRequestCard.shouldShow(
+                    order,
+                  )) ...[
+                    DriverShoppingItemChangeRequestCard(
+                      request: order.shoppingItemChangeRequest!,
                       isOrderBusy: isOrderBusy,
-                      isSubmittingQuote: isProcessingAction(
-                        DriverOrderActionKeys.shoppingPriceQuote(order.id),
+                      isApproving: isProcessingAction(
+                        DriverOrderActionKeys.respondShoppingItemChange(
+                          order.id,
+                          'APPROVE',
+                        ),
                       ),
-                      isAcceptingCounter: isProcessingAction(
-                        DriverOrderActionKeys.acceptShoppingCounter(order.id),
+                      isRejecting: isProcessingAction(
+                        DriverOrderActionKeys.respondShoppingItemChange(
+                          order.id,
+                          'REJECT',
+                        ),
                       ),
-                      onSubmitQuote:
-                          ({required amount, pickupLocationId, note}) async {
-                            final error = await ref
-                                .read(driverOrdersProvider.notifier)
-                                .submitShoppingPriceQuote(
-                                  orderId: order.id,
-                                  amount: amount,
-                                  pickupLocationId: pickupLocationId,
-                                  note: note,
-                                );
-                            if (error == null) {
-                              ref.invalidate(
-                                driverOrderDetailProvider(order.id),
-                              );
-                            }
-                            return error;
-                          },
-                      onAcceptCounter: () async {
+                      onRespond: (action) async {
                         final error = await ref
                             .read(driverOrdersProvider.notifier)
-                            .acceptShoppingCounterOffer(orderId: order.id);
+                            .respondShoppingItemChange(
+                              orderId: order.id,
+                              action: action,
+                            );
                         if (error == null) {
                           ref.invalidate(driverOrderDetailProvider(order.id));
                         }
@@ -217,48 +211,104 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                     isSavingCheckout: isProcessingAction(
                       DriverOrderActionKeys.shoppingCheckout(order.id),
                     ),
-                    onUploadReceipt: (photo, note) {
+                    isSavingItems: (pickupLocationId) => isProcessingAction(
+                      DriverOrderActionKeys.updateShoppingItems(
+                        order.id,
+                        pickupLocationId,
+                      ),
+                    ),
+                    canEditAvailability: order
+                        .shoppingCapabilities
+                        .canDriverUpdateItemAvailability,
+                    canUploadReceipt:
+                        order.shoppingCapabilities.canDriverUploadReceipt,
+                    canCheckout:
+                        order.shoppingNegotiation?.checkoutAllowed == true &&
+                        !order.shoppingCapabilities.hasPendingItemChangeRequest,
+                    isSubmittingQuote: (pickupLocationId) => isProcessingAction(
+                      DriverOrderActionKeys.shoppingPriceQuote(
+                        order.id,
+                        pickupLocationId,
+                      ),
+                    ),
+                    isAcceptingCounter: (pickupLocationId) =>
+                        isProcessingAction(
+                          DriverOrderActionKeys.acceptShoppingCounter(
+                            order.id,
+                            pickupLocationId,
+                          ),
+                        ),
+                    onUploadReceipt: (photo) {
                       return ref
                           .read(driverOrdersProvider.notifier)
                           .uploadProof(
                             orderId: order.id,
                             type: 'receipt',
                             photo: photo,
-                            note: note,
                           );
                     },
-                    onSave:
-                        (
-                          items,
-                          shoppingTotalAmount,
-                          deliveryFeeOverride,
-                          receiptNote,
-                          receiptPhoto,
-                        ) async {
-                          final error = await ref
-                              .read(driverOrdersProvider.notifier)
-                              .updateShoppingCheckout(
-                                orderId: order.id,
-                                items: items,
-                                shoppingTotalAmount: shoppingTotalAmount,
-                                deliveryFeeOverride: deliveryFeeOverride,
-                                receiptNote: receiptNote,
-                                receiptPhoto: receiptPhoto,
-                              );
+                    onSubmitQuote: ({required amount, pickupLocationId}) async {
+                      final error = await ref
+                          .read(driverOrdersProvider.notifier)
+                          .submitShoppingPriceQuote(
+                            orderId: order.id,
+                            amount: amount,
+                            pickupLocationId: pickupLocationId,
+                          );
+                      if (error == null) {
+                        ref.invalidate(driverOrderDetailProvider(order.id));
+                      }
+                      return error;
+                    },
+                    onAcceptCounter: ({pickupLocationId}) async {
+                      final error = await ref
+                          .read(driverOrdersProvider.notifier)
+                          .acceptShoppingCounterOffer(
+                            orderId: order.id,
+                            pickupLocationId: pickupLocationId,
+                          );
+                      if (error == null) {
+                        ref.invalidate(driverOrderDetailProvider(order.id));
+                      }
+                      return error;
+                    },
+                    onSaveItems: (items, pickupLocationId) async {
+                      final error = await ref
+                          .read(driverOrdersProvider.notifier)
+                          .updateShoppingItems(
+                            orderId: order.id,
+                            items: items,
+                            pickupLocationId: pickupLocationId,
+                          );
 
-                          if (error == null) {
-                            ref.invalidate(driverOrderDetailProvider(order.id));
-                            try {
-                              await ref.read(
-                                driverOrderDetailProvider(order.id).future,
-                              );
-                            } catch (_) {
-                              return 'Checkout tersimpan, tapi detail order belum berhasil dimuat ulang. Tarik layar untuk refresh.';
-                            }
-                          }
+                      if (error == null) {
+                        ref.invalidate(driverOrderDetailProvider(order.id));
+                      }
 
-                          return error;
-                        },
+                      return error;
+                    },
+                    onSave: (items, receiptPhoto) async {
+                      final error = await ref
+                          .read(driverOrdersProvider.notifier)
+                          .updateShoppingCheckout(
+                            orderId: order.id,
+                            items: items,
+                            receiptPhoto: receiptPhoto,
+                          );
+
+                      if (error == null) {
+                        ref.invalidate(driverOrderDetailProvider(order.id));
+                        try {
+                          await ref.read(
+                            driverOrderDetailProvider(order.id).future,
+                          );
+                        } catch (_) {
+                          return 'Checkout tersimpan, tapi detail order belum berhasil dimuat ulang. Tarik layar untuk refresh.';
+                        }
+                      }
+
+                      return error;
+                    },
                   ),
                   const SizedBox(height: 12),
                 ],
