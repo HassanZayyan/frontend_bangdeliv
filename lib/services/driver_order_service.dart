@@ -226,24 +226,14 @@ class DriverOrderService {
   Future<DriverOrderModel> updateShoppingCheckout({
     required String orderId,
     required List<Map<String, dynamic>> items,
-    required double shoppingTotalAmount,
-    double? deliveryFeeOverride,
-    String? receiptNote,
     XFile? receiptPhoto,
   }) async {
-    final normalizedNote = receiptNote?.trim();
     final path = '/v1/driver/orders/$orderId/shopping-checkout';
 
     if (receiptPhoto == null) {
       final response = await _patch(
         path,
-        body: <String, dynamic>{
-          'shopping_total_amount': shoppingTotalAmount,
-          'delivery_fee_override': ?deliveryFeeOverride,
-          if (normalizedNote != null && normalizedNote.isNotEmpty)
-            'receipt_note': normalizedNote,
-          'items': items,
-        },
+        body: <String, dynamic>{'items': items},
         fallback: 'Gagal menyimpan checkout nitip.',
       );
 
@@ -253,14 +243,7 @@ class DriverOrderService {
     final response = await _multipart(
       'POST',
       path,
-      fields: <String, String>{
-        '_method': 'PATCH',
-        'shopping_total_amount': shoppingTotalAmount.toString(),
-        'delivery_fee_override': ?deliveryFeeOverride?.toString(),
-        if (normalizedNote != null && normalizedNote.isNotEmpty)
-          'receipt_note': normalizedNote,
-        'items': jsonEncode(items),
-      },
+      fields: <String, String>{'_method': 'PATCH', 'items': jsonEncode(items)},
       files: <String, XFile>{'receipt_photo': receiptPhoto},
       fallback: 'Gagal menyimpan checkout nitip.',
     );
@@ -271,14 +254,14 @@ class DriverOrderService {
   Future<DriverOrderModel> updateShoppingItems({
     required String orderId,
     required List<Map<String, dynamic>> items,
-    String? receiptNote,
+    int? pickupLocationId,
   }) async {
     final response = await _patch(
       '/v1/driver/orders/$orderId/shopping-items',
       body: <String, dynamic>{
+        if (pickupLocationId != null && pickupLocationId > 0)
+          'pickup_location_id': pickupLocationId,
         'items': items,
-        if ((receiptNote ?? '').trim().isNotEmpty)
-          'receipt_note': receiptNote!.trim(),
       },
     );
 
@@ -297,7 +280,6 @@ class DriverOrderService {
     required String orderId,
     required double amount,
     int? pickupLocationId,
-    String? note,
   }) async {
     final response = await _post(
       '/v1/driver/orders/$orderId/shopping/price-quote',
@@ -305,7 +287,6 @@ class DriverOrderService {
         'amount': amount,
         if (pickupLocationId != null && pickupLocationId > 0)
           'pickup_location_id': pickupLocationId,
-        if ((note ?? '').trim().isNotEmpty) 'note': note!.trim(),
       },
       fallback: 'Gagal mengirim quote harga Nitip.',
     );
@@ -315,14 +296,32 @@ class DriverOrderService {
 
   Future<DriverOrderModel> acceptShoppingCounterOffer({
     required String orderId,
-    String? note,
+    int? pickupLocationId,
   }) async {
     final response = await _post(
       '/v1/driver/orders/$orderId/shopping/price-quote/accept-counter',
       body: <String, dynamic>{
-        if ((note ?? '').trim().isNotEmpty) 'note': note!.trim(),
+        if (pickupLocationId != null && pickupLocationId > 0)
+          'pickup_location_id': pickupLocationId,
       },
       fallback: 'Gagal menyetujui tawaran customer.',
+    );
+
+    return _orderFromMutationResponse(response, orderId);
+  }
+
+  Future<DriverOrderModel> respondShoppingItemChange({
+    required String orderId,
+    required String action,
+    String? note,
+  }) async {
+    final response = await _post(
+      '/v1/driver/orders/$orderId/shopping/item-change-request/respond',
+      body: <String, dynamic>{
+        'action': action.trim().toUpperCase(),
+        if ((note ?? '').trim().isNotEmpty) 'note': note!.trim(),
+      },
+      fallback: 'Gagal memproses request perubahan item.',
     );
 
     return _orderFromMutationResponse(response, orderId);

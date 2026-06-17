@@ -15,6 +15,7 @@ import 'package:frontend_bangdeliv/features/chatbot/presentation/screens/chatbot
 import 'package:frontend_bangdeliv/services/api_client.dart';
 import 'package:frontend_bangdeliv/services/api_exception.dart';
 import 'package:frontend_bangdeliv/services/chatbot_api_service.dart';
+import 'package:frontend_bangdeliv/services/customer_order_api_service.dart';
 
 void main() {
   testWidgets('antar_jemput now uses backend chatbot response', (
@@ -90,6 +91,10 @@ void main() {
     expect(find.textContaining('Contoh: Beli di'), findsOneWidget);
     expect(find.textContaining('- ayam geprek 2'), findsOneWidget);
     expect(find.textContaining('- es teh 1'), findsOneWidget);
+    expect(
+      find.widgetWithText(OutlinedButton, 'Pilih Merchant di Map'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('chatbot input keyboard uses newline instead of keyboard send', (
@@ -258,6 +263,23 @@ void main() {
     );
     expect(find.widgetWithText(OutlinedButton, 'COD'), findsNothing);
     expect(find.widgetWithText(OutlinedButton, 'QRIS'), findsNothing);
+  });
+
+  testWidgets('nitip missing merchant shows merchant map picker action', (
+    WidgetTester tester,
+  ) async {
+    await _pumpChatbot(
+      tester,
+      serviceType: 'nitip',
+      chatbotApiService: _FakeChatbotApiService(),
+    );
+
+    await _sendMessage(tester, 'beli sembako');
+
+    expect(
+      find.widgetWithText(OutlinedButton, 'Pilih Merchant di Map'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('only latest chatbot action buttons stay enabled', (
@@ -849,6 +871,42 @@ class _FakeChatbotApiService extends ChatbotApiService {
       });
     }
 
+    if (serviceType == 'nitip' && normalized == 'beli sembako') {
+      return ChatbotResult.fromApiJson({
+        'status': 'success',
+        'session_id': sessionId,
+        'service_context': {'service_type': serviceType},
+        'model_used': 'gemini-3.1-flash-lite',
+        'data': {
+          'intent': 'shopping_order',
+          'assistant_text': 'Draft Nitip belum lengkap. Lengkapi: merchant.',
+          'shopping': {
+            'ready_to_confirm': false,
+            'payment_method': null,
+            'merchant': {'id': null, 'name': null},
+            'delivery': {'address': 'FISIP UNDIP'},
+            'items': [
+              {'name': 'sembako', 'quantity': 1, 'unit_price': 0},
+            ],
+          },
+          'validation': {
+            'is_valid_order': false,
+            'rejection_reasons': ['Merchant/toko belum dipilih.'],
+            'missing_fields': ['merchant'],
+            'next_actions': ['OPEN_MERCHANT_PICKER'],
+          },
+          'action_payloads': {
+            'OPEN_MERCHANT_PICKER': {
+              'label': 'Pilih Merchant di Map',
+              'initial_latitude': -7.0509,
+              'initial_longitude': 110.4315,
+            },
+          },
+          'order': {'created': false, 'payment_method': null},
+        },
+      });
+    }
+
     if (serviceType == 'nitip' && normalized == 'cod') {
       return ChatbotResult.fromApiJson({
         'status': 'success',
@@ -1086,6 +1144,32 @@ class _FakeChatbotApiService extends ChatbotApiService {
           'missing_fields': serviceType == 'kurir'
               ? ['package_description']
               : ['destination_address'],
+          'next_actions': [],
+        },
+        'order': {'created': false},
+      },
+    });
+  }
+
+  @override
+  Future<ChatbotResult> patchSessionMerchant(
+    String sessionId, {
+    required String serviceType,
+    int? merchantId,
+    ShoppingMerchantPlacePayload? merchantPlace,
+  }) async {
+    return ChatbotResult.fromApiJson({
+      'status': 'success',
+      'session_id': sessionId,
+      'service_context': {'service_type': serviceType},
+      'model_used': 'merchant-picker-action',
+      'data': {
+        'intent': 'shopping_order',
+        'assistant_text': 'Merchant Nitip berhasil dipilih.',
+        'validation': {
+          'is_valid_order': false,
+          'rejection_reasons': [],
+          'missing_fields': ['items'],
           'next_actions': [],
         },
         'order': {'created': false},

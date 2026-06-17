@@ -95,16 +95,29 @@ class DriverOrderActionKeys {
     return _build(orderId, 'shoppingCheckout');
   }
 
-  static String shoppingPriceQuote(String orderId) {
-    return _build(orderId, 'shoppingPriceQuote');
+  static String shoppingPriceQuote(String orderId, [int? pickupLocationId]) {
+    final suffix = pickupLocationId != null && pickupLocationId > 0
+        ? ':$pickupLocationId'
+        : '';
+    return _build(orderId, 'shoppingPriceQuote$suffix');
   }
 
-  static String acceptShoppingCounter(String orderId) {
-    return _build(orderId, 'acceptShoppingCounter');
+  static String acceptShoppingCounter(String orderId, [int? pickupLocationId]) {
+    final suffix = pickupLocationId != null && pickupLocationId > 0
+        ? ':$pickupLocationId'
+        : '';
+    return _build(orderId, 'acceptShoppingCounter$suffix');
   }
 
-  static String updateShoppingItems(String orderId) {
-    return _build(orderId, 'updateShoppingItems');
+  static String updateShoppingItems(String orderId, [int? pickupLocationId]) {
+    final suffix = pickupLocationId != null && pickupLocationId > 0
+        ? ':$pickupLocationId'
+        : '';
+    return _build(orderId, 'updateShoppingItems$suffix');
+  }
+
+  static String respondShoppingItemChange(String orderId, String action) {
+    return _build(orderId, 'respondShoppingItemChange:${_normalize(action)}');
   }
 
   static String pickupFailed(String orderId) => _build(orderId, 'pickupFailed');
@@ -828,9 +841,6 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
   Future<String?> updateShoppingCheckout({
     required String orderId,
     required List<Map<String, dynamic>> items,
-    required double shoppingTotalAmount,
-    double? deliveryFeeOverride,
-    String? receiptNote,
     XFile? receiptPhoto,
   }) async {
     return _mutateRunningOrder(
@@ -839,9 +849,6 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       request: (service) => service.updateShoppingCheckout(
         orderId: orderId,
         items: items,
-        shoppingTotalAmount: shoppingTotalAmount,
-        deliveryFeeOverride: deliveryFeeOverride,
-        receiptNote: receiptNote,
         receiptPhoto: receiptPhoto,
       ),
     );
@@ -851,29 +858,54 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     required String orderId,
     required double amount,
     int? pickupLocationId,
-    String? note,
   }) async {
     return _mutateRunningOrder(
       orderId: orderId,
-      actionKey: DriverOrderActionKeys.shoppingPriceQuote(orderId),
+      actionKey: DriverOrderActionKeys.shoppingPriceQuote(
+        orderId,
+        pickupLocationId,
+      ),
       request: (repository) => repository.submitShoppingPriceQuote(
         orderId: orderId,
         amount: amount,
         pickupLocationId: pickupLocationId,
-        note: note,
       ),
     );
   }
 
   Future<String?> acceptShoppingCounterOffer({
     required String orderId,
+    int? pickupLocationId,
+  }) async {
+    return _mutateRunningOrder(
+      orderId: orderId,
+      actionKey: DriverOrderActionKeys.acceptShoppingCounter(
+        orderId,
+        pickupLocationId,
+      ),
+      request: (repository) => repository.acceptShoppingCounterOffer(
+        orderId: orderId,
+        pickupLocationId: pickupLocationId,
+      ),
+    );
+  }
+
+  Future<String?> respondShoppingItemChange({
+    required String orderId,
+    required String action,
     String? note,
   }) async {
     return _mutateRunningOrder(
       orderId: orderId,
-      actionKey: DriverOrderActionKeys.acceptShoppingCounter(orderId),
-      request: (repository) =>
-          repository.acceptShoppingCounterOffer(orderId: orderId, note: note),
+      actionKey: DriverOrderActionKeys.respondShoppingItemChange(
+        orderId,
+        action,
+      ),
+      request: (repository) => repository.respondShoppingItemChange(
+        orderId: orderId,
+        action: action,
+        note: note,
+      ),
     );
   }
 
@@ -928,7 +960,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
   Future<String?> updateShoppingItems({
     required String orderId,
     required List<Map<String, dynamic>> items,
-    String? receiptNote,
+    int? pickupLocationId,
   }) async {
     final current = state.asData?.value;
     if (current == null) {
@@ -939,7 +971,10 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       return null;
     }
 
-    final actionKey = DriverOrderActionKeys.updateShoppingItems(orderId);
+    final actionKey = DriverOrderActionKeys.updateShoppingItems(
+      orderId,
+      pickupLocationId,
+    );
     state = AsyncData(_markActionProcessing(current, actionKey: actionKey));
 
     try {
@@ -948,7 +983,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
           .updateShoppingItems(
             orderId: orderId,
             items: items,
-            receiptNote: receiptNote,
+            pickupLocationId: pickupLocationId,
           );
 
       final latest = state.asData?.value;

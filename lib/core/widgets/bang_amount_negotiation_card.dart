@@ -35,7 +35,7 @@ class BangAmountNegotiationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.primary.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(12),
@@ -45,22 +45,49 @@ class BangAmountNegotiationCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: AppColors.primary, size: 18),
+              Container(
+                width: 34,
+                height: 34,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.12),
+                  ),
+                ),
+                child: Icon(icon, color: AppColors.primary, size: 18),
+              ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
-                  '$label: ${formatCurrency(amount)}',
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      formatCurrency(amount),
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
@@ -81,17 +108,26 @@ class BangAmountNegotiationCard extends StatelessWidget {
                   onPressed: onCounter,
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: BangActionButton(
-                  label: 'Batal',
-                  variant: BangActionButtonVariant.outlined,
-                  isEnabled: isEnabled && (!_hasLoading || cancelLoading),
-                  isLoading: cancelLoading,
-                  onPressed: onCancel,
-                ),
-              ),
             ],
+          ),
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.center,
+            child: TextButton(
+              onPressed: isEnabled && (!_hasLoading || cancelLoading)
+                  ? onCancel
+                  : null,
+              child: cancelLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text(
+                      'Batal',
+                      style: TextStyle(color: AppColors.error),
+                    ),
+            ),
           ),
         ],
       ),

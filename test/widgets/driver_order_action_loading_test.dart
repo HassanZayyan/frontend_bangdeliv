@@ -5,7 +5,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:frontend_bangdeliv/features/driver_orders/presentation/widgets/driver_active_order_action_widgets.dart';
 import 'package:frontend_bangdeliv/features/driver_orders/presentation/widgets/driver_active_order_proof_widgets.dart';
 import 'package:frontend_bangdeliv/features/driver_orders/presentation/widgets/driver_active_order_shopping_widgets.dart';
+import 'package:frontend_bangdeliv/models/amount_negotiation_model.dart';
 import 'package:frontend_bangdeliv/models/driver_order_model.dart';
+import 'package:frontend_bangdeliv/models/shopping_negotiation_model.dart';
+import 'package:frontend_bangdeliv/models/shopping_order_capability_model.dart';
 import 'package:frontend_bangdeliv/utils/order_status.dart';
 import 'package:frontend_bangdeliv/utils/service_type.dart';
 
@@ -99,8 +102,18 @@ void main() {
             ),
             isOrderBusy: true,
             isSavingCheckout: true,
-            onUploadReceipt: (_, _) async => null,
-            onSave: (_, _, _, _, _) async => null,
+            isSavingItems: (_) => false,
+            canEditAvailability: false,
+            canUploadReceipt: true,
+            canCheckout: true,
+            isSubmittingQuote: (_) => false,
+            isAcceptingCounter: (_) => false,
+            onUploadReceipt: (_) async => null,
+            onSubmitQuote: ({required amount, pickupLocationId, note}) async =>
+                null,
+            onAcceptCounter: ({pickupLocationId}) async => null,
+            onSaveItems: (_, _) async => null,
+            onSave: (_, _) async => null,
           ),
         ),
       ),
@@ -133,5 +146,12 @@ DriverOrderModel _order({
     paymentStatus: 'unpaid',
     availableActions: availableActions,
     shoppingItems: shoppingItems,
+    shoppingCapabilities: const ShoppingOrderCapabilitiesModel(
+      canDriverUploadReceipt: true,
+    ),
+    shoppingNegotiation: const ShoppingNegotiationModel(
+      amount: AmountNegotiationModel(status: 'APPROVED'),
+      checkoutAllowed: true,
+    ),
   );
 }

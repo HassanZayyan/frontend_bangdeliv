@@ -7,9 +7,11 @@ import '../../../../config/app_routes.dart';
 import '../../../../models/address_location_picker_result.dart';
 import '../../../../models/route_location_picker_result.dart';
 import '../../../../models/user_profile_model.dart';
+import '../../../../services/customer_order_api_service.dart';
 import '../../../auth/application/auth_session_provider.dart';
 import '../../application/chatbot_conversation_provider.dart';
 import '../../../../utils/address_readiness.dart';
+import '../../../shopping/presentation/screens/shopping_merchant_map_picker_screen.dart';
 
 class ChatbotScreen extends ConsumerStatefulWidget {
   const ChatbotScreen({super.key});
@@ -759,6 +761,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                               Icons.home_outlined,
                             ChatbotMessageActionType.openMapPicker =>
                               Icons.location_on_outlined,
+                            ChatbotMessageActionType.openMerchantPicker =>
+                              Icons.storefront_outlined,
                             ChatbotMessageActionType.openRoutePicker =>
                               Icons.route_outlined,
                             ChatbotMessageActionType.sendPresetMessage =>
@@ -1766,6 +1770,9 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       case ChatbotMessageActionType.openMapPicker:
         await _handleOpenMapPickerAction(actionHint);
         return;
+      case ChatbotMessageActionType.openMerchantPicker:
+        await _handleOpenMerchantPickerAction(actionHint);
+        return;
       case ChatbotMessageActionType.openRoutePicker:
         await _handleOpenRoutePickerAction(actionHint);
         return;
@@ -1853,6 +1860,35 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           latitude: result.latitude,
           longitude: result.longitude,
           address: null,
+        );
+
+    _scrollToBottom();
+  }
+
+  Future<void> _handleOpenMerchantPickerAction(
+    ChatbotMessageActionHint actionHint,
+  ) async {
+    if (_serviceContext.serviceType != 'nitip') {
+      return;
+    }
+
+    final result = await context.push<ShoppingMerchantPlacePayload>(
+      AppRoutes.chatbotShoppingMerchantMapPickerPath(),
+      extra: ShoppingMerchantMapPickerArgs(
+        initialLatitude: actionHint.initialLatitude,
+        initialLongitude: actionHint.initialLongitude,
+      ),
+    );
+
+    if (!mounted || result == null) {
+      return;
+    }
+
+    await ref
+        .read(chatbotConversationProvider.notifier)
+        .applyMerchantPickerAction(
+          serviceType: _serviceContext.serviceType,
+          merchantPlace: result,
         );
 
     _scrollToBottom();

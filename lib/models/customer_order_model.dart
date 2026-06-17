@@ -4,6 +4,7 @@ import '../utils/order_formatters.dart';
 import '../utils/service_type.dart' as service_type;
 import 'delivery_fee_negotiation_model.dart';
 import 'order_route_model.dart';
+import 'shopping_order_capability_model.dart';
 import 'shopping_negotiation_model.dart';
 
 class OrderStatusSnapshot {
@@ -548,6 +549,8 @@ class CustomerOrderDetailModel {
   final DriverEtaModel? driverEta;
   final DeliveryFeeNegotiationModel? deliveryFeeNegotiation;
   final ShoppingNegotiationModel? shoppingNegotiation;
+  final ShoppingOrderCapabilitiesModel shoppingCapabilities;
+  final ShoppingItemChangeRequestModel? shoppingItemChangeRequest;
 
   const CustomerOrderDetailModel({
     required this.summary,
@@ -585,6 +588,8 @@ class CustomerOrderDetailModel {
     this.driverEta,
     this.deliveryFeeNegotiation,
     this.shoppingNegotiation,
+    this.shoppingCapabilities = const ShoppingOrderCapabilitiesModel(),
+    this.shoppingItemChangeRequest,
   }) : route = route ?? shoppingRoute;
 
   OrderRouteModel? get shoppingRoute => route;
@@ -598,12 +603,86 @@ class CustomerOrderDetailModel {
       return false;
     }
 
-    final normalized = order_status.normalizeOrderStatusCode(
-      summary.statusCode,
-    );
-    return normalized == order_status.OrderStatusCodes.pending ||
-        normalized == order_status.OrderStatusCodes.driverAssigned ||
-        normalized == order_status.OrderStatusCodes.arrivedMerchant;
+    if (!shoppingCapabilities.isExplicit) {
+      return order_status.normalizeOrderStatusCode(summary.statusCode) ==
+          order_status.OrderStatusCodes.pending;
+    }
+
+    return shoppingCapabilities.canCustomerDirectEditItems;
+  }
+
+  bool get canRequestShoppingItemChange {
+    if (!isShoppingOrder) {
+      return false;
+    }
+
+    if (!shoppingCapabilities.isExplicit) {
+      final normalized = order_status.normalizeOrderStatusCode(
+        summary.statusCode,
+      );
+      return !hasPendingShoppingItemChangeRequest &&
+          (normalized == order_status.OrderStatusCodes.driverAssigned ||
+              normalized == order_status.OrderStatusCodes.arrivedMerchant);
+    }
+
+    return shoppingCapabilities.canCustomerRequestItemChange &&
+        !hasPendingShoppingItemChangeRequest;
+  }
+
+  bool get canRequestAddShoppingStop {
+    if (!isShoppingOrder) {
+      return false;
+    }
+
+    if (!shoppingCapabilities.isExplicit) {
+      final normalized = order_status.normalizeOrderStatusCode(
+        summary.statusCode,
+      );
+      return !hasPendingShoppingItemChangeRequest &&
+          normalized == order_status.OrderStatusCodes.driverAssigned;
+    }
+
+    return shoppingCapabilities.canCustomerRequestAddStop &&
+        !hasPendingShoppingItemChangeRequest;
+  }
+
+  bool get canEditUnavailableShoppingItems {
+    if (!isShoppingOrder) {
+      return false;
+    }
+
+    if (!shoppingCapabilities.isExplicit) {
+      final normalized = order_status.normalizeOrderStatusCode(
+        summary.statusCode,
+      );
+      return !hasPendingShoppingItemChangeRequest &&
+          normalized == order_status.OrderStatusCodes.arrivedMerchant &&
+          shoppingItems.any((item) => !item.isAvailable);
+    }
+
+    return shoppingCapabilities.canCustomerEditUnavailableItems &&
+        !hasPendingShoppingItemChangeRequest;
+  }
+
+  bool get hasPendingShoppingItemChangeRequest {
+    return shoppingCapabilities.hasPendingItemChangeRequest ||
+        shoppingItemChangeRequest?.isPending == true;
+  }
+
+  bool get canResolveFailedShoppingMerchant {
+    if (!isShoppingOrder) {
+      return false;
+    }
+
+    if (!shoppingCapabilities.isExplicit) {
+      final normalized = order_status.normalizeOrderStatusCode(
+        summary.statusCode,
+      );
+      return normalized == order_status.OrderStatusCodes.driverAssigned ||
+          normalized == order_status.OrderStatusCodes.arrivedMerchant;
+    }
+
+    return shoppingCapabilities.canCustomerResolveFailedMerchant;
   }
 
   bool get canAddShoppingMerchant {
@@ -614,7 +693,11 @@ class CustomerOrderDetailModel {
     final normalized = order_status.normalizeOrderStatusCode(
       summary.statusCode,
     );
-    return normalized == order_status.OrderStatusCodes.pending ||
+    if (canEditShoppingItems) {
+      return true;
+    }
+
+    return canRequestAddShoppingStop &&
         normalized == order_status.OrderStatusCodes.driverAssigned;
   }
 
@@ -654,6 +737,8 @@ class CustomerOrderDetailModel {
     DriverEtaModel? driverEta,
     DeliveryFeeNegotiationModel? deliveryFeeNegotiation,
     ShoppingNegotiationModel? shoppingNegotiation,
+    ShoppingOrderCapabilitiesModel? shoppingCapabilities,
+    ShoppingItemChangeRequestModel? shoppingItemChangeRequest,
     bool clearDriverEta = false,
   }) {
     return CustomerOrderDetailModel(
@@ -695,6 +780,9 @@ class CustomerOrderDetailModel {
       deliveryFeeNegotiation:
           deliveryFeeNegotiation ?? this.deliveryFeeNegotiation,
       shoppingNegotiation: shoppingNegotiation ?? this.shoppingNegotiation,
+      shoppingCapabilities: shoppingCapabilities ?? this.shoppingCapabilities,
+      shoppingItemChangeRequest:
+          shoppingItemChangeRequest ?? this.shoppingItemChangeRequest,
     );
   }
 
@@ -943,6 +1031,13 @@ class CustomerOrderDetailModel {
       ),
       shoppingNegotiation: ShoppingNegotiationModel.fromRaw(
         json['shopping_negotiation'] ?? json['shoppingNegotiation'],
+      ),
+      shoppingCapabilities: ShoppingOrderCapabilitiesModel.fromRaw(
+        json['shopping_capabilities'] ?? json['shoppingCapabilities'],
+      ),
+      shoppingItemChangeRequest: ShoppingItemChangeRequestModel.fromRaw(
+        json['shopping_item_change_request'] ??
+            json['shoppingItemChangeRequest'],
       ),
     );
   }
@@ -1320,13 +1415,20 @@ class CustomerShoppingPricingModel {
       overweightSurcharge: overweightSurcharge,
       cancellationPenalty: cancellationPenalty,
     );
+    final rawServiceFee = CustomerOrderSummaryModel._asDouble(
+      orderJson['service_fee'],
+    );
+    final feeBreakdownTotal = feeBreakdown.fold<double>(
+      0,
+      (total, row) => total + row.amount,
+    );
 
     return CustomerShoppingPricingModel(
       subtotal: CustomerOrderSummaryModel._asDouble(orderJson['subtotal']),
       deliveryFee: CustomerOrderSummaryModel._asDouble(
         orderJson['delivery_fee'],
       ),
-      serviceFee: CustomerOrderSummaryModel._asDouble(orderJson['service_fee']),
+      serviceFee: rawServiceFee > 0 ? rawServiceFee : feeBreakdownTotal,
       totalPrice: CustomerOrderSummaryModel._asDouble(orderJson['total_price']),
       itemSurcharge: itemSurcharge,
       overweightSurcharge: overweightSurcharge,
@@ -1391,7 +1493,7 @@ class CustomerShoppingFeeBreakdownModel {
   ) {
     return CustomerShoppingFeeBreakdownModel(
       code: (json['code'] ?? '').toString(),
-      label: (json['label'] ?? 'Service fee').toString(),
+      label: (json['label'] ?? 'Biaya layanan').toString(),
       description: (json['description'] ?? '').toString(),
       amount: CustomerOrderSummaryModel._asDouble(json['amount']),
     );

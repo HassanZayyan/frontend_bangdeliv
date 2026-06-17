@@ -36,7 +36,7 @@ class ShoppingFeeBreakdown extends StatelessWidget {
         iconColor: AppColors.primary,
         collapsedIconColor: AppColors.textSecondary,
         title: const Text(
-          'Rincian service fee',
+          'Rincian biaya layanan',
           style: TextStyle(
             color: AppColors.textPrimary,
             fontSize: 12.8,

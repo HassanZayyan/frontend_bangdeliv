@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../config/app_routes.dart';
+import '../features/tracking/application/tracking_focus_target.dart';
 import '../firebase_options.dart';
 import 'notification_navigation_service.dart';
 
@@ -217,7 +218,8 @@ class FirebaseNotificationService {
     final type = (data['type'] ?? '').toString();
     if (type != 'order_chat_message' &&
         type != 'order_status_changed' &&
-        type != 'order_price_changed') {
+        type != 'order_price_changed' &&
+        type != 'payment_proof_required') {
       return null;
     }
 
@@ -235,12 +237,41 @@ class FirebaseNotificationService {
 
     return switch (type) {
       'order_chat_message' => AppRoutes.orderChatPath(orderId),
+      'payment_proof_required' => AppRoutes.orderTrackPath(
+        orderId,
+        focus: TrackingFocusTarget.payment,
+      ),
       'order_price_changed' =>
         (data['recipient_role'] ?? '').toString().toLowerCase() == 'driver'
             ? AppRoutes.driverOrderActivePath(orderId.toString())
-            : AppRoutes.orderTrackPath(orderId),
+            : AppRoutes.orderTrackPath(
+                orderId,
+                focus: _trackingFocusFromNotificationData(data),
+                pickupLocationId: int.tryParse(
+                  (data['pickup_location_id'] ?? '').toString(),
+                ),
+              ),
       _ => AppRoutes.orderTrackPath(orderId),
     };
+  }
+
+  static String? _trackingFocusFromNotificationData(Map<String, dynamic> data) {
+    final focus = (data['focus'] ?? '').toString().trim();
+    if (focus == TrackingFocusTarget.deliveryFee ||
+        focus == TrackingFocusTarget.shoppingPrice ||
+        focus == TrackingFocusTarget.payment) {
+      return focus;
+    }
+
+    final changeType = (data['change_type'] ?? '').toString().toUpperCase();
+    if (changeType.contains('DELIVERY_FEE') || changeType.contains('FEE')) {
+      return TrackingFocusTarget.deliveryFee;
+    }
+    if (changeType.isNotEmpty) {
+      return TrackingFocusTarget.shoppingPrice;
+    }
+
+    return null;
   }
 
   static Future<void> showLocalOrderChatNotification({

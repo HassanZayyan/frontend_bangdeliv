@@ -191,6 +191,37 @@ class CustomerOrderApiService {
     return CustomerOrderDetailModel.fromJson(response);
   }
 
+  Future<CustomerOrderDetailModel> requestShoppingItemChange(
+    int orderId, {
+    required String action,
+    String? requestKind,
+    List<ShoppingItemDraftPayload> items = const <ShoppingItemDraftPayload>[],
+    int? itemId,
+    int? targetPickupLocationId,
+    String? note,
+  }) async {
+    final normalizedAction = action.trim().toUpperCase();
+    final response = await _shoppingItemRequest(
+      () async => _apiClient.post(
+        '/v1/orders/$orderId/shopping/item-change-request',
+        body: <String, dynamic>{
+          'action': normalizedAction,
+          if ((requestKind ?? '').trim().isNotEmpty)
+            'request_kind': requestKind!.trim().toUpperCase(),
+          if (targetPickupLocationId != null && targetPickupLocationId > 0)
+            'target_pickup_location_id': targetPickupLocationId,
+          if (items.isNotEmpty)
+            'items': items.map((item) => item.toJson()).toList(growable: false),
+          if (itemId != null && itemId > 0) 'item_id': itemId,
+          if ((note ?? '').trim().isNotEmpty) 'note': note!.trim(),
+        },
+        headers: await AuthService.authorizedHeaders(),
+      ),
+    );
+
+    return CustomerOrderDetailModel.fromJson(response);
+  }
+
   Future<List<ShoppingMerchantOption>> searchShoppingMerchants(
     String query, {
     String? merchantType,
@@ -480,7 +511,7 @@ class ShoppingItemDraftPayload {
       'item_source': normalizedSource,
       if (normalizedSource == 'MENU_DB' && menuId != null && menuId! > 0)
         'menu_id': menuId,
-      if (normalizedSource == 'MANUAL') 'menu_name': name.trim(),
+      if (name.trim().isNotEmpty) 'menu_name': name.trim(),
       'quantity': quantity,
       if ((notes ?? '').trim().isNotEmpty) 'notes': notes!.trim(),
     };

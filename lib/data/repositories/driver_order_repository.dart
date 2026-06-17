@@ -66,27 +66,29 @@ abstract class DriverOrderRepository {
   Future<DriverOrderModel> updateShoppingCheckout({
     required String orderId,
     required List<Map<String, dynamic>> items,
-    required double shoppingTotalAmount,
-    double? deliveryFeeOverride,
-    String? receiptNote,
     XFile? receiptPhoto,
   });
 
   Future<DriverOrderModel> updateShoppingItems({
     required String orderId,
     required List<Map<String, dynamic>> items,
-    String? receiptNote,
+    int? pickupLocationId,
   });
 
   Future<DriverOrderModel> submitShoppingPriceQuote({
     required String orderId,
     required double amount,
     int? pickupLocationId,
-    String? note,
   });
 
   Future<DriverOrderModel> acceptShoppingCounterOffer({
     required String orderId,
+    int? pickupLocationId,
+  });
+
+  Future<DriverOrderModel> respondShoppingItemChange({
+    required String orderId,
+    required String action,
     String? note,
   });
 
@@ -230,17 +232,11 @@ class ApiDriverOrderRepository implements DriverOrderRepository {
   Future<DriverOrderModel> updateShoppingCheckout({
     required String orderId,
     required List<Map<String, dynamic>> items,
-    required double shoppingTotalAmount,
-    double? deliveryFeeOverride,
-    String? receiptNote,
     XFile? receiptPhoto,
   }) {
     return _service.updateShoppingCheckout(
       orderId: orderId,
       items: items,
-      shoppingTotalAmount: shoppingTotalAmount,
-      deliveryFeeOverride: deliveryFeeOverride,
-      receiptNote: receiptNote,
       receiptPhoto: receiptPhoto,
     );
   }
@@ -249,12 +245,12 @@ class ApiDriverOrderRepository implements DriverOrderRepository {
   Future<DriverOrderModel> updateShoppingItems({
     required String orderId,
     required List<Map<String, dynamic>> items,
-    String? receiptNote,
+    int? pickupLocationId,
   }) {
     return _service.updateShoppingItems(
       orderId: orderId,
       items: items,
-      receiptNote: receiptNote,
+      pickupLocationId: pickupLocationId,
     );
   }
 
@@ -263,22 +259,36 @@ class ApiDriverOrderRepository implements DriverOrderRepository {
     required String orderId,
     required double amount,
     int? pickupLocationId,
-    String? note,
   }) {
     return _service.submitShoppingPriceQuote(
       orderId: orderId,
       amount: amount,
       pickupLocationId: pickupLocationId,
-      note: note,
     );
   }
 
   @override
   Future<DriverOrderModel> acceptShoppingCounterOffer({
     required String orderId,
+    int? pickupLocationId,
+  }) {
+    return _service.acceptShoppingCounterOffer(
+      orderId: orderId,
+      pickupLocationId: pickupLocationId,
+    );
+  }
+
+  @override
+  Future<DriverOrderModel> respondShoppingItemChange({
+    required String orderId,
+    required String action,
     String? note,
   }) {
-    return _service.acceptShoppingCounterOffer(orderId: orderId, note: note);
+    return _service.respondShoppingItemChange(
+      orderId: orderId,
+      action: action,
+      note: note,
+    );
   }
 
   @override

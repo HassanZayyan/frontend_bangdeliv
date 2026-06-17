@@ -4,6 +4,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../services/customer_order_api_service.dart';
 import '../../../../services/google_maps_lookup_service.dart';
+import '../widgets/shopping_widget_helpers.dart';
 
 class ShoppingMerchantMapPickerArgs {
   const ShoppingMerchantMapPickerArgs({
@@ -416,6 +417,11 @@ class _SelectedPlacePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final merchantType = shoppingMerchantTypeFromPlace(
+      name: place.name,
+      types: place.types,
+    );
+
     return Material(
       color: AppColors.white,
       borderRadius: BorderRadius.circular(16),
@@ -433,8 +439,8 @@ class _SelectedPlacePanel extends StatelessWidget {
                 color: AppColors.primaryLight,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
-                Icons.storefront_outlined,
+              child: Icon(
+                shoppingMerchantIcon(merchantType),
                 color: AppColors.primary,
               ),
             ),
@@ -463,6 +469,15 @@ class _SelectedPlacePanel extends StatelessWidget {
                       color: AppColors.textSecondary,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    shoppingMerchantTypeLabel(merchantType),
+                    style: const TextStyle(
+                      color: AppColors.primaryDark,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ],

@@ -9,7 +9,9 @@ import '../../../../core/di/app_providers.dart';
 import '../../../../core/widgets/bang_amount_negotiation_card.dart';
 import '../../../../core/widgets/bang_counter_amount_dialog.dart';
 import '../../../../core/widgets/bang_negotiation_cancel_sheet.dart';
+import '../../../../core/widgets/bang_shopping_merchant_request_summary.dart';
 import '../../../../models/customer_order_model.dart';
+import '../../../../models/shopping_order_capability_model.dart';
 import '../../../../utils/order_formatters.dart';
 import '../../../../widgets/shopping_fee_breakdown.dart';
 import '../../../orders/application/customer_order_providers.dart';
@@ -19,11 +21,13 @@ import '../../application/customer_order_tracking_provider.dart';
 class TrackShoppingOrderItemsCard extends ConsumerStatefulWidget {
   final CustomerOrderDetailModel detail;
   final Future<void> Function()? onChanged;
+  final GlobalKey Function(int pickupLocationId)? shoppingPriceFocusKeyFor;
 
   const TrackShoppingOrderItemsCard({
     super.key,
     required this.detail,
     this.onChanged,
+    this.shoppingPriceFocusKeyFor,
   });
 
   @override
@@ -79,7 +83,7 @@ class _TrackShoppingOrderItemsCardState
                   ),
                 ),
               ),
-              if (detail.canEditShoppingItems)
+              if (detail.canAddShoppingMerchant)
                 TextButton.icon(
                   onPressed: () => _openAddItemScreen(context, ref),
                   style: TextButton.styleFrom(
@@ -104,8 +108,12 @@ class _TrackShoppingOrderItemsCardState
             ...failedStops.map((stop) => _failedStopNotice(context, ref, stop)),
             const SizedBox(height: 4),
           ],
-          if (detail.shoppingNegotiation?.canCustomerRespond == true) ...[
-            _shoppingNegotiationCard(context, ref, detail),
+          if (detail.shoppingItemChangeRequest?.isPending == true) ...[
+            _shoppingItemChangeRequestNotice(detail.shoppingItemChangeRequest!),
+            const SizedBox(height: 10),
+          ],
+          if (_unavailableItems(detail).isNotEmpty) ...[
+            _unavailableItemsNotice(_unavailableItems(detail)),
             const SizedBox(height: 10),
           ],
           if (activeStops.isEmpty)
@@ -126,7 +134,7 @@ class _TrackShoppingOrderItemsCardState
             const Divider(height: 18, color: AppColors.border),
             _pricingRow('Subtotal barang', pricing.subtotal),
             _pricingRow('Ongkir', pricing.deliveryFee),
-            _pricingRow('Service fee', pricing.serviceFee),
+            _pricingRow('Biaya layanan', pricing.serviceFee),
             ShoppingFeeBreakdown(
               items: pricing.feeBreakdown
                   .map(
@@ -151,7 +159,7 @@ class _TrackShoppingOrderItemsCardState
     WidgetRef ref,
     CustomerShoppingStopModel stop,
   ) {
-    final canResolveFailedStop = widget.detail.canEditShoppingItems;
+    final canResolveFailedStop = widget.detail.canResolveFailedShoppingMerchant;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -222,21 +230,132 @@ class _TrackShoppingOrderItemsCardState
     );
   }
 
+  Widget _shoppingItemChangeRequestNotice(
+    ShoppingItemChangeRequestModel request,
+  ) {
+    final action = (request.action ?? 'ADD').toUpperCase();
+    final actionLabel = action == 'REMOVE'
+        ? 'hapus item'
+        : action == 'UPDATE'
+        ? 'ubah item'
+        : 'tambah item';
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.pending_actions_outlined,
+                color: AppColors.primary,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Request $actionLabel menunggu persetujuan driver.',
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (request.requestedStops.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            BangShoppingMerchantRequestSummary(request: request, compact: true),
+          ],
+        ],
+      ),
+    );
+  }
+
+  List<CustomerShoppingItemModel> _unavailableItems(
+    CustomerOrderDetailModel detail,
+  ) {
+    return detail.shoppingItems
+        .where((item) => !item.isAvailable)
+        .toList(growable: false);
+  }
+
+  Widget _unavailableItemsNotice(List<CustomerShoppingItemModel> items) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.20)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.inventory_2_outlined,
+            color: AppColors.error,
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Item tidak tersedia: ${items.map((item) => item.name).join(', ')}.',
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                height: 1.3,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _shoppingNegotiationCard(
     BuildContext context,
     WidgetRef ref,
     CustomerOrderDetailModel detail,
+    CustomerShoppingStopModel stop,
   ) {
     final negotiation = detail.shoppingNegotiation;
-    final quotedAmount = negotiation?.quotedAmount ?? 0;
+    final quote = negotiation?.quoteForPickup(stop.pickupLocationId);
+    final quotedAmount = quote?.amount.quotedAmount ?? 0;
 
-    return BangAmountNegotiationCard(
-      label: 'Harga merchant',
-      amount: quotedAmount,
-      onApprove: () =>
-          _respondShoppingQuote(context, ref, detail, action: 'APPROVE'),
-      onCounter: () => _showCounterDialog(context, ref, detail),
-      onCancel: () => _showCancelQuoteSheet(context, ref, detail),
+    return KeyedSubtree(
+      key: widget.shoppingPriceFocusKeyFor?.call(stop.pickupLocationId),
+      child: BangAmountNegotiationCard(
+        label: 'Harga ${stop.merchant.name}',
+        amount: quotedAmount,
+        onApprove: () => _respondShoppingQuote(
+          context,
+          ref,
+          detail,
+          action: 'APPROVE',
+          pickupLocationId: stop.pickupLocationId,
+        ),
+        onCounter: () => _showCounterDialog(
+          context,
+          ref,
+          detail,
+          pickupLocationId: stop.pickupLocationId,
+          currentAmount: quotedAmount,
+        ),
+        onCancel: () => _showCancelQuoteSheet(
+          context,
+          ref,
+          detail,
+          pickupLocationId: stop.pickupLocationId,
+        ),
+      ),
     );
   }
 
@@ -254,11 +373,20 @@ class _TrackShoppingOrderItemsCardState
         : stop.items;
     final hiddenCount = stop.items.length - visibleItems.length;
     final hasPendingPrice = stop.items.any((item) => item.isPricePending);
+    final hasUnavailableItems = stop.items.any((item) => !item.isAvailable);
+    final canEditUnavailable =
+        widget.detail.canEditUnavailableShoppingItems && hasUnavailableItems;
     final address = _displayMerchantAddress(stop.merchant.address);
     final activeStopCount = widget.detail.shoppingStops
         .where((item) => item.isActive)
         .length;
     final sequenceNo = stop.sequenceNo <= 0 ? 1 : stop.sequenceNo;
+    final stopQuote = widget.detail.shoppingNegotiation?.quoteForPickup(
+      stop.pickupLocationId,
+    );
+    final showStopQuoteCard =
+        stopQuote?.amount.canCustomerRespond == true &&
+        (stopQuote?.amount.quotedAmount ?? 0) > 0;
 
     return Padding(
       padding: EdgeInsets.only(top: showDivider ? 12 : 8),
@@ -311,10 +439,29 @@ class _TrackShoppingOrderItemsCardState
               if (stop.isFailed || stop.isSkipped)
                 _stopStatusChip(
                   stop.isFailed ? 'Resto tutup/order batal' : 'Dilewati',
+                )
+              else if (canEditUnavailable)
+                TextButton.icon(
+                  onPressed: () => _openAddItemScreen(
+                    context,
+                    ref,
+                    targetPickupLocationId: stop.pickupLocationId,
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: const Size(0, 30),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  icon: const Icon(Icons.edit_outlined, size: 15),
+                  label: const Text('Edit'),
                 ),
             ],
           ),
           const SizedBox(height: 8),
+          if (showStopQuoteCard) ...[
+            _shoppingNegotiationCard(context, ref, widget.detail, stop),
+            const SizedBox(height: 10),
+          ],
           ...visibleItems.map((item) => _itemRow(context, ref, item)),
           if (showToggle) ...[
             const SizedBox(height: 2),
@@ -550,11 +697,14 @@ class _TrackShoppingOrderItemsCardState
   Future<void> _showCounterDialog(
     BuildContext context,
     WidgetRef ref,
-    CustomerOrderDetailModel detail,
-  ) async {
+    CustomerOrderDetailModel detail, {
+    required int pickupLocationId,
+    required double currentAmount,
+  }) async {
     final amount = await showBangCounterAmountDialog(
       context,
       title: 'Tawar harga',
+      currentAmount: currentAmount,
     );
 
     if (amount == null || amount <= 0 || !context.mounted) {
@@ -567,14 +717,16 @@ class _TrackShoppingOrderItemsCardState
       detail,
       action: 'COUNTER',
       counterAmount: amount,
+      pickupLocationId: pickupLocationId,
     );
   }
 
   Future<void> _showCancelQuoteSheet(
     BuildContext context,
     WidgetRef ref,
-    CustomerOrderDetailModel detail,
-  ) async {
+    CustomerOrderDetailModel detail, {
+    required int pickupLocationId,
+  }) async {
     final action = await showBangNegotiationCancelSheet(
       context,
       options: const [
@@ -595,7 +747,13 @@ class _TrackShoppingOrderItemsCardState
       return;
     }
 
-    await _respondShoppingQuote(context, ref, detail, action: action);
+    await _respondShoppingQuote(
+      context,
+      ref,
+      detail,
+      action: action,
+      pickupLocationId: pickupLocationId,
+    );
   }
 
   Future<void> _respondShoppingQuote(
@@ -603,6 +761,7 @@ class _TrackShoppingOrderItemsCardState
     WidgetRef ref,
     CustomerOrderDetailModel detail, {
     required String action,
+    required int pickupLocationId,
     double? counterAmount,
   }) async {
     try {
@@ -612,7 +771,7 @@ class _TrackShoppingOrderItemsCardState
             detail.summary.id,
             action: action,
             counterAmount: counterAmount,
-            pickupLocationId: detail.shoppingNegotiation?.pickupLocationId,
+            pickupLocationId: pickupLocationId,
           );
       ref.invalidate(customerOrderTrackingProvider(detail.summary.id));
       ref.invalidate(customerOrdersProvider);
@@ -642,12 +801,14 @@ class _TrackShoppingOrderItemsCardState
     BuildContext context,
     WidgetRef ref, {
     int? replacementForPickupLocationId,
+    int? targetPickupLocationId,
   }) async {
     final result = await context.push<ShoppingAddItemResult>(
       AppRoutes.shoppingAddItemPath(widget.detail.summary.id),
       extra: ShoppingAddItemRouteArgs(
         detail: widget.detail,
         replacementForPickupLocationId: replacementForPickupLocationId,
+        targetPickupLocationId: targetPickupLocationId,
       ),
     );
 

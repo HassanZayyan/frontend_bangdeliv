@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../models/chatbot_model.dart';
 import '../../../services/api_exception.dart';
 import '../../../services/chatbot_api_service.dart';
+import '../../../services/customer_order_api_service.dart';
 import '../../../utils/address_readiness.dart';
 import '../../../utils/order_formatters.dart';
 import '../../auth/application/auth_session_provider.dart';
@@ -12,6 +13,7 @@ import '../../../core/di/app_providers.dart';
 enum ChatbotMessageActionType {
   openAddresses,
   openMapPicker,
+  openMerchantPicker,
   openRoutePicker,
   sendPresetMessage,
   openTrackOrder,
@@ -567,6 +569,65 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     }
   }
 
+  Future<void> applyMerchantPickerAction({
+    required String serviceType,
+    int? merchantId,
+    ShoppingMerchantPlacePayload? merchantPlace,
+  }) async {
+    _ensureService(serviceType);
+
+    final sessionId = state.sessionId?.trim();
+    if (sessionId == null ||
+        sessionId.isEmpty ||
+        state.isApplyingAction ||
+        ((merchantId == null || merchantId <= 0) && merchantPlace == null)) {
+      return;
+    }
+
+    state = state.copyWith(
+      isApplyingAction: true,
+      messages: _clearActionHints(state.messages),
+      clearErrorMessage: true,
+    );
+
+    final api = ref.read(chatbotRepositoryProvider);
+    try {
+      final result = await api.patchSessionMerchant(
+        sessionId,
+        serviceType: serviceType,
+        merchantId: merchantId,
+        merchantPlace: merchantPlace,
+      );
+
+      final canonicalSessionId = result.sessionId?.trim();
+      final resolvedSessionId =
+          canonicalSessionId != null && canonicalSessionId.isNotEmpty
+          ? canonicalSessionId
+          : sessionId;
+
+      await _persistSessionId(serviceType, resolvedSessionId);
+
+      state = state.copyWith(
+        serviceType: serviceType,
+        sessionId: resolvedSessionId,
+        isApplyingAction: false,
+        messages: <ChatbotConversationMessage>[
+          ...state.messages,
+          _messageFromResult(result, serviceType),
+        ],
+        pendingClearAfterOrderCreated: result.isOrderCreated,
+        clearErrorMessage: true,
+      );
+
+      await refreshSessions(serviceType: serviceType);
+    } catch (_) {
+      state = state.copyWith(
+        isApplyingAction: false,
+        errorMessage: 'Gagal memperbarui merchant Nitip.',
+      );
+    }
+  }
+
   Future<void> clearCompletedActiveSession({
     required String serviceType,
     required String welcomeMessage,
@@ -1012,6 +1073,8 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       final key = switch (hint.type) {
         ChatbotMessageActionType.openMapPicker =>
           '${hint.type.name}:${hint.target ?? '-'}',
+        ChatbotMessageActionType.openMerchantPicker =>
+          '${hint.type.name}:${hint.label}',
         ChatbotMessageActionType.openRoutePicker =>
           '${hint.type.name}:${hint.label}',
         ChatbotMessageActionType.sendPresetMessage =>
@@ -1039,6 +1102,15 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
 
     if (requireAddressFirst) {
       return hints;
+    }
+
+    if (nextActions.contains('OPEN_MERCHANT_PICKER')) {
+      add(
+        _merchantPickerHintFromPayload(
+          actionPayloads,
+          fallbackLabel: 'Pilih Merchant di Map',
+        ),
+      );
     }
 
     final isTransport = serviceType == 'antar_jemput' || serviceType == 'kurir';
@@ -1248,6 +1320,25 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     );
   }
 
+  ChatbotMessageActionHint _merchantPickerHintFromPayload(
+    Map<String, dynamic>? actionPayloads, {
+    required String fallbackLabel,
+  }) {
+    final payload = actionPayloads?['OPEN_MERCHANT_PICKER'];
+    final payloadMap = payload is Map<String, dynamic>
+        ? payload
+        : <String, dynamic>{};
+
+    return ChatbotMessageActionHint(
+      type: ChatbotMessageActionType.openMerchantPicker,
+      label: (payloadMap['label']?.toString().trim() ?? '').isEmpty
+          ? fallbackLabel
+          : payloadMap['label'].toString().trim(),
+      initialLatitude: _toDouble(payloadMap['initial_latitude']),
+      initialLongitude: _toDouble(payloadMap['initial_longitude']),
+    );
+  }
+
   ChatbotMessageActionHint _routePickerHintFromPayload(
     Map<String, dynamic>? actionPayloads, {
     required String serviceType,
@@ -1353,11 +1444,9 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       return hints;
     }
 
-    if (serviceType == 'nitip') {
-      return const <ChatbotMessageActionHint>[];
-    }
-
-    if (serviceType != 'antar_jemput' && serviceType != 'kurir') {
+    if (serviceType != 'antar_jemput' &&
+        serviceType != 'kurir' &&
+        serviceType != 'nitip') {
       return const <ChatbotMessageActionHint>[];
     }
 
@@ -1389,6 +1478,10 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
 
     if (serviceType == 'nitip') {
       return const <ChatbotMessageActionHint>[
+        ChatbotMessageActionHint(
+          type: ChatbotMessageActionType.openMerchantPicker,
+          label: 'Pilih Merchant di Map',
+        ),
         ChatbotMessageActionHint(
           type: ChatbotMessageActionType.openMapPicker,
           label: 'Pilih Titik Antar',

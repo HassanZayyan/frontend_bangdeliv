@@ -4,106 +4,41 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../core/widgets/bang_action_button.dart';
 import '../../../../core/widgets/bang_negotiation_status_panel.dart';
+import '../../../../core/widgets/bang_shopping_merchant_request_summary.dart';
 import '../../../../models/driver_order_model.dart';
+import '../../../../models/shopping_negotiation_model.dart';
+import '../../../../models/shopping_order_capability_model.dart';
 import '../../../../utils/order_formatters.dart';
 import 'driver_active_order_widget_helpers.dart';
 
-class DriverShoppingPriceNegotiationCard extends StatefulWidget {
-  final DriverOrderModel order;
-  final bool isOrderBusy;
-  final bool isSubmittingQuote;
-  final bool isAcceptingCounter;
-  final Future<String?> Function({
-    required double amount,
-    int? pickupLocationId,
-    String? note,
-  })
-  onSubmitQuote;
-  final Future<String?> Function() onAcceptCounter;
-
-  const DriverShoppingPriceNegotiationCard({
+class DriverShoppingItemChangeRequestCard extends StatelessWidget {
+  const DriverShoppingItemChangeRequestCard({
     super.key,
-    required this.order,
+    required this.request,
     required this.isOrderBusy,
-    required this.isSubmittingQuote,
-    required this.isAcceptingCounter,
-    required this.onSubmitQuote,
-    required this.onAcceptCounter,
+    required this.isApproving,
+    required this.isRejecting,
+    required this.onRespond,
   });
 
+  final ShoppingItemChangeRequestModel request;
+  final bool isOrderBusy;
+  final bool isApproving;
+  final bool isRejecting;
+  final Future<String?> Function(String action) onRespond;
+
   static bool shouldShow(DriverOrderModel order) {
-    if (order.serviceTypeCode.toUpperCase() != 'SHOPPING') {
-      return false;
-    }
-
-    final negotiation = order.shoppingNegotiation;
-    if (negotiation?.hasQuote == true) {
-      return true;
-    }
-
-    return (negotiation?.canDriverSubmitQuote ?? false) ||
-        order.statusCode.toUpperCase() == 'ARRIVED_MERCHANT';
-  }
-
-  @override
-  State<DriverShoppingPriceNegotiationCard> createState() =>
-      _DriverShoppingPriceNegotiationCardState();
-}
-
-class _DriverShoppingPriceNegotiationCardState
-    extends State<DriverShoppingPriceNegotiationCard> {
-  final TextEditingController _amountController = TextEditingController();
-  final TextEditingController _noteController = TextEditingController();
-
-  @override
-  void didUpdateWidget(covariant DriverShoppingPriceNegotiationCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.order.shoppingNegotiation?.displayAmount !=
-            widget.order.shoppingNegotiation?.displayAmount &&
-        _amountController.text.trim().isEmpty) {
-      _primeAmount();
-    }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _primeAmount();
-  }
-
-  @override
-  void dispose() {
-    _amountController.dispose();
-    _noteController.dispose();
-    super.dispose();
-  }
-
-  void _primeAmount() {
-    final amount =
-        widget.order.shoppingNegotiation?.quotedAmount ??
-        widget.order.shoppingPricing?.subtotal ??
-        widget.order.shoppingItems.fold<double>(
-          0,
-          (sum, item) => sum + item.subtotal,
-        );
-    if (amount > 0) {
-      _amountController.text = amount.round().toString();
-    }
+    return order.shoppingItemChangeRequest?.isApproveable == true;
   }
 
   @override
   Widget build(BuildContext context) {
-    final negotiation = widget.order.shoppingNegotiation;
-    final status = negotiation?.status ?? 'NONE';
-    final isApproved = negotiation?.isApproved ?? false;
-    final isPendingDriver = negotiation?.isPendingDriver ?? false;
-    final canSubmitQuote =
-        (negotiation?.canDriverSubmitQuote ?? false) ||
-        widget.order.statusCode.toUpperCase() == 'ARRIVED_MERCHANT';
-    final activeStops = widget.order.shoppingStops
-        .where((stop) => !stop.isFailed && !stop.isSkipped && !stop.isReplaced)
-        .toList(growable: false);
-    final activePickup = activeStops.isEmpty ? null : activeStops.first;
+    final action = (request.action ?? 'ADD').toUpperCase();
+    final actionLabel = action == 'REMOVE'
+        ? 'Hapus item'
+        : action == 'UPDATE'
+        ? 'Ubah item'
+        : 'Tambah item';
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -117,11 +52,11 @@ class _DriverShoppingPriceNegotiationCardState
         children: [
           const Row(
             children: [
-              Icon(Icons.request_quote_outlined, color: AppColors.primary),
+              Icon(Icons.pending_actions_outlined, color: AppColors.primary),
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Harga Nitip',
+                  'Request Item Customer',
                   style: TextStyle(
                     color: AppColors.textPrimary,
                     fontWeight: FontWeight.w800,
@@ -130,55 +65,226 @@ class _DriverShoppingPriceNegotiationCardState
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          if (isApproved) ...[
+          const SizedBox(height: 8),
+          Text(
+            actionLabel,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          BangShoppingMerchantRequestSummary(request: request),
+          if ((request.note ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              request.note!.trim(),
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                height: 1.35,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: BangActionButton(
+                  label: 'Tolak',
+                  variant: BangActionButtonVariant.outlined,
+                  icon: Icons.close_rounded,
+                  isLoading: isRejecting,
+                  isEnabled: !isOrderBusy || isRejecting,
+                  onPressed: () => _respond(context, 'REJECT'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: BangActionButton(
+                  label: 'Setujui',
+                  icon: Icons.check_rounded,
+                  isLoading: isApproving,
+                  isEnabled: !isOrderBusy || isApproving,
+                  onPressed: () => _respond(context, 'APPROVE'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _respond(BuildContext context, String action) async {
+    final error = await onRespond(action);
+    if (!context.mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error ?? 'Request item diproses.'),
+        backgroundColor: error == null ? null : AppColors.error,
+      ),
+    );
+  }
+}
+
+class DriverShoppingMerchantQuotePanel extends StatefulWidget {
+  const DriverShoppingMerchantQuotePanel({
+    super.key,
+    required this.pickupLocationId,
+    required this.quote,
+    required this.isOrderBusy,
+    required this.isSubmittingQuote,
+    required this.isAcceptingCounter,
+    required this.onSubmitQuote,
+    required this.onAcceptCounter,
+  });
+
+  final int pickupLocationId;
+  final ShoppingMerchantQuoteModel? quote;
+  final bool isOrderBusy;
+  final bool isSubmittingQuote;
+  final bool isAcceptingCounter;
+  final Future<String?> Function({
+    required double amount,
+    int? pickupLocationId,
+  })
+  onSubmitQuote;
+  final Future<String?> Function({int? pickupLocationId}) onAcceptCounter;
+
+  @override
+  State<DriverShoppingMerchantQuotePanel> createState() =>
+      _DriverShoppingMerchantQuotePanelState();
+}
+
+class _DriverShoppingMerchantQuotePanelState
+    extends State<DriverShoppingMerchantQuotePanel> {
+  final TextEditingController _amountController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _primeAmount();
+  }
+
+  @override
+  void didUpdateWidget(covariant DriverShoppingMerchantQuotePanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.quote?.displayAmount != widget.quote?.displayAmount &&
+        _amountController.text.trim().isEmpty) {
+      _primeAmount();
+    }
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  void _primeAmount() {
+    final amount = widget.quote?.displayAmount;
+    if ((amount ?? 0) > 0) {
+      _amountController.text = amount!.round().toString();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final quote = widget.quote;
+    final canSubmitQuote = quote?.amount.canDriverSubmitQuote == true;
+    final isPendingDriver = quote?.isPendingDriver == true;
+    final isPendingCustomer = quote?.isPendingCustomer == true;
+    final isApproved = quote?.isApproved == true;
+    final needsRequote = quote?.needsRequote == true;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 10, bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.045),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.14)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.request_quote_outlined,
+                color: AppColors.primary,
+                size: 18,
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Harga Nitip',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          if (isApproved)
             BangNegotiationStatusPanel(
               icon: Icons.verified_outlined,
               label: 'Disetujui',
-              amountText: formatCurrency(negotiation?.approvedAmount ?? 0),
+              amountText: formatCurrency(quote?.approvedAmount ?? 0),
               color: AppColors.success,
-            ),
-          ] else if (isPendingDriver) ...[
+            )
+          else if (isPendingDriver) ...[
             BangNegotiationStatusPanel(
               icon: Icons.handshake_outlined,
               label: 'Tawaran customer',
-              amountText: formatCurrency(negotiation?.counterAmount ?? 0),
+              amountText: formatCurrency(quote?.amount.counterAmount ?? 0),
               color: AppColors.primary,
             ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: BangActionButton(
-                    label: 'Setujui Tawaran',
-                    icon: Icons.check_rounded,
-                    isLoading: widget.isAcceptingCounter,
-                    isEnabled: !widget.isOrderBusy || widget.isAcceptingCounter,
-                    onPressed: _acceptCounter,
-                  ),
-                ),
-              ],
+            const SizedBox(height: 9),
+            BangActionButton(
+              label: 'Setujui Tawaran',
+              icon: Icons.check_rounded,
+              isLoading: widget.isAcceptingCounter,
+              isEnabled: !widget.isOrderBusy || widget.isAcceptingCounter,
+              onPressed: _acceptCounter,
             ),
-            const SizedBox(height: 10),
-            _quoteForm(canSubmitQuote, activePickup?.pickupLocationId),
-          ] else ...[
-            _quoteForm(canSubmitQuote, activePickup?.pickupLocationId),
-            if (status == 'PENDING_CUSTOMER') ...[
-              const SizedBox(height: 8),
-              BangNegotiationStatusPanel(
-                icon: Icons.schedule_outlined,
-                label: 'Menunggu customer',
-                amountText: formatCurrency(negotiation?.quotedAmount ?? 0),
-                color: AppColors.textSecondary,
+            const SizedBox(height: 9),
+            _quoteForm(canSubmitQuote),
+          ] else if (isPendingCustomer)
+            BangNegotiationStatusPanel(
+              icon: Icons.schedule_outlined,
+              label: 'Menunggu customer',
+              amountText: formatCurrency(quote?.amount.quotedAmount ?? 0),
+              color: AppColors.textSecondary,
+            )
+          else ...[
+            if (needsRequote) ...[
+              const Text(
+                'Perubahan item perlu harga baru.',
+                style: TextStyle(
+                  color: AppColors.primaryDark,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
+              const SizedBox(height: 8),
             ],
+            _quoteForm(canSubmitQuote),
           ],
         ],
       ),
     );
   }
 
-  Widget _quoteForm(bool canSubmitQuote, int? pickupLocationId) {
+  Widget _quoteForm(bool canSubmitQuote) {
     return Column(
       children: [
         TextField(
@@ -191,34 +297,20 @@ class _DriverShoppingPriceNegotiationCardState
           ),
         ),
         const SizedBox(height: 8),
-        TextField(
-          controller: _noteController,
-          minLines: 1,
-          maxLines: 2,
-          enabled: canSubmitQuote && !widget.isOrderBusy,
-          decoration: driverDialogInputDecoration(
-            labelText: 'Catatan',
-            hintText: 'Opsional',
-          ),
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          width: double.infinity,
-          child: BangActionButton(
-            label: 'Kirim Harga Baru',
-            icon: Icons.send_outlined,
-            isLoading: widget.isSubmittingQuote,
-            isEnabled:
-                canSubmitQuote &&
-                (!widget.isOrderBusy || widget.isSubmittingQuote),
-            onPressed: () => _submitQuote(pickupLocationId),
-          ),
+        BangActionButton(
+          label: 'Kirim Harga',
+          icon: Icons.send_outlined,
+          isLoading: widget.isSubmittingQuote,
+          isEnabled:
+              canSubmitQuote &&
+              (!widget.isOrderBusy || widget.isSubmittingQuote),
+          onPressed: _submitQuote,
         ),
       ],
     );
   }
 
-  Future<void> _submitQuote(int? pickupLocationId) async {
+  Future<void> _submitQuote() async {
     final amount = parseDriverCurrencyInput(_amountController.text);
     if (amount <= 0) {
       _showSnack('Harga merchant harus lebih dari 0.', isError: true);
@@ -227,8 +319,7 @@ class _DriverShoppingPriceNegotiationCardState
 
     final error = await widget.onSubmitQuote(
       amount: amount,
-      pickupLocationId: pickupLocationId,
-      note: _noteController.text,
+      pickupLocationId: widget.pickupLocationId,
     );
     if (!mounted) {
       return;
@@ -238,7 +329,9 @@ class _DriverShoppingPriceNegotiationCardState
   }
 
   Future<void> _acceptCounter() async {
-    final error = await widget.onAcceptCounter();
+    final error = await widget.onAcceptCounter(
+      pickupLocationId: widget.pickupLocationId,
+    );
     if (!mounted) {
       return;
     }
@@ -260,12 +353,26 @@ class DriverShoppingItemsCard extends StatefulWidget {
   final DriverOrderModel order;
   final bool isOrderBusy;
   final bool isSavingCheckout;
-  final Future<String?> Function(XFile photo, String? note) onUploadReceipt;
+  final bool Function(int pickupLocationId) isSavingItems;
+  final bool canEditAvailability;
+  final bool canUploadReceipt;
+  final bool canCheckout;
+  final bool Function(int pickupLocationId) isSubmittingQuote;
+  final bool Function(int pickupLocationId) isAcceptingCounter;
+  final Future<String?> Function(XFile photo) onUploadReceipt;
+  final Future<String?> Function({
+    required double amount,
+    int? pickupLocationId,
+  })
+  onSubmitQuote;
+  final Future<String?> Function({int? pickupLocationId}) onAcceptCounter;
   final Future<String?> Function(
     List<Map<String, dynamic>> items,
-    double shoppingTotalAmount,
-    double? deliveryFeeOverride,
-    String? receiptNote,
+    int? pickupLocationId,
+  )
+  onSaveItems;
+  final Future<String?> Function(
+    List<Map<String, dynamic>> items,
     XFile? receiptPhoto,
   )
   onSave;
@@ -275,7 +382,16 @@ class DriverShoppingItemsCard extends StatefulWidget {
     required this.order,
     required this.isOrderBusy,
     required this.isSavingCheckout,
+    required this.isSavingItems,
+    required this.canEditAvailability,
+    required this.canUploadReceipt,
+    required this.canCheckout,
+    required this.isSubmittingQuote,
+    required this.isAcceptingCounter,
     required this.onUploadReceipt,
+    required this.onSubmitQuote,
+    required this.onAcceptCounter,
+    required this.onSaveItems,
     required this.onSave,
   });
 
@@ -285,9 +401,6 @@ class DriverShoppingItemsCard extends StatefulWidget {
 }
 
 class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
-  final TextEditingController _shoppingTotalController =
-      TextEditingController();
-  final TextEditingController _receiptNoteController = TextEditingController();
   final Map<int, bool> _availability = {};
   final Map<int, bool> _heavy = {};
   final Set<int> _dirtyAvailabilityIds = {};
@@ -306,13 +419,6 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     if (oldWidget.order.shoppingItems != widget.order.shoppingItems) {
       _syncControllers();
     }
-  }
-
-  @override
-  void dispose() {
-    _shoppingTotalController.dispose();
-    _receiptNoteController.dispose();
-    super.dispose();
   }
 
   void _syncControllers() {
@@ -350,28 +456,17 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
         _heavy[item.id] = item.isHeavy;
       }
     }
-
-    _primeCheckoutControllers();
-  }
-
-  void _primeCheckoutControllers() {
-    if (_shoppingTotalController.text.trim().isEmpty) {
-      final subtotal =
-          widget.order.shoppingPricing?.subtotal ??
-          widget.order.shoppingItems.fold<double>(
-            0,
-            (sum, item) => sum + item.subtotal,
-          );
-      if (subtotal > 0) {
-        _shoppingTotalController.text = subtotal.round().toString();
-      }
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     final checkoutAllowed =
-        widget.order.shoppingNegotiation?.checkoutAllowed ?? false;
+        widget.canCheckout &&
+        (widget.order.shoppingNegotiation?.checkoutAllowed ?? false);
+    final showCheckoutFields = widget.canUploadReceipt && checkoutAllowed;
+    final canEditAvailability =
+        widget.canEditAvailability &&
+        !widget.order.shoppingCapabilities.hasPendingItemChangeRequest;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -394,96 +489,74 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
                   ),
                 ),
               ),
-              const Text(
-                'Total dari struk',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
+              if (showCheckoutFields)
+                const Text(
+                  'Struk belanja',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 10),
           if (widget.order.shoppingStops.isEmpty) ...[
-            _buildHeavyToggleForItems(widget.order.shoppingItems),
-            const SizedBox(height: 8),
+            if (canEditAvailability) ...[
+              _buildHeavyToggleForItems(widget.order.shoppingItems),
+              const SizedBox(height: 8),
+            ],
             ...widget.order.shoppingItems.map(_buildItemEditor),
+            if (canEditAvailability &&
+                _hasItemChangesForItems(widget.order.shoppingItems)) ...[
+              const SizedBox(height: 2),
+              SizedBox(
+                width: double.infinity,
+                child: BangActionButton(
+                  label: 'Simpan Ketersediaan Item',
+                  icon: Icons.checklist_rtl_outlined,
+                  isLoading: widget.isSavingItems(0),
+                  isEnabled: !widget.isOrderBusy || widget.isSavingItems(0),
+                  onPressed: () =>
+                      _saveItemAvailability(widget.order.shoppingItems, null),
+                ),
+              ),
+            ],
           ] else
             ...widget.order.shoppingStops
                 .where((stop) => !stop.isSkipped && !stop.isReplaced)
                 .map(_buildStopSection),
-          if (_shoppingProofs().isNotEmpty) ...[
+          if (showCheckoutFields && _shoppingProofs().isNotEmpty) ...[
             const SizedBox(height: 4),
             _buildProofPreviewStrip(_shoppingProofs()),
             const SizedBox(height: 10),
           ],
-          const SizedBox(height: 8),
-          TextField(
-            controller: _shoppingTotalController,
-            keyboardType: TextInputType.number,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-            ),
-            decoration: driverDialogInputDecoration(
-              labelText: 'Total belanja di struk',
-              prefixText: 'Rp ',
-            ),
-          ),
-          const SizedBox(height: 8),
-          BangActionButton(
-            label: !widget.order.hasProof('receipt')
-                ? 'Upload Foto Struk'
-                : 'Foto Struk Siap',
-            variant: BangActionButtonVariant.outlined,
-            icon: Icons.photo_camera_outlined,
-            isLoading: _isUploadingReceipt,
-            isEnabled: !widget.isOrderBusy || _isUploadingReceipt,
-            onPressed: _uploadReceiptPhoto,
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _receiptNoteController,
-            minLines: 1,
-            maxLines: 3,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-            ),
-            decoration: driverDialogInputDecoration(
-              labelText: 'Catatan nota',
-              hintText: 'Contoh: satu item kosong, diganti ukuran lain',
-            ),
-          ),
-          if (!checkoutAllowed) ...[
+          if (showCheckoutFields) ...[
             const SizedBox(height: 8),
-            const Text(
-              'Harga Nitip perlu disetujui customer sebelum checkout.',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+            BangActionButton(
+              label: !widget.order.hasProof('receipt')
+                  ? 'Upload Foto Struk'
+                  : 'Foto Struk Siap',
+              variant: BangActionButtonVariant.outlined,
+              icon: Icons.photo_camera_outlined,
+              isLoading: _isUploadingReceipt,
+              isEnabled: !widget.isOrderBusy || _isUploadingReceipt,
+              onPressed: _uploadReceiptPhoto,
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: BangActionButton(
+                label: 'Simpan Checkout Nitip',
+                icon: Icons.receipt_long,
+                isLoading: widget.isSavingCheckout,
+                isEnabled:
+                    checkoutAllowed &&
+                    (!widget.isOrderBusy || widget.isSavingCheckout),
+                onPressed: _save,
               ),
             ),
           ],
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: BangActionButton(
-              label: checkoutAllowed
-                  ? 'Simpan Checkout Nitip'
-                  : 'Menunggu Persetujuan Harga',
-              icon: Icons.receipt_long,
-              isLoading: widget.isSavingCheckout,
-              isEnabled:
-                  checkoutAllowed &&
-                  (!widget.isOrderBusy || widget.isSavingCheckout),
-              onPressed: _save,
-            ),
-          ),
         ],
       ),
     );
@@ -519,20 +592,25 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
                   ),
                 ),
               ),
-              Checkbox(
-                value: isAvailable,
-                visualDensity: const VisualDensity(
-                  horizontal: -4,
-                  vertical: -4,
+              if (widget.canEditAvailability &&
+                  !widget
+                      .order
+                      .shoppingCapabilities
+                      .hasPendingItemChangeRequest)
+                Checkbox(
+                  value: isAvailable,
+                  visualDensity: const VisualDensity(
+                    horizontal: -4,
+                    vertical: -4,
+                  ),
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  onChanged: (value) {
+                    setState(() {
+                      _dirtyAvailabilityIds.add(item.id);
+                      _availability[item.id] = value ?? true;
+                    });
+                  },
                 ),
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                onChanged: (value) {
-                  setState(() {
-                    _dirtyAvailabilityIds.add(item.id);
-                    _availability[item.id] = value ?? true;
-                  });
-                },
-              ),
             ],
           ),
           if ((item.notes ?? '').trim().isNotEmpty)
@@ -553,6 +631,21 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
 
   Widget _buildStopSection(DriverShoppingStopModel stop) {
     final activeItems = stop.items;
+    final quote = widget.order.shoppingNegotiation?.quoteForPickup(
+      stop.pickupLocationId,
+    );
+    final hasQuoteState =
+        quote != null &&
+        (quote.amount.hasQuote || quote.isPendingDriver || quote.isApproved);
+    final shouldShowQuotePanel =
+        quote != null &&
+        (hasQuoteState ||
+            quote.needsRequote ||
+            (stop.availabilityConfirmed && quote.amount.canDriverSubmitQuote));
+    final canEditStopAvailability =
+        widget.canEditAvailability &&
+        !widget.order.shoppingCapabilities.hasPendingItemChangeRequest;
+    final isSavingStopItems = widget.isSavingItems(stop.pickupLocationId);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -641,10 +734,43 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
               ),
             ),
           ],
+          if (stop.isActive && shouldShowQuotePanel) ...[
+            DriverShoppingMerchantQuotePanel(
+              pickupLocationId: stop.pickupLocationId,
+              quote: quote,
+              isOrderBusy: widget.isOrderBusy,
+              isSubmittingQuote: widget.isSubmittingQuote(
+                stop.pickupLocationId,
+              ),
+              isAcceptingCounter: widget.isAcceptingCounter(
+                stop.pickupLocationId,
+              ),
+              onSubmitQuote: widget.onSubmitQuote,
+              onAcceptCounter: widget.onAcceptCounter,
+            ),
+          ],
           const SizedBox(height: 8),
-          _buildHeavyToggleForItems(activeItems),
-          const SizedBox(height: 8),
+          if (canEditStopAvailability) ...[
+            _buildHeavyToggleForItems(activeItems),
+            const SizedBox(height: 8),
+          ],
           ...activeItems.map(_buildItemEditor),
+          if (canEditStopAvailability &&
+              (!stop.availabilityConfirmed ||
+                  _hasItemChangesForItems(activeItems))) ...[
+            const SizedBox(height: 2),
+            SizedBox(
+              width: double.infinity,
+              child: BangActionButton(
+                label: 'Simpan Ketersediaan Item',
+                icon: Icons.checklist_rtl_outlined,
+                isLoading: isSavingStopItems,
+                isEnabled: !widget.isOrderBusy || isSavingStopItems,
+                onPressed: () =>
+                    _saveItemAvailability(activeItems, stop.pickupLocationId),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -795,10 +921,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     }
 
     setState(() => _isUploadingReceipt = true);
-    final error = await widget.onUploadReceipt(
-      photo,
-      _receiptNoteController.text.trim(),
-    );
+    final error = await widget.onUploadReceipt(photo);
 
     if (!mounted) {
       return;
@@ -813,32 +936,16 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     );
   }
 
-  Future<void> _save() async {
-    final shoppingTotalAmount = parseDriverCurrencyInput(
-      _shoppingTotalController.text,
+  bool _hasItemChangesForItems(List<DriverShoppingItemModel> items) {
+    return items.any(
+      (item) =>
+          _dirtyAvailabilityIds.contains(item.id) ||
+          _dirtyHeavyIds.contains(item.id),
     );
+  }
 
-    if (shoppingTotalAmount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Total belanja di struk wajib diisi.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-
-    if (!widget.order.hasProof('receipt')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Upload foto struk dulu.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-
-    final payload = widget.order.shoppingItems
+  List<Map<String, dynamic>> _itemPayload(List<DriverShoppingItemModel> items) {
+    return items
         .map(
           (item) => <String, dynamic>{
             'id': item.id,
@@ -849,12 +956,51 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
           },
         )
         .toList(growable: false);
+  }
+
+  Future<void> _saveItemAvailability(
+    List<DriverShoppingItemModel> items,
+    int? pickupLocationId,
+  ) async {
+    final error = await widget.onSaveItems(
+      _itemPayload(items),
+      pickupLocationId,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error ?? 'Ketersediaan item disimpan.'),
+        backgroundColor: error == null ? null : AppColors.error,
+      ),
+    );
+
+    if (error == null) {
+      setState(() {
+        for (final item in items) {
+          _dirtyAvailabilityIds.remove(item.id);
+          _dirtyHeavyIds.remove(item.id);
+        }
+      });
+    }
+  }
+
+  Future<void> _save() async {
+    if (!widget.order.hasProof('receipt')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Upload foto struk dulu.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
 
     final error = await widget.onSave(
-      payload,
-      shoppingTotalAmount,
-      null,
-      _receiptNoteController.text.trim(),
+      _itemPayload(widget.order.shoppingItems),
       null,
     );
 

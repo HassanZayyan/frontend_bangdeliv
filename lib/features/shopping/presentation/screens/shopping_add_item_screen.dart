@@ -26,10 +26,12 @@ class ShoppingAddItemRouteArgs {
   const ShoppingAddItemRouteArgs({
     required this.detail,
     this.replacementForPickupLocationId,
+    this.targetPickupLocationId,
   });
 
   final CustomerOrderDetailModel detail;
   final int? replacementForPickupLocationId;
+  final int? targetPickupLocationId;
 }
 
 class ShoppingAddItemResult {
@@ -41,6 +43,7 @@ class ShoppingAddItemResult {
     required this.newTotal,
     required this.oldStopCount,
     required this.newStopCount,
+    this.requestSubmitted = false,
   });
 
   final CustomerOrderDetailModel detail;
@@ -50,6 +53,7 @@ class ShoppingAddItemResult {
   final double newTotal;
   final int oldStopCount;
   final int newStopCount;
+  final bool requestSubmitted;
 
   bool get deliveryFeeChanged =>
       (oldDeliveryFee - newDeliveryFee).abs() >= 0.01;
@@ -57,6 +61,10 @@ class ShoppingAddItemResult {
   bool get stopCountChanged => oldStopCount != newStopCount;
 
   String get message {
+    if (requestSubmitted) {
+      return 'Request perubahan item dikirim ke driver.';
+    }
+
     if (deliveryFeeChanged) {
       return 'Item ditambahkan. Ongkir diperbarui dari '
           '${formatCurrency(oldDeliveryFee)} ke ${formatCurrency(newDeliveryFee)}.';
@@ -72,11 +80,13 @@ class ShoppingAddItemScreen extends ConsumerStatefulWidget {
     required this.orderId,
     required this.initialDetail,
     this.replacementForPickupLocationId,
+    this.targetPickupLocationId,
   });
 
   final int? orderId;
   final CustomerOrderDetailModel? initialDetail;
   final int? replacementForPickupLocationId;
+  final int? targetPickupLocationId;
 
   @override
   ConsumerState<ShoppingAddItemScreen> createState() =>
@@ -105,6 +115,20 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
   int _quantity = 1;
   String? _errorText;
   String? _menuErrorText;
+
+  bool get _isRequestMode {
+    final detail = _detail;
+    if (detail == null || widget.replacementForPickupLocationId != null) {
+      return false;
+    }
+
+    return !detail.canEditShoppingItems &&
+        (detail.canRequestAddShoppingStop ||
+            (widget.targetPickupLocationId != null &&
+                detail.canEditUnavailableShoppingItems));
+  }
+
+  bool get _isEditUnavailableMode => widget.targetPickupLocationId != null;
 
   @override
   void initState() {
@@ -171,7 +195,40 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       return;
     }
 
-    if (!detail.canAddShoppingMerchant) {
+    final canPickReplacementMerchant =
+        widget.replacementForPickupLocationId != null &&
+        detail.canResolveFailedShoppingMerchant;
+
+    if (_isEditUnavailableMode) {
+      CustomerShoppingStopModel? stop;
+      for (final candidate in detail.shoppingStops) {
+        if (candidate.pickupLocationId == widget.targetPickupLocationId) {
+          stop = candidate;
+          break;
+        }
+      }
+      if (stop == null) {
+        setState(() => _errorText = 'Merchant yang ingin diedit tidak valid.');
+        return;
+      }
+      final merchant = ShoppingMerchantOption(
+        id: stop.merchant.id ?? 0,
+        name: stop.merchant.name,
+        slug: null,
+        merchantType: stop.merchant.merchantType,
+        address: stop.merchant.address,
+        latitude: stop.merchant.latitude,
+        longitude: stop.merchant.longitude,
+      );
+      setState(() {
+        _merchants = [merchant];
+        _selectedMerchant = merchant;
+      });
+      _selectMerchant(merchant, scrollToItem: false);
+      return;
+    }
+
+    if (!detail.canAddShoppingMerchant && !canPickReplacementMerchant) {
       final existing = detail.shoppingStops
           .where((stop) => stop.merchant.id != null)
           .map(
@@ -214,11 +271,18 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       if (!mounted) {
         return;
       }
+      final visibleMerchants = _isRequestMode && !_isEditUnavailableMode
+          ? merchants
+                .where((merchant) => !_isExistingActiveMerchant(merchant))
+                .toList(growable: false)
+          : merchants;
       setState(() {
-        _merchants = merchants;
+        _merchants = visibleMerchants;
         if (_selectedMerchant != null) {
           final selectedId = _selectedMerchant!.id;
-          final matches = merchants.where((item) => item.id == selectedId);
+          final matches = visibleMerchants.where(
+            (item) => item.id == selectedId,
+          );
           _selectedMerchant = matches.isEmpty ? null : matches.first;
           if (matches.isEmpty) {
             _manualItemController.clear();
@@ -244,6 +308,16 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
     ShoppingMerchantOption merchant, {
     bool scrollToItem = true,
   }) {
+    if (_isRequestMode &&
+        !_isEditUnavailableMode &&
+        _isExistingActiveMerchant(merchant)) {
+      setState(
+        () => _errorText =
+            'Merchant ini sudah ada di order. Gunakan edit jika item tidak tersedia.',
+      );
+      return;
+    }
+
     setState(() {
       _selectedMerchant = merchant;
       _selectedMerchantPlace = null;
@@ -263,6 +337,23 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
     if (scrollToItem) {
       _scrollToItemSection();
     }
+  }
+
+  bool _isExistingActiveMerchant(ShoppingMerchantOption merchant) {
+    final detail = _detail;
+    if (detail == null) {
+      return false;
+    }
+
+    return detail.shoppingStops.where((stop) => stop.isActive).any((stop) {
+      final stopMerchantId = stop.merchant.id;
+      if (merchant.id > 0 && stopMerchantId != null) {
+        return merchant.id == stopMerchantId;
+      }
+
+      return _normalizeMerchantName(stop.merchant.name) ==
+          _normalizeMerchantName(merchant.name);
+    });
   }
 
   Future<void> _openMapPicker() async {
@@ -344,7 +435,10 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       id: 0,
       name: place.name,
       slug: null,
-      merchantType: _merchantTypeFromPlaceTypes(place.types),
+      merchantType: shoppingMerchantTypeFromPlace(
+        name: place.name,
+        types: place.types,
+      ),
       address: place.address,
       latitude: place.latitude,
       longitude: place.longitude,
@@ -660,27 +754,42 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
     final oldStopCount = detail.shoppingStops.length;
 
     try {
-      final updated = await ref
-          .read(customerOrderRepositoryProvider)
-          .addShoppingItems(
-            widget.orderId!,
-            _draftItems
-                .map(
-                  (item) => ShoppingItemDraftPayload(
-                    merchantId: item.merchant.id,
-                    merchantPlace: item.merchantPlace,
-                    menuId: item.menuId,
-                    itemSource: item.itemSource,
-                    name: item.name,
-                    quantity: item.quantity,
-                    notes: item.notes,
-                    unitPrice: item.unitPrice,
-                  ),
+      final payload = _draftItems
+          .map(
+            (item) => ShoppingItemDraftPayload(
+              merchantId: item.merchant.id,
+              merchantPlace: item.merchantPlace,
+              menuId: item.menuId,
+              itemSource: item.itemSource,
+              name: item.name,
+              quantity: item.quantity,
+              notes: item.notes,
+              unitPrice: item.unitPrice,
+            ),
+          )
+          .toList(growable: false);
+
+      final requestMode = _isRequestMode;
+      final updated = requestMode
+          ? await ref
+                .read(customerOrderRepositoryProvider)
+                .requestShoppingItemChange(
+                  widget.orderId!,
+                  action: 'ADD',
+                  requestKind: _isEditUnavailableMode
+                      ? 'EDIT_UNAVAILABLE'
+                      : 'ADD_NEW_STOP',
+                  items: payload,
+                  targetPickupLocationId: widget.targetPickupLocationId,
                 )
-                .toList(growable: false),
-            replacementForPickupLocationId:
-                widget.replacementForPickupLocationId,
-          );
+          : await ref
+                .read(customerOrderRepositoryProvider)
+                .addShoppingItems(
+                  widget.orderId!,
+                  payload,
+                  replacementForPickupLocationId:
+                      widget.replacementForPickupLocationId,
+                );
 
       final newDeliveryFee = updated.shoppingPricing?.deliveryFee ?? 0;
       final newTotal =
@@ -693,6 +802,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
         newTotal: newTotal,
         oldStopCount: oldStopCount,
         newStopCount: updated.shoppingStops.length,
+        requestSubmitted: requestMode,
       );
 
       if (!mounted) {
@@ -717,6 +827,10 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
   @override
   Widget build(BuildContext context) {
     final detail = _detail;
+    final canPickMerchant =
+        (!_isEditUnavailableMode && detail?.canAddShoppingMerchant == true) ||
+        (widget.replacementForPickupLocationId != null &&
+            detail?.canResolveFailedShoppingMerchant == true);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -750,12 +864,12 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
                         children: [
                           ShoppingMerchantSearchSection(
                             controller: _merchantSearchController,
-                            canSearch: detail.canAddShoppingMerchant,
+                            canSearch: canPickMerchant,
                             isLoading: _isLoadingMerchants,
                             merchants: _merchants,
                             selectedMerchant: _selectedMerchant,
                             onSearch: _searchMerchants,
-                            onOpenMapPicker: detail.canAddShoppingMerchant
+                            onOpenMapPicker: canPickMerchant
                                 ? _openMapPicker
                                 : null,
                             onSelect: _selectMerchant,
@@ -857,30 +971,6 @@ bool _isSameMerchantOption(
         secondLongitude,
       ) <=
       30;
-}
-
-String _merchantTypeFromPlaceTypes(List<String> types) {
-  final normalized = types.map((type) => type.toLowerCase()).toSet();
-  if (normalized.any(
-    (type) =>
-        type.contains('restaurant') ||
-        type == 'food' ||
-        type == 'meal_takeaway' ||
-        type == 'cafe',
-  )) {
-    return 'restaurant';
-  }
-
-  if (normalized.any(
-    (type) =>
-        type == 'convenience_store' ||
-        type == 'supermarket' ||
-        type == 'grocery_or_supermarket',
-  )) {
-    return 'convenience_store';
-  }
-
-  return 'other';
 }
 
 double _distanceMeters(
