@@ -171,17 +171,12 @@ class CustomerOrderApiService {
 
   Future<CustomerOrderDetailModel> addShoppingItems(
     int orderId,
-    List<ShoppingItemDraftPayload> items, {
-    int? replacementForPickupLocationId,
-  }) async {
+    List<ShoppingItemDraftPayload> items,
+  ) async {
     final response = await _shoppingItemRequest(
       () async => _apiClient.post(
         '/v1/orders/$orderId/items/bulk',
         body: <String, dynamic>{
-          if (replacementForPickupLocationId != null &&
-              replacementForPickupLocationId > 0)
-            'replacement_for_pickup_location_id':
-                replacementForPickupLocationId,
           'items': items.map((item) => item.toJson()).toList(growable: false),
         },
         headers: await AuthService.authorizedHeaders(),
@@ -300,24 +295,9 @@ class CustomerOrderApiService {
     return CustomerOrderDetailModel.fromJson(response);
   }
 
-  Future<CustomerOrderDetailModel> skipFailedShoppingStop(
-    int orderId,
-    int pickupLocationId,
-  ) async {
-    final response = await _shoppingItemRequest(
-      () async => _apiClient.post(
-        '/v1/orders/$orderId/shopping-stops/$pickupLocationId/skip',
-        headers: await AuthService.authorizedHeaders(),
-      ),
-    );
-
-    return CustomerOrderDetailModel.fromJson(response);
-  }
-
   Future<CustomerOrderDetailModel> respondShoppingPriceQuote(
     int orderId, {
     required String action,
-    double? counterAmount,
     int? pickupLocationId,
   }) async {
     final response = await _shoppingItemRequest(
@@ -325,7 +305,6 @@ class CustomerOrderApiService {
         '/v1/orders/$orderId/shopping/price-quote/respond',
         body: <String, dynamic>{
           'action': action.trim().toUpperCase(),
-          'counter_amount': ?counterAmount,
           'pickup_location_id': ?((pickupLocationId ?? 0) > 0
               ? pickupLocationId
               : null),

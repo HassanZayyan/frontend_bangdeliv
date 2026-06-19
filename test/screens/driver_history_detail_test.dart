@@ -95,6 +95,32 @@ void main() {
     expect(find.textContaining('Upload'), findsNothing);
   });
 
+  testWidgets('driver history detail hides shopping item prices', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          driverOrderServiceProvider.overrideWithValue(
+            _FakeDriverHistoryService(),
+          ),
+        ],
+        child: const MaterialApp(
+          home: DriverOrderHistoryDetailScreen(orderId: '42'),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Item Belanja'), findsOneWidget);
+    expect(find.text('ramen mala'), findsOneWidget);
+    expect(find.text('1 item'), findsOneWidget);
+    expect(find.text('less ice'), findsOneWidget);
+    expect(find.text('1 x Rp 12.000'), findsNothing);
+    expect(find.text('Rp 12.000'), findsNothing);
+  });
+
   testWidgets('driver history detail back returns to history screen', (
     tester,
   ) async {
@@ -176,6 +202,19 @@ class _FakeDriverHistoryService extends DriverOrderService {
       statusDisplayName: 'Selesai',
       paymentMethod: 'TRANSFER',
       paymentStatus: 'paid',
+      shoppingItems: const [
+        DriverShoppingItemModel(
+          id: 1,
+          itemSource: 'MANUAL',
+          name: 'ramen mala',
+          quantity: 1,
+          unitPrice: 12000,
+          subtotal: 12000,
+          isAvailable: true,
+          isHeavy: false,
+          notes: 'less ice',
+        ),
+      ],
       statusTimeline: [
         DriverOrderTimelineItemModel(
           statusCode: OrderStatusCodes.completed,

@@ -67,6 +67,7 @@ class ChatbotMessageActionHint {
     this.target,
     this.presetMessage,
     this.orderId,
+    this.merchantMode,
     this.initialLatitude,
     this.initialLongitude,
     this.routePoints = const <ChatbotRoutePointHint>[],
@@ -77,6 +78,7 @@ class ChatbotMessageActionHint {
   final String? target;
   final String? presetMessage;
   final int? orderId;
+  final String? merchantMode;
   final double? initialLatitude;
   final double? initialLongitude;
   final List<ChatbotRoutePointHint> routePoints;
@@ -573,6 +575,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     required String serviceType,
     int? merchantId,
     ShoppingMerchantPlacePayload? merchantPlace,
+    String mode = 'select',
   }) async {
     _ensureService(serviceType);
 
@@ -597,6 +600,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         serviceType: serviceType,
         merchantId: merchantId,
         merchantPlace: merchantPlace,
+        mode: mode,
       );
 
       final canonicalSessionId = result.sessionId?.trim();
@@ -1074,7 +1078,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         ChatbotMessageActionType.openMapPicker =>
           '${hint.type.name}:${hint.target ?? '-'}',
         ChatbotMessageActionType.openMerchantPicker =>
-          '${hint.type.name}:${hint.label}',
+          '${hint.type.name}:${hint.merchantMode ?? 'select'}:${hint.label}',
         ChatbotMessageActionType.openRoutePicker =>
           '${hint.type.name}:${hint.label}',
         ChatbotMessageActionType.sendPresetMessage =>
@@ -1108,7 +1112,20 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       add(
         _merchantPickerHintFromPayload(
           actionPayloads,
+          actionKey: 'OPEN_MERCHANT_PICKER',
           fallbackLabel: 'Pilih Merchant di Map',
+          fallbackMode: 'select',
+        ),
+      );
+    }
+
+    if (nextActions.contains('OPEN_ADD_MERCHANT_PICKER')) {
+      add(
+        _merchantPickerHintFromPayload(
+          actionPayloads,
+          actionKey: 'OPEN_ADD_MERCHANT_PICKER',
+          fallbackLabel: 'Tambah Merchant',
+          fallbackMode: 'add',
         ),
       );
     }
@@ -1322,18 +1339,25 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
 
   ChatbotMessageActionHint _merchantPickerHintFromPayload(
     Map<String, dynamic>? actionPayloads, {
+    required String actionKey,
     required String fallbackLabel,
+    required String fallbackMode,
   }) {
-    final payload = actionPayloads?['OPEN_MERCHANT_PICKER'];
+    final payload = actionPayloads?[actionKey];
     final payloadMap = payload is Map<String, dynamic>
         ? payload
         : <String, dynamic>{};
+    final mode = (payloadMap['mode']?.toString().trim().toLowerCase() ?? '')
+        .isEmpty
+        ? fallbackMode
+        : payloadMap['mode'].toString().trim().toLowerCase();
 
     return ChatbotMessageActionHint(
       type: ChatbotMessageActionType.openMerchantPicker,
       label: (payloadMap['label']?.toString().trim() ?? '').isEmpty
           ? fallbackLabel
           : payloadMap['label'].toString().trim(),
+      merchantMode: mode == 'add' ? 'add' : 'select',
       initialLatitude: _toDouble(payloadMap['initial_latitude']),
       initialLongitude: _toDouble(payloadMap['initial_longitude']),
     );
@@ -1529,13 +1553,13 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     final currentKeys = current
         .map(
           (item) =>
-              '${item.type.name}:${item.target ?? '-'}:${item.presetMessage ?? '-'}:${item.orderId ?? '-'}:${item.label}',
+              '${item.type.name}:${item.target ?? '-'}:${item.presetMessage ?? '-'}:${item.orderId ?? '-'}:${item.merchantMode ?? '-'}:${item.label}',
         )
         .toSet();
     final incomingKeys = incoming
         .map(
           (item) =>
-              '${item.type.name}:${item.target ?? '-'}:${item.presetMessage ?? '-'}:${item.orderId ?? '-'}:${item.label}',
+              '${item.type.name}:${item.target ?? '-'}:${item.presetMessage ?? '-'}:${item.orderId ?? '-'}:${item.merchantMode ?? '-'}:${item.label}',
         )
         .toSet();
 

@@ -78,7 +78,7 @@ void main() {
     expect(find.text('Pilih Titik Tujuan'), findsNothing);
   });
 
-  testWidgets('nitip welcome shows Bang Deliv merchant guidance and example', (
+  testWidgets('nitip welcome shows concise multi merchant guidance', (
     WidgetTester tester,
   ) async {
     await _pumpChatbot(
@@ -87,10 +87,9 @@ void main() {
       chatbotApiService: _FakeChatbotApiService(),
     );
 
-    expect(find.textContaining('tersedia di Bang Deliv'), findsOneWidget);
-    expect(find.textContaining('Contoh: Beli di'), findsOneWidget);
-    expect(find.textContaining('- ayam geprek 2'), findsOneWidget);
-    expect(find.textContaining('- es teh 1'), findsOneWidget);
+    expect(find.textContaining('pilih merchant di map'), findsOneWidget);
+    expect(find.textContaining('sampai 3 merchant'), findsOneWidget);
+    expect(find.textContaining('Contoh: Beli di'), findsNothing);
     expect(
       find.widgetWithText(OutlinedButton, 'Pilih Merchant di Map'),
       findsOneWidget,
@@ -281,6 +280,38 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'nitip ready first merchant offers add merchant with examples and mode add',
+    (WidgetTester tester) async {
+      final fakeService = _FakeChatbotApiService();
+      await _pumpChatbot(
+        tester,
+        serviceType: 'nitip',
+        chatbotApiService: fakeService,
+      );
+
+      await _sendMessage(tester, 'draft nitip merchant siap');
+
+      expect(find.textContaining('Mau tambah merchant lain?'), findsOneWidget);
+      expect(find.textContaining('- susu 1'), findsOneWidget);
+      expect(
+        find.widgetWithText(OutlinedButton, 'Tambah Merchant'),
+        findsOneWidget,
+      );
+      expect(find.text('Beli ayam geprek'), findsNothing);
+
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Tambah Merchant'));
+      await _pumpChatbotFrame(tester);
+      await tester.tap(find.text('Pilih Kedai Kedua'));
+      await _pumpChatbotFrame(tester);
+
+      expect(fakeService.patchMerchantCallCount, 1);
+      expect(fakeService.lastMerchantMode, 'add');
+      expect(find.textContaining('Kedai Kedua'), findsOneWidget);
+      expect(find.textContaining('air mineral 1'), findsOneWidget);
+    },
+  );
 
   testWidgets('only latest chatbot action buttons stay enabled', (
     WidgetTester tester,
@@ -669,6 +700,30 @@ Future<GoRouter> _pumpChatbot(
         },
       ),
       GoRoute(
+        path: '/chatbot/shopping/merchant-map-picker',
+        builder: (BuildContext context, GoRouterState state) {
+          return Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () {
+                  context.pop(
+                    const ShoppingMerchantPlacePayload(
+                      placeId: 'google-place-kedai-kedua',
+                      name: 'Kedai Kedua',
+                      address: 'Jl. Kedai Kedua',
+                      latitude: -7.05,
+                      longitude: 110.43,
+                      types: <String>['restaurant'],
+                    ),
+                  );
+                },
+                child: const Text('Pilih Kedai Kedua'),
+              ),
+            ),
+          );
+        },
+      ),
+      GoRoute(
         path: '/activity',
         builder: (BuildContext context, GoRouterState state) {
           return const Scaffold(body: Center(child: Text('Activity Screen')));
@@ -788,9 +843,11 @@ class _FakeChatbotApiService extends ChatbotApiService {
   int callCount = 0;
   int patchLocationCallCount = 0;
   int patchLocationsCallCount = 0;
+  int patchMerchantCallCount = 0;
   int clearSessionCallCount = 0;
   String? lastServiceType;
   String? lastPatchTarget;
+  String? lastMerchantMode;
   String? lastClearedSessionId;
   List<String> lastRouteTargets = const <String>[];
   List<String?> lastRouteAddresses = const <String?>[];
@@ -863,6 +920,83 @@ class _FakeChatbotApiService extends ChatbotApiService {
             'next_actions': ['SET_PAYMENT_COD', 'SET_PAYMENT_TRANSFER'],
           },
           'action_payloads': {
+            'SET_PAYMENT_COD': {'label': 'COD', 'message': 'COD'},
+            'SET_PAYMENT_TRANSFER': {'label': 'QRIS', 'message': 'QRIS'},
+          },
+          'order': {'created': false, 'payment_method': null},
+        },
+      });
+    }
+
+    if (serviceType == 'nitip' && normalized == 'draft nitip merchant siap') {
+      return ChatbotResult.fromApiJson({
+        'status': 'success',
+        'session_id': sessionId,
+        'service_context': {'service_type': serviceType},
+        'model_used': 'gemini-3.1-flash-lite',
+        'data': {
+          'intent': 'shopping_order',
+          'assistant_text':
+              'Draft Nitip merchant pertama sudah aman.\n\n'
+              'Merchant\n'
+              'Kedai Tinari\n\n'
+              'Daftar belanja\n'
+              '1. 1x ramen mala (harga menyusul dari nota)\n'
+              '2. 1x es jeruk (harga menyusul dari nota)\n\n'
+              'Alamat antar\n'
+              'FISIP UNDIP\n\n'
+              'Estimasi ongkir sementara: Rp 9.000\n'
+              'Estimasi total sementara: Rp 9.000\n'
+              'Metode pembayaran: pilih COD atau QRIS.\n\n'
+              'Mau tambah merchant lain? Pilih merchantnya dulu.\n'
+              'Contoh setelah merchant berikutnya dipilih:\n'
+              '- susu 1\n'
+              '- roti tawar 2\n\n'
+              'Ketik "konfirmasi" kalau sudah oke.',
+          'shopping': {
+            'ready_to_confirm': true,
+            'payment_method': null,
+            'merchant': {'name': 'Kedai Tinari'},
+            'delivery': {'address': 'FISIP UNDIP'},
+            'items': [
+              {'name': 'ramen mala', 'quantity': 1, 'unit_price': 0},
+              {'name': 'es jeruk', 'quantity': 1, 'unit_price': 0},
+            ],
+            'stops': [
+              {
+                'index': 1,
+                'is_active': true,
+                'ready': true,
+                'merchant': {'name': 'Kedai Tinari'},
+                'items': [
+                  {'name': 'ramen mala', 'quantity': 1, 'unit_price': 0},
+                  {'name': 'es jeruk', 'quantity': 1, 'unit_price': 0},
+                ],
+              },
+            ],
+          },
+          'validation': {
+            'is_valid_order': true,
+            'rejection_reasons': [],
+            'missing_fields': [],
+            'next_actions': [
+              'OPEN_ADD_MERCHANT_PICKER',
+              'OPEN_MAP_PICKER_DELIVERY',
+              'SET_PAYMENT_COD',
+              'SET_PAYMENT_TRANSFER',
+            ],
+          },
+          'action_payloads': {
+            'OPEN_ADD_MERCHANT_PICKER': {
+              'label': 'Tambah Merchant',
+              'mode': 'add',
+              'initial_latitude': -7.0509,
+              'initial_longitude': 110.4315,
+            },
+            'OPEN_MAP_PICKER_DELIVERY': {
+              'target': 'delivery',
+              'label': 'Ganti Titik Antar',
+            },
             'SET_PAYMENT_COD': {'label': 'COD', 'message': 'COD'},
             'SET_PAYMENT_TRANSFER': {'label': 'QRIS', 'message': 'QRIS'},
           },
@@ -1157,7 +1291,12 @@ class _FakeChatbotApiService extends ChatbotApiService {
     required String serviceType,
     int? merchantId,
     ShoppingMerchantPlacePayload? merchantPlace,
+    String mode = 'select',
   }) async {
+    patchMerchantCallCount += 1;
+    lastServiceType = serviceType;
+    lastMerchantMode = mode;
+
     return ChatbotResult.fromApiJson({
       'status': 'success',
       'session_id': sessionId,
@@ -1165,7 +1304,9 @@ class _FakeChatbotApiService extends ChatbotApiService {
       'model_used': 'merchant-picker-action',
       'data': {
         'intent': 'shopping_order',
-        'assistant_text': 'Merchant Nitip berhasil dipilih.',
+        'assistant_text': mode == 'add'
+            ? 'Draft Nitip belum lengkap. Lengkapi: items.\n\nMerchant\nKedai Kedua\n\nTulis item dan jumlah untuk merchant ini.\nContoh:\n- susu 1\n- roti tawar 2\n- air mineral 1'
+            : 'Merchant Nitip berhasil dipilih.',
         'validation': {
           'is_valid_order': false,
           'rejection_reasons': [],

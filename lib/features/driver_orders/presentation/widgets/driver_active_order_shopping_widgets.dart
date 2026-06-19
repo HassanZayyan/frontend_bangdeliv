@@ -139,22 +139,23 @@ class DriverShoppingMerchantQuotePanel extends StatefulWidget {
     required this.quote,
     required this.isOrderBusy,
     required this.isSubmittingQuote,
-    required this.isAcceptingCounter,
+    required this.isBypassingPrice,
     required this.onSubmitQuote,
-    required this.onAcceptCounter,
+    required this.onBypassApproval,
   });
 
   final int pickupLocationId;
   final ShoppingMerchantQuoteModel? quote;
   final bool isOrderBusy;
   final bool isSubmittingQuote;
-  final bool isAcceptingCounter;
+  final bool isBypassingPrice;
   final Future<String?> Function({
     required double amount,
     int? pickupLocationId,
   })
   onSubmitQuote;
-  final Future<String?> Function({int? pickupLocationId}) onAcceptCounter;
+  final Future<String?> Function({required int pickupLocationId})
+  onBypassApproval;
 
   @override
   State<DriverShoppingMerchantQuotePanel> createState() =>
@@ -197,7 +198,6 @@ class _DriverShoppingMerchantQuotePanelState
   Widget build(BuildContext context) {
     final quote = widget.quote;
     final canSubmitQuote = quote?.amount.canDriverSubmitQuote == true;
-    final isPendingDriver = quote?.isPendingDriver == true;
     final isPendingCustomer = quote?.isPendingCustomer == true;
     final isApproved = quote?.isApproved == true;
     final needsRequote = quote?.needsRequote == true;
@@ -241,31 +241,23 @@ class _DriverShoppingMerchantQuotePanelState
               amountText: formatCurrency(quote?.approvedAmount ?? 0),
               color: AppColors.success,
             )
-          else if (isPendingDriver) ...[
-            BangNegotiationStatusPanel(
-              icon: Icons.handshake_outlined,
-              label: 'Tawaran customer',
-              amountText: formatCurrency(quote?.amount.counterAmount ?? 0),
-              color: AppColors.primary,
-            ),
-            const SizedBox(height: 9),
-            BangActionButton(
-              label: 'Setujui Tawaran',
-              icon: Icons.check_rounded,
-              isLoading: widget.isAcceptingCounter,
-              isEnabled: !widget.isOrderBusy || widget.isAcceptingCounter,
-              onPressed: _acceptCounter,
-            ),
-            const SizedBox(height: 9),
-            _quoteForm(canSubmitQuote),
-          ] else if (isPendingCustomer)
+          else if (isPendingCustomer) ...[
             BangNegotiationStatusPanel(
               icon: Icons.schedule_outlined,
               label: 'Menunggu customer',
               amountText: formatCurrency(quote?.amount.quotedAmount ?? 0),
               color: AppColors.textSecondary,
-            )
-          else ...[
+            ),
+            const SizedBox(height: 9),
+            BangActionButton(
+              label: 'Lanjutkan tanpa respon customer',
+              variant: BangActionButtonVariant.outlined,
+              icon: Icons.double_arrow_rounded,
+              isLoading: widget.isBypassingPrice,
+              isEnabled: !widget.isOrderBusy || widget.isBypassingPrice,
+              onPressed: _bypassApproval,
+            ),
+          ] else ...[
             if (needsRequote) ...[
               const Text(
                 'Perubahan item perlu harga baru.',
@@ -328,15 +320,15 @@ class _DriverShoppingMerchantQuotePanelState
     _showSnack(error ?? 'Harga Nitip dikirim.');
   }
 
-  Future<void> _acceptCounter() async {
-    final error = await widget.onAcceptCounter(
+  Future<void> _bypassApproval() async {
+    final error = await widget.onBypassApproval(
       pickupLocationId: widget.pickupLocationId,
     );
     if (!mounted) {
       return;
     }
 
-    _showSnack(error ?? 'Tawaran customer disetujui.');
+    _showSnack(error ?? 'Harga dilanjutkan tanpa respons customer.');
   }
 
   void _showSnack(String message, {bool isError = false}) {
@@ -358,14 +350,23 @@ class DriverShoppingItemsCard extends StatefulWidget {
   final bool canUploadReceipt;
   final bool canCheckout;
   final bool Function(int pickupLocationId) isSubmittingQuote;
-  final bool Function(int pickupLocationId) isAcceptingCounter;
+  final bool Function(int pickupLocationId) isBypassingPrice;
+  final bool Function(int pickupLocationId) isMarkingMerchantOpen;
+  final bool Function(int pickupLocationId) isClosingMerchant;
   final Future<String?> Function(XFile photo) onUploadReceipt;
   final Future<String?> Function({
     required double amount,
     int? pickupLocationId,
   })
   onSubmitQuote;
-  final Future<String?> Function({int? pickupLocationId}) onAcceptCounter;
+  final Future<String?> Function({required int pickupLocationId}) onBypassPrice;
+  final Future<String?> Function({required int pickupLocationId})
+  onMarkMerchantOpen;
+  final Future<String?> Function({
+    required int pickupLocationId,
+    required String reason,
+  })
+  onMarkMerchantClosed;
   final Future<String?> Function(
     List<Map<String, dynamic>> items,
     int? pickupLocationId,
@@ -387,10 +388,14 @@ class DriverShoppingItemsCard extends StatefulWidget {
     required this.canUploadReceipt,
     required this.canCheckout,
     required this.isSubmittingQuote,
-    required this.isAcceptingCounter,
+    required this.isBypassingPrice,
+    required this.isMarkingMerchantOpen,
+    required this.isClosingMerchant,
     required this.onUploadReceipt,
     required this.onSubmitQuote,
-    required this.onAcceptCounter,
+    required this.onBypassPrice,
+    required this.onMarkMerchantOpen,
+    required this.onMarkMerchantClosed,
     required this.onSaveItems,
     required this.onSave,
   });
@@ -467,6 +472,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     final canEditAvailability =
         widget.canEditAvailability &&
         !widget.order.shoppingCapabilities.hasPendingItemChangeRequest;
+    final editableAvailabilityItems = _editableItemsForAvailabilityControls();
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -501,12 +507,18 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
             ],
           ),
           const SizedBox(height: 10),
+          if (editableAvailabilityItems.isNotEmpty) ...[
+            _buildHeavyToggleForItems(editableAvailabilityItems),
+            const SizedBox(height: 10),
+          ],
           if (widget.order.shoppingStops.isEmpty) ...[
-            if (canEditAvailability) ...[
-              _buildHeavyToggleForItems(widget.order.shoppingItems),
-              const SizedBox(height: 8),
-            ],
-            ...widget.order.shoppingItems.map(_buildItemEditor),
+            ...widget.order.shoppingItems.map(
+              (item) => _buildItemEditor(
+                item,
+                showAvailabilityControl: canEditAvailability,
+                canToggleAvailability: canEditAvailability,
+              ),
+            ),
             if (canEditAvailability &&
                 _hasItemChangesForItems(widget.order.shoppingItems)) ...[
               const SizedBox(height: 2),
@@ -535,7 +547,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
             const SizedBox(height: 8),
             BangActionButton(
               label: !widget.order.hasProof('receipt')
-                  ? 'Upload Foto Struk'
+                  ? 'Upload Foto Struk Opsional'
                   : 'Foto Struk Siap',
               variant: BangActionButtonVariant.outlined,
               icon: Icons.photo_camera_outlined,
@@ -562,7 +574,11 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     );
   }
 
-  Widget _buildItemEditor(DriverShoppingItemModel item) {
+  Widget _buildItemEditor(
+    DriverShoppingItemModel item, {
+    required bool showAvailabilityControl,
+    required bool canToggleAvailability,
+  }) {
     final isAvailable = _availability[item.id] ?? item.isAvailable;
 
     return Container(
@@ -592,11 +608,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
                   ),
                 ),
               ),
-              if (widget.canEditAvailability &&
-                  !widget
-                      .order
-                      .shoppingCapabilities
-                      .hasPendingItemChangeRequest)
+              if (showAvailabilityControl)
                 Checkbox(
                   value: isAvailable,
                   visualDensity: const VisualDensity(
@@ -604,12 +616,14 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
                     vertical: -4,
                   ),
                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  onChanged: (value) {
-                    setState(() {
-                      _dirtyAvailabilityIds.add(item.id);
-                      _availability[item.id] = value ?? true;
-                    });
-                  },
+                  onChanged: canToggleAvailability
+                      ? (value) {
+                          setState(() {
+                            _dirtyAvailabilityIds.add(item.id);
+                            _availability[item.id] = value ?? true;
+                          });
+                        }
+                      : null,
                 ),
             ],
           ),
@@ -629,23 +643,95 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     );
   }
 
+  bool _areItemsReadyForQuote(List<DriverShoppingItemModel> items) {
+    return items.isNotEmpty &&
+        items.every((item) => _availability[item.id] ?? item.isAvailable);
+  }
+
+  List<DriverShoppingItemModel> _editableItemsForAvailabilityControls() {
+    if (!widget.canEditAvailability ||
+        widget.order.shoppingCapabilities.hasPendingItemChangeRequest) {
+      return const <DriverShoppingItemModel>[];
+    }
+
+    if (widget.order.shoppingStops.isEmpty) {
+      return widget.order.shoppingItems;
+    }
+
+    return widget.order.shoppingStops
+        .where((stop) => !stop.isSkipped && !stop.isReplaced)
+        .where(_canEditAvailabilityForStop)
+        .expand((stop) => stop.items)
+        .toList(growable: false);
+  }
+
+  bool _isStopAvailabilityLocked(
+    DriverShoppingStopModel stop,
+    ShoppingMerchantQuoteModel? quote,
+  ) {
+    return stop.isPricePendingCustomer ||
+        stop.isPriceApproved ||
+        (quote?.isPendingCustomer ?? false) ||
+        (quote?.isApproved ?? false);
+  }
+
+  bool _canEditAvailabilityForStop(DriverShoppingStopModel stop) {
+    final quote = widget.order.shoppingNegotiation?.quoteForPickup(
+      stop.pickupLocationId,
+    );
+
+    if (!widget.canEditAvailability ||
+        widget.order.shoppingCapabilities.hasPendingItemChangeRequest ||
+        !stop.isActive ||
+        stop.fulfillmentStatus.toUpperCase() == 'PENDING' ||
+        _isStopAvailabilityLocked(stop, quote)) {
+      return false;
+    }
+
+    return stop.isOpenConfirmed ||
+        stop.isItemsPendingCustomer ||
+        stop.isItemsConfirmed;
+  }
+
+  bool _shouldShowQuotePanelForStop(
+    DriverShoppingStopModel stop,
+    ShoppingMerchantQuoteModel? quote,
+    List<DriverShoppingItemModel> items,
+  ) {
+    if (quote == null ||
+        !quote.hasAvailableItems ||
+        !_areItemsReadyForQuote(items) ||
+        stop.isItemsPendingCustomer ||
+        widget.order.shoppingCapabilities.hasPendingItemChangeRequest) {
+      return false;
+    }
+
+    final hasQuoteState =
+        quote.amount.hasQuote || quote.isPendingDriver || quote.isApproved;
+
+    return hasQuoteState ||
+        quote.needsRequote ||
+        (stop.availabilityConfirmed && quote.amount.canDriverSubmitQuote);
+  }
+
   Widget _buildStopSection(DriverShoppingStopModel stop) {
     final activeItems = stop.items;
     final quote = widget.order.shoppingNegotiation?.quoteForPickup(
       stop.pickupLocationId,
     );
-    final hasQuoteState =
-        quote != null &&
-        (quote.amount.hasQuote || quote.isPendingDriver || quote.isApproved);
-    final shouldShowQuotePanel =
-        quote != null &&
-        (hasQuoteState ||
-            quote.needsRequote ||
-            (stop.availabilityConfirmed && quote.amount.canDriverSubmitQuote));
-    final canEditStopAvailability =
+    final shouldShowQuotePanel = _shouldShowQuotePanelForStop(
+      stop,
+      quote,
+      activeItems,
+    );
+    final showAvailabilityControl =
         widget.canEditAvailability &&
         !widget.order.shoppingCapabilities.hasPendingItemChangeRequest;
+    final canEditStopAvailability = _canEditAvailabilityForStop(stop);
     final isSavingStopItems = widget.isSavingItems(stop.pickupLocationId);
+    final isPendingMerchant = stop.fulfillmentStatus.toUpperCase() == 'PENDING';
+    final isOpeningStop = widget.isMarkingMerchantOpen(stop.pickupLocationId);
+    final isClosingStop = widget.isClosingMerchant(stop.pickupLocationId);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -681,7 +767,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
                   ),
                 ),
               ),
-              if (stop.isFailed || stop.isSkipped || stop.isReplaced)
+              if (stop.isTerminal)
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
@@ -696,9 +782,30 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
                         ? 'Resto tutup/order batal'
                         : stop.isReplaced
                         ? 'Diganti'
+                        : stop.isCompleted
+                        ? 'Selesai'
                         : 'Dilewati',
                     style: const TextStyle(
                       color: AppColors.error,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              if (stop.isActive && !isPendingMerchant)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    _stopStatusLabel(stop),
+                    style: const TextStyle(
+                      color: AppColors.primaryDark,
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
                     ),
@@ -734,7 +841,38 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
               ),
             ),
           ],
-          if (stop.isActive && shouldShowQuotePanel) ...[
+          if (stop.isActive && isPendingMerchant) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: BangActionButton(
+                    label: 'Resto tutup',
+                    variant: BangActionButtonVariant.outlined,
+                    icon: Icons.storefront_outlined,
+                    isLoading: isClosingStop,
+                    isEnabled: !widget.isOrderBusy || isClosingStop,
+                    onPressed: () => _closeMerchant(stop),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.error,
+                      side: const BorderSide(color: AppColors.error),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: BangActionButton(
+                    label: 'Resto buka',
+                    icon: Icons.check_circle_outline,
+                    isLoading: isOpeningStop,
+                    isEnabled: !widget.isOrderBusy || isOpeningStop,
+                    onPressed: () => _openMerchant(stop),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (stop.isActive && !isPendingMerchant && shouldShowQuotePanel) ...[
             DriverShoppingMerchantQuotePanel(
               pickupLocationId: stop.pickupLocationId,
               quote: quote,
@@ -742,20 +880,22 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
               isSubmittingQuote: widget.isSubmittingQuote(
                 stop.pickupLocationId,
               ),
-              isAcceptingCounter: widget.isAcceptingCounter(
-                stop.pickupLocationId,
-              ),
+              isBypassingPrice: widget.isBypassingPrice(stop.pickupLocationId),
               onSubmitQuote: widget.onSubmitQuote,
-              onAcceptCounter: widget.onAcceptCounter,
+              onBypassApproval: widget.onBypassPrice,
             ),
           ],
           const SizedBox(height: 8),
-          if (canEditStopAvailability) ...[
-            _buildHeavyToggleForItems(activeItems),
-            const SizedBox(height: 8),
-          ],
-          ...activeItems.map(_buildItemEditor),
-          if (canEditStopAvailability &&
+          if (stop.isActive && !isPendingMerchant)
+            ...activeItems.map(
+              (item) => _buildItemEditor(
+                item,
+                showAvailabilityControl: showAvailabilityControl,
+                canToggleAvailability: canEditStopAvailability,
+              ),
+            ),
+          if (stop.isActive &&
+              canEditStopAvailability &&
               (!stop.availabilityConfirmed ||
                   _hasItemChangesForItems(activeItems))) ...[
             const SizedBox(height: 2),
@@ -772,6 +912,71 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  String _stopStatusLabel(DriverShoppingStopModel stop) {
+    if (stop.isOpenConfirmed) return 'Buka';
+    if (stop.isItemsPendingCustomer) return 'Menunggu keputusan item';
+    if (stop.isItemsConfirmed) return 'Item fix';
+    if (stop.isPricePendingCustomer) return 'Menunggu harga';
+    if (stop.isPriceApproved) return 'Harga disetujui';
+    return stop.fulfillmentStatus;
+  }
+
+  Future<void> _openMerchant(DriverShoppingStopModel stop) async {
+    final error = await widget.onMarkMerchantOpen(
+      pickupLocationId: stop.pickupLocationId,
+    );
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error ?? '${stop.merchant.name} ditandai buka.'),
+        backgroundColor: error == null ? null : AppColors.error,
+      ),
+    );
+  }
+
+  Future<void> _closeMerchant(DriverShoppingStopModel stop) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Resto tutup?'),
+        content: Text(
+          '${stop.merchant.name} akan dibatalkan dan itemnya tidak dihitung.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Tutup'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    final error = await widget.onMarkMerchantClosed(
+      pickupLocationId: stop.pickupLocationId,
+      reason: 'Resto tutup/order batal saat driver tiba.',
+    );
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error ?? '${stop.merchant.name} ditandai tutup.'),
+        backgroundColor: error == null ? null : AppColors.error,
       ),
     );
   }
@@ -989,16 +1194,6 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
   }
 
   Future<void> _save() async {
-    if (!widget.order.hasProof('receipt')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Upload foto struk dulu.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-
     final error = await widget.onSave(
       _itemPayload(widget.order.shoppingItems),
       null,

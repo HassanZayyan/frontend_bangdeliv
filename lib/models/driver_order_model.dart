@@ -643,7 +643,19 @@ class DriverShoppingStopModel {
   bool get isFailed => fulfillmentStatus.toUpperCase() == 'FAILED';
   bool get isSkipped => fulfillmentStatus.toUpperCase() == 'SKIPPED';
   bool get isReplaced => fulfillmentStatus.toUpperCase() == 'REPLACED';
-  bool get isActive => !isFailed && !isSkipped && !isReplaced;
+  bool get isCompleted => fulfillmentStatus.toUpperCase() == 'COMPLETED';
+  bool get isOpenConfirmed =>
+      fulfillmentStatus.toUpperCase() == 'OPEN_CONFIRMED';
+  bool get isItemsPendingCustomer =>
+      fulfillmentStatus.toUpperCase() == 'ITEMS_PENDING_CUSTOMER';
+  bool get isItemsConfirmed =>
+      fulfillmentStatus.toUpperCase() == 'ITEMS_CONFIRMED';
+  bool get isPricePendingCustomer =>
+      fulfillmentStatus.toUpperCase() == 'PRICE_PENDING_CUSTOMER';
+  bool get isPriceApproved =>
+      fulfillmentStatus.toUpperCase() == 'PRICE_APPROVED';
+  bool get isTerminal => isFailed || isSkipped || isReplaced || isCompleted;
+  bool get isActive => !isTerminal;
 
   factory DriverShoppingStopModel.fromJson(Map<String, dynamic> json) {
     final merchantJson = (json['merchant'] is Map<String, dynamic>)
@@ -940,6 +952,10 @@ class DriverHistoryOrderModel {
   final String customerName;
   final DateTime date;
   final int fee;
+  final double deliveryFee;
+  final double serviceFee;
+  final double driverIncome;
+  final double totalPrice;
   final String status;
 
   const DriverHistoryOrderModel({
@@ -949,6 +965,10 @@ class DriverHistoryOrderModel {
     required this.customerName,
     required this.date,
     required this.fee,
+    this.deliveryFee = 0,
+    this.serviceFee = 0,
+    this.driverIncome = 0,
+    this.totalPrice = 0,
     required this.status,
   });
 
@@ -962,6 +982,9 @@ class DriverHistoryOrderModel {
     final rawId = (json['id'] ?? '').toString();
     final rawOrderNumber =
         (json['order_number'] ?? json['orderNumber'])?.toString().trim() ?? '';
+    final driverIncome = DriverOrderModel._asDouble(
+      json['driver_income'] ?? json['driverIncome'] ?? json['fee'],
+    );
 
     return DriverHistoryOrderModel(
       id: rawId,
@@ -972,7 +995,20 @@ class DriverHistoryOrderModel {
       customerName: (json['customer_name'] ?? json['customerName'] ?? '-')
           .toString(),
       date: parseBackendDateTime(rawDate) ?? DateTime.now().toUtc(),
-      fee: DriverOrderModel._asInt(json['fee'], fallback: 0),
+      fee: DriverOrderModel._asInt(
+        json['fee'] ?? json['driver_income'] ?? json['driverIncome'],
+        fallback: 0,
+      ),
+      deliveryFee: DriverOrderModel._asDouble(
+        json['delivery_fee'] ?? json['deliveryFee'],
+      ),
+      serviceFee: DriverOrderModel._asDouble(
+        json['service_fee'] ?? json['serviceFee'],
+      ),
+      driverIncome: driverIncome,
+      totalPrice: DriverOrderModel._asDouble(
+        json['total_price'] ?? json['totalPrice'],
+      ),
       status: (json['status'] ?? 'Selesai').toString(),
     );
   }

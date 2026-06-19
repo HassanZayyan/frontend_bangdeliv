@@ -9,6 +9,7 @@ import 'package:http/testing.dart';
 import 'package:frontend_bangdeliv/models/customer_order_model.dart';
 import 'package:frontend_bangdeliv/core/di/app_providers.dart';
 import 'package:frontend_bangdeliv/features/shopping/presentation/screens/shopping_add_item_screen.dart';
+import 'package:frontend_bangdeliv/models/shopping_order_capability_model.dart';
 import 'package:frontend_bangdeliv/services/api_client.dart';
 import 'package:frontend_bangdeliv/services/customer_order_api_service.dart';
 
@@ -274,6 +275,76 @@ void main() {
     expect(service.lastItems.first.merchantId, 11);
     expect(service.lastItems.first.name, 'Gula 1 kg');
   });
+
+  testWidgets(
+    'edit unavailable mode adds item to fixed merchant without picker',
+    (tester) async {
+      final service = _FakeCustomerOrderApiService(merchants: const []);
+      final fixedStop = CustomerShoppingStopModel(
+        pickupLocationId: 77,
+        sequenceNo: 1,
+        fulfillmentStatus: 'ITEMS_PENDING_CUSTOMER',
+        merchant: const CustomerShoppingMerchantModel(
+          id: null,
+          name: 'Kedai Tinari',
+          merchantType: 'restaurant',
+          address: 'Jl. Sawunggaling III',
+        ),
+        items: const <CustomerShoppingItemModel>[
+          CustomerShoppingItemModel(
+            id: 12,
+            pickupLocationId: 77,
+            itemSource: 'MANUAL',
+            name: 'es jeruk',
+            quantity: 1,
+            unitPrice: 0,
+            subtotal: 0,
+            isAvailable: false,
+            isHeavy: false,
+          ),
+        ],
+      );
+
+      await _pumpScreen(
+        tester,
+        service,
+        targetPickupLocationId: 77,
+        initialDetail: _shoppingDetail(
+          statusCode: 'DRIVER_ASSIGNED',
+          shoppingItems: fixedStop.items,
+          shoppingStops: [fixedStop],
+          shoppingCapabilities: const ShoppingOrderCapabilitiesModel(
+            isExplicit: true,
+            canCustomerEditUnavailableItems: true,
+          ),
+        ),
+      );
+
+      expect(find.text('Kedai Tinari'), findsOneWidget);
+      expect(service.menuSearchCalls, 0);
+
+      await tester.enterText(find.byType(TextField).first, 'es teh');
+      await tester.pumpAndSettle();
+      await _tapAddToDraft(tester);
+
+      expect(find.text('Pilih toko/resto terlebih dahulu.'), findsNothing);
+      expect(find.text('es teh'), findsOneWidget);
+
+      await _tapSubmitDrafts(tester);
+
+      expect(service.changeCalls, 1);
+      expect(service.lastAction, 'ADD');
+      expect(service.lastRequestKind, 'EDIT_UNAVAILABLE');
+      expect(service.lastTargetPickupLocationId, 77);
+      expect(service.lastItems, hasLength(1));
+      expect(service.lastItems.first.merchantId, isNull);
+      expect(service.lastItems.first.toJson(), isNot(contains('merchant_id')));
+      expect(
+        service.lastItems.first.toJson(),
+        isNot(contains('merchant_place')),
+      );
+    },
+  );
 }
 
 Future<void> _tapAddToDraft(WidgetTester tester) async {
@@ -294,15 +365,18 @@ Future<void> _tapSubmitDrafts(WidgetTester tester) async {
 
 Future<void> _pumpScreen(
   WidgetTester tester,
-  _FakeCustomerOrderApiService service,
-) async {
+  _FakeCustomerOrderApiService service, {
+  CustomerOrderDetailModel? initialDetail,
+  int? targetPickupLocationId,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [customerOrderApiServiceProvider.overrideWithValue(service)],
       child: MaterialApp(
         home: ShoppingAddItemScreen(
           orderId: 1,
-          initialDetail: _shoppingDetail(),
+          initialDetail: initialDetail ?? _shoppingDetail(),
+          targetPickupLocationId: targetPickupLocationId,
         ),
       ),
     ),
@@ -319,7 +393,11 @@ class _FakeCustomerOrderApiService extends CustomerOrderApiService {
   final List<ShoppingMerchantOption> merchants;
   final List<ShoppingMenuOption> menus;
   int addCalls = 0;
+  int changeCalls = 0;
   int menuSearchCalls = 0;
+  String? lastAction;
+  String? lastRequestKind;
+  int? lastTargetPickupLocationId;
   List<ShoppingItemDraftPayload> lastItems = const <ShoppingItemDraftPayload>[];
 
   @override
@@ -342,9 +420,8 @@ class _FakeCustomerOrderApiService extends CustomerOrderApiService {
   @override
   Future<CustomerOrderDetailModel> addShoppingItems(
     int orderId,
-    List<ShoppingItemDraftPayload> items, {
-    int? replacementForPickupLocationId,
-  }) async {
+    List<ShoppingItemDraftPayload> items,
+  ) async {
     addCalls += 1;
     lastItems = items;
     final hasNewMerchant = items.any((item) => item.merchantId == 10);
@@ -354,12 +431,36 @@ class _FakeCustomerOrderApiService extends CustomerOrderApiService {
       stopCount: hasNewMerchant ? 2 : 1,
     );
   }
+
+  @override
+  Future<CustomerOrderDetailModel> requestShoppingItemChange(
+    int orderId, {
+    required String action,
+    String? requestKind,
+    List<ShoppingItemDraftPayload> items = const <ShoppingItemDraftPayload>[],
+    int? itemId,
+    int? targetPickupLocationId,
+    String? note,
+  }) async {
+    changeCalls += 1;
+    lastAction = action;
+    lastRequestKind = requestKind;
+    lastTargetPickupLocationId = targetPickupLocationId;
+    lastItems = items;
+    return _shoppingDetail();
+  }
 }
 
 CustomerOrderDetailModel _shoppingDetail({
   double deliveryFee = 5000,
   double totalPrice = 25000,
   int stopCount = 1,
+  String statusCode = 'PENDING',
+  List<CustomerShoppingItemModel> shoppingItems =
+      const <CustomerShoppingItemModel>[],
+  List<CustomerShoppingStopModel>? shoppingStops,
+  ShoppingOrderCapabilitiesModel shoppingCapabilities =
+      const ShoppingOrderCapabilitiesModel(),
 }) {
   return CustomerOrderDetailModel(
     summary: CustomerOrderSummaryModel(
@@ -370,7 +471,7 @@ CustomerOrderDetailModel _shoppingDetail({
       restaurantName: 'Resto Awal',
       itemsSummary: '1x Telur',
       totalAmount: totalPrice,
-      statusCode: 'PENDING',
+      statusCode: statusCode,
       statusLabel: 'Menunggu Driver',
       isTerminalStatus: false,
       createdAt: DateTime(2026, 5, 16),
@@ -395,21 +496,23 @@ CustomerOrderDetailModel _shoppingDetail({
     driverLocationUpdatedAt: null,
     deliveryDistanceText: '2 km',
     timeline: const <OrderStatusSnapshot>[],
-    shoppingItems: const <CustomerShoppingItemModel>[],
-    shoppingStops: List<CustomerShoppingStopModel>.generate(
-      stopCount,
-      (index) => CustomerShoppingStopModel(
-        pickupLocationId: index + 1,
-        sequenceNo: index + 1,
-        merchant: CustomerShoppingMerchantModel(
-          id: index + 1,
-          name: index == 0 ? 'Resto Awal' : 'Resto Satu',
-          merchantType: 'restaurant',
-          address: 'Jl. Merchant',
+    shoppingItems: shoppingItems,
+    shoppingStops:
+        shoppingStops ??
+        List<CustomerShoppingStopModel>.generate(
+          stopCount,
+          (index) => CustomerShoppingStopModel(
+            pickupLocationId: index + 1,
+            sequenceNo: index + 1,
+            merchant: CustomerShoppingMerchantModel(
+              id: index + 1,
+              name: index == 0 ? 'Resto Awal' : 'Resto Satu',
+              merchantType: 'restaurant',
+              address: 'Jl. Merchant',
+            ),
+            items: const <CustomerShoppingItemModel>[],
+          ),
         ),
-        items: const <CustomerShoppingItemModel>[],
-      ),
-    ),
     shoppingPricing: CustomerShoppingPricingModel(
       subtotal: totalPrice - deliveryFee,
       deliveryFee: deliveryFee,
@@ -419,5 +522,6 @@ CustomerOrderDetailModel _shoppingDetail({
       overweightSurcharge: 0,
       cancellationPenalty: 0,
     ),
+    shoppingCapabilities: shoppingCapabilities,
   );
 }

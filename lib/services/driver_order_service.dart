@@ -294,17 +294,26 @@ class DriverOrderService {
     return _orderFromMutationResponse(response, orderId);
   }
 
-  Future<DriverOrderModel> acceptShoppingCounterOffer({
+  Future<DriverOrderModel> bypassShoppingPriceQuote({
     required String orderId,
-    int? pickupLocationId,
+    required int pickupLocationId,
   }) async {
     final response = await _post(
-      '/v1/driver/orders/$orderId/shopping/price-quote/accept-counter',
-      body: <String, dynamic>{
-        if (pickupLocationId != null && pickupLocationId > 0)
-          'pickup_location_id': pickupLocationId,
-      },
-      fallback: 'Gagal menyetujui tawaran customer.',
+      '/v1/driver/orders/$orderId/shopping/price-quote/bypass',
+      body: <String, dynamic>{'pickup_location_id': pickupLocationId},
+      fallback: 'Gagal melanjutkan harga tanpa respons customer.',
+    );
+
+    return _orderFromMutationResponse(response, orderId);
+  }
+
+  Future<DriverOrderModel> markShoppingMerchantOpen({
+    required String orderId,
+    required int pickupLocationId,
+  }) async {
+    final response = await _post(
+      '/v1/driver/orders/$orderId/shopping-stops/$pickupLocationId/open',
+      fallback: 'Gagal mengonfirmasi merchant buka.',
     );
 
     return _orderFromMutationResponse(response, orderId);

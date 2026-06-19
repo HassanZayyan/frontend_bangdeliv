@@ -61,7 +61,7 @@ void main() {
   });
 
   test(
-    'failed shopping merchant actions only show while merchant resolution is allowed',
+    'failed shopping merchant notice does not expose resolution actions',
     () {
       final widgetsSource = File(_trackOrderWidgetsPath).readAsStringSync();
       final failedStopNotice = widgetsSource.substring(
@@ -71,11 +71,11 @@ void main() {
 
       expect(
         failedStopNotice,
-        contains('widget.detail.canResolveFailedShoppingMerchant'),
+        isNot(contains('widget.detail.canResolveFailedShoppingMerchant')),
       );
-      expect(failedStopNotice, contains('if (canResolveFailedStop)'));
-      expect(failedStopNotice, contains('Tambah pengganti'));
-      expect(failedStopNotice, contains('Lanjut tanpa ini'));
+      expect(failedStopNotice, isNot(contains('if (canResolveFailedStop)')));
+      expect(failedStopNotice, isNot(contains('Tambah pengganti')));
+      expect(failedStopNotice, isNot(contains('Lanjut tanpa ini')));
     },
   );
 }
