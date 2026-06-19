@@ -22,9 +22,8 @@ abstract class CustomerOrderRepository {
 
   Future<CustomerOrderDetailModel> addShoppingItems(
     int orderId,
-    List<ShoppingItemDraftPayload> items, {
-    int? replacementForPickupLocationId,
-  });
+    List<ShoppingItemDraftPayload> items,
+  );
 
   Future<CustomerOrderDetailModel> requestShoppingItemChange(
     int orderId, {
@@ -46,15 +45,9 @@ abstract class CustomerOrderRepository {
 
   Future<CustomerOrderDetailModel> removeShoppingItem(int orderId, int itemId);
 
-  Future<CustomerOrderDetailModel> skipFailedShoppingStop(
-    int orderId,
-    int pickupLocationId,
-  );
-
   Future<CustomerOrderDetailModel> respondShoppingPriceQuote(
     int orderId, {
     required String action,
-    double? counterAmount,
     int? pickupLocationId,
   });
 
@@ -111,14 +104,9 @@ class ApiCustomerOrderRepository implements CustomerOrderRepository {
   @override
   Future<CustomerOrderDetailModel> addShoppingItems(
     int orderId,
-    List<ShoppingItemDraftPayload> items, {
-    int? replacementForPickupLocationId,
-  }) {
-    return _service.addShoppingItems(
-      orderId,
-      items,
-      replacementForPickupLocationId: replacementForPickupLocationId,
-    );
+    List<ShoppingItemDraftPayload> items,
+  ) {
+    return _service.addShoppingItems(orderId, items);
   }
 
   @override
@@ -165,24 +153,14 @@ class ApiCustomerOrderRepository implements CustomerOrderRepository {
   }
 
   @override
-  Future<CustomerOrderDetailModel> skipFailedShoppingStop(
-    int orderId,
-    int pickupLocationId,
-  ) {
-    return _service.skipFailedShoppingStop(orderId, pickupLocationId);
-  }
-
-  @override
   Future<CustomerOrderDetailModel> respondShoppingPriceQuote(
     int orderId, {
     required String action,
-    double? counterAmount,
     int? pickupLocationId,
   }) {
     return _service.respondShoppingPriceQuote(
       orderId,
       action: action,
-      counterAmount: counterAmount,
       pickupLocationId: pickupLocationId,
     );
   }

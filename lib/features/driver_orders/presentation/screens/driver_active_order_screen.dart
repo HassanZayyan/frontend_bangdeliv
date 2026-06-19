@@ -231,13 +231,22 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                         pickupLocationId,
                       ),
                     ),
-                    isAcceptingCounter: (pickupLocationId) =>
+                    isBypassingPrice: (pickupLocationId) => isProcessingAction(
+                      DriverOrderActionKeys.bypassShoppingPrice(
+                        order.id,
+                        pickupLocationId,
+                      ),
+                    ),
+                    isMarkingMerchantOpen: (pickupLocationId) =>
                         isProcessingAction(
-                          DriverOrderActionKeys.acceptShoppingCounter(
+                          DriverOrderActionKeys.markShoppingMerchantOpen(
                             order.id,
                             pickupLocationId,
                           ),
                         ),
+                    isClosingMerchant: (pickupLocationId) => isProcessingAction(
+                      DriverOrderActionKeys.pickupFailed(order.id),
+                    ),
                     onUploadReceipt: (photo) {
                       return ref
                           .read(driverOrdersProvider.notifier)
@@ -260,10 +269,10 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                       }
                       return error;
                     },
-                    onAcceptCounter: ({pickupLocationId}) async {
+                    onBypassPrice: ({required pickupLocationId}) async {
                       final error = await ref
                           .read(driverOrdersProvider.notifier)
-                          .acceptShoppingCounterOffer(
+                          .bypassShoppingPriceQuote(
                             orderId: order.id,
                             pickupLocationId: pickupLocationId,
                           );
@@ -272,6 +281,32 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                       }
                       return error;
                     },
+                    onMarkMerchantOpen: ({required pickupLocationId}) async {
+                      final error = await ref
+                          .read(driverOrdersProvider.notifier)
+                          .markShoppingMerchantOpen(
+                            orderId: order.id,
+                            pickupLocationId: pickupLocationId,
+                          );
+                      if (error == null) {
+                        ref.invalidate(driverOrderDetailProvider(order.id));
+                      }
+                      return error;
+                    },
+                    onMarkMerchantClosed:
+                        ({required pickupLocationId, required reason}) async {
+                          final error = await ref
+                              .read(driverOrdersProvider.notifier)
+                              .recordShoppingPickupFailed(
+                                orderId: order.id,
+                                pickupLocationId: pickupLocationId,
+                                reason: reason,
+                              );
+                          if (error == null) {
+                            ref.invalidate(driverOrderDetailProvider(order.id));
+                          }
+                          return error;
+                        },
                     onSaveItems: (items, pickupLocationId) async {
                       final error = await ref
                           .read(driverOrdersProvider.notifier)

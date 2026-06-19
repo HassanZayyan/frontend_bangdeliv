@@ -73,10 +73,46 @@ class ChatbotShoppingItem {
   }
 }
 
+class ChatbotShoppingStop {
+  final int index;
+  final bool isActive;
+  final bool ready;
+  final Map<String, dynamic>? merchant;
+  final List<ChatbotShoppingItem> items;
+
+  const ChatbotShoppingStop({
+    required this.index,
+    required this.isActive,
+    required this.ready,
+    required this.merchant,
+    required this.items,
+  });
+
+  factory ChatbotShoppingStop.fromJson(Map<String, dynamic> json) {
+    final rawItems = (json['items'] is List<dynamic>)
+        ? json['items'] as List<dynamic>
+        : const <dynamic>[];
+
+    return ChatbotShoppingStop(
+      index: int.tryParse(json['index']?.toString() ?? '') ?? 1,
+      isActive: json['is_active'] == true,
+      ready: json['ready'] == true,
+      merchant: (json['merchant'] is Map<String, dynamic>)
+          ? json['merchant'] as Map<String, dynamic>
+          : null,
+      items: rawItems
+          .whereType<Map<String, dynamic>>()
+          .map(ChatbotShoppingItem.fromJson)
+          .toList(growable: false),
+    );
+  }
+}
+
 class ChatbotShoppingDraft {
   final Map<String, dynamic>? merchant;
   final Map<String, dynamic>? delivery;
   final List<ChatbotShoppingItem> items;
+  final List<ChatbotShoppingStop> stops;
   final bool readyToConfirm;
   final String? paymentMethod;
 
@@ -84,6 +120,7 @@ class ChatbotShoppingDraft {
     required this.merchant,
     required this.delivery,
     required this.items,
+    required this.stops,
     required this.readyToConfirm,
     required this.paymentMethod,
   });
@@ -91,6 +128,9 @@ class ChatbotShoppingDraft {
   factory ChatbotShoppingDraft.fromJson(Map<String, dynamic> json) {
     final rawItems = (json['items'] is List<dynamic>)
         ? json['items'] as List<dynamic>
+        : const <dynamic>[];
+    final rawStops = (json['stops'] is List<dynamic>)
+        ? json['stops'] as List<dynamic>
         : const <dynamic>[];
 
     return ChatbotShoppingDraft(
@@ -103,6 +143,10 @@ class ChatbotShoppingDraft {
       items: rawItems
           .whereType<Map<String, dynamic>>()
           .map(ChatbotShoppingItem.fromJson)
+          .toList(growable: false),
+      stops: rawStops
+          .whereType<Map<String, dynamic>>()
+          .map(ChatbotShoppingStop.fromJson)
           .toList(growable: false),
       readyToConfirm: json['ready_to_confirm'] == true,
       paymentMethod: json['payment_method']?.toString(),

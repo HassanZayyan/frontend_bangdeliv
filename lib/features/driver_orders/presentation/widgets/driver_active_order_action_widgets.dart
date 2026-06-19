@@ -349,19 +349,7 @@ class DriverOrderActionCard extends StatelessWidget {
     );
   }
 
-  bool _canReportPickupFailed() {
-    if (onReportPickupFailed == null ||
-        normalizeServiceTypeCode(order.serviceTypeCode) !=
-            ServiceTypeCodes.shopping ||
-        order.shoppingStops.where((stop) => stop.isActive).isEmpty ||
-        order.shoppingPricing?.canCancelWithFee == true) {
-      return false;
-    }
-
-    final status = normalizeOrderStatusCode(order.statusCode);
-    return status == OrderStatusCodes.driverAssigned ||
-        status == OrderStatusCodes.arrivedMerchant;
-  }
+  bool _canReportPickupFailed() => false;
 
   Future<_FailedPickupReport?> _showFailedPickupDialog(BuildContext context) {
     return showDialog<_FailedPickupReport>(

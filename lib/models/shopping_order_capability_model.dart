@@ -8,6 +8,8 @@ class ShoppingOrderCapabilitiesModel {
     this.canCustomerRequestAddStop = false,
     this.canCustomerEditUnavailableItems = false,
     this.canCustomerResolveFailedMerchant = false,
+    this.canDriverMarkMerchantOpen = false,
+    this.canDriverMarkMerchantClosed = false,
     this.canDriverUpdateItemAvailability = false,
     this.canDriverSubmitShoppingQuote = false,
     this.canDriverSubmitMerchantQuote = false,
@@ -21,6 +23,8 @@ class ShoppingOrderCapabilitiesModel {
   final bool canCustomerRequestAddStop;
   final bool canCustomerEditUnavailableItems;
   final bool canCustomerResolveFailedMerchant;
+  final bool canDriverMarkMerchantOpen;
+  final bool canDriverMarkMerchantClosed;
   final bool canDriverUpdateItemAvailability;
   final bool canDriverSubmitShoppingQuote;
   final bool canDriverSubmitMerchantQuote;
@@ -53,6 +57,14 @@ class ShoppingOrderCapabilitiesModel {
       canCustomerResolveFailedMerchant: ModelParseUtils.boolValue(
         raw['can_customer_resolve_failed_merchant'] ??
             raw['canCustomerResolveFailedMerchant'],
+      ),
+      canDriverMarkMerchantOpen: ModelParseUtils.boolValue(
+        raw['can_driver_mark_merchant_open'] ??
+            raw['canDriverMarkMerchantOpen'],
+      ),
+      canDriverMarkMerchantClosed: ModelParseUtils.boolValue(
+        raw['can_driver_mark_merchant_closed'] ??
+            raw['canDriverMarkMerchantClosed'],
       ),
       canDriverUpdateItemAvailability: ModelParseUtils.boolValue(
         raw['can_driver_update_item_availability'] ??

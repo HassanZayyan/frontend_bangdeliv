@@ -81,9 +81,14 @@ abstract class DriverOrderRepository {
     int? pickupLocationId,
   });
 
-  Future<DriverOrderModel> acceptShoppingCounterOffer({
+  Future<DriverOrderModel> bypassShoppingPriceQuote({
     required String orderId,
-    int? pickupLocationId,
+    required int pickupLocationId,
+  });
+
+  Future<DriverOrderModel> markShoppingMerchantOpen({
+    required String orderId,
+    required int pickupLocationId,
   });
 
   Future<DriverOrderModel> respondShoppingItemChange({
@@ -268,11 +273,22 @@ class ApiDriverOrderRepository implements DriverOrderRepository {
   }
 
   @override
-  Future<DriverOrderModel> acceptShoppingCounterOffer({
+  Future<DriverOrderModel> bypassShoppingPriceQuote({
     required String orderId,
-    int? pickupLocationId,
+    required int pickupLocationId,
   }) {
-    return _service.acceptShoppingCounterOffer(
+    return _service.bypassShoppingPriceQuote(
+      orderId: orderId,
+      pickupLocationId: pickupLocationId,
+    );
+  }
+
+  @override
+  Future<DriverOrderModel> markShoppingMerchantOpen({
+    required String orderId,
+    required int pickupLocationId,
+  }) {
+    return _service.markShoppingMerchantOpen(
       orderId: orderId,
       pickupLocationId: pickupLocationId,
     );

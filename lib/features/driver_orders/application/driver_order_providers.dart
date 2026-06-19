@@ -102,11 +102,21 @@ class DriverOrderActionKeys {
     return _build(orderId, 'shoppingPriceQuote$suffix');
   }
 
-  static String acceptShoppingCounter(String orderId, [int? pickupLocationId]) {
+  static String bypassShoppingPrice(String orderId, [int? pickupLocationId]) {
     final suffix = pickupLocationId != null && pickupLocationId > 0
         ? ':$pickupLocationId'
         : '';
-    return _build(orderId, 'acceptShoppingCounter$suffix');
+    return _build(orderId, 'bypassShoppingPrice$suffix');
+  }
+
+  static String markShoppingMerchantOpen(
+    String orderId, [
+    int? pickupLocationId,
+  ]) {
+    final suffix = pickupLocationId != null && pickupLocationId > 0
+        ? ':$pickupLocationId'
+        : '';
+    return _build(orderId, 'markShoppingMerchantOpen$suffix');
   }
 
   static String updateShoppingItems(String orderId, [int? pickupLocationId]) {
@@ -873,17 +883,34 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     );
   }
 
-  Future<String?> acceptShoppingCounterOffer({
+  Future<String?> bypassShoppingPriceQuote({
     required String orderId,
-    int? pickupLocationId,
+    required int pickupLocationId,
   }) async {
     return _mutateRunningOrder(
       orderId: orderId,
-      actionKey: DriverOrderActionKeys.acceptShoppingCounter(
+      actionKey: DriverOrderActionKeys.bypassShoppingPrice(
         orderId,
         pickupLocationId,
       ),
-      request: (repository) => repository.acceptShoppingCounterOffer(
+      request: (repository) => repository.bypassShoppingPriceQuote(
+        orderId: orderId,
+        pickupLocationId: pickupLocationId,
+      ),
+    );
+  }
+
+  Future<String?> markShoppingMerchantOpen({
+    required String orderId,
+    required int pickupLocationId,
+  }) async {
+    return _mutateRunningOrder(
+      orderId: orderId,
+      actionKey: DriverOrderActionKeys.markShoppingMerchantOpen(
+        orderId,
+        pickupLocationId,
+      ),
+      request: (repository) => repository.markShoppingMerchantOpen(
         orderId: orderId,
         pickupLocationId: pickupLocationId,
       ),

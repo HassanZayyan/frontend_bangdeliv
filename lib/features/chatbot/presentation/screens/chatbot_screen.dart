@@ -105,10 +105,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           iconAsset:
               'assets/images/services/service_shopping_basket_simplified.png',
           welcomeMessage:
-              'Halo! Saya BangBot untuk layanan Nitip. Tulis resto/toko yang tersedia di Bang Deliv, item, dan jumlah lewat chat, atau atur titik antar di map.\n'
-              'Contoh: Beli di Ayam Geprek Pak Roni:\n'
-              '- ayam geprek 2\n'
-              '- es teh 1',
+              'Halo! Saya BangBot untuk layanan Nitip. Tulis merchant dan item lewat chat, atau pilih merchant di map. Kamu bisa tambah sampai 3 merchant dalam satu pesanan.',
           addressRequiredMessage:
               'Sebelum pesan Nitip, isi Alamat Saya dulu supaya titik antar pesanan kamu siap dipakai.',
           suggestions: [
@@ -417,6 +414,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     final latestActionMessageIndex = state.messages.lastIndexWhere(
       (message) => !message.isUser && message.actionHints.isNotEmpty,
     );
+    final showStaticSuggestions = latestActionMessageIndex < 0;
 
     // Auto-scroll whenever the message list grows (new send / map-pin response)
     ref.listen<ChatbotConversationState>(chatbotConversationProvider, (
@@ -570,22 +568,24 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        for (final suggestion
-                            in _serviceContext.suggestions) ...[
-                          _buildSuggestionChip(
-                            suggestion,
-                            enabled: inputEnabled,
-                          ),
-                          const SizedBox(width: 8),
+                  if (showStaticSuggestions) ...[
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          for (final suggestion
+                              in _serviceContext.suggestions) ...[
+                            _buildSuggestionChip(
+                              suggestion,
+                              enabled: inputEnabled,
+                            ),
+                            const SizedBox(width: 8),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
+                    const SizedBox(height: 12),
+                  ],
                   Row(
                     children: [
                       Expanded(
@@ -1234,66 +1234,80 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           ),
         ),
         const SizedBox(height: 10),
-        _buildDraftField(
-          label: 'Merchant',
-          value: parts.merchant,
-          textColor: textColor,
-        ),
-        const SizedBox(height: 8),
+        for (final stop in parts.stops) ...[
+          _buildDraftField(
+            label: stop.label,
+            value: stop.merchant,
+            textColor: textColor,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Daftar belanja',
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final item in stop.items)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 4,
+                        height: 4,
+                        margin: const EdgeInsets.only(top: 9),
+                        decoration: BoxDecoration(
+                          color: textColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          item,
+                          style: TextStyle(
+                            color: textColor,
+                            fontSize: 13.5,
+                            height: 1.45,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+        ],
         _buildDraftField(
           label: 'Alamat antar',
           value: parts.deliveryAddress,
           textColor: textColor,
         ),
-        const SizedBox(height: 8),
-        Text(
-          'Daftar belanja',
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.2,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (final item in parts.items)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 3),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 4,
-                      height: 4,
-                      margin: const EdgeInsets.only(top: 9),
-                      decoration: BoxDecoration(
-                        color: textColor,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        item,
-                        style: TextStyle(
-                          color: textColor,
-                          fontSize: 13.5,
-                          height: 1.45,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
         if (parts.feeLines.isNotEmpty) ...[
           const SizedBox(height: 10),
           _buildAssistantNotice(parts.feeLines.join('\n')),
+        ],
+        if (parts.instructionLines.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text(
+            parts.instructionLines.join('\n'),
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12.5,
+              height: 1.45,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ],
     );
@@ -1473,57 +1487,150 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       return null;
     }
 
-    final merchantIndex = lines.indexWhere(
-      (line) => line.toLowerCase() == 'merchant',
-    );
+    final merchantIndexes = <int>[];
+    for (var index = 0; index < lines.length; index += 1) {
+      if (_isShoppingMerchantHeader(lines[index])) {
+        merchantIndexes.add(index);
+      }
+    }
     final deliveryIndex = lines.indexWhere((line) {
       final lower = line.toLowerCase();
       return lower == 'alamat antar' || lower == 'alamat kirim';
     });
-    final itemsIndex = lines.indexWhere(
-      (line) => line.toLowerCase() == 'daftar belanja',
-    );
     final firstFeeIndex = lines.indexWhere(
       (line) => line.toLowerCase().startsWith('estimasi ongkir sementara:'),
     );
 
-    if (merchantIndex <= 0 ||
-        deliveryIndex <= merchantIndex ||
-        itemsIndex <= deliveryIndex ||
-        firstFeeIndex <= itemsIndex) {
+    if (merchantIndexes.isEmpty ||
+        merchantIndexes.first <= 0 ||
+        deliveryIndex < 0 ||
+        firstFeeIndex <= deliveryIndex) {
       return null;
     }
 
-    final headline = lines.take(merchantIndex).join(' ').trim();
+    final headline = lines.take(merchantIndexes.first).join(' ').trim();
     final lowerHeadline = headline.toLowerCase();
     if (!lowerHeadline.contains('titip belanja') &&
         !lowerHeadline.contains('nitip')) {
       return null;
     }
 
-    final merchant = lines
-        .sublist(merchantIndex + 1, deliveryIndex)
-        .join(' ')
-        .trim();
+    final firstItemHeaderAfterDelivery = lines.indexWhere(
+      (line) => line.toLowerCase() == 'daftar belanja',
+      deliveryIndex + 1,
+    );
+    final deliveryEndCandidates = <int>[
+      firstFeeIndex,
+      if (firstItemHeaderAfterDelivery > deliveryIndex)
+        firstItemHeaderAfterDelivery,
+      ...merchantIndexes.where((index) => index > deliveryIndex),
+    ]..sort();
+    final deliveryEndIndex = deliveryEndCandidates.first;
     final deliveryAddress = lines
-        .sublist(deliveryIndex + 1, itemsIndex)
+        .sublist(deliveryIndex + 1, deliveryEndIndex)
         .join(' ')
         .trim();
-    final itemLines = lines.sublist(itemsIndex + 1, firstFeeIndex);
-    final items = _normalizeShoppingItemLines(itemLines);
-    final feeLines = _normalizeShoppingFeeLines(lines, firstFeeIndex);
+    final stops = <_ShoppingDraftStopParts>[];
+    for (var index = 0; index < merchantIndexes.length; index += 1) {
+      final merchantIndex = merchantIndexes[index];
+      final nextMerchantIndex = index + 1 < merchantIndexes.length
+          ? merchantIndexes[index + 1]
+          : lines.length;
+      final segmentEndCandidates = <int>[
+        nextMerchantIndex,
+        if (deliveryIndex > merchantIndex) deliveryIndex,
+        firstFeeIndex,
+      ]..sort();
+      final segmentEnd = segmentEndCandidates
+          .where((candidate) => candidate > merchantIndex)
+          .first;
+      if (merchantIndex + 1 >= segmentEnd) {
+        continue;
+      }
 
-    if (merchant.isEmpty || deliveryAddress.isEmpty || items.isEmpty) {
+      final itemHeaderIndex = lines.indexWhere(
+        (line) => line.toLowerCase() == 'daftar belanja',
+        merchantIndex + 1,
+      );
+      if (itemHeaderIndex < 0 || itemHeaderIndex >= segmentEnd) {
+        continue;
+      }
+
+      final merchant = lines
+          .sublist(merchantIndex + 1, itemHeaderIndex)
+          .join(' ')
+          .trim();
+      final itemLines = lines.sublist(itemHeaderIndex + 1, segmentEnd);
+      final items = _normalizeShoppingItemLines(itemLines);
+      if (merchant.isEmpty || items.isEmpty) {
+        continue;
+      }
+
+      stops.add(
+        _ShoppingDraftStopParts(
+          label: lines[merchantIndex],
+          merchant: merchant,
+          items: items,
+        ),
+      );
+    }
+
+    if (stops.isEmpty) {
+      final oldItemsIndex = lines.indexWhere(
+        (line) => line.toLowerCase() == 'daftar belanja',
+      );
+      if (deliveryIndex <= merchantIndexes.first ||
+          oldItemsIndex <= deliveryIndex ||
+          firstFeeIndex <= oldItemsIndex) {
+        return null;
+      }
+
+      final merchant = lines
+          .sublist(merchantIndexes.first + 1, deliveryIndex)
+          .join(' ')
+          .trim();
+      final items = _normalizeShoppingItemLines(
+        lines.sublist(oldItemsIndex + 1, firstFeeIndex),
+      );
+      if (merchant.isNotEmpty && items.isNotEmpty) {
+        stops.add(
+          _ShoppingDraftStopParts(
+            label: lines[merchantIndexes.first],
+            merchant: merchant,
+            items: items,
+          ),
+        );
+      }
+    }
+
+    final feeLines = _normalizeShoppingFeeLines(lines, firstFeeIndex);
+    final instructionLines = _normalizeShoppingInstructionLines(
+      lines,
+      firstFeeIndex,
+    );
+
+    if (deliveryAddress.isEmpty || stops.isEmpty) {
       return null;
     }
 
     return _ShoppingDraftMessageParts(
       headline: headline,
-      merchant: merchant,
+      stops: stops,
       deliveryAddress: deliveryAddress,
-      items: items,
       feeLines: feeLines,
+      instructionLines: instructionLines,
     );
+  }
+
+  bool _isShoppingMerchantHeader(String line) {
+    return RegExp(r'^merchant(?:\s+\d+)?$', caseSensitive: false)
+        .hasMatch(line.trim());
+  }
+
+  bool _isShoppingFeeLine(String line) {
+    final lower = line.toLowerCase();
+    return lower.startsWith('estimasi ongkir sementara:') ||
+        lower.startsWith('estimasi total sementara:');
   }
 
   List<String> _normalizeShoppingItemLines(List<String> lines) {
@@ -1563,10 +1670,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
     while (index < lines.length) {
       final line = lines[index].trim();
-      final lower = line.toLowerCase();
-      final isFeeLine =
-          lower.startsWith('estimasi ongkir sementara:') ||
-          lower.startsWith('estimasi total sementara:');
+      final isFeeLine = _isShoppingFeeLine(line);
 
       if (!isFeeLine) {
         index += 1;
@@ -1583,6 +1687,27 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     }
 
     return feeLines;
+  }
+
+  List<String> _normalizeShoppingInstructionLines(
+    List<String> lines,
+    int startIndex,
+  ) {
+    final instructions = <String>[];
+    var hasSeenFee = false;
+
+    for (final line in lines.skip(startIndex)) {
+      if (_isShoppingFeeLine(line)) {
+        hasSeenFee = true;
+        continue;
+      }
+      if (!hasSeenFee) {
+        continue;
+      }
+      instructions.add(line);
+    }
+
+    return instructions;
   }
 
   _DraftMessageParts? _tryParseDraftMessage(String raw) {
@@ -1889,6 +2014,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         .applyMerchantPickerAction(
           serviceType: _serviceContext.serviceType,
           merchantPlace: result,
+          mode: actionHint.merchantMode == 'add' ? 'add' : 'select',
         );
 
     _scrollToBottom();
@@ -2032,17 +2158,29 @@ class _DraftMessageParts {
 class _ShoppingDraftMessageParts {
   const _ShoppingDraftMessageParts({
     required this.headline,
-    required this.merchant,
+    required this.stops,
     required this.deliveryAddress,
-    required this.items,
     required this.feeLines,
+    required this.instructionLines,
   });
 
   final String headline;
-  final String merchant;
+  final List<_ShoppingDraftStopParts> stops;
   final String deliveryAddress;
-  final List<String> items;
   final List<String> feeLines;
+  final List<String> instructionLines;
+}
+
+class _ShoppingDraftStopParts {
+  const _ShoppingDraftStopParts({
+    required this.label,
+    required this.merchant,
+    required this.items,
+  });
+
+  final String label;
+  final String merchant;
+  final List<String> items;
 }
 
 class _ResetDestinationMessageParts {

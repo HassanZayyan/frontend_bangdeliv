@@ -25,12 +25,10 @@ import 'shopping_merchant_map_picker_screen.dart';
 class ShoppingAddItemRouteArgs {
   const ShoppingAddItemRouteArgs({
     required this.detail,
-    this.replacementForPickupLocationId,
     this.targetPickupLocationId,
   });
 
   final CustomerOrderDetailModel detail;
-  final int? replacementForPickupLocationId;
   final int? targetPickupLocationId;
 }
 
@@ -62,7 +60,7 @@ class ShoppingAddItemResult {
 
   String get message {
     if (requestSubmitted) {
-      return 'Request perubahan item dikirim ke driver.';
+      return 'Item pengganti disimpan. Driver perlu input harga baru.';
     }
 
     if (deliveryFeeChanged) {
@@ -79,13 +77,11 @@ class ShoppingAddItemScreen extends ConsumerStatefulWidget {
     super.key,
     required this.orderId,
     required this.initialDetail,
-    this.replacementForPickupLocationId,
     this.targetPickupLocationId,
   });
 
   final int? orderId;
   final CustomerOrderDetailModel? initialDetail;
-  final int? replacementForPickupLocationId;
   final int? targetPickupLocationId;
 
   @override
@@ -118,7 +114,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
 
   bool get _isRequestMode {
     final detail = _detail;
-    if (detail == null || widget.replacementForPickupLocationId != null) {
+    if (detail == null) {
       return false;
     }
 
@@ -195,10 +191,6 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       return;
     }
 
-    final canPickReplacementMerchant =
-        widget.replacementForPickupLocationId != null &&
-        detail.canResolveFailedShoppingMerchant;
-
     if (_isEditUnavailableMode) {
       CustomerShoppingStopModel? stop;
       for (final candidate in detail.shoppingStops) {
@@ -228,7 +220,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       return;
     }
 
-    if (!detail.canAddShoppingMerchant && !canPickReplacementMerchant) {
+    if (!detail.canAddShoppingMerchant) {
       final existing = detail.shoppingStops
           .where((stop) => stop.merchant.id != null)
           .map(
@@ -330,7 +322,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       _errorText = null;
     });
 
-    if (isRestaurantMerchantType(merchant.merchantType)) {
+    if (merchant.id > 0 && isRestaurantMerchantType(merchant.merchantType)) {
       unawaited(_loadMerchantMenus(merchant));
     }
 
@@ -460,6 +452,25 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
     _scrollToItemSection();
   }
 
+  bool _canUseMerchantForDraft(
+    ShoppingMerchantOption? merchant,
+    ShoppingMerchantPlacePayload? merchantPlace,
+  ) {
+    if (merchant == null) {
+      return false;
+    }
+
+    if (merchant.id > 0 || merchantPlace != null) {
+      return true;
+    }
+
+    return _isEditUnavailableMode && widget.targetPickupLocationId != null;
+  }
+
+  int? _merchantIdForPayload(ShoppingItemDraft item) {
+    return item.merchant.id > 0 ? item.merchant.id : null;
+  }
+
   void _scrollToItemSection() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
@@ -531,7 +542,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
   void _addDraftItem() {
     final merchant = _selectedMerchant;
     final merchantPlace = _selectedMerchantPlace;
-    if (merchant == null || (merchant.id <= 0 && merchantPlace == null)) {
+    if (merchant == null || !_canUseMerchantForDraft(merchant, merchantPlace)) {
       setState(() => _errorText = 'Pilih toko/resto terlebih dahulu.');
       return;
     }
@@ -757,7 +768,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       final payload = _draftItems
           .map(
             (item) => ShoppingItemDraftPayload(
-              merchantId: item.merchant.id,
+              merchantId: _merchantIdForPayload(item),
               merchantPlace: item.merchantPlace,
               menuId: item.menuId,
               itemSource: item.itemSource,
@@ -776,20 +787,13 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
                 .requestShoppingItemChange(
                   widget.orderId!,
                   action: 'ADD',
-                  requestKind: _isEditUnavailableMode
-                      ? 'EDIT_UNAVAILABLE'
-                      : 'ADD_NEW_STOP',
+                  requestKind: 'EDIT_UNAVAILABLE',
                   items: payload,
                   targetPickupLocationId: widget.targetPickupLocationId,
                 )
           : await ref
                 .read(customerOrderRepositoryProvider)
-                .addShoppingItems(
-                  widget.orderId!,
-                  payload,
-                  replacementForPickupLocationId:
-                      widget.replacementForPickupLocationId,
-                );
+                .addShoppingItems(widget.orderId!, payload);
 
       final newDeliveryFee = updated.shoppingPricing?.deliveryFee ?? 0;
       final newTotal =
@@ -828,9 +832,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
   Widget build(BuildContext context) {
     final detail = _detail;
     final canPickMerchant =
-        (!_isEditUnavailableMode && detail?.canAddShoppingMerchant == true) ||
-        (widget.replacementForPickupLocationId != null &&
-            detail?.canResolveFailedShoppingMerchant == true);
+        !_isEditUnavailableMode && detail?.canAddShoppingMerchant == true;
 
     return Scaffold(
       backgroundColor: AppColors.background,

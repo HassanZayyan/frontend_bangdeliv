@@ -238,6 +238,7 @@ class ChatbotApiService {
     required String serviceType,
     int? merchantId,
     ShoppingMerchantPlacePayload? merchantPlace,
+    String mode = 'select',
   }) async {
     final normalizedSessionId = sessionId.trim();
     if (normalizedSessionId.isEmpty) {
@@ -249,6 +250,7 @@ class ChatbotApiService {
 
     final requestBody = <String, dynamic>{
       'service_type': serviceType,
+      'mode': mode.trim().toLowerCase() == 'add' ? 'add' : 'select',
       if (merchantId != null && merchantId > 0) 'merchant_id': merchantId,
       if (merchantPlace != null) 'merchant_place': merchantPlace.toJson(),
     };

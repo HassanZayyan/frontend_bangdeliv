@@ -630,20 +630,7 @@ class CustomerOrderDetailModel {
   }
 
   bool get canRequestAddShoppingStop {
-    if (!isShoppingOrder) {
-      return false;
-    }
-
-    if (!shoppingCapabilities.isExplicit) {
-      final normalized = order_status.normalizeOrderStatusCode(
-        summary.statusCode,
-      );
-      return !hasPendingShoppingItemChangeRequest &&
-          normalized == order_status.OrderStatusCodes.driverAssigned;
-    }
-
-    return shoppingCapabilities.canCustomerRequestAddStop &&
-        !hasPendingShoppingItemChangeRequest;
+    return false;
   }
 
   bool get canEditUnavailableShoppingItems {
@@ -670,19 +657,7 @@ class CustomerOrderDetailModel {
   }
 
   bool get canResolveFailedShoppingMerchant {
-    if (!isShoppingOrder) {
-      return false;
-    }
-
-    if (!shoppingCapabilities.isExplicit) {
-      final normalized = order_status.normalizeOrderStatusCode(
-        summary.statusCode,
-      );
-      return normalized == order_status.OrderStatusCodes.driverAssigned ||
-          normalized == order_status.OrderStatusCodes.arrivedMerchant;
-    }
-
-    return shoppingCapabilities.canCustomerResolveFailedMerchant;
+    return false;
   }
 
   bool get canAddShoppingMerchant {
@@ -690,15 +665,11 @@ class CustomerOrderDetailModel {
       return false;
     }
 
-    final normalized = order_status.normalizeOrderStatusCode(
-      summary.statusCode,
-    );
     if (canEditShoppingItems) {
       return true;
     }
 
-    return canRequestAddShoppingStop &&
-        normalized == order_status.OrderStatusCodes.driverAssigned;
+    return false;
   }
 
   CustomerOrderDetailModel copyWith({
@@ -1261,6 +1232,10 @@ class CustomerShoppingStopModel {
   final DateTime? resolvedAt;
   final CustomerShoppingMerchantModel merchant;
   final List<CustomerShoppingItemModel> items;
+  final bool hasExplicitUnavailableItemActions;
+  final bool canEditUnavailableItems;
+  final bool canContinueWithoutUnavailableItem;
+  final bool canCancelUnavailableMerchant;
 
   const CustomerShoppingStopModel({
     required this.pickupLocationId,
@@ -1272,11 +1247,26 @@ class CustomerShoppingStopModel {
     this.resolvedAt,
     required this.merchant,
     required this.items,
+    this.hasExplicitUnavailableItemActions = false,
+    this.canEditUnavailableItems = false,
+    this.canContinueWithoutUnavailableItem = false,
+    this.canCancelUnavailableMerchant = false,
   });
 
   bool get isFailed => fulfillmentStatus.toUpperCase() == 'FAILED';
   bool get isSkipped => fulfillmentStatus.toUpperCase() == 'SKIPPED';
   bool get isReplaced => fulfillmentStatus.toUpperCase() == 'REPLACED';
+  bool get isCompleted => fulfillmentStatus.toUpperCase() == 'COMPLETED';
+  bool get isOpenConfirmed =>
+      fulfillmentStatus.toUpperCase() == 'OPEN_CONFIRMED';
+  bool get isItemsPendingCustomer =>
+      fulfillmentStatus.toUpperCase() == 'ITEMS_PENDING_CUSTOMER';
+  bool get isItemsConfirmed =>
+      fulfillmentStatus.toUpperCase() == 'ITEMS_CONFIRMED';
+  bool get isPricePendingCustomer =>
+      fulfillmentStatus.toUpperCase() == 'PRICE_PENDING_CUSTOMER';
+  bool get isPriceApproved =>
+      fulfillmentStatus.toUpperCase() == 'PRICE_APPROVED';
   bool get isActive => !isFailed && !isSkipped && !isReplaced;
 
   factory CustomerShoppingStopModel.fromJson(Map<String, dynamic> json) {
@@ -1288,6 +1278,12 @@ class CustomerShoppingStopModel {
             growable: false,
           )
         : const <Map<String, dynamic>>[];
+    final rawUnavailableActions =
+        json['unavailable_item_actions'] ?? json['unavailableItemActions'];
+    final unavailableActions = rawUnavailableActions is Map<String, dynamic>
+        ? rawUnavailableActions
+        : const <String, dynamic>{};
+    final hasExplicitUnavailableItemActions = unavailableActions.isNotEmpty;
 
     return CustomerShoppingStopModel(
       pickupLocationId: CustomerOrderSummaryModel._asInt(
@@ -1307,6 +1303,16 @@ class CustomerShoppingStopModel {
       items: rawItems
           .map(CustomerShoppingItemModel.fromJson)
           .toList(growable: false),
+      hasExplicitUnavailableItemActions: hasExplicitUnavailableItemActions,
+      canEditUnavailableItems:
+          unavailableActions['can_edit'] == true ||
+          unavailableActions['canEdit'] == true,
+      canContinueWithoutUnavailableItem:
+          unavailableActions['can_continue_without_item'] == true ||
+          unavailableActions['canContinueWithoutItem'] == true,
+      canCancelUnavailableMerchant:
+          unavailableActions['can_cancel_merchant'] == true ||
+          unavailableActions['canCancelMerchant'] == true,
     );
   }
 
