@@ -76,15 +76,7 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
         height: 220,
         decoration: BoxDecoration(
           color: AppColors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 16,
-              spreadRadius: 2,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
         ),
         child: const Center(
@@ -240,7 +232,7 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
           polylineId: const PolylineId('order_route'),
           points: decodedPoints,
           color: AppColors.primary,
-          width: 5,
+          width: 4,
           geodesic: true,
         ),
       };
@@ -256,7 +248,7 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
         polylineId: const PolylineId('order_route_fallback'),
         points: fallbackPoints,
         color: AppColors.primary.withValues(alpha: 0.55),
-        width: 4,
+        width: 3,
         geodesic: true,
       ),
     };
@@ -391,7 +383,7 @@ class _MapDistanceBadge extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.white.withValues(alpha: 0.94),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -403,7 +395,7 @@ class _MapDistanceBadge extends StatelessWidget {
             ),
             const SizedBox(width: 6),
             Text(
-              'Jarak rute $label',
+              'Jarak $label',
               style: const TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 12,
@@ -429,7 +421,7 @@ class _RouteUnavailableBadge extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.white.withValues(alpha: 0.94),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
         ),
         child: const Text(
           'Rute jalan belum tersedia, coba refresh.',

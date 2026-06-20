@@ -1,26 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../config/app_colors.dart';
+import '../../../../config/app_routes.dart';
+import '../../../../config/app_text_scaling.dart';
 import '../../../../models/merchant_model.dart';
 import '../../../../core/di/app_providers.dart';
+
+class MerchantDetailArgs {
+  const MerchantDetailArgs({required this.merchant, this.returnPath});
+
+  final MerchantModel merchant;
+  final String? returnPath;
+}
 
 class MerchantDetailScreen extends ConsumerWidget {
   const MerchantDetailScreen({
     super.key,
     required this.merchantId,
     this.initialMerchant,
+    this.returnPath,
   });
 
   final String merchantId;
   final MerchantModel? initialMerchant;
+  final String? returnPath;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final fallbackMerchant = initialMerchant;
 
     if (fallbackMerchant != null) {
-      return _MerchantDetailView(merchant: fallbackMerchant);
+      return _MerchantDetailView(
+        merchant: fallbackMerchant,
+        returnPath: returnPath,
+      );
     }
 
     final homeDataAsync = ref.watch(homeDataProvider);
@@ -48,114 +63,156 @@ class MerchantDetailScreen extends ConsumerWidget {
           );
         }
 
-        return _MerchantDetailView(merchant: matchedMerchant);
+        return _MerchantDetailView(
+          merchant: matchedMerchant,
+          returnPath: returnPath,
+        );
       },
     );
   }
 }
 
 class _MerchantDetailView extends StatelessWidget {
-  const _MerchantDetailView({required this.merchant});
+  const _MerchantDetailView({required this.merchant, this.returnPath});
 
   final MerchantModel merchant;
+  final String? returnPath;
+
+  void _handleBack(BuildContext context) {
+    final target = returnPath;
+    if (target != null && target.isNotEmpty) {
+      context.go(target);
+      return;
+    }
+
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    context.go(AppRoutes.home);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text(
-          'Detail Toko & Resto',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+    return PopScope<void>(
+      canPop: returnPath == null || returnPath!.isEmpty,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          return;
+        }
+
+        _handleBack(context);
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: const Text(
+            'Detail Toko & Resto',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          ),
+          backgroundColor: AppColors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.chevron_left, color: AppColors.textPrimary),
+            onPressed: () => _handleBack(context),
+          ),
         ),
-        backgroundColor: AppColors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.chevron_left, color: AppColors.textPrimary),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: SizedBox(
-                width: double.infinity,
-                height: 220,
-                child: merchant.imageUrl.isEmpty
-                    ? Container(
-                        color: AppColors.primaryLight,
-                        child: const Icon(
-                          Icons.storefront_outlined,
-                          size: 56,
-                          color: AppColors.primary,
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 220,
+                  child: merchant.imageUrl.isEmpty
+                      ? Container(
+                          color: AppColors.primaryLight,
+                          child: const Icon(
+                            Icons.storefront_outlined,
+                            size: 56,
+                            color: AppColors.primary,
+                          ),
+                        )
+                      : Image.network(
+                          merchant.imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: AppColors.primaryLight,
+                              child: const Icon(
+                                Icons.broken_image_outlined,
+                                size: 56,
+                                color: AppColors.primary,
+                              ),
+                            );
+                          },
                         ),
-                      )
-                    : Image.network(
-                        merchant.imageUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            color: AppColors.primaryLight,
-                            child: const Icon(
-                              Icons.broken_image_outlined,
-                              size: 56,
-                              color: AppColors.primary,
-                            ),
-                          );
-                        },
-                      ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              merchant.name,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Icon(
-                  Icons.location_on_outlined,
-                  size: 18,
-                  color: AppColors.textSecondary,
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  merchant.distance,
-                  style: const TextStyle(
+              ),
+              const SizedBox(height: 16),
+              Text(
+                merchant.name,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: AppTextScaling.adaptive(
+                    context,
+                    normal: 19,
+                    large: 17.5,
+                  ),
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                  height: 1.2,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.location_on_outlined,
+                    size: 18,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      merchant.distance,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: const Text(
+                  'Informasi detail merchant akan ditampilkan lebih lengkap pada pembaruan berikutnya.',
+                  style: TextStyle(
                     fontSize: 14,
+                    height: 1.45,
                     color: AppColors.textSecondary,
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.border),
               ),
-              child: const Text(
-                'Informasi detail merchant akan ditampilkan lebih lengkap pada pembaruan berikutnya.',
-                style: TextStyle(
-                  fontSize: 14,
-                  height: 1.45,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -174,6 +231,8 @@ class _MerchantDetailErrorState extends StatelessWidget {
       appBar: AppBar(
         title: const Text(
           'Detail Toko & Resto',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         backgroundColor: AppColors.white,

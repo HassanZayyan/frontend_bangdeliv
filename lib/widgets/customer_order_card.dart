@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../config/app_colors.dart';
+import '../config/app_text_scaling.dart';
 import '../models/customer_order_model.dart';
 import '../utils/order_formatters.dart';
 import '../utils/order_ui_helpers.dart';
@@ -45,11 +46,21 @@ class CustomerOrderCard extends StatelessWidget {
     final hideItemsSummary =
         serviceCode == 'RIDE' &&
         order.itemsSummary.trim().toLowerCase() == 'tanpa item';
+    final titleFontSize = AppTextScaling.adaptive(
+      context,
+      normal: 14.5,
+      large: 13.6,
+    );
+    final metaFontSize = AppTextScaling.adaptive(
+      context,
+      normal: 13,
+      large: 12.4,
+    );
 
     return Container(
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -64,7 +75,7 @@ class CustomerOrderCard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -74,13 +85,20 @@ class CustomerOrderCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildStatusChip(statusColor),
-                    Text(
-                      formatDateMonthTime(order.createdAt),
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+                    _buildStatusChip(context, statusColor),
+                    AppTextScaling.clampForCompactComponent(
+                      context: context,
+                      maxScaleFactor:
+                          AppTextScaling.denseComponentMaxScaleFactor,
+                      child: Text(
+                        formatDateMonthTime(order.createdAt),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ],
@@ -108,7 +126,7 @@ class CustomerOrderCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.nunitoSans(
                               fontWeight: FontWeight.w700,
-                              fontSize: 14.5,
+                              fontSize: titleFontSize,
                               color: AppColors.textPrimary,
                             ),
                           ),
@@ -118,9 +136,9 @@ class CustomerOrderCard extends StatelessWidget {
                               order.itemsSummary,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: AppColors.textSecondary,
-                                fontSize: 13,
+                                fontSize: metaFontSize,
                               ),
                             ),
                           ],
@@ -131,9 +149,11 @@ class CustomerOrderCard extends StatelessWidget {
                       const SizedBox(width: 12),
                       Text(
                         formatCurrency(order.totalAmount),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.nunitoSans(
                           fontWeight: FontWeight.w500,
-                          fontSize: 14.5,
+                          fontSize: titleFontSize,
                           color: AppColors.textPrimary,
                         ),
                       ),
@@ -231,16 +251,34 @@ class CustomerOrderCard extends StatelessWidget {
     bool horizontal = false,
   }) {
     final buttons = <Widget>[];
-    final buttonHeight = compact ? 40.0 : 44.0;
-    final trackButtonHeight = compact ? 34.0 : 38.0;
+    final buttonHeight = AppTextScaling.adaptive(
+      context,
+      normal: compact ? 40.0 : 44.0,
+      large: compact ? 44.0 : 48.0,
+    );
+    final trackButtonHeight = AppTextScaling.adaptive(
+      context,
+      normal: compact ? 34.0 : 38.0,
+      large: compact ? 38.0 : 42.0,
+    );
+    final buttonFontSize = AppTextScaling.adaptive(
+      context,
+      normal: 15,
+      large: 14,
+    );
+    final trackFontSize = AppTextScaling.adaptive(
+      context,
+      normal: 13,
+      large: 12.5,
+    );
     final buttonTextStyle = GoogleFonts.nunitoSans(
-      fontSize: 15,
+      fontSize: buttonFontSize,
       fontWeight: FontWeight.w700,
       height: 1.1,
     );
     final trackTextStyle = GoogleFonts.nunitoSans(
       color: AppColors.primary,
-      fontSize: 13,
+      fontSize: trackFontSize,
       fontWeight: FontWeight.w700,
       height: 1.1,
     );
@@ -382,25 +420,36 @@ class CustomerOrderCard extends StatelessWidget {
     );
   }
 
-  Widget _buildStatusChip(Color statusColor) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 7,
-          height: 7,
-          decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          order.statusLabel,
-          style: TextStyle(
-            color: statusColor,
-            fontSize: 12.5,
-            fontWeight: FontWeight.w700,
+  Widget _buildStatusChip(BuildContext context, Color statusColor) {
+    return AppTextScaling.clampForCompactComponent(
+      context: context,
+      maxScaleFactor: AppTextScaling.denseComponentMaxScaleFactor,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              color: statusColor,
+              shape: BoxShape.circle,
+            ),
           ),
-        ),
-      ],
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              order.statusLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: statusColor,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -4,10 +4,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
+import '../../../../config/app_text_scaling.dart';
 import '../../../../models/user_profile_model.dart';
 import '../../../auth/application/auth_session_provider.dart';
 import '../../../../services/auth_service.dart';
 import '../../../../widgets/profile_avatar.dart';
+import '../../../navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
 
 class DriverProfileScreen extends ConsumerStatefulWidget {
   const DriverProfileScreen({super.key});
@@ -55,6 +57,8 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
       appBar: AppBar(
         title: const Text(
           'Profil Driver',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         backgroundColor: AppColors.white,
@@ -91,18 +95,20 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
           }
 
           final profile = snapshot.data!;
-          final driverProfile = profile.driverProfile;
 
           return RefreshIndicator(
             onRefresh: _reloadProfile,
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                BangFloatingBottomNavBar.scrollClearance,
+              ),
               children: [
                 _buildIdentityCard(profile),
                 const SizedBox(height: 12),
                 _buildOperationalCard(profile.driverProfile),
-                const SizedBox(height: 12),
-                _buildStatusCard(driverProfile),
                 const SizedBox(height: 12),
                 _buildQuickActionCard(context),
                 const SizedBox(height: 18),
@@ -141,7 +147,7 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -161,6 +167,8 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
                   children: [
                     Text(
                       profile.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.bold,
@@ -170,6 +178,8 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
                     const SizedBox(height: 4),
                     Text(
                       profile.phone,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 13,
@@ -177,6 +187,8 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
                     ),
                     Text(
                       profile.email,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 13,
@@ -204,16 +216,12 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
     final vehicleBrand = (driverProfile?.vehicleBrand ?? '').trim();
     final vehicleModel = (driverProfile?.vehicleModel ?? '').trim();
     final vehiclePlate = (driverProfile?.vehiclePlate ?? '').trim();
-    final rawLicenseNumber = (driverProfile?.licenseNumber ?? '').trim();
-    final maskedLicenseNumber = rawLicenseNumber.length <= 4
-        ? (rawLicenseNumber.isEmpty ? '-' : rawLicenseNumber)
-        : '${rawLicenseNumber.substring(0, 2)}***${rawLicenseNumber.substring(rawLicenseNumber.length - 2)}';
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -228,21 +236,9 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: _operationalColor(
-                operationalStatus,
-              ).withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Text(
-              _operationalLabel(operationalStatus),
-              style: TextStyle(
-                color: _operationalColor(operationalStatus),
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+          _labelPill(
+            _operationalLabel(operationalStatus),
+            foreground: _operationalColor(operationalStatus),
           ),
           const SizedBox(height: 10),
           _detailRow('Jenis Motor', vehicleType.isEmpty ? '-' : vehicleType),
@@ -255,67 +251,6 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
             'Plat Kendaraan',
             vehiclePlate.isEmpty ? '-' : vehiclePlate.toUpperCase(),
           ),
-          const SizedBox(height: 8),
-          _detailRow('Nomor SIM', maskedLicenseNumber),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusCard(DriverProfileModel? driverProfile) {
-    final status = (driverProfile?.registrationStatus ?? 'unknown')
-        .trim()
-        .toLowerCase();
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Status Verifikasi',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: _statusColor(status).withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Text(
-              _statusLabel(status),
-              style: TextStyle(
-                color: _statusColor(status),
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Kelola dokumen dan pantau status verifikasi akun driver Anda.',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: () async {
-              await context.push(AppRoutes.driverVerificationStatus);
-              if (mounted) {
-                await _reloadProfile();
-              }
-            },
-            icon: const Icon(Icons.badge_outlined),
-            label: const Text('Lihat Status Verifikasi'),
-          ),
         ],
       ),
     );
@@ -325,7 +260,7 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -345,18 +280,6 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
             icon: Icons.lock_outline,
             title: 'Ganti Password',
             onTap: () => context.push(AppRoutes.changePassword),
-          ),
-          const Divider(height: 1, indent: 56, color: AppColors.border),
-          _actionTile(
-            icon: Icons.notifications_outlined,
-            title: 'Notifikasi',
-            onTap: () => context.push(AppRoutes.notificationSettings),
-          ),
-          const Divider(height: 1, indent: 56, color: AppColors.border),
-          _actionTile(
-            icon: Icons.shield_outlined,
-            title: 'Kebijakan Privasi',
-            onTap: () => context.push(AppRoutes.privacyMapPreview),
           ),
           const Divider(height: 1, indent: 56, color: AppColors.border),
           _actionTile(
@@ -380,12 +303,37 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
     );
   }
 
+  Widget _labelPill(String text, {required Color foreground}) {
+    return AppTextScaling.clampForCompactComponent(
+      context: context,
+      maxScaleFactor: AppTextScaling.denseComponentMaxScaleFactor,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceAlt,
+          borderRadius: BorderRadius.circular(100),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: foreground,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _detailRow(String label, String value) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          width: 120,
+          width: AppTextScaling.adaptive(context, normal: 120, large: 104),
           child: Text(
             label,
             style: const TextStyle(
@@ -397,6 +345,8 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
         Expanded(
           child: Text(
             value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: AppColors.textPrimary,
               fontSize: 13,
@@ -418,9 +368,12 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
       leading: Icon(icon, color: AppColors.primary),
       title: Text(
         title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: const TextStyle(
           color: AppColors.textPrimary,
           fontWeight: FontWeight.w600,
+          fontSize: 14,
         ),
       ),
       trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
@@ -446,35 +399,6 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
         ),
       ],
     );
-  }
-
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'active':
-        return AppColors.success;
-      case 'pending':
-        return AppColors.primaryDark;
-      case 'rejected':
-      case 'suspended':
-        return AppColors.error;
-      default:
-        return AppColors.textSecondary;
-    }
-  }
-
-  String _statusLabel(String status) {
-    switch (status) {
-      case 'active':
-        return 'Aktif';
-      case 'pending':
-        return 'Menunggu Verifikasi';
-      case 'rejected':
-        return 'Ditolak';
-      case 'suspended':
-        return 'Ditangguhkan';
-      default:
-        return 'Belum tersedia';
-    }
   }
 
   Color _operationalColor(String status) {

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
+import '../../../../config/app_text_scaling.dart';
 import '../../../../models/address_location_picker_result.dart';
 import '../../../../models/user_profile_model.dart';
 import '../../../auth/application/auth_session_provider.dart';
@@ -20,7 +21,8 @@ class AddAddressScreen extends ConsumerStatefulWidget {
   ConsumerState<AddAddressScreen> createState() => _AddAddressScreenState();
 }
 
-class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
+class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
+    with WidgetsBindingObserver {
   static const String _fixedProvince = 'Jawa Tengah';
   static const Map<String, Map<String, Map<String, List<String>>>>
   _coverageData = {
@@ -339,6 +341,11 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
   final _fullAddressController = TextEditingController();
   final _detailController = TextEditingController();
   final _customLabelController = TextEditingController();
+  final _recipientFocusNode = FocusNode();
+  final _phoneFocusNode = FocusNode();
+  final _fullAddressFocusNode = FocusNode();
+  final _customLabelFocusNode = FocusNode();
+  bool _wasKeyboardVisible = false;
 
   String? _selectedLabel;
   final String _selectedProvince = _fixedProvince;
@@ -531,6 +538,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     if (_isEditMode) {
       _fillFormFromAddress(widget.initialAddress!);
     } else {
@@ -538,6 +546,62 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
       _customLabelController.clear();
       _prefillUserData();
     }
+  }
+
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    if (!mounted) {
+      return;
+    }
+
+    final isKeyboardVisible = View.of(context).viewInsets.bottom > 0;
+    final didKeyboardClose = _wasKeyboardVisible && !isKeyboardVisible;
+    _wasKeyboardVisible = isKeyboardVisible;
+
+    if (didKeyboardClose) {
+      _unfocusWhenKeyboardClosed();
+    }
+  }
+
+  bool get _hasFocusedField =>
+      _recipientFocusNode.hasFocus ||
+      _phoneFocusNode.hasFocus ||
+      _fullAddressFocusNode.hasFocus ||
+      _customLabelFocusNode.hasFocus;
+
+  void _syncKeyboardVisibility(bool isKeyboardOpen) {
+    _wasKeyboardVisible = isKeyboardOpen;
+  }
+
+  void _unfocusWhenKeyboardClosed() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || MediaQuery.viewInsetsOf(context).bottom > 0) {
+        return;
+      }
+
+      if (_hasFocusedField) {
+        _dismissAddressFormFocus();
+      }
+    });
+  }
+
+  void _dismissAddressFormFocus() {
+    _recipientFocusNode.unfocus();
+    _phoneFocusNode.unfocus();
+    _fullAddressFocusNode.unfocus();
+    _customLabelFocusNode.unfocus();
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
+
+  void _handleBackNavigation() {
+    if (_hasFocusedField || MediaQuery.viewInsetsOf(context).bottom > 0) {
+      _dismissAddressFormFocus();
+      _unfocusWhenKeyboardClosed();
+      return;
+    }
+
+    context.pop(false);
   }
 
   @override
@@ -557,6 +621,11 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
   Future<void> _prefillUserData() async {
     try {
       final profile = await AuthService.fetchCurrentUserProfile();
+
+      if (!mounted) {
+        return;
+      }
+
       _recipientController.text = profile.name;
       _phoneController.text = profile.phone;
     } catch (_) {
@@ -574,232 +643,261 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
   Widget build(BuildContext context) {
     final isCompact = MediaQuery.sizeOf(context).height < 760;
     final fieldSpacing = isCompact ? 10.0 : 12.0;
-    final buttonHeight = isCompact ? 48.0 : 52.0;
+    final buttonHeight = AppTextScaling.adaptive(
+      context,
+      normal: isCompact ? 48.0 : 52.0,
+      large: isCompact ? 54.0 : 58.0,
+    );
+    final isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    _syncKeyboardVisibility(isKeyboardOpen);
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text(
-          'Form Alamat',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-        ),
-        backgroundColor: AppColors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.chevron_left, color: AppColors.textPrimary),
-          onPressed: () => context.pop(false),
-        ),
-      ),
-      body: _isLoadingProfile
-          ? const Center(child: CircularProgressIndicator())
-          : SafeArea(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final keyboardBottomInset = MediaQuery.viewInsetsOf(
-                    context,
-                  ).bottom;
+    return PopScope<void>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          return;
+        }
 
-                  return SingleChildScrollView(
-                    keyboardDismissBehavior:
-                        ScrollViewKeyboardDismissBehavior.onDrag,
-                    padding: EdgeInsets.fromLTRB(
-                      16,
-                      12,
-                      16,
-                      12 + keyboardBottomInset,
-                    ),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: constraints.maxHeight,
+        _handleBackNavigation();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: Text(
+            _isEditMode ? 'Ubah Alamat' : 'Tambah Alamat',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          ),
+          backgroundColor: AppColors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.chevron_left, color: AppColors.textPrimary),
+            onPressed: _handleBackNavigation,
+          ),
+        ),
+        body: _isLoadingProfile
+            ? const Center(child: CircularProgressIndicator())
+            : SafeArea(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final keyboardBottomInset = MediaQuery.viewInsetsOf(
+                      context,
+                    ).bottom;
+
+                    return SingleChildScrollView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: EdgeInsets.fromLTRB(
+                        16,
+                        12,
+                        16,
+                        12 + keyboardBottomInset,
                       ),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildAddressLabelSelector(),
-                            SizedBox(height: fieldSpacing),
-                            _buildTextField(
-                              label: 'Nama Penerima',
-                              controller: _recipientController,
-                              hintText: 'Nama penerima',
-                              validator: (value) {
-                                final text = value?.trim() ?? '';
-                                if (text.isEmpty) {
-                                  return 'Nama penerima wajib diisi';
-                                }
-                                return null;
-                              },
-                            ),
-                            SizedBox(height: fieldSpacing),
-                            _buildTextField(
-                              label: 'Nomor Telepon',
-                              controller: _phoneController,
-                              hintText: '08xxxxxxxxxx',
-                              keyboardType: TextInputType.phone,
-                              validator: (value) {
-                                final text = value?.trim() ?? '';
-                                if (text.isEmpty) {
-                                  return 'Nomor telepon wajib diisi';
-                                }
-                                final normalized = text.replaceAll(
-                                  RegExp(r'[^0-9+]'),
-                                  '',
-                                );
-                                if (!RegExp(
-                                  r'^\+?[0-9]{10,15}$',
-                                ).hasMatch(normalized)) {
-                                  return 'Format nomor telepon tidak valid';
-                                }
-                                return null;
-                              },
-                            ),
-                            SizedBox(height: fieldSpacing),
-                            _buildSectionTitle('Wilayah Pengantaran'),
-                            const SizedBox(height: 6),
-                            _buildCoverageSelectorCard(),
-                            SizedBox(height: fieldSpacing),
-                            _buildTextField(
-                              label: 'Detail Alamat',
-                              controller: _fullAddressController,
-                              hintText: 'Jalan, RT/RW, patokan',
-                              maxLines: isCompact ? 2 : 3,
-                              validator: (value) {
-                                final text = value?.trim() ?? '';
-                                if (text.isEmpty) {
-                                  return 'Detail alamat wajib diisi';
-                                }
-                                return null;
-                              },
-                            ),
-                            SizedBox(height: fieldSpacing),
-                            _buildSectionTitle('Lokasi di Peta'),
-                            const SizedBox(height: 6),
-                            _buildLocationPickerCard(),
-                            const SizedBox(height: 12),
-                            _buildDefaultAddressToggle(),
-                            SizedBox(height: isCompact ? 10 : 14),
-                            if (_isEditMode)
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: SizedBox(
-                                      height: buttonHeight,
-                                      child: OutlinedButton(
-                                        onPressed:
-                                            (_isSubmitting || _isDeleting)
-                                            ? null
-                                            : _handleDeleteAddress,
-                                        style: OutlinedButton.styleFrom(
-                                          side: const BorderSide(
-                                            color: AppColors.error,
-                                          ),
-                                          foregroundColor: AppColors.error,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                        ),
-                                        child: _isDeleting
-                                            ? const SizedBox(
-                                                width: 18,
-                                                height: 18,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                      color: AppColors.error,
-                                                    ),
-                                              )
-                                            : const Text('Hapus Alamat'),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: SizedBox(
-                                      height: buttonHeight,
-                                      child: ElevatedButton(
-                                        onPressed:
-                                            (_isSubmitting || _isDeleting)
-                                            ? null
-                                            : _handleSave,
-                                        style: ElevatedButton.styleFrom(
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          padding: EdgeInsets.zero,
-                                          minimumSize: Size.zero,
-                                          tapTargetSize:
-                                              MaterialTapTargetSize.shrinkWrap,
-                                        ),
-                                        child: _isSubmitting
-                                            ? const SizedBox(
-                                                width: 18,
-                                                height: 18,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                      color: AppColors.white,
-                                                    ),
-                                              )
-                                            : const Text(
-                                                'Simpan',
-                                                style: TextStyle(
-                                                  fontSize: 15,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              )
-                            else
-                              SizedBox(
-                                width: double.infinity,
-                                height: buttonHeight,
-                                child: ElevatedButton(
-                                  onPressed: (_isSubmitting || _isDeleting)
-                                      ? null
-                                      : _handleSave,
-                                  style: ElevatedButton.styleFrom(
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    padding: EdgeInsets.zero,
-                                    minimumSize: Size.zero,
-                                    tapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
-                                  ),
-                                  child: _isSubmitting
-                                      ? const SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: AppColors.white,
-                                          ),
-                                        )
-                                      : const Text(
-                                          'Simpan Alamat',
-                                          style: TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                ),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: constraints.maxHeight,
+                        ),
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildAddressLabelSelector(),
+                              SizedBox(height: fieldSpacing),
+                              _buildTextField(
+                                label: 'Nama Penerima',
+                                controller: _recipientController,
+                                focusNode: _recipientFocusNode,
+                                hintText: 'Nama penerima',
+                                validator: (value) {
+                                  final text = value?.trim() ?? '';
+                                  if (text.isEmpty) {
+                                    return 'Nama penerima wajib diisi';
+                                  }
+                                  return null;
+                                },
                               ),
-                          ],
+                              SizedBox(height: fieldSpacing),
+                              _buildTextField(
+                                label: 'Nomor Telepon',
+                                controller: _phoneController,
+                                focusNode: _phoneFocusNode,
+                                hintText: '08xxxxxxxxxx',
+                                keyboardType: TextInputType.phone,
+                                validator: (value) {
+                                  final text = value?.trim() ?? '';
+                                  if (text.isEmpty) {
+                                    return 'Nomor telepon wajib diisi';
+                                  }
+                                  final normalized = text.replaceAll(
+                                    RegExp(r'[^0-9+]'),
+                                    '',
+                                  );
+                                  if (!RegExp(
+                                    r'^\+?[0-9]{10,15}$',
+                                  ).hasMatch(normalized)) {
+                                    return 'Format nomor telepon tidak valid';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              SizedBox(height: fieldSpacing),
+                              _buildSectionTitle('Wilayah Pengantaran'),
+                              const SizedBox(height: 6),
+                              _buildCoverageSelectorCard(),
+                              SizedBox(height: fieldSpacing),
+                              _buildTextField(
+                                label: 'Detail Alamat',
+                                controller: _fullAddressController,
+                                focusNode: _fullAddressFocusNode,
+                                hintText: 'Jalan, RT/RW, patokan',
+                                maxLines: isCompact ? 2 : 3,
+                                validator: (value) {
+                                  final text = value?.trim() ?? '';
+                                  if (text.isEmpty) {
+                                    return 'Detail alamat wajib diisi';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              SizedBox(height: fieldSpacing),
+                              _buildSectionTitle('Lokasi di Peta'),
+                              const SizedBox(height: 6),
+                              _buildLocationPickerCard(),
+                              const SizedBox(height: 12),
+                              _buildDefaultAddressToggle(),
+                              SizedBox(height: isCompact ? 10 : 14),
+                              if (_isEditMode)
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: SizedBox(
+                                        height: buttonHeight,
+                                        child: OutlinedButton(
+                                          onPressed:
+                                              (_isSubmitting || _isDeleting)
+                                              ? null
+                                              : _handleDeleteAddress,
+                                          style: OutlinedButton.styleFrom(
+                                            side: const BorderSide(
+                                              color: AppColors.error,
+                                            ),
+                                            foregroundColor: AppColors.error,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                          ),
+                                          child: _isDeleting
+                                              ? const SizedBox(
+                                                  width: 18,
+                                                  height: 18,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        color: AppColors.error,
+                                                      ),
+                                                )
+                                              : const Text(
+                                                  'Hapus Alamat',
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: SizedBox(
+                                        height: buttonHeight,
+                                        child: ElevatedButton(
+                                          onPressed:
+                                              (_isSubmitting || _isDeleting)
+                                              ? null
+                                              : _handleSave,
+                                          style: ElevatedButton.styleFrom(
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            padding: EdgeInsets.zero,
+                                            minimumSize: Size.zero,
+                                            tapTargetSize: MaterialTapTargetSize
+                                                .shrinkWrap,
+                                          ),
+                                          child: _isSubmitting
+                                              ? const SizedBox(
+                                                  width: 18,
+                                                  height: 18,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        color: AppColors.white,
+                                                      ),
+                                                )
+                                              : const Text(
+                                                  'Simpan',
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    fontSize: 15,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              else
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: buttonHeight,
+                                  child: ElevatedButton(
+                                    onPressed: (_isSubmitting || _isDeleting)
+                                        ? null
+                                        : _handleSave,
+                                    style: ElevatedButton.styleFrom(
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                      minimumSize: Size.zero,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                    child: _isSubmitting
+                                        ? const SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: AppColors.white,
+                                            ),
+                                          )
+                                        : const Text(
+                                            'Simpan Alamat',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
-            ),
+      ),
     );
   }
 
@@ -947,6 +1045,8 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
       return;
     }
 
+    _dismissAddressFormFocus();
+
     final result = await context.push<AddressLocationPickerResult>(
       AppRoutes.addressLocationPicker,
       extra: {
@@ -956,7 +1056,18 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
       },
     );
 
-    if (!mounted || result == null) {
+    if (!mounted) {
+      return;
+    }
+
+    _dismissAddressFormFocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _dismissAddressFormFocus();
+      }
+    });
+
+    if (result == null) {
       return;
     }
 
@@ -1046,65 +1157,57 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
   Widget _buildTextField({
     required String label,
     required TextEditingController controller,
+    FocusNode? focusNode,
     required String hintText,
     TextInputType keyboardType = TextInputType.text,
     int maxLines = 1,
     String? Function(String?)? validator,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
-            color: AppColors.textSecondary,
-          ),
+    return TextFormField(
+      controller: controller,
+      focusNode: focusNode,
+      keyboardType: keyboardType,
+      maxLines: maxLines,
+      style: const TextStyle(
+        color: AppColors.textPrimary,
+        fontSize: 14,
+        fontWeight: FontWeight.w400,
+      ),
+      validator: validator,
+      decoration: InputDecoration(
+        labelText: label,
+        floatingLabelBehavior: FloatingLabelBehavior.always,
+        labelStyle: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 13,
+          color: AppColors.textSecondary,
         ),
-        const SizedBox(height: 6),
-        TextFormField(
-          controller: controller,
-          keyboardType: keyboardType,
-          maxLines: maxLines,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 14,
-            fontWeight: FontWeight.w400,
-          ),
-          validator: validator,
-          decoration: InputDecoration(
-            hintText: hintText,
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 13,
-            ),
-            filled: true,
-            fillColor: AppColors.white,
-            hintStyle: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                color: AppColors.primary,
-                width: 1.5,
-              ),
-            ),
-          ),
+        hintText: hintText,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 13,
         ),
-      ],
+        filled: true,
+        fillColor: AppColors.white,
+        hintStyle: const TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 14,
+          fontWeight: FontWeight.w400,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+        ),
+      ),
     );
   }
 
@@ -1125,6 +1228,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
     return Semantics(
       label: 'Jadikan alamat utama',
       toggled: _isDefault,
+      button: true,
       child: Row(
         children: [
           const Expanded(
@@ -1132,41 +1236,21 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
               'Jadikan alamat utama',
               style: TextStyle(
                 color: AppColors.textPrimary,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w400,
               ),
             ),
           ),
-          Switch(
+          _AddressDefaultToggle(
             value: _isDefault,
-            onChanged: isDisabled
-                ? null
-                : (value) {
-                    setState(() {
-                      _isDefault = value;
-                    });
-                  },
-            thumbColor: WidgetStateProperty.resolveWith((states) {
-              if (states.contains(WidgetState.disabled)) {
-                return AppColors.surfaceAlt;
+            enabled: !isDisabled,
+            onChanged: (value) {
+              if (!isDisabled) {
+                setState(() {
+                  _isDefault = value;
+                });
               }
-              return AppColors.white;
-            }),
-            trackColor: WidgetStateProperty.resolveWith((states) {
-              if (states.contains(WidgetState.disabled)) {
-                return AppColors.border;
-              }
-              if (states.contains(WidgetState.selected)) {
-                return AppColors.success;
-              }
-              return AppColors.border;
-            }),
-            trackOutlineColor: WidgetStateProperty.resolveWith((states) {
-              if (states.contains(WidgetState.selected)) {
-                return AppColors.success;
-              }
-              return AppColors.border;
-            }),
+            },
           ),
         ],
       ),
@@ -1291,36 +1375,38 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
     required String label,
     required String value,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 12,
-            color: AppColors.textSecondary,
-          ),
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: AppColors.border),
+    );
+
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: label,
+        floatingLabelBehavior: FloatingLabelBehavior.always,
+        labelStyle: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
+          color: AppColors.textSecondary,
         ),
-        const SizedBox(height: 4),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          decoration: BoxDecoration(
-            color: AppColors.background,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Text(
-            value,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+        isDense: true,
+        filled: true,
+        fillColor: AppColors.background,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 12,
         ),
-      ],
+        border: border,
+        enabledBorder: border,
+      ),
+      child: Text(
+        value,
+        style: const TextStyle(
+          color: AppColors.textPrimary,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 
@@ -1379,7 +1465,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
               color: hasPinnedLocation
                   ? AppColors.textPrimary
                   : AppColors.textSecondary,
-              fontSize: 13,
+              fontSize: hasPinnedLocation ? 13 : 11.5,
               fontWeight: hasPinnedLocation ? FontWeight.w600 : FontWeight.w500,
               height: 1.4,
             ),
@@ -1404,14 +1490,23 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
-            child: OutlinedButton.icon(
+            child: OutlinedButton(
               onPressed: _openLocationPicker,
-              icon: Icon(
-                hasPinnedLocation
-                    ? Icons.edit_location_alt
-                    : Icons.map_outlined,
-              ),
-              label: Text(
+              style:
+                  OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primaryDark,
+                    side: BorderSide(
+                      color: AppColors.primary.withValues(alpha: 0.55),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ).copyWith(
+                    overlayColor: WidgetStatePropertyAll(
+                      AppColors.primary.withValues(alpha: 0.08),
+                    ),
+                  ),
+              child: Text(
                 hasPinnedLocation
                     ? 'Ubah Titik di Peta'
                     : 'Pilih Titik di Peta',
@@ -1465,6 +1560,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
           _buildTextField(
             label: 'Label Alamat',
             controller: _customLabelController,
+            focusNode: _customLabelFocusNode,
             hintText: 'Contoh: Kos, Toko, Kontrakan',
             validator: (value) {
               final text = value?.trim() ?? '';
@@ -1599,11 +1695,85 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _recipientFocusNode.dispose();
+    _phoneFocusNode.dispose();
+    _fullAddressFocusNode.dispose();
+    _customLabelFocusNode.dispose();
     _recipientController.dispose();
     _phoneController.dispose();
     _fullAddressController.dispose();
     _detailController.dispose();
     _customLabelController.dispose();
     super.dispose();
+  }
+}
+
+class _AddressDefaultToggle extends StatelessWidget {
+  const _AddressDefaultToggle({
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final bool value;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final trackColor = !enabled
+        ? AppColors.border.withValues(alpha: 0.72)
+        : value
+        ? AppColors.success
+        : AppColors.border.withValues(alpha: 0.82);
+    final thumbShadowColor = AppColors.black.withValues(
+      alpha: enabled ? 0.12 : 0.06,
+    );
+
+    return Semantics(
+      checked: value,
+      enabled: enabled,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: enabled ? () => onChanged(!value) : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            width: 54,
+            height: 30,
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: trackColor,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: AnimatedAlign(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+              child: Container(
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  color: enabled
+                      ? AppColors.white
+                      : AppColors.white.withValues(alpha: 0.86),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: thumbShadowColor,
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

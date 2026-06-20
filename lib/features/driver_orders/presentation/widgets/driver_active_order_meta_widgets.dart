@@ -5,32 +5,43 @@ import '../../../../models/driver_order_model.dart';
 import '../../../../utils/courier_package_formatter.dart';
 import '../../../../utils/currency_formatter.dart';
 import '../../../../utils/service_type.dart';
+import 'driver_active_order_fee_widgets.dart';
 
-class DriverOrderMetaCard extends StatelessWidget {
+// --- Helper for consistent card styling ---
+Widget _buildDriverCard({required Widget child}) {
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: AppColors.white,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.03),
+          blurRadius: 16,
+          spreadRadius: 2,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    child: child,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 1. DriverOrderCustomerCard
+// ---------------------------------------------------------------------------
+class DriverOrderCustomerCard extends StatelessWidget {
   final DriverOrderModel order;
 
-  const DriverOrderMetaCard({super.key, required this.order});
+  const DriverOrderCustomerCard({super.key, required this.order});
 
   @override
   Widget build(BuildContext context) {
     final serviceLabel = serviceTypeLabel(order.serviceTypeCode);
-    final packageDetails = buildCourierPackageDetails(order);
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 16,
-            spreadRadius: 2,
-            offset: const Offset(0, 4),
-          ),
-        ],
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
-      ),
+    return _buildDriverCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -48,7 +59,7 @@ class DriverOrderMetaCard extends StatelessWidget {
                       style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.w800,
-                        fontSize: 18,
+                        fontSize: 16,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -72,33 +83,105 @@ class DriverOrderMetaCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _pill(
-                serviceLabel,
-                AppColors.primary.withValues(alpha: 0.1),
-                AppColors.primaryDark,
-              ),
+              _pill(serviceLabel, AppColors.surfaceAlt, AppColors.textPrimary),
               _pill(
                 order.statusDisplayName ?? order.statusCode,
-                AppColors.success.withValues(alpha: 0.12),
+                AppColors.surfaceAlt,
                 AppColors.success,
               ),
               if (order.paymentStatus.isNotEmpty)
                 _pill(
                   '${order.paymentMethod.toUpperCase()} ${order.paymentStatus.toUpperCase()}',
-                  AppColors.darkBlue.withValues(alpha: 0.08),
-                  AppColors.darkBlue,
+                  AppColors.surfaceAlt,
+                  AppColors.textSecondary,
                 ),
             ],
           ),
-          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAvatar(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    final initials = parts.isEmpty || parts.first.isEmpty
+        ? '?'
+        : parts.length == 1
+        ? parts.first.characters.first.toUpperCase()
+        : '${parts.first.characters.first}${parts.last.characters.first}'
+              .toUpperCase();
+
+    return Container(
+      width: 42,
+      height: 42,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Text(
+        initials,
+        style: const TextStyle(
+          color: AppColors.primaryDark,
+          fontWeight: FontWeight.w800,
+          fontSize: 16,
+        ),
+      ),
+    );
+  }
+
+  Widget _pill(String text, Color bg, Color fg) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+}
+
+class DriverOrderMetaCard extends StatelessWidget {
+  final DriverOrderModel order;
+
+  const DriverOrderMetaCard({super.key, required this.order});
+
+  @override
+  Widget build(BuildContext context) {
+    return DriverOrderCustomerCard(order: order);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 2. DriverOrderRouteCard
+// ---------------------------------------------------------------------------
+class DriverOrderRouteCard extends StatelessWidget {
+  final DriverOrderModel order;
+
+  const DriverOrderRouteCard({super.key, required this.order});
+
+  @override
+  Widget build(BuildContext context) {
+    return _buildDriverCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Rute Pesanan',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 12),
           _routeVisualizer(order),
-          if (order.deliveryDistanceLabel.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            _row('Jarak', order.deliveryDistanceLabel),
-          ],
-          ..._buildCourierPackageRows(packageDetails),
-          const SizedBox(height: 14),
-          _buildPricingSummary(),
         ],
       ),
     );
@@ -112,77 +195,68 @@ class DriverOrderMetaCard extends StatelessWidget {
         ? activeStops
         : <DriverShoppingStopModel>[];
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (pickupStops.isEmpty)
-            _routeStop(
-              icon: Icons.storefront_rounded,
-              iconColor: AppColors.primary,
-              title: 'Jemput',
-              value: order.pickupAddress,
-            )
-          else
-            ...pickupStops.map((stop) {
-              final sequence = stop.sequenceNo <= 0 ? 1 : stop.sequenceNo;
-              final address = (stop.merchant.address ?? '').trim();
-              final status = stop.isFailed
-                  ? 'Resto tutup/order batal'
-                  : stop.isSkipped
-                  ? 'Dilewati'
-                  : null;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _routeStop(
-                  icon: Icons.storefront_rounded,
-                  iconColor: stop.isFailed
-                      ? AppColors.error
-                      : AppColors.primary,
-                  title: 'Merchant $sequence',
-                  value: [
-                    stop.merchant.name,
-                    if (address.isNotEmpty) address,
-                    ?status,
-                  ].join('\n'),
-                ),
-              );
-            }),
-          Padding(
-            padding: const EdgeInsets.only(left: 11),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: List.generate(
-                  5,
-                  (index) => Container(
-                    width: 2,
-                    height: 4,
-                    margin: const EdgeInsets.symmetric(vertical: 1.5),
-                    decoration: BoxDecoration(
-                      color: AppColors.textSecondary.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(1),
-                    ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (pickupStops.isEmpty)
+          _routeStop(
+            icon: Icons.radio_button_checked,
+            iconColor: AppColors.primary,
+            title: 'Jemput',
+            value: order.pickupAddress,
+          )
+        else
+          ...pickupStops.map((stop) {
+            final sequence = stop.sequenceNo <= 0 ? 1 : stop.sequenceNo;
+            final address = (stop.merchant.address ?? '').trim();
+            final status = stop.isFailed
+                ? 'Tutup/gagal pickup'
+                : stop.isSkipped
+                ? 'Dilewati'
+                : null;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _routeStop(
+                icon: Icons.radio_button_checked,
+                iconColor:
+                    stop.isFailed ? AppColors.error : AppColors.primary,
+                title: 'Merchant $sequence',
+                value: [
+                  stop.merchant.name,
+                  if (address.isNotEmpty) address,
+                  ?status,
+                ].join('\n'),
+              ),
+            );
+          }),
+        Padding(
+          padding: const EdgeInsets.only(left: 11),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: List.generate(
+                5,
+                (index) => Container(
+                  width: 2,
+                  height: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: AppColors.textSecondary.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(1),
                   ),
                 ),
               ),
             ),
           ),
-          _routeStop(
-            icon: Icons.location_on_rounded,
-            iconColor: const Color(0xFF2563EB),
-            title: 'Tujuan',
-            value: order.dropoffAddress,
-          ),
-        ],
-      ),
+        ),
+        _routeStop(
+          icon: Icons.location_on_rounded,
+          iconColor: const Color(0xFF2563EB),
+          title: 'Tujuan',
+          value: order.dropoffAddress,
+        ),
+      ],
     );
   }
 
@@ -197,12 +271,9 @@ class DriverOrderMetaCard extends StatelessWidget {
       children: [
         Container(
           margin: const EdgeInsets.only(top: 2),
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: iconColor.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, size: 14, color: iconColor),
+          width: 20,
+          alignment: Alignment.center,
+          child: Icon(icon, size: 16, color: iconColor),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -233,115 +304,97 @@ class DriverOrderMetaCard extends StatelessWidget {
       ],
     );
   }
+}
 
-  Widget _buildAvatar(String name) {
-    final parts = name.trim().split(RegExp(r'\s+'));
-    final initials = parts.isEmpty || parts.first.isEmpty
-        ? '?'
-        : parts.length == 1
-        ? parts.first.characters.first.toUpperCase()
-        : '${parts.first.characters.first}${parts.last.characters.first}'
-              .toUpperCase();
+// ---------------------------------------------------------------------------
+// 3. DriverOrderPackageCard
+// ---------------------------------------------------------------------------
+class DriverOrderPackageCard extends StatelessWidget {
+  final DriverOrderModel order;
 
-    return Container(
-      width: 48,
-      height: 48,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.primaryLight,
-            AppColors.primary.withValues(alpha: 0.2),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        initials,
-        style: const TextStyle(
-          color: AppColors.primaryDark,
-          fontWeight: FontWeight.w800,
-          fontSize: 16,
-        ),
-      ),
-    );
-  }
+  const DriverOrderPackageCard({super.key, required this.order});
 
-  Widget _pill(String text, Color bg, Color fg) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(100),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.w700),
-      ),
-    );
-  }
+  @override
+  Widget build(BuildContext context) {
+    final packageDetails = buildCourierPackageDetails(order);
 
-  Widget _row(String title, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 58,
-          child: Text(
-            title,
-            maxLines: 1,
-            softWrap: false,
-            style: const TextStyle(
+    if (!packageDetails.isCourier || packageDetails.description.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return _buildDriverCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Detail Barang',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const SizedBox(
+            width: 58,
+            child: Text(
+              'Barang',
+              maxLines: 1,
+              softWrap: false,
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const Text(
+            ':',
+            style: TextStyle(
               color: AppColors.textPrimary,
               fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
           ),
-        ),
-        const Text(
-          ':',
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              packageDetails.description,
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700),
+            ),
           ),
-        ),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+            ],
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
+}
 
-  List<Widget> _buildCourierPackageRows(CourierPackageDetails details) {
-    if (!details.isCourier) {
-      return const [];
-    }
+// ---------------------------------------------------------------------------
+// 4. DriverOrderPricingCard
+// ---------------------------------------------------------------------------
+class DriverOrderPricingCard extends StatelessWidget {
+  final DriverOrderModel order;
+  final bool isProcessing;
+  final Future<String?> Function({
+    required double amount,
+    required String reason,
+  })?
+  onEditDeliveryFee;
 
-    final rows = <Widget>[];
+  const DriverOrderPricingCard({
+    super.key,
+    required this.order,
+    this.isProcessing = false,
+    this.onEditDeliveryFee,
+  });
 
-    void addRow(String title, String value) {
-      if (value.isEmpty) {
-        return;
-      }
-
-      rows
-        ..add(const SizedBox(height: 6))
-        ..add(_row(title, value));
-    }
-
-    addRow('Barang', details.description);
-
-    return rows;
-  }
-
-  Widget _buildPricingSummary() {
+  @override
+  Widget build(BuildContext context) {
     final fee = order.fee;
     final total = order.totalPrice.round();
     final deliveryFeeSource = (order.deliveryFeeSource ?? '')
@@ -351,107 +404,123 @@ class DriverOrderMetaCard extends StatelessWidget {
         ? 'manual driver'
         : deliveryFeeSource;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.cardYellow,
-            AppColors.primaryLight.withValues(alpha: 0.3),
-          ],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return _buildDriverCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (fee != total) ...[
-                  const Text(
-                    'Fee Driver',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  Text(
-                    _formatCurrency(fee),
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-                if (order.deliveryFee != null && order.deliveryFee! > 0) ...[
-                  const Text(
-                    'Ongkir',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  Text(
-                    formatRupiah(order.deliveryFee!),
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  if (deliveryFeeSourceLabel.isNotEmpty)
-                    Text(
-                      deliveryFeeSourceLabel,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                ],
-                const Text(
-                  'Total Pembayaran',
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Pembayaran',
                   style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  _formatCurrency(total),
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
-                    fontSize: 18,
+                    color: AppColors.textPrimary,
+                    fontSize: 16,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-              ],
-            ),
+              ),
+              if (onEditDeliveryFee != null)
+                TextButton.icon(
+                  onPressed: isProcessing
+                      ? null
+                      : () => showDriverManualDeliveryFeeEditDialog(
+                            context,
+                            order: order,
+                            onSave: onEditDeliveryFee!,
+                          ),
+                  icon: const Icon(Icons.edit, size: 16),
+                  label: const Text('Edit'),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    foregroundColor: AppColors.primaryDark,
+                  ),
+                ),
+            ],
           ),
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.payments_rounded,
-              color: AppColors.primaryDark.withValues(alpha: 0.8),
-              size: 28,
-            ),
+          const SizedBox(height: 12),
+          if (fee != total) ...[
+            _pricingLine('Fee Driver', _formatCurrency(fee)),
+            const SizedBox(height: 8),
+          ],
+          if (order.deliveryFee != null && order.deliveryFee! > 0) ...[
+            _pricingLine('Ongkir', formatRupiah(order.deliveryFee!)),
+            const SizedBox(height: 8),
+          ],
+          if (deliveryFeeSourceLabel.isNotEmpty) ...[
+            _pricingLine('Sumber', deliveryFeeSourceLabel),
+            const SizedBox(height: 8),
+          ],
+          _pricingLine(
+            'Total Pembayaran',
+            _formatCurrency(total),
+            valueColor: AppColors.primaryDark,
+            valueSize: 17,
           ),
         ],
       ),
+    );
+  }
+
+  Widget _pricingLine(
+    String label,
+    String value, {
+    String? note,
+    Color valueColor = AppColors.textPrimary,
+    double valueSize = 14,
+  }) {
+    final hasNote = note != null && note.isNotEmpty;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            if (hasNote) ...[
+              Text(
+                note,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                width: 3,
+                height: 3,
+                decoration: BoxDecoration(
+                  color: AppColors.textSecondary.withValues(alpha: 0.5),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              value,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                color: valueColor,
+                fontSize: valueSize,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 

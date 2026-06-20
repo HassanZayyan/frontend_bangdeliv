@@ -131,7 +131,6 @@ class VehicleInfoFields extends StatelessWidget {
         ],
         if (hasVehicleBrand) ...[
           SizedBox(height: fieldSpacing),
-          _buildFieldLabel('Tipe Motor'),
           TextFormField(
             controller: vehicleModelController,
             enabled: enabled,
@@ -145,6 +144,7 @@ class VehicleInfoFields extends StatelessWidget {
                 ? const [_UpperCaseTextFormatter()]
                 : null,
             decoration: _decoration(
+              labelText: showLabels ? 'Tipe Motor' : null,
               hintText: 'Contoh: Vario 160',
               icon: Icons.directions_bike_outlined,
             ),
@@ -166,29 +166,19 @@ class VehicleInfoFields extends StatelessWidget {
     );
   }
 
-  Widget _buildFieldLabel(String text) {
-    if (!showLabels) {
-      return const SizedBox.shrink();
-    }
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: labelBottomSpacing),
-      child: Text(
-        text,
-        style: GoogleFonts.nunitoSans(
-          color: labelColor ?? AppColors.textSecondary,
-          fontSize: labelFontSize,
-          fontWeight: labelFontWeight,
-        ),
-      ),
-    );
-  }
-
   InputDecoration _decoration({
+    String? labelText,
     required String hintText,
     required IconData icon,
   }) {
     final decoration = InputDecoration(
+      labelText: labelText,
+      floatingLabelBehavior: FloatingLabelBehavior.always,
+      labelStyle: GoogleFonts.nunitoSans(
+        color: labelColor ?? AppColors.textSecondary,
+        fontSize: labelFontSize,
+        fontWeight: labelFontWeight,
+      ),
       hintText: hintText,
       isDense: isDense,
       prefixIcon: showIcons ? Icon(icon, color: AppColors.textSecondary) : null,

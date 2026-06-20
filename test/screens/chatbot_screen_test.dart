@@ -31,7 +31,8 @@ void main() {
 
     await _sendMessage(tester, 'antar ke polines');
 
-    expect(find.textContaining('Ketik "Konfirmasi"'), findsOneWidget);
+    expect(find.textContaining('Draft siap.'), findsOneWidget);
+    expect(find.textContaining('Ketik "Konfirmasi"'), findsNothing);
     expect(fakeService.callCount, 1);
     expect(fakeService.lastServiceType, 'antar_jemput');
   });
@@ -78,6 +79,30 @@ void main() {
     expect(find.text('Pilih Titik Tujuan'), findsNothing);
   });
 
+  testWidgets('ride reset destination shows focused destination action', (
+    WidgetTester tester,
+  ) async {
+    await _pumpChatbot(
+      tester,
+      serviceType: 'antar_jemput',
+      chatbotApiService: _FakeChatbotApiService(),
+    );
+
+    await _sendMessage(tester, 'reset tujuan button');
+
+    expect(
+      find.textContaining('tujuan sebelumnya sudah saya reset'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('klik tombol'), findsNothing);
+    expect(find.text('Tujuan baru'), findsOneWidget);
+    expect(
+      find.widgetWithText(OutlinedButton, 'Pilih Tujuan Baru'),
+      findsOneWidget,
+    );
+    expect(find.text('Atur Titik Jemput & Tujuan'), findsNothing);
+  });
+
   testWidgets('nitip welcome shows concise multi merchant guidance', (
     WidgetTester tester,
   ) async {
@@ -112,7 +137,7 @@ void main() {
     expect(input.onSubmitted, isNull);
   });
 
-  testWidgets('chatbot app bar exposes reset action only', (
+  testWidgets('chatbot app bar menu only shows restart action', (
     WidgetTester tester,
   ) async {
     await _pumpChatbot(
@@ -121,18 +146,17 @@ void main() {
       chatbotApiService: _FakeChatbotApiService(),
     );
 
-    expect(find.byIcon(Icons.more_vert), findsNothing);
-    expect(find.text('Riwayat Sesi'), findsNothing);
-
-    await tester.tap(find.byTooltip('Mulai ulang pesanan'));
+    await tester.tap(find.byIcon(Icons.more_vert));
     await _pumpChatbotFrame(tester);
 
-    expect(find.text('Mulai ulang pesanan?'), findsOneWidget);
-    expect(find.textContaining('Chat aktif'), findsOneWidget);
+    expect(find.text('Riwayat Sesi'), findsNothing);
+    expect(find.text('Mulai ulang pesanan?'), findsNothing);
+    expect(find.text('Mulai Ulang'), findsNothing);
+    expect(find.text('Mulai Ulang Pesanan'), findsOneWidget);
     expect(find.text('Pilih Sesi Chat'), findsNothing);
   });
 
-  testWidgets('restart button confirms and starts a fresh chatbot session', (
+  testWidgets('restart menu starts a fresh chatbot session', (
     WidgetTester tester,
   ) async {
     final fakeService = _FakeChatbotApiService();
@@ -146,12 +170,12 @@ void main() {
     await _sendMessage(tester, 'antar ke polines');
     final oldSessionId = fakeService.lastSessionId;
 
-    await tester.tap(find.byTooltip('Mulai ulang pesanan'));
+    await tester.tap(find.byIcon(Icons.more_vert));
     await _pumpChatbotFrame(tester);
 
-    expect(find.text('Mulai ulang pesanan?'), findsOneWidget);
+    expect(find.text('Mulai ulang pesanan?'), findsNothing);
 
-    await tester.tap(find.text('Mulai Ulang'));
+    await tester.tap(find.text('Mulai Ulang Pesanan'));
     await _pumpChatbotFrame(tester);
 
     expect(fakeService.clearSessionCallCount, 1);
@@ -1099,6 +1123,38 @@ class _FakeChatbotApiService extends ChatbotApiService {
             'rejection_reasons': ['Lokasi jemput di profil belum tersedia.'],
             'missing_fields': ['pickup_address'],
             'next_actions': ['OPEN_ADDRESSES'],
+          },
+          'order': {'created': false},
+        },
+      });
+    }
+
+    if (normalized.contains('reset tujuan')) {
+      return ChatbotResult.fromApiJson({
+        'status': 'success',
+        'model_used': 'gemini-2.5-flash',
+        'data': {
+          'intent': 'ride_order',
+          'assistant_text':
+              'tujuan sebelumnya sudah saya reset.\n'
+              'Jemput: Fakultas Teknik UNDIP\n'
+              'Silakan pilih tujuan baru.',
+          'validation': {
+            'is_valid_order': false,
+            'rejection_reasons': [],
+            'missing_fields': ['destination_address'],
+            'next_actions': ['OPEN_ROUTE_PICKER'],
+          },
+          'action_payloads': {
+            'OPEN_ROUTE_PICKER': {
+              'label': 'Pilih Tujuan Baru',
+              'points': {
+                'destination': {
+                  'target': 'destination',
+                  'label': 'Titik Tujuan',
+                },
+              },
+            },
           },
           'order': {'created': false},
         },

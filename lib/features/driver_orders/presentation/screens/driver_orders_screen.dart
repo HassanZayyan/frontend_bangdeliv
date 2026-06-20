@@ -5,90 +5,20 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
-import '../../../../core/widgets/bang_action_button.dart';
 import '../../../../core/widgets/bang_async_state.dart';
 import '../../../../models/driver_order_model.dart';
+import '../../../navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
 import '../../application/driver_order_providers.dart';
 import '../widgets/driver_distance_badge.dart';
 import '../../../../utils/courier_package_formatter.dart';
 import '../../../../utils/order_formatters.dart';
 import '../../../../utils/service_type.dart';
 
-class DriverOrdersScreen extends ConsumerStatefulWidget {
+class DriverOrdersScreen extends ConsumerWidget {
   const DriverOrdersScreen({super.key});
 
   @override
-  ConsumerState<DriverOrdersScreen> createState() => _DriverOrdersScreenState();
-}
-
-class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
-  bool _didResolveInitialTab = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  void _goToRunningTab() {
-    if (!_tabController.indexIsChanging && _tabController.index != 1) {
-      _tabController.animateTo(1);
-    }
-  }
-
-  Future<void> _acceptIncomingOrder(DriverOrderModel order) async {
-    final result = await ref
-        .read(driverOrdersProvider.notifier)
-        .acceptOrder(order.id);
-
-    if (!mounted) {
-      return;
-    }
-
-    if (result.isSuccess) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Order diterima.')));
-
-      final acceptedOrderId = result.order?.id ?? order.id;
-      if (_isServerOrderId(acceptedOrderId)) {
-        context.go(AppRoutes.driverOrderActivePath(acceptedOrderId));
-      } else {
-        _goToRunningTab();
-      }
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(result.error ?? 'Gagal menerima order.'),
-        backgroundColor: Colors.red.shade700,
-      ),
-    );
-  }
-
-  void _syncInitialTab(DriverOrdersState data) {
-    if (_didResolveInitialTab) {
-      return;
-    }
-
-    _didResolveInitialTab = true;
-    final targetIndex = data.running.isNotEmpty ? 1 : 0;
-    if (_tabController.index != targetIndex) {
-      _tabController.index = targetIndex;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final ordersState = ref.watch(driverOrdersProvider);
     final availabilityState = ref.watch(driverAvailabilityProvider);
     final availabilityStatus =
@@ -96,6 +26,19 @@ class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen>
     final canReceiveIncomingOrders = _canReceiveIncomingOrders(
       availabilityStatus,
     );
+    final activeOrder = ordersState.asData?.value.running.firstOrNull;
+    if (activeOrder != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          context.go(AppRoutes.driverOrderActivePath(activeOrder.id));
+        }
+      });
+
+      return const Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -108,18 +51,6 @@ class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen>
         elevation: 0,
         scrolledUnderElevation: 0.5,
         automaticallyImplyLeading: false,
-        bottom: ordersState.maybeWhen(
-          data: (data) => _DriverOrdersTabBar(
-            controller: _tabController,
-            incomingCount: data.incoming.length,
-            runningCount: data.running.length,
-          ),
-          orElse: () => _DriverOrdersTabBar(
-            controller: _tabController,
-            incomingCount: 0,
-            runningCount: 0,
-          ),
-        ),
       ),
       body: ordersState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -132,19 +63,11 @@ class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen>
           );
         },
         data: (data) {
-          _syncInitialTab(data);
-          return TabBarView(
-            controller: _tabController,
-            children: [
-              _IncomingOrdersTab(
-                orders: data.incoming,
-                ordersState: data,
-                canReceiveIncomingOrders: canReceiveIncomingOrders,
-                availabilityStatus: availabilityStatus,
-                onAcceptOrder: _acceptIncomingOrder,
-              ),
-              _RunningOrdersTab(orders: data.running),
-            ],
+          return _IncomingOrdersList(
+            orders: data.incoming,
+            processingOrderIds: data.processingOrderIds,
+            canReceiveIncomingOrders: canReceiveIncomingOrders,
+            availabilityStatus: availabilityStatus,
           );
         },
       ),
@@ -155,99 +78,24 @@ class _DriverOrdersScreenState extends ConsumerState<DriverOrdersScreen>
     final normalized = status.trim().toLowerCase();
     return normalized == 'available' || normalized == 'online';
   }
+}
+
+class _IncomingOrdersList extends ConsumerWidget {
+  final List<DriverOrderModel> orders;
+  final Set<String> processingOrderIds;
+  final bool canReceiveIncomingOrders;
+  final String availabilityStatus;
+
+  const _IncomingOrdersList({
+    required this.orders,
+    required this.processingOrderIds,
+    required this.canReceiveIncomingOrders,
+    required this.availabilityStatus,
+  });
 
   bool _isServerOrderId(String orderId) {
     return RegExp(r'^\d+$').hasMatch(orderId.trim());
   }
-}
-
-class _DriverOrdersTabBar extends StatelessWidget
-    implements PreferredSizeWidget {
-  final TabController controller;
-  final int incomingCount;
-  final int runningCount;
-
-  const _DriverOrdersTabBar({
-    required this.controller,
-    required this.incomingCount,
-    required this.runningCount,
-  });
-
-  @override
-  Size get preferredSize => const Size.fromHeight(48);
-
-  @override
-  Widget build(BuildContext context) {
-    return TabBar(
-      controller: controller,
-      labelColor: AppColors.primary,
-      unselectedLabelColor: AppColors.textSecondary,
-      indicatorColor: AppColors.primary,
-      indicatorWeight: 3,
-      indicatorSize: TabBarIndicatorSize.label,
-      labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-      unselectedLabelStyle: const TextStyle(
-        fontWeight: FontWeight.w600,
-        fontSize: 14,
-      ),
-      tabs: [
-        _TabWithBadge(label: 'Masuk', count: incomingCount),
-        _TabWithBadge(label: 'Berjalan', count: runningCount),
-      ],
-    );
-  }
-}
-
-class _TabWithBadge extends StatelessWidget {
-  final String label;
-  final int count;
-
-  const _TabWithBadge({required this.label, required this.count});
-
-  @override
-  Widget build(BuildContext context) {
-    return Tab(
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(label),
-          if (count > 0) ...[
-            const SizedBox(width: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                '$count',
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _IncomingOrdersTab extends ConsumerWidget {
-  final List<DriverOrderModel> orders;
-  final DriverOrdersState ordersState;
-  final bool canReceiveIncomingOrders;
-  final String availabilityStatus;
-  final Future<void> Function(DriverOrderModel order) onAcceptOrder;
-
-  const _IncomingOrdersTab({
-    required this.orders,
-    required this.ordersState,
-    required this.canReceiveIncomingOrders,
-    required this.availabilityStatus,
-    required this.onAcceptOrder,
-  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -289,28 +137,68 @@ class _IncomingOrdersTab extends ConsumerWidget {
       color: AppColors.primary,
       onRefresh: () => ref.read(driverOrdersProvider.notifier).refresh(),
       child: ListView.separated(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: ClampingScrollPhysics(),
+        ),
+        padding: const EdgeInsets.fromLTRB(
+          16,
+          12,
+          16,
+          BangFloatingBottomNavBar.scrollClearance,
+        ),
         itemCount: orders.length,
         separatorBuilder: (context, index) => const SizedBox(height: 14),
         itemBuilder: (context, index) {
           final order = orders[index];
-          final isOrderBusy = ordersState.isProcessing(order.id);
-          final acceptKey = DriverOrderActionKeys.accept(order.id);
-          final rejectKey = DriverOrderActionKeys.reject(order.id);
-          final isAccepting = ordersState.isProcessingAction(acceptKey);
-          final isRejecting = ordersState.isProcessingAction(rejectKey);
+          final isProcessing = processingOrderIds.contains(order.id);
 
           return _OrderCard(
             order: order,
-            isIncoming: true,
-            isOrderBusy: isOrderBusy,
-            isAccepting: isAccepting,
-            isRejecting: isRejecting,
-            onAccept: isOrderBusy && !isAccepting
+            isProcessing: isProcessing,
+            onAccept: isProcessing
                 ? null
-                : () => onAcceptOrder(order),
-            onReject: isOrderBusy && !isRejecting
+                : () async {
+                    final result = await ref
+                        .read(driverOrdersProvider.notifier)
+                        .acceptOrder(order.id);
+
+                    if (!context.mounted) {
+                      return;
+                    }
+
+                    if (result.isSuccess) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Order diterima.')),
+                      );
+                      final acceptedOrderId = result.order?.id ?? order.id;
+                      if (_isServerOrderId(acceptedOrderId)) {
+                        context.go(
+                          AppRoutes.driverOrderActivePath(acceptedOrderId),
+                        );
+                      } else {
+                        await ref.read(driverOrdersProvider.notifier).refresh();
+                        final activeOrder = ref.read(driverActiveOrderProvider);
+                        if (!context.mounted) {
+                          return;
+                        }
+                        if (activeOrder != null &&
+                            _isServerOrderId(activeOrder.id)) {
+                          context.go(
+                            AppRoutes.driverOrderActivePath(activeOrder.id),
+                          );
+                        }
+                      }
+                      return;
+                    }
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(result.error ?? 'Gagal menerima order.'),
+                        backgroundColor: Colors.red.shade700,
+                      ),
+                    );
+                  },
+            onReject: isProcessing
                 ? null
                 : () async {
                     final error = await ref
@@ -342,93 +230,17 @@ class _IncomingOrdersTab extends ConsumerWidget {
   }
 }
 
-class _RunningOrdersTab extends ConsumerWidget {
-  final List<DriverOrderModel> orders;
-
-  const _RunningOrdersTab({required this.orders});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (orders.isEmpty) {
-      return const _EmptyOrderState(
-        icon: Icons.local_shipping_outlined,
-        title: 'Belum ada order berjalan',
-        subtitle: 'Order yang sudah diterima akan pindah ke tab ini.',
-      );
-    }
-
-    return RefreshIndicator(
-      color: AppColors.primary,
-      onRefresh: () => ref.read(driverOrdersProvider.notifier).refresh(),
-      child: ListView.separated(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        itemCount: orders.length,
-        separatorBuilder: (context, index) => const SizedBox(height: 14),
-        itemBuilder: (context, index) {
-          final order = orders[index];
-          return _OrderCard(
-            order: order,
-            isIncoming: false,
-            onNavigate: () {
-              if (!_isServerOrderId(order.id)) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'ID order dari server tidak valid. Refresh daftar order dan coba lagi.',
-                    ),
-                    backgroundColor: AppColors.primaryDark,
-                  ),
-                );
-                return;
-              }
-
-              context.go(AppRoutes.driverOrderActivePath(order.id));
-            },
-            onContact: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    order.customerPhone == null ||
-                            order.customerPhone!.trim().isEmpty
-                        ? 'Nomor customer belum tersedia.'
-                        : 'Hubungi customer: ${order.customerPhone}',
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  bool _isServerOrderId(String orderId) {
-    return RegExp(r'^\d+$').hasMatch(orderId.trim());
-  }
-}
-
 class _OrderCard extends StatelessWidget {
   final DriverOrderModel order;
-  final bool isIncoming;
-  final bool isOrderBusy;
-  final bool isAccepting;
-  final bool isRejecting;
+  final bool isProcessing;
   final VoidCallback? onAccept;
   final VoidCallback? onReject;
-  final VoidCallback? onNavigate;
-  final VoidCallback? onContact;
 
   const _OrderCard({
     required this.order,
-    required this.isIncoming,
-    this.isOrderBusy = false,
-    this.isAccepting = false,
-    this.isRejecting = false,
+    this.isProcessing = false,
     this.onAccept,
     this.onReject,
-    this.onNavigate,
-    this.onContact,
   });
 
   String get _displayOrderId {
@@ -440,9 +252,6 @@ class _OrderCard extends StatelessWidget {
   }
 
   String get _etaLabel {
-    if (!isIncoming) {
-      return 'Diterima ${formatBackendTimeText(order.acceptedAt)}';
-    }
     if (order.etaMinutes <= 0) {
       return 'Order baru';
     }
@@ -453,36 +262,17 @@ class _OrderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final serviceLabel = serviceTypeLabel(order.serviceTypeCode);
     final packageDetails = buildCourierPackageDetails(order);
-    final isShoppingOrder =
-        normalizeServiceTypeCode(order.serviceTypeCode) ==
-        ServiceTypeCodes.shopping;
 
     return Container(
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: isIncoming
-              ? AppColors.primary.withValues(alpha: 0.3)
-              : AppColors.border.withValues(alpha: 0.5),
-          width: isIncoming ? 1.5 : 1.0,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isIncoming
-                ? AppColors.primary.withValues(alpha: 0.08)
-                : Colors.black.withValues(alpha: 0.03),
-            blurRadius: 16,
-            spreadRadius: 2,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (isIncoming) Container(height: 3, color: AppColors.primary),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
             child: Column(
@@ -513,15 +303,9 @@ class _OrderCard extends StatelessWidget {
                     ),
                     _StatusPill(
                       label: _etaLabel,
-                      background: isIncoming
-                          ? AppColors.primaryLight
-                          : AppColors.success.withValues(alpha: 0.12),
-                      foreground: isIncoming
-                          ? AppColors.primaryDark
-                          : AppColors.success,
-                      icon: isIncoming
-                          ? Icons.schedule_rounded
-                          : Icons.check_circle_outline_rounded,
+                      background: AppColors.surfaceAlt,
+                      foreground: AppColors.textSecondary,
+                      icon: Icons.schedule_rounded,
                     ),
                   ],
                 ),
@@ -570,21 +354,20 @@ class _OrderCard extends StatelessWidget {
                       if (order.serviceTypeCode.isNotEmpty)
                         _metaChip(
                           serviceLabel,
-                          AppColors.primary.withValues(alpha: 0.1),
-                          AppColors.primaryDark,
+                          AppColors.surfaceAlt,
+                          AppColors.textPrimary,
                         ),
                       if (order.statusCode.isNotEmpty)
                         _metaChip(
                           order.statusDisplayName ?? order.statusCode,
-                          AppColors.success.withValues(alpha: 0.12),
+                          AppColors.surfaceAlt,
                           AppColors.success,
                         ),
-                      if (isIncoming)
-                        DriverDistanceBadge(dispatch: order.dispatch),
+                      DriverDistanceBadge(dispatch: order.dispatch),
                     ],
                   ),
                 ],
-                if (isIncoming && packageDetails.isCourier) ...[
+                if (packageDetails.isCourier) ...[
                   const SizedBox(height: 12),
                   _CourierPackageSection(packageDetails: packageDetails),
                 ],
@@ -592,9 +375,6 @@ class _OrderCard extends StatelessWidget {
                 _OrderRouteSection(
                   pickupAddress: order.pickupAddress,
                   dropoffAddress: order.dropoffAddress,
-                  shoppingStops: isShoppingOrder
-                      ? order.shoppingStops
-                      : const <DriverShoppingStopModel>[],
                 ),
               ],
             ),
@@ -604,25 +384,16 @@ class _OrderCard extends StatelessWidget {
             margin: const EdgeInsets.symmetric(horizontal: 16),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.cardYellow,
-                  AppColors.primaryLight.withValues(alpha: 0.3),
-                ],
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-              ),
+              color: AppColors.surfaceAlt,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: AppColors.primary.withValues(alpha: 0.1),
-              ),
+              border: Border.all(color: AppColors.border),
             ),
             child: Row(
               children: [
                 Icon(
                   Icons.payments_outlined,
                   size: 18,
-                  color: AppColors.primaryDark.withValues(alpha: 0.9),
+                  color: AppColors.textSecondary,
                 ),
                 const SizedBox(width: 8),
                 const Text(
@@ -637,7 +408,7 @@ class _OrderCard extends StatelessWidget {
                 Text(
                   formatCurrency(order.fee),
                   style: const TextStyle(
-                    color: AppColors.primaryDark,
+                    color: AppColors.textPrimary,
                     fontWeight: FontWeight.w800,
                     fontSize: 16,
                   ),
@@ -647,96 +418,61 @@ class _OrderCard extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            child: isIncoming
-                ? Row(
-                    children: [
-                      Expanded(
-                        child: BangActionButton(
-                          label: 'Tolak',
-                          variant: BangActionButtonVariant.outlined,
-                          isLoading: isRejecting,
-                          isEnabled: !isOrderBusy || isRejecting,
-                          onPressed: onReject,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.textPrimary,
-                            side: BorderSide(
-                              color: AppColors.border.withValues(alpha: 0.8),
-                              width: 1.5,
-                            ),
-                            minimumSize: const Size(0, 48),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            textStyle: GoogleFonts.nunitoSans(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: isProcessing ? null : onReject,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textPrimary,
+                      side: BorderSide(
+                        color: AppColors.border.withValues(alpha: 0.8),
+                        width: 1.5,
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        flex: 2,
-                        child: BangActionButton(
-                          label: 'Terima Order',
-                          isLoading: isAccepting,
-                          isEnabled: !isOrderBusy || isAccepting,
-                          onPressed: onAccept,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: AppColors.white,
-                            elevation: 4,
-                            shadowColor: AppColors.primary.withValues(
-                              alpha: 0.4,
-                            ),
-                            minimumSize: const Size(0, 48),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            textStyle: GoogleFonts.nunitoSans(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ),
+                      minimumSize: const Size(0, 48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ],
-                  )
-                : Row(
-                    children: [
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: onNavigate,
-                          icon: const Icon(Icons.navigation_rounded, size: 18),
-                          label: const Text('Rute'),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: AppColors.white,
-                            minimumSize: const Size(0, 48),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
+                      textStyle: GoogleFonts.nunitoSans(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: onContact,
-                          icon: const Icon(Icons.call_outlined, size: 18),
-                          label: const Text('Hubungi'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.textPrimary,
-                            side: const BorderSide(color: AppColors.border),
-                            minimumSize: const Size(0, 48),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
+                    child: const Text('Tolak'),
                   ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: FilledButton(
+                    onPressed: isProcessing ? null : onAccept,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.white,
+                      elevation: 0,
+                      minimumSize: const Size(0, 48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      textStyle: GoogleFonts.nunitoSans(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                    child: isProcessing
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.white,
+                            ),
+                          )
+                        : const Text('Terima Order'),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -786,15 +522,9 @@ class _CustomerAvatar extends StatelessWidget {
       height: 44,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.primaryLight,
-            AppColors.primary.withValues(alpha: 0.2),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(12),
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
       ),
       child: Text(
         _initials,
@@ -828,6 +558,7 @@ class _StatusPill extends StatelessWidget {
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(100),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -856,12 +587,10 @@ class _StatusPill extends StatelessWidget {
 class _OrderRouteSection extends StatefulWidget {
   final String pickupAddress;
   final String dropoffAddress;
-  final List<DriverShoppingStopModel> shoppingStops;
 
   const _OrderRouteSection({
     required this.pickupAddress,
     required this.dropoffAddress,
-    this.shoppingStops = const <DriverShoppingStopModel>[],
   });
 
   @override
@@ -874,54 +603,49 @@ class _OrderRouteSectionState extends State<_OrderRouteSection> {
   static const int _collapsedMaxLines = 2;
 
   bool get _needsExpansion {
-    return widget.shoppingStops.length > 1 ||
-        widget.pickupAddress.length > 80 ||
-        widget.shoppingStops.any(
-          (stop) => _shoppingStopAddress(stop).length > 80,
-        ) ||
+    return widget.pickupAddress.length > 80 ||
         widget.dropoffAddress.length > 80;
   }
 
   @override
   Widget build(BuildContext context) {
-    final shoppingPickupStops = widget.shoppingStops
-        .where((stop) => !stop.isSkipped && !stop.isReplaced)
-        .toList(growable: false);
-
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: AppColors.surfaceAlt,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.8)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (shoppingPickupStops.isEmpty) ...[
-            _routeStop(
-              icon: Icons.storefront_rounded,
-              iconColor: AppColors.primary,
-              label: 'Jemput',
-              address: widget.pickupAddress,
-            ),
-            _routeDivider(),
-          ] else ...[
-            ...shoppingPickupStops.indexed.expand((entry) {
-              final index = entry.$1;
-              final stop = entry.$2;
-
-              return <Widget>[
-                _routeStop(
-                  icon: Icons.storefront_rounded,
-                  iconColor: AppColors.primary,
-                  label: 'Merchant ${index + 1}',
-                  address: _shoppingStopAddress(stop),
+          _routeStop(
+            icon: Icons.radio_button_checked,
+            iconColor: AppColors.primary,
+            label: 'Jemput',
+            address: widget.pickupAddress,
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 11),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: List.generate(
+                  5,
+                  (index) => Container(
+                    width: 2,
+                    height: 4,
+                    margin: const EdgeInsets.symmetric(vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: AppColors.textSecondary.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(1),
+                    ),
+                  ),
                 ),
-                _routeDivider(),
-              ];
-            }),
-          ],
+              ),
+            ),
+          ),
           _routeStop(
             icon: Icons.location_on_rounded,
             iconColor: const Color(0xFF2563EB),
@@ -945,9 +669,10 @@ class _OrderRouteSectionState extends State<_OrderRouteSection> {
                 ),
                 style: TextButton.styleFrom(
                   foregroundColor: AppColors.primary,
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.05),
+                  backgroundColor: AppColors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
+                    side: const BorderSide(color: AppColors.border),
                   ),
                 ),
               ),
@@ -956,40 +681,6 @@ class _OrderRouteSectionState extends State<_OrderRouteSection> {
         ],
       ),
     );
-  }
-
-  Widget _routeDivider() {
-    return Padding(
-      padding: const EdgeInsets.only(left: 11),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: List.generate(
-            5,
-            (index) => Container(
-              width: 2,
-              height: 4,
-              margin: const EdgeInsets.symmetric(vertical: 1.5),
-              decoration: BoxDecoration(
-                color: AppColors.textSecondary.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(1),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _shoppingStopAddress(DriverShoppingStopModel stop) {
-    final merchantName = stop.merchant.name.trim();
-    final merchantAddress = (stop.merchant.address ?? '').trim();
-    if (merchantAddress.isEmpty || merchantAddress == merchantName) {
-      return merchantName.isEmpty ? widget.pickupAddress : merchantName;
-    }
-
-    return '$merchantName\n$merchantAddress';
   }
 
   Widget _routeStop({
@@ -1002,14 +693,10 @@ class _OrderRouteSectionState extends State<_OrderRouteSection> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 24,
-          height: 24,
+          width: 22,
+          height: 22,
           alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: iconColor.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, size: 14, color: iconColor),
+          child: Icon(icon, size: 16, color: iconColor),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -1056,9 +743,9 @@ class _CourierPackageSection extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.05),
+        color: AppColors.surfaceAlt,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1068,7 +755,7 @@ class _CourierPackageSection extends StatelessWidget {
               Icon(
                 Icons.inventory_2_outlined,
                 size: 16,
-                color: AppColors.primaryDark.withValues(alpha: 0.9),
+                color: AppColors.textSecondary,
               ),
               const SizedBox(width: 6),
               const Text(

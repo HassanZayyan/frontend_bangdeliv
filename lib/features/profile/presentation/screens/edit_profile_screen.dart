@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../config/app_colors.dart';
+import '../../../../config/app_text_scaling.dart';
 import '../../../auth/application/auth_session_provider.dart';
 import '../../../../services/auth_service.dart';
 import '../../../../widgets/profile_avatar.dart';
@@ -21,6 +22,9 @@ class EditProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
+  static const double _pickerIconSize = 20;
+  static const TextStyle _pickerLabelStyle = TextStyle(fontSize: 14);
+
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -45,12 +49,21 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   }
 
   Future<void> _loadProfile() async {
+    if (!mounted) {
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
 
     try {
       final profile = await AuthService.fetchCurrentUserProfile();
+
+      if (!mounted) {
+        return;
+      }
+
       _nameController.text = profile.name;
       _phoneController.text = profile.phone;
       _emailController.text = profile.email;
@@ -96,6 +109,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       appBar: AppBar(
         title: const Text(
           'Edit Profil',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         backgroundColor: AppColors.white,
@@ -278,24 +293,32 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
       child: SizedBox(
         width: double.infinity,
-        height: 52,
-        child: ElevatedButton(
-          onPressed: _isSubmitting ? null : _handleSubmit,
-          style: ElevatedButton.styleFrom(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: AppTextScaling.adaptive(context, normal: 52, large: 56),
           ),
-          child: _isSubmitting
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.white,
+          child: ElevatedButton(
+            onPressed: _isSubmitting ? null : _handleSubmit,
+            style: ElevatedButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: _isSubmitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.white,
+                    ),
+                  )
+                : const Text(
+                    'Simpan Perubahan',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                )
-              : const Text('Simpan Perubahan'),
+          ),
         ),
       ),
     );
@@ -367,53 +390,44 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     required TextInputType keyboardType,
     required String? Function(String?) validator,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textSecondary,
-          ),
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      style: TextStyle(
+        color: AppColors.textPrimary,
+        fontSize: AppTextScaling.adaptive(context, normal: 14, large: 13.4),
+        fontWeight: FontWeight.w400,
+      ),
+      validator: validator,
+      decoration: InputDecoration(
+        labelText: label,
+        floatingLabelBehavior: FloatingLabelBehavior.always,
+        labelStyle: TextStyle(
+          fontSize: AppTextScaling.adaptive(context, normal: 13, large: 12.6),
+          fontWeight: FontWeight.w600,
+          color: AppColors.textSecondary,
         ),
-        const SizedBox(height: 6),
-        TextFormField(
-          controller: controller,
-          keyboardType: keyboardType,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 14,
-            fontWeight: FontWeight.w400,
-          ),
-          validator: validator,
-          decoration: InputDecoration(
-            isDense: true,
-            filled: true,
-            fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 13,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                color: AppColors.primary,
-                width: 1.5,
-              ),
-            ),
-          ),
+        hintText: label,
+        isDense: true,
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 13,
         ),
-      ],
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+        ),
+      ),
     );
   }
 
@@ -438,44 +452,68 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         _selectedAvatar != null ||
         (!_removeAvatar && (_currentAvatarUrl ?? '').trim().isNotEmpty);
 
-    final action = await showDialog<_AvatarPickerAction>(
+    final action = await showModalBottomSheet<_AvatarPickerAction>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: AppColors.white,
-          surfaceTintColor: AppColors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          title: const Text(
-            'Foto Profil',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      builder: (sheetContext) {
+        return Material(
+          color: AppColors.white,
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    tileColor: AppColors.white,
+                    leading: const Icon(
+                      Icons.camera_alt_outlined,
+                      size: _pickerIconSize,
+                    ),
+                    title: const Text(
+                      'Ambil dari Kamera',
+                      style: _pickerLabelStyle,
+                    ),
+                    onTap: () => Navigator.of(
+                      sheetContext,
+                    ).pop(_AvatarPickerAction.camera),
+                  ),
+                  ListTile(
+                    tileColor: AppColors.white,
+                    leading: const Icon(
+                      Icons.photo_library_outlined,
+                      size: _pickerIconSize,
+                    ),
+                    title: const Text(
+                      'Pilih dari Galeri',
+                      style: _pickerLabelStyle,
+                    ),
+                    onTap: () => Navigator.of(
+                      sheetContext,
+                    ).pop(_AvatarPickerAction.gallery),
+                  ),
+                  if (hasAvatar)
+                    ListTile(
+                      tileColor: AppColors.white,
+                      leading: const Icon(
+                        Icons.delete_outline,
+                        color: AppColors.error,
+                      ),
+                      title: const Text(
+                        'Hapus Foto Profil',
+                        style: TextStyle(color: AppColors.error),
+                      ),
+                      onTap: () => Navigator.of(
+                        sheetContext,
+                      ).pop(_AvatarPickerAction.remove),
+                    ),
+                ],
+              ),
             ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _AvatarPickerOption(
-                icon: Icons.camera_alt_outlined,
-                title: 'Ambil dari Kamera',
-                onTap: () => dialogContext.pop(_AvatarPickerAction.camera),
-              ),
-              _AvatarPickerOption(
-                icon: Icons.photo_library_outlined,
-                title: 'Pilih dari Galeri',
-                onTap: () => dialogContext.pop(_AvatarPickerAction.gallery),
-              ),
-              if (hasAvatar)
-                _AvatarPickerOption(
-                  icon: Icons.delete_outline,
-                  title: 'Hapus Foto Profil',
-                  color: AppColors.error,
-                  onTap: () => dialogContext.pop(_AvatarPickerAction.remove),
-                ),
-            ],
           ),
         );
       },
@@ -543,51 +581,5 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     _emailController.dispose();
     _vehicleModelController.dispose();
     super.dispose();
-  }
-}
-
-class _AvatarPickerOption extends StatelessWidget {
-  const _AvatarPickerOption({
-    required this.icon,
-    required this.title,
-    required this.onTap,
-    this.color,
-  });
-
-  final IconData icon;
-  final String title;
-  final VoidCallback onTap;
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) {
-    final resolvedColor = color ?? AppColors.textPrimary;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Row(
-            children: [
-              Icon(icon, color: resolvedColor, size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    color: resolvedColor,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }

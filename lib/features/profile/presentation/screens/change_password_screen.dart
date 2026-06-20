@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../config/app_colors.dart';
+import '../../../../config/app_text_scaling.dart';
 import '../../../../services/auth_service.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
@@ -29,6 +30,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       appBar: AppBar(
         title: const Text(
           'Ganti Password',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         backgroundColor: AppColors.white,
@@ -129,24 +132,36 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
                 child: SizedBox(
                   width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton(
-                    onPressed: _isSubmitting ? null : _handleSubmit,
-                    style: ElevatedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: AppTextScaling.adaptive(
+                        context,
+                        normal: 52,
+                        large: 56,
                       ),
                     ),
-                    child: _isSubmitting
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.white,
+                    child: ElevatedButton(
+                      onPressed: _isSubmitting ? null : _handleSubmit,
+                      style: ElevatedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _isSubmitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.white,
+                              ),
+                            )
+                          : const Text(
+                              'Simpan Password',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          )
-                        : const Text('Simpan Password'),
+                    ),
                   ),
                 ),
               ),
@@ -214,67 +229,57 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     required VoidCallback onToggleVisibility,
     required String? Function(String?) validator,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
+    return TextFormField(
+      controller: controller,
+      obscureText: !isVisible,
+      style: TextStyle(
+        color: AppColors.textPrimary,
+        fontSize: AppTextScaling.adaptive(context, normal: 14, large: 13.4),
+        fontWeight: FontWeight.w400,
+      ),
+      validator: validator,
+      decoration: InputDecoration(
+        labelText: label,
+        floatingLabelBehavior: FloatingLabelBehavior.always,
+        labelStyle: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: AppTextScaling.adaptive(context, normal: 13, large: 12.6),
+          color: AppColors.textSecondary,
+        ),
+        hintText: hintText,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 13,
+        ),
+        filled: true,
+        fillColor: AppColors.white,
+        hintStyle: TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: AppTextScaling.adaptive(context, normal: 14, large: 13.4),
+          fontWeight: FontWeight.w400,
+        ),
+        suffixIcon: IconButton(
+          onPressed: onToggleVisibility,
+          iconSize: 20,
+          icon: Icon(
+            isVisible ? Icons.visibility : Icons.visibility_off,
             color: AppColors.textSecondary,
           ),
         ),
-        const SizedBox(height: 6),
-        TextFormField(
-          controller: controller,
-          obscureText: !isVisible,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 14,
-            fontWeight: FontWeight.w400,
-          ),
-          validator: validator,
-          decoration: InputDecoration(
-            hintText: hintText,
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 13,
-            ),
-            filled: true,
-            fillColor: AppColors.white,
-            hintStyle: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-            ),
-            suffixIcon: IconButton(
-              onPressed: onToggleVisibility,
-              iconSize: 20,
-              icon: Icon(
-                isVisible ? Icons.visibility : Icons.visibility_off,
-                color: AppColors.textSecondary,
-              ),
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                color: AppColors.primary,
-                width: 1.5,
-              ),
-            ),
-          ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.border),
         ),
-      ],
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+        ),
+      ),
     );
   }
 

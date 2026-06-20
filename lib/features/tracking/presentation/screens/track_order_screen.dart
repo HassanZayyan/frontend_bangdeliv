@@ -1185,12 +1185,6 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     final deliveryFeeNotice = _deliveryFeeNotice(order, detail);
     final serviceCode = normalizeServiceTypeCode(order.serviceTypeCode);
     final isShopping = serviceCode == ServiceTypeCodes.shopping;
-    final normalizedPaymentMethod = TrackOrderPresenter.normalizedPaymentMethod(
-      order,
-      detail,
-    );
-    final paymentMethod = paymentMethodLabel(normalizedPaymentMethod);
-    final paymentStatus = paymentStatusLabel(detail.paymentStatus);
     final isPaid = isPaymentPaid(detail.paymentStatus);
     final summaryPaymentMessage = _paymentMessage(
       order,
@@ -1206,7 +1200,6 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
         TrackInfoRow('Barang', order.itemsSummary.trim()),
       if ((detail.deliveryDistanceText ?? '').trim().isNotEmpty)
         TrackInfoRow('Jarak', detail.deliveryDistanceText!.trim()),
-      TrackInfoRow('Pembayaran', '$paymentMethod - $paymentStatus'),
     ];
 
     return _buildCard(
@@ -1581,7 +1574,6 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     Future<void> Function()? onRefresh,
   ) {
     final isPaid = isPaymentPaid(detail.paymentStatus);
-    final statusColor = isPaid ? AppColors.success : AppColors.primary;
     final normalizedPaymentMethod = TrackOrderPresenter.normalizedPaymentMethod(
       order,
       detail,
@@ -1593,8 +1585,18 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     final isCancelledWithFee =
         normalizeOrderStatusCode(order.statusCode) ==
         OrderStatusCodes.cancelledWithFee;
-    final hasTransferProof = detail.proofs.any(
-      (proof) => proof.type == 'payment_transfer',
+    final hasPendingTransferProof = detail.proofs.any(
+      (proof) =>
+          proof.type == 'payment_transfer' &&
+          (proof.status ?? '').trim().toLowerCase() == 'pending',
+    );
+    final paymentStatusText = hasPendingTransferProof && !isPaid
+        ? 'Menunggu verifikasi'
+        : paymentStatusLabel(detail.paymentStatus);
+    final paymentStatusColor = _paymentStatusColor(
+      detail.paymentStatus,
+      isPaid: isPaid,
+      hasPendingTransferProof: hasPendingTransferProof,
     );
     final paymentMessage = _paymentActionMessage(
       order: order,
@@ -1602,7 +1604,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
       isTransfer: isTransfer,
       isCourier: isCourier,
       isCancelledWithFee: isCancelledWithFee,
-      hasTransferProof: hasTransferProof,
+      hasPendingTransferProof: hasPendingTransferProof,
     );
 
     return KeyedSubtree(
@@ -1613,21 +1615,30 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _paymentChip(
-                  paymentMethodLabel(normalizedPaymentMethod),
-                  statusColor,
+                Expanded(
+                  child: _paymentMethodSummary(
+                    paymentMethodLabel(normalizedPaymentMethod),
+                  ),
                 ),
-                _paymentChip(
-                  paymentStatusLabel(detail.paymentStatus),
-                  statusColor,
+                const SizedBox(width: 10),
+                _paymentStatusPill(
+                  label: paymentStatusText,
+                  color: paymentStatusColor,
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
+            _summaryRow(
+              TrackInfoRow(
+                'Total',
+                formatCurrency(order.totalAmount),
+                emphasized: true,
+              ),
+            ),
+            const SizedBox(height: 10),
             Text(
               paymentMessage,
               style: const TextStyle(
@@ -1638,16 +1649,8 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
               ),
             ),
             if (!isPaid) ...[
-              const SizedBox(height: 6),
-              Text(
-                'Nominal: ${formatCurrency(order.totalAmount)}',
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12.5,
-                ),
-              ),
               const SizedBox(height: 12),
-              if (isTransfer && !hasTransferProof) ...[
+              if (isTransfer && !hasPendingTransferProof) ...[
                 _buildQrisPaymentPanel(context, ref),
                 const SizedBox(height: 12),
                 SizedBox(
@@ -1772,6 +1775,85 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     );
   }
 
+  Widget _paymentMethodSummary(String methodLabel) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Metode',
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 12.5,
+            fontWeight: FontWeight.w500,
+            height: 1.2,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          methodLabel,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 13.2,
+            fontWeight: FontWeight.w700,
+            height: 1.2,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _paymentStatusPill({required String label, required Color color}) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 150),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.11),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withValues(alpha: 0.18)),
+        ),
+        child: Text(
+          label,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: color,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w800,
+            height: 1.1,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _paymentStatusColor(
+    String? rawStatus, {
+    required bool isPaid,
+    required bool hasPendingTransferProof,
+  }) {
+    if (isPaid) {
+      return AppColors.success;
+    }
+
+    final normalizedStatus = (rawStatus ?? '').trim().toLowerCase();
+    if (normalizedStatus.contains('fail') ||
+        normalizedStatus.contains('reject') ||
+        normalizedStatus.contains('declin') ||
+        normalizedStatus.contains('cancel')) {
+      return AppColors.error;
+    }
+
+    if (hasPendingTransferProof) {
+      return AppColors.warning;
+    }
+
+    return AppColors.primary;
+  }
+
   Widget _buildTrackingInfoBanner(String message) {
     return Container(
       width: double.infinity,
@@ -1808,7 +1890,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     required bool isTransfer,
     required bool isCourier,
     required bool isCancelledWithFee,
-    required bool hasTransferProof,
+    required bool hasPendingTransferProof,
   }) {
     if (isCancelledWithFee) {
       if (isPaid) {
@@ -1821,7 +1903,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
       if (isPaid) {
         return 'Pembayaran QRIS sudah diverifikasi.';
       }
-      return hasTransferProof
+      return hasPendingTransferProof
           ? 'Bukti QRIS menunggu verifikasi driver/admin.'
           : 'Scan QRIS BangDeliv lalu upload bukti pembayaran agar driver/admin bisa memverifikasi.';
     }
@@ -1892,24 +1974,6 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
         const SnackBar(content: Text('QRIS gagal disimpan ke galeri.')),
       );
     }
-  }
-
-  Widget _paymentChip(String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
   }
 
   // ---------------------------------------------------------------------------

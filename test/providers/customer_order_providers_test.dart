@@ -282,7 +282,6 @@ DriverProfileModel _activeDriverProfile() {
     vehicleBrand: 'Honda',
     vehicleModel: 'Beat',
     vehiclePlate: 'BG 1234 DL',
-    licenseNumber: 'SIM-DRIVER-001',
     totalDeliveries: 12,
   );
 }

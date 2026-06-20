@@ -5,6 +5,7 @@ import 'config/app_colors.dart';
 import 'config/app_env.dart';
 import 'config/app_theme.dart';
 import 'config/app_router.dart';
+import 'config/app_text_scaling.dart';
 import 'features/realtime/application/app_realtime_bootstrap_provider.dart';
 import 'features/auth/application/auth_session_provider.dart';
 import 'features/driver_orders/application/driver_availability_location_reporter_provider.dart';
@@ -14,6 +15,7 @@ import 'services/firebase_notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: AppColors.white,
@@ -64,7 +66,10 @@ class _MyAppState extends ConsumerState<MyApp> {
       builder: (context, child) {
         return ColoredBox(
           color: AppColors.background,
-          child: child ?? const SizedBox.shrink(),
+          child: AppTextScaling.clamp(
+            context: context,
+            child: child ?? const SizedBox.shrink(),
+          ),
         );
       },
     );

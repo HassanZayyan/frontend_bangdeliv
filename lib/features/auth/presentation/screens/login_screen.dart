@@ -15,17 +15,30 @@ class LoginScreen extends ConsumerStatefulWidget {
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends ConsumerState<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen>
+    with WidgetsBindingObserver {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _isPasswordVisible = false;
+  final _emailFocusNode = FocusNode();
+  final _passwordFocusNode = FocusNode();
   bool _isSubmitting = false;
+  bool _isPasswordVisible = false;
+  bool _wasKeyboardVisible = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _emailFocusNode.addListener(_handleFieldFocusChanged);
+    _passwordFocusNode.addListener(_handleFieldFocusChanged);
     _prefillLastLoginEmail();
+  }
+
+  void _handleFieldFocusChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _prefillLastLoginEmail() async {
@@ -39,59 +52,81 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    if (!mounted) {
+      return;
+    }
+
+    final isKeyboardVisible = View.of(context).viewInsets.bottom > 0;
+    final didKeyboardClose = _wasKeyboardVisible && !isKeyboardVisible;
+    _wasKeyboardVisible = isKeyboardVisible;
+
+    if (didKeyboardClose) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+
+        if (_hasFocusedField && MediaQuery.viewInsetsOf(context).bottom == 0) {
+          FocusScope.of(context).unfocus();
+        }
+      });
+    }
+  }
+
+  void _syncKeyboardVisibility(bool isKeyboardOpen) {
+    _wasKeyboardVisible = isKeyboardOpen;
+  }
+
+  void _unfocusWhenKeyboardClosed() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || MediaQuery.viewInsetsOf(context).bottom > 0) {
+        return;
+      }
+
+      if (_hasFocusedField) {
+        FocusScope.of(context).unfocus();
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
     final isCompact = MediaQuery.sizeOf(context).height < 860;
-    final canPop = Navigator.of(context).canPop();
+    _syncKeyboardVisibility(isKeyboardOpen);
 
     return PopScope<void>(
-      canPop: canPop,
+      canPop: false,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) {
-          context.go(AppRoutes.home);
+        if (didPop) {
+          return;
         }
-      },
-      child: Scaffold(
-        backgroundColor: AppColors.primary,
-        body: SafeArea(
-          bottom: !isKeyboardOpen,
-          child: Column(
-            children: [
-              if (!isKeyboardOpen) ...[
-                // Top Header (Orange)
-                Expanded(flex: 3, child: centerHeader()),
-              ],
 
-              // Bottom Card (White)
-              Expanded(
-                flex: isKeyboardOpen ? 1 : (isCompact ? 7 : 6),
-                child: Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isCompact ? 20 : 24,
-                    vertical: isKeyboardOpen ? 16 : (isCompact ? 20 : 28),
-                  ),
-                  decoration: const BoxDecoration(
-                    color: AppColors.white,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(30),
-                      topRight: Radius.circular(30),
-                    ),
-                  ),
-                  child: isKeyboardOpen
-                      ? SingleChildScrollView(
-                          keyboardDismissBehavior:
-                              ScrollViewKeyboardDismissBehavior.onDrag,
-                          child: bottomForm(context, isCompact: isCompact),
-                        )
-                      : bottomForm(context, isCompact: isCompact),
-                ),
-              ),
-            ],
-          ),
-        ),
+        _handleBackNavigation();
+      },
+      child: AuthKeyboardSafeScaffold(
+        header: centerHeader(),
+        headerHeightBuilder: _headerHeight,
+        cardPaddingBuilder: (context, isKeyboardOpen) {
+          return EdgeInsets.symmetric(
+            horizontal: isCompact ? 20 : 24,
+            vertical: isKeyboardOpen ? 16 : (isCompact ? 20 : 28),
+          );
+        },
+        child: bottomForm(context, isCompact: isCompact),
       ),
     );
+  }
+
+  double _headerHeight(BuildContext context, bool isKeyboardOpen) {
+    if (isKeyboardOpen) {
+      return 0;
+    }
+
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    return (screenHeight * 0.32).clamp(190.0, 285.0);
   }
 
   Widget centerHeader() {
@@ -120,24 +155,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         const SizedBox(height: 14),
         RichText(
           text: TextSpan(
-            style: GoogleFonts.nunitoSans(fontSize: 42, letterSpacing: 1.5),
-            children: const [
-              TextSpan(
+            style: GoogleFonts.fredoka(
+              fontSize: 40,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0,
+            ),
+            children: [
+              const TextSpan(
                 text: 'BANG',
                 style: TextStyle(color: Colors.white),
               ),
               TextSpan(
                 text: ' DELIV',
-                style: TextStyle(color: Colors.black),
+                style: const TextStyle(color: AppColors.darkBlue),
               ),
             ],
           ),
         ),
         const SizedBox(height: 8),
         Text(
-          'Pesan makanan lokal, cepat & terjangkau',
+          'Pesan kebutuhan dan perjalananmu dengan mudah',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: AppColors.white.withValues(alpha: 0.8),
+            fontSize: 12.5,
           ),
         ),
       ],
@@ -154,12 +194,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             'Masuk ke Akun',
             style: Theme.of(
               context,
-            ).textTheme.titleLarge?.copyWith(fontSize: 20),
+            ).textTheme.titleLarge?.copyWith(fontSize: 18),
           ),
           SizedBox(height: isCompact ? 16 : 24),
 
           TextFormField(
             controller: _emailController,
+            focusNode: _emailFocusNode,
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.next,
             style: const TextStyle(
@@ -167,13 +208,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               fontSize: 14,
               fontWeight: FontWeight.w400,
             ),
-            decoration: const InputDecoration(
-              hintText: 'Email',
-              prefixIcon: Icon(
-                Icons.email_outlined,
-                color: AppColors.textSecondary,
-              ),
-            ),
+            decoration: _fieldDecoration('Email', _emailFocusNode),
             validator: (value) {
               final email = value?.trim() ?? '';
               if (email.isEmpty) {
@@ -189,6 +224,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
           TextFormField(
             controller: _passwordController,
+            focusNode: _passwordFocusNode,
             obscureText: !_isPasswordVisible,
             textInputAction: TextInputAction.done,
             onFieldSubmitted: (_) => _handleLogin(),
@@ -197,12 +233,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               fontSize: 14,
               fontWeight: FontWeight.w400,
             ),
-            decoration: InputDecoration(
-              hintText: 'Password',
-              prefixIcon: const Icon(
-                Icons.lock_outline,
-                color: AppColors.textSecondary,
-              ),
+            decoration: _fieldDecoration(
+              'Password',
+              _passwordFocusNode,
               suffixIcon: IconButton(
                 iconSize: 20,
                 icon: Icon(
@@ -226,13 +259,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               }
               return null;
             },
+            ),
+
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () {
+                context.push(AppRoutes.forgotPassword);
+              },
+              child: const Text(
+                'Lupa password?',
+                style: TextStyle(
+                  color: AppColors.primary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
           ),
 
           SizedBox(height: isCompact ? 10 : 16),
 
           BangPrimaryButton(
             label: 'Masuk',
-            icon: Icons.arrow_forward_rounded,
             isLoading: _isSubmitting,
             onPressed: _handleLogin,
           ),
@@ -251,11 +300,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   onTap: () {
                     context.push(AppRoutes.register);
                   },
-                  child: const Text(
+                  child: Text(
                     'Daftar Sekarang',
-                    style: TextStyle(
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppColors.primary,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -269,6 +318,38 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   bool _isValidEmail(String email) {
     return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
+  }
+
+  bool get _hasFocusedField =>
+      _emailFocusNode.hasFocus || _passwordFocusNode.hasFocus;
+
+  void _handleBackNavigation() {
+    if (_hasFocusedField || MediaQuery.viewInsetsOf(context).bottom > 0) {
+      FocusScope.of(context).unfocus();
+      _unfocusWhenKeyboardClosed();
+      return;
+    }
+
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+
+    context.go(AppRoutes.home);
+  }
+
+  InputDecoration _fieldDecoration(
+    String label,
+    FocusNode focusNode, {
+    Widget? suffixIcon,
+  }) {
+    return InputDecoration(
+      hintText: label,
+      labelText: focusNode.hasFocus ? label : null,
+      floatingLabelBehavior: FloatingLabelBehavior.always,
+      suffixIcon: suffixIcon,
+    );
   }
 
   String? _resolveIntendedRoute() {
@@ -286,7 +367,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return null;
     }
 
+    if (_shouldRedirectHomeAfterLogin(decoded)) {
+      return AppRoutes.home;
+    }
+
     return decoded;
+  }
+
+  bool _shouldRedirectHomeAfterLogin(String route) {
+    return route == AppRoutes.activity ||
+        route == AppRoutes.history ||
+        route == AppRoutes.profile;
   }
 
   Future<void> _handleLogin() async {
@@ -343,6 +434,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _emailFocusNode
+      ..removeListener(_handleFieldFocusChanged)
+      ..dispose();
+    _passwordFocusNode
+      ..removeListener(_handleFieldFocusChanged)
+      ..dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();

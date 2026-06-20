@@ -20,7 +20,7 @@ void main() {
       expect(source, contains('qris-preview-thumbnail'));
       expect(source, contains('showBangNetworkImagePreview'));
       expect(source, isNot(contains('LaunchMode.externalApplication')));
-      expect(source, contains('isTransfer && !hasTransferProof'));
+      expect(source, contains('isTransfer && !hasPendingTransferProof'));
       expect(source, isNot(contains('isTransfer || isCancelledWithFee')));
     },
   );
@@ -37,7 +37,7 @@ void main() {
           'TrackOrderPresenter.shouldShowCustomerPaymentCard(order, detail)',
         ),
       );
-      expect(source, contains('!hasTransferProof'));
+      expect(source, contains('!hasPendingTransferProof'));
     },
   );
 
@@ -51,15 +51,25 @@ void main() {
     expect(source, contains('uploadTransferEvidence'));
   });
 
-  test('transfer orders do not show cash payment instructions in summary', () {
+  test('payment information is consolidated in payment card', () {
     final source = File(_trackOrderSourcePath).readAsStringSync();
-    final summaryMethod = source.substring(
-      source.indexOf('String _paymentMessage('),
-      source.indexOf('Widget _buildProofsCard('),
+    final detailCard = source.substring(
+      source.indexOf('Widget _buildOrderDetailsCard('),
+      source.indexOf('Widget _summaryRow('),
+    );
+    final paymentCard = source.substring(
+      source.indexOf('Widget _buildPaymentCard('),
+      source.indexOf('Widget _buildTrackingInfoBanner('),
     );
 
-    expect(summaryMethod, contains('isTransfer'));
-    expect(summaryMethod, contains("return '';"));
+    expect(detailCard, isNot(contains("TrackInfoRow('Pembayaran'")));
+    expect(detailCard, isNot(contains("TrackInfoRow('Total'")));
+
+    expect(paymentCard, contains('_paymentMethodSummary'));
+    expect(paymentCard, contains('_paymentStatusPill'));
+    expect(paymentCard, contains("'Total'"));
+    expect(paymentCard, contains('_paymentActionMessage'));
+    expect(paymentCard, contains('!hasPendingTransferProof'));
   });
 
   test('shopping item card does not duplicate COD payment instruction', () {
