@@ -42,7 +42,7 @@ class TrackOrderPresenter {
   }
 
   static bool shouldShowTrackingMap(CustomerOrderSummaryModel order) {
-    if (order.isTerminalStatus) return false;
+    if (order.isResolvedForCustomer) return false;
     return isDriverLocationTrackable(
           order.statusCode,
           statusLabel: order.statusLabel,
@@ -85,7 +85,11 @@ class TrackOrderPresenter {
   }
 
   static String fixedStatusInfoMessage(CustomerOrderSummaryModel order) {
-    if (order.isTerminalStatus) {
+    if (order.requiresCustomerPaymentAction) {
+      return 'Upload bukti QRIS agar pembayaran fee pembatalan bisa diverifikasi.';
+    }
+
+    if (order.isResolvedForCustomer) {
       return 'Order sudah selesai, peta tracking tidak lagi ditampilkan.';
     }
 

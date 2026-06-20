@@ -92,6 +92,79 @@ void main() {
       expect(fakeService.fetchOrdersCalls, 1);
     },
   );
+
+  test(
+    'unpaid cancelled with fee shopping order stays in activity until paid',
+    () async {
+      final unpaidFeeOrder = _order(
+        id: 7101,
+        number: 'ORD-FEE-UNPAID',
+        serviceTypeCode: 'SHOPPING',
+        statusCode: 'CANCELLED_WITH_FEE',
+        statusLabel: 'Dibatalkan Dengan Biaya',
+        isTerminalStatus: true,
+        paymentMethod: 'TRANSFER',
+        paymentStatus: 'unpaid',
+      );
+      final paidFeeOrder = _order(
+        id: 7102,
+        number: 'ORD-FEE-PAID',
+        serviceTypeCode: 'SHOPPING',
+        statusCode: 'CANCELLED_WITH_FEE',
+        statusLabel: 'Dibatalkan Dengan Biaya',
+        isTerminalStatus: true,
+        paymentMethod: 'TRANSFER',
+        paymentStatus: 'paid',
+      );
+      final completedOrder = _order(
+        id: 7103,
+        number: 'ORD-DONE',
+        statusCode: 'COMPLETED',
+        statusLabel: 'Selesai',
+        isTerminalStatus: true,
+        paymentStatus: 'paid',
+      );
+      final fakeAuth = _FakeAuthSessionNotifier(_customerSession(9));
+      final fakeService = _FakeCustomerOrderApiService(
+        queuedResponses: <List<CustomerOrderSummaryModel>>[
+          <CustomerOrderSummaryModel>[
+            unpaidFeeOrder,
+            paidFeeOrder,
+            completedOrder,
+          ],
+        ],
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          customerOrderApiServiceProvider.overrideWithValue(fakeService),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(customerOrdersProvider.future);
+
+      expect(unpaidFeeOrder.requiresCustomerPaymentAction, isTrue);
+      expect(unpaidFeeOrder.canTrack, isTrue);
+      expect(paidFeeOrder.requiresCustomerPaymentAction, isFalse);
+      expect(paidFeeOrder.canTrack, isFalse);
+      expect(
+        container.read(customerOngoingOrdersProvider).map((order) => order.id),
+        [7101],
+      );
+      expect(
+        container.read(customerHistoryOrdersProvider).map((order) => order.id),
+        unorderedEquals([7102, 7103]),
+      );
+      expect(
+        container
+            .read(customerCancelledOrdersProvider)
+            .map((order) => order.id),
+        [7102],
+      );
+    },
+  );
 }
 
 class _FakeAuthSessionNotifier extends AuthSessionNotifier {
@@ -171,23 +244,33 @@ AuthSessionState _driverSession(int userId) {
   );
 }
 
-CustomerOrderSummaryModel _order({required int id, required String number}) {
+CustomerOrderSummaryModel _order({
+  required int id,
+  required String number,
+  String serviceTypeCode = 'RIDE',
+  String serviceTypeLabel = 'Antar Jemput',
+  String statusCode = 'PENDING',
+  String statusLabel = 'Menunggu',
+  bool isTerminalStatus = false,
+  String paymentStatus = 'unpaid',
+  String paymentMethod = 'COD',
+}) {
   return CustomerOrderSummaryModel(
     id: id,
     orderNumber: number,
-    serviceTypeCode: 'RIDE',
-    serviceTypeLabel: 'Antar Jemput',
+    serviceTypeCode: serviceTypeCode,
+    serviceTypeLabel: serviceTypeLabel,
     restaurantName: 'Bangdeliv',
     itemsSummary: '1x Ride',
     totalAmount: 12000,
-    statusCode: 'PENDING',
-    statusLabel: 'Menunggu',
-    isTerminalStatus: false,
+    statusCode: statusCode,
+    statusLabel: statusLabel,
+    isTerminalStatus: isTerminalStatus,
     createdAt: DateTime(2026, 4, 21),
     estimatedDelivery: null,
     deliveryAddress: 'Alamat Tujuan',
-    paymentStatus: 'unpaid',
-    paymentMethod: 'COD',
+    paymentStatus: paymentStatus,
+    paymentMethod: paymentMethod,
   );
 }
 

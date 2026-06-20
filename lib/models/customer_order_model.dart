@@ -97,7 +97,24 @@ class CustomerOrderSummaryModel {
 
   bool get isCancelled => order_status.isCancelledOrderStatus(statusCode);
 
-  bool get canTrack => !isTerminalStatus;
+  bool get requiresCustomerPaymentAction {
+    final normalizedServiceType = service_type.normalizeServiceTypeCode(
+      serviceTypeCode,
+    );
+    final normalizedStatus = order_status.normalizeOrderStatusCode(statusCode);
+    final normalizedPaymentMethod = (paymentMethod ?? '').trim().toUpperCase();
+    final normalizedPaymentStatus = (paymentStatus ?? '').trim().toLowerCase();
+
+    return normalizedServiceType == service_type.ServiceTypeCodes.shopping &&
+        normalizedStatus == order_status.OrderStatusCodes.cancelledWithFee &&
+        normalizedPaymentMethod == 'TRANSFER' &&
+        normalizedPaymentStatus != 'paid';
+  }
+
+  bool get isResolvedForCustomer =>
+      isTerminalStatus && !requiresCustomerPaymentAction;
+
+  bool get canTrack => !isResolvedForCustomer;
 
   bool get canCancel {
     final normalizedStatus = order_status.normalizeOrderStatusCode(statusCode);

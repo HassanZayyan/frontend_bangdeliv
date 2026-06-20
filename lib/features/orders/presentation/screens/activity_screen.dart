@@ -145,9 +145,9 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                     ),
                   ),
                   data: (orders) {
-                    final ongoingOrders = _sortByNewest(orders)
-                        .where((order) => !order.isTerminalStatus)
-                        .toList(growable: false);
+                    final ongoingOrders = _sortByNewest(
+                      orders.where((order) => order.canTrack).toList(),
+                    );
 
                     return _buildOrderList(
                       ongoingOrders,

@@ -57,10 +57,7 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final ordersAsync = ref.watch(customerOrdersProvider);
-    final historyOrders = ref
-        .watch(customerSortedOrdersProvider)
-        .where((order) => order.isTerminalStatus)
-        .toList(growable: false);
+    final historyOrders = ref.watch(customerHistoryOrdersProvider);
     final completedOrders = ref.watch(customerCompletedOrdersProvider);
     final cancelledOrders = ref.watch(customerCancelledOrdersProvider);
 
