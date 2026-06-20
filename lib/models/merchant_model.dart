@@ -28,6 +28,11 @@ class MerchantModel {
       return '-';
     }
 
+    if (value < 1.0) {
+      final meters = (value * 1000).round();
+      return '$meters m';
+    }
+
     return '${value.toStringAsFixed(1)} km';
   }
 

@@ -1,6 +1,7 @@
 class AppRoutes {
   static const String splash = '/splash';
   static const String login = '/login';
+  static const String forgotPassword = '/forgot-password';
   static const String home = '/home';
   static const String driverHome = '/driver/home';
   static const String driverOrders = '/driver/orders';
@@ -33,6 +34,7 @@ class AppRoutes {
   static const String menuDetail = '/menu/:menuId';
   static const String merchantDetail = '/merchant/:merchantId';
   static const String nearbyMerchants = '/merchants/nearby';
+  static const String nearbyMerchantDetail = ':merchantId';
   static const String register = '/register';
   static const String registerDriver = '/register-driver';
   static const String registerSuccess = '/register-success';
@@ -44,6 +46,10 @@ class AppRoutes {
 
   static String merchantDetailPath(String merchantId) {
     return '/merchant/$merchantId';
+  }
+
+  static String nearbyMerchantDetailPath(String merchantId) {
+    return '/merchants/nearby/$merchantId';
   }
 
   static String shoppingAddItemPath(Object orderId) {

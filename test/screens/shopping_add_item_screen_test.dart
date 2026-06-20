@@ -207,7 +207,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Daftar Item'), findsOneWidget);
-      expect(find.text('Harga menu: Rp 18.000'), findsOneWidget);
+      expect(find.text('Rp 18.000'), findsWidgets);
 
       await _tapSubmitDrafts(tester);
 
@@ -262,7 +262,7 @@ void main() {
     expect(find.text('Telur 1 kg'), findsOneWidget);
     expect(find.text('Gula 1 kg'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.delete_outline).first);
+    await tester.tap(find.byTooltip('Kurangi item').first);
     await tester.pumpAndSettle();
 
     expect(find.text('Telur 1 kg'), findsNothing);

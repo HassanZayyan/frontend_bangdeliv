@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../config/app_colors.dart';
+import '../config/app_text_scaling.dart';
 
 class BangSelectField extends StatelessWidget {
   const BangSelectField({
@@ -54,6 +55,22 @@ class BangSelectField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final effectiveLabelFontSize = AppTextScaling.adaptive(
+      context,
+      normal: labelFontSize,
+      large: labelFontSize - 0.4,
+    );
+    final effectiveFieldFontSize = AppTextScaling.adaptive(
+      context,
+      normal: fieldFontSize,
+      large: fieldFontSize - 0.7,
+    );
+    final effectiveHintFontSize = AppTextScaling.adaptive(
+      context,
+      normal: hintFontSize,
+      large: hintFontSize - 0.7,
+    );
+
     return FormField<String>(
       key: fieldKey,
       initialValue: value,
@@ -67,17 +84,6 @@ class BangSelectField extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if ((label ?? '').trim().isNotEmpty) ...[
-              Text(
-                label!.trim(),
-                style: GoogleFonts.nunitoSans(
-                  color: labelColor,
-                  fontSize: labelFontSize,
-                  fontWeight: labelFontWeight,
-                ),
-              ),
-              SizedBox(height: labelBottomSpacing),
-            ],
             Builder(
               builder: (fieldContext) {
                 return InkWell(
@@ -92,6 +98,7 @@ class BangSelectField extends StatelessWidget {
                             context: context,
                             fieldContext: fieldContext,
                             selectedValue: selectedValue,
+                            itemFontSize: effectiveFieldFontSize,
                           );
                           if (pickedValue == null) return;
 
@@ -100,7 +107,10 @@ class BangSelectField extends StatelessWidget {
                         },
                   child: InputDecorator(
                     isEmpty: !hasValue,
-                    decoration: _decoration(errorText: errorText),
+                    decoration: _decoration(
+                      errorText: errorText,
+                      labelFontSize: effectiveLabelFontSize,
+                    ),
                     child: Row(
                       children: [
                         Expanded(
@@ -112,7 +122,9 @@ class BangSelectField extends StatelessWidget {
                               color: hasValue
                                   ? AppColors.textPrimary
                                   : AppColors.textSecondary,
-                              fontSize: hasValue ? fieldFontSize : hintFontSize,
+                              fontSize: hasValue
+                                  ? effectiveFieldFontSize
+                                  : effectiveHintFontSize,
                               fontWeight: hasValue
                                   ? selectedFontWeight
                                   : hintFontWeight,
@@ -139,7 +151,10 @@ class BangSelectField extends StatelessWidget {
     );
   }
 
-  InputDecoration _decoration({String? errorText}) {
+  InputDecoration _decoration({
+    String? errorText,
+    required double labelFontSize,
+  }) {
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(borderRadius),
       borderSide: const BorderSide(color: AppColors.border),
@@ -154,6 +169,13 @@ class BangSelectField extends StatelessWidget {
       contentPadding: contentPadding,
       filled: true,
       fillColor: fillColor,
+      labelText: (label ?? '').trim().isEmpty ? null : label!.trim(),
+      floatingLabelBehavior: FloatingLabelBehavior.always,
+      labelStyle: GoogleFonts.nunitoSans(
+        color: labelColor,
+        fontSize: labelFontSize,
+        fontWeight: labelFontWeight,
+      ),
       errorText: errorText,
       border: border,
       enabledBorder: border,
@@ -186,6 +208,7 @@ class BangSelectField extends StatelessWidget {
     required BuildContext context,
     required BuildContext fieldContext,
     required String selectedValue,
+    required double itemFontSize,
   }) {
     final overlayRenderObject = Overlay.of(context).context.findRenderObject();
     final fieldRenderObject = fieldContext.findRenderObject();
@@ -226,12 +249,12 @@ class BangSelectField extends StatelessWidget {
           .map(
             (item) => PopupMenuItem<String>(
               value: item,
-              height: 44,
+              height: AppTextScaling.adaptive(context, normal: 44, large: 48),
               padding: const EdgeInsets.symmetric(horizontal: 14),
               child: _BangSelectMenuItem(
                 text: item,
                 selected: item == selectedValue,
-                fontSize: fieldFontSize,
+                fontSize: itemFontSize,
               ),
             ),
           )

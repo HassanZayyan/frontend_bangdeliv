@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../config/app_colors.dart';
+import '../config/app_text_scaling.dart';
 
 class BangScaffold extends StatelessWidget {
   const BangScaffold({
@@ -22,11 +25,15 @@ class BangScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appBarTitle = title == null
+        ? null
+        : Text(title!, maxLines: 1, overflow: TextOverflow.ellipsis);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: title == null
           ? null
-          : AppBar(title: Text(title!), actions: actions, leading: leading),
+          : AppBar(title: appBarTitle, actions: actions, leading: leading),
       body: SafeArea(bottom: safeBottom, child: body),
       bottomNavigationBar: bottomNavigationBar,
     );
@@ -52,7 +59,7 @@ class BangCard extends StatelessWidget {
     return Material(
       color: AppColors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         side: BorderSide(color: borderColor),
       ),
       clipBehavior: Clip.antiAlias,
@@ -78,12 +85,27 @@ class BangSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final titleFontSize = AppTextScaling.adaptive(
+      context,
+      normal: 18,
+      large: 17,
+    );
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
-            child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+            child: Text(
+              title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontSize: titleFontSize,
+                height: 1.08,
+              ),
+            ),
           ),
           if (actionLabel != null && onAction != null)
             TextButton(
@@ -98,12 +120,18 @@ class BangSectionHeader extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Text(
-                    actionLabel!,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      height: 1,
+                  AppTextScaling.clampForCompactComponent(
+                    context: context,
+                    maxScaleFactor: AppTextScaling.denseComponentMaxScaleFactor,
+                    child: Text(
+                      actionLabel!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        height: 1,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 1),
@@ -135,35 +163,39 @@ class BangStatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 9 : 10,
-        vertical: compact ? 4 : 5,
-      ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: compact ? 0.08 : 0.10),
-        borderRadius: BorderRadius.circular(compact ? 8 : 999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (showIcon && icon != null) ...[
-            Icon(icon, size: 13, color: color),
-            const SizedBox(width: 5),
-          ],
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: color,
-                fontSize: compact ? 11.5 : 11.5,
-                fontWeight: compact ? FontWeight.w700 : FontWeight.w800,
+    return AppTextScaling.clampForCompactComponent(
+      context: context,
+      maxScaleFactor: AppTextScaling.denseComponentMaxScaleFactor,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 9 : 10,
+          vertical: compact ? 4 : 5,
+        ),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: compact ? 0.08 : 0.10),
+          borderRadius: BorderRadius.circular(compact ? 8 : 999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (showIcon && icon != null) ...[
+              Icon(icon, size: 13, color: color),
+              const SizedBox(width: 5),
+            ],
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: color,
+                  fontSize: compact ? 11.5 : 11.5,
+                  fontWeight: compact ? FontWeight.w700 : FontWeight.w800,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -185,25 +217,34 @@ class BangPrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final child = isLoading
-        ? const SizedBox(
-            width: 18,
-            height: 18,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: AppColors.white,
-            ),
-          )
-        : Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(label),
-              if (icon != null) ...[
-                const SizedBox(width: 8),
-                Icon(icon, size: 18),
+    final child = AppTextScaling.clampForCompactComponent(
+      context: context,
+      child: isLoading
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.white,
+              ),
+            )
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (icon != null) ...[
+                  const SizedBox(width: 8),
+                  Icon(icon, size: 18),
+                ],
               ],
-            ],
-          );
+            ),
+    );
 
     return SizedBox(
       width: double.infinity,
@@ -215,41 +256,136 @@ class BangPrimaryButton extends StatelessWidget {
   }
 }
 
+typedef AuthHeaderHeightBuilder =
+    double Function(BuildContext context, bool isKeyboardOpen);
+typedef AuthCardPaddingBuilder =
+    EdgeInsets Function(BuildContext context, bool isKeyboardOpen);
+
+class AuthKeyboardSafeScaffold extends StatelessWidget {
+  const AuthKeyboardSafeScaffold({
+    super.key,
+    required this.header,
+    required this.child,
+    required this.headerHeightBuilder,
+    required this.cardPaddingBuilder,
+    this.topBar,
+    this.topBarHeight = 0,
+  });
+
+  final Widget header;
+  final Widget child;
+  final AuthHeaderHeightBuilder headerHeightBuilder;
+  final AuthCardPaddingBuilder cardPaddingBuilder;
+  final Widget? topBar;
+  final double topBarHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+    final isKeyboardOpen = keyboardInset > 0;
+    final headerHeight = headerHeightBuilder(context, isKeyboardOpen);
+
+    return Scaffold(
+      resizeToAvoidBottomInset: false,
+      backgroundColor: AppColors.primary,
+      body: SafeArea(
+        bottom: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final cardMinHeight = math.max(
+              0.0,
+              constraints.maxHeight - topBarHeight - headerHeight,
+            );
+
+            return SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: EdgeInsets.only(bottom: keyboardInset),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (topBar != null)
+                      SizedBox(height: topBarHeight, child: topBar),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOutCubic,
+                      height: headerHeight,
+                      child: ClipRect(child: header),
+                    ),
+                    Container(
+                      width: double.infinity,
+                      constraints: BoxConstraints(minHeight: cardMinHeight),
+                      padding: cardPaddingBuilder(context, isKeyboardOpen),
+                      decoration: const BoxDecoration(
+                        color: AppColors.white,
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(30),
+                          topRight: Radius.circular(30),
+                        ),
+                      ),
+                      child: child,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
 class BangSearchField extends StatelessWidget {
   const BangSearchField({
     super.key,
     required this.controller,
     required this.hintText,
+    this.focusNode,
     this.onSubmitted,
   });
 
   final TextEditingController controller;
   final String hintText;
+  final FocusNode? focusNode;
   final ValueChanged<String>? onSubmitted;
 
   @override
   Widget build(BuildContext context) {
+    final fieldFontSize = AppTextScaling.adaptive(
+      context,
+      normal: 14,
+      large: 13.25,
+    );
+
     return TextField(
       controller: controller,
+      focusNode: focusNode,
       textInputAction: TextInputAction.search,
       onSubmitted: onSubmitted,
-      style: const TextStyle(
+      style: TextStyle(
         color: AppColors.textPrimary,
-        fontSize: 14,
+        fontSize: fieldFontSize,
         fontWeight: FontWeight.w400,
       ),
       decoration: InputDecoration(
         hintText: hintText,
+        hintStyle: TextStyle(
+          color: AppColors.textMuted,
+          fontSize: fieldFontSize,
+          fontWeight: FontWeight.w400,
+        ),
         prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
         filled: true,
         fillColor: AppColors.surface,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide.none,
+          borderSide: const BorderSide(color: AppColors.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide.none,
+          borderSide: const BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -298,13 +434,21 @@ class BangIllustrationEmptyState extends StatelessWidget {
     super.key,
     required this.title,
     required this.subtitle,
+    this.titleFontSize = 14.5,
+    this.titleFontWeight = FontWeight.w700,
+    this.titleColor = AppColors.textPrimary,
   });
 
   final String title;
   final String subtitle;
+  final double titleFontSize;
+  final FontWeight titleFontWeight;
+  final Color titleColor;
 
   @override
   Widget build(BuildContext context) {
+    final hasSubtitle = subtitle.trim().isNotEmpty;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 16.0),
@@ -314,8 +458,8 @@ class BangIllustrationEmptyState extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             SizedBox(
-              width: 120,
-              height: 120,
+              width: AppTextScaling.adaptive(context, normal: 120, large: 106),
+              height: AppTextScaling.adaptive(context, normal: 120, large: 106),
               child: Stack(
                 alignment: Alignment.center,
                 clipBehavior: Clip.none,
@@ -358,22 +502,26 @@ class BangIllustrationEmptyState extends StatelessWidget {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 14.5,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
+              style: TextStyle(
+                fontSize: titleFontSize,
+                fontWeight: titleFontWeight,
+                color: titleColor,
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 11.5,
-                color: AppColors.textSecondary,
-                height: 1.35,
+            if (hasSubtitle) ...[
+              const SizedBox(height: 6),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  color: AppColors.textSecondary,
+                  height: 1.35,
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -427,7 +575,7 @@ class BangLoadingSkeleton extends StatelessWidget {
       height: height,
       decoration: BoxDecoration(
         color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
       ),
     );

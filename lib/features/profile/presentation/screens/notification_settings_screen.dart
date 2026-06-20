@@ -23,6 +23,8 @@ class _NotificationSettingsScreenState
       appBar: AppBar(
         title: const Text(
           'Pengaturan Notifikasi',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         backgroundColor: AppColors.white,

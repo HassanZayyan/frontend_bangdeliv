@@ -6,7 +6,13 @@ class PrivacyMapScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Kebijakan Privasi')),
+      appBar: AppBar(
+        title: const Text(
+          'Kebijakan Privasi',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
       body: const SizedBox.shrink(),
     );
   }

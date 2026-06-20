@@ -5,13 +5,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
+import '../../../../config/app_text_scaling.dart';
 import '../../../../models/customer_order_model.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../application/customer_order_providers.dart';
 import '../../../../utils/order_status.dart';
-import '../../../../widgets/app_content_background.dart';
 import '../../../../widgets/customer_order_card.dart';
 import '../../../../widgets/bang_ui.dart';
+import '../../../navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
 
 class ActivityScreen extends ConsumerStatefulWidget {
   const ActivityScreen({super.key});
@@ -123,40 +124,88 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
   Widget build(BuildContext context) {
     final ordersAsync = ref.watch(customerOrdersProvider);
     ref.watch(customerOrdersAutoRefreshProvider);
+    final ongoingOrders = ref.watch(customerOngoingOrdersProvider);
+    final completedOrders = ref.watch(customerCompletedOrdersProvider);
+    final cancelledOrders = ref.watch(customerCancelledOrdersProvider);
 
-    return Scaffold(
-      backgroundColor: AppColors.white,
-      body: SafeArea(
-        bottom: false,
-        child: AppContentBackground(
-          child: _isOpeningRefresh
-              ? const Center(child: CircularProgressIndicator())
-              : ordersAsync.when(
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (error, stackTrace) => Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: BangErrorState(
-                        title: 'Gagal memuat aktivitas',
-                        message: error.toString(),
-                        onRetry: _refreshOnOpen,
-                      ),
-                    ),
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        backgroundColor: AppColors.white,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              SizedBox(
+                width: double.infinity,
+                child: MediaQuery(
+                  data: AppTextScaling.clampedMediaQueryData(
+                    context,
+                    maxScaleFactor:
+                        AppTextScaling.compactComponentMaxScaleFactor,
                   ),
-                  data: (orders) {
-                    final ongoingOrders = _sortByNewest(
-                      orders.where((order) => order.canTrack).toList(),
-                    );
-
-                    return _buildOrderList(
-                      ongoingOrders,
-                      emptyTitle: 'Belum ada pesanan aktif',
-                      emptySubtitle: 'Pesanan aktif akan muncul di sini.',
-                      onRefresh: _refreshOrders,
-                    );
-                  },
+                  child: const TabBar(
+                    labelColor: AppColors.primary,
+                    unselectedLabelColor: AppColors.textSecondary,
+                    indicatorColor: AppColors.primary,
+                    indicatorWeight: 3,
+                    labelStyle: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                    ),
+                    tabs: [
+                      Tab(text: 'Berjalan'),
+                      Tab(text: 'Selesai'),
+                      Tab(text: 'Dibatalkan'),
+                    ],
+                  ),
                 ),
+              ),
+              Expanded(
+                child: ColoredBox(
+                  color: AppColors.background,
+                  child: _isOpeningRefresh
+                      ? const Center(child: CircularProgressIndicator())
+                      : ordersAsync.when(
+                          loading: () =>
+                              const Center(child: CircularProgressIndicator()),
+                          error: (error, stackTrace) => Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: BangErrorState(
+                                title: 'Gagal memuat aktivitas',
+                                message: error.toString(),
+                                onRetry: _refreshOnOpen,
+                              ),
+                            ),
+                          ),
+                          data: (_) => TabBarView(
+                            children: [
+                              _buildOrderList(
+                                ongoingOrders,
+                                emptyTitle: 'Belum ada pesanan berjalan',
+                                mode: _ActivityOrderListMode.ongoing,
+                                onRefresh: _refreshOrders,
+                              ),
+                              _buildOrderList(
+                                completedOrders,
+                                emptyTitle: 'Belum ada pesanan selesai',
+                                mode: _ActivityOrderListMode.history,
+                                onRefresh: _refreshOrders,
+                              ),
+                              _buildOrderList(
+                                cancelledOrders,
+                                emptyTitle: 'Belum ada pesanan dibatalkan',
+                                mode: _ActivityOrderListMode.history,
+                                onRefresh: _refreshOrders,
+                              ),
+                            ],
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -177,14 +226,18 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
   Widget _buildOrderList(
     List<CustomerOrderSummaryModel> orders, {
     required String emptyTitle,
-    required String emptySubtitle,
+    required _ActivityOrderListMode mode,
     required Future<void> Function() onRefresh,
   }) {
-    if (orders.isEmpty) {
+    final sortedOrders = _sortByNewest(orders);
+
+    if (sortedOrders.isEmpty) {
       return RefreshIndicator(
         onRefresh: onRefresh,
         child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: ClampingScrollPhysics(),
+          ),
           slivers: [
             SliverFillRemaining(
               hasScrollBody: false,
@@ -192,7 +245,10 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: BangIllustrationEmptyState(
                   title: emptyTitle,
-                  subtitle: emptySubtitle,
+                  subtitle: '',
+                  titleFontSize: 13,
+                  titleFontWeight: FontWeight.w500,
+                  titleColor: AppColors.textSecondary,
                 ),
               ),
             ),
@@ -204,24 +260,46 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: ListView.separated(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(20),
-        itemCount: orders.length,
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: ClampingScrollPhysics(),
+        ),
+        padding: const EdgeInsets.fromLTRB(
+          20,
+          20,
+          20,
+          BangFloatingBottomNavBar.scrollClearance,
+        ),
+        itemCount: sortedOrders.length,
         separatorBuilder: (context, index) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
-          final order = orders[index];
+          final order = sortedOrders[index];
+          final isOngoing = mode == _ActivityOrderListMode.ongoing;
           final canCancelBeforeDriver =
+              isOngoing &&
               normalizeOrderStatusCode(order.statusCode) ==
-              OrderStatusCodes.pending;
+                  OrderStatusCodes.pending;
+          final openTracking = isOngoing
+              ? (order.canTrack
+                    ? () => context.push(AppRoutes.track, extra: order.id)
+                    : null)
+              : () => context.push(
+                  AppRoutes.track,
+                  extra: <String, dynamic>{
+                    'orderId': order.id,
+                    'fromHistory': true,
+                  },
+                );
 
           return CustomerOrderCard(
             order: order,
-            showTrackAction: order.canTrack,
+            showTrackAction: isOngoing && order.canTrack,
             showCancelAction: canCancelBeforeDriver,
+            showDetailHint: !isOngoing,
+            showPaymentInfo: isOngoing,
+            showInlinePrice: !isOngoing,
             isCancelling: _isCancelling(order.id),
-            onTrack: order.canTrack
-                ? () => context.push(AppRoutes.track, extra: order.id)
-                : null,
+            onTap: openTracking,
+            onTrack: isOngoing ? openTracking : null,
             onCancel: canCancelBeforeDriver ? () => _cancelOrder(order) : null,
           );
         },
@@ -229,6 +307,8 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
     );
   }
 }
+
+enum _ActivityOrderListMode { ongoing, history }
 
 class _CancelOrderDialog extends StatefulWidget {
   const _CancelOrderDialog();
@@ -451,8 +531,14 @@ class _CancelOrderDialogState extends State<_CancelOrderDialog> {
                 Row(
                   children: [
                     Expanded(
-                      child: SizedBox(
-                        height: 42,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: AppTextScaling.adaptive(
+                            context,
+                            normal: 42,
+                            large: 46,
+                          ),
+                        ),
                         child: TextButton(
                           onPressed: () => Navigator.of(context).pop(),
                           style: TextButton.styleFrom(
@@ -463,6 +549,8 @@ class _CancelOrderDialogState extends State<_CancelOrderDialog> {
                           ),
                           child: Text(
                             'Kembali',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: buttonTextStyle.copyWith(
                               color: AppColors.textSecondary,
                             ),
@@ -473,8 +561,14 @@ class _CancelOrderDialogState extends State<_CancelOrderDialog> {
                     const SizedBox(width: 12),
                     Expanded(
                       flex: 2,
-                      child: SizedBox(
-                        height: 40,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: AppTextScaling.adaptive(
+                            context,
+                            normal: 40,
+                            large: 46,
+                          ),
+                        ),
                         child: ElevatedButton(
                           onPressed: _canSubmit
                               ? () =>

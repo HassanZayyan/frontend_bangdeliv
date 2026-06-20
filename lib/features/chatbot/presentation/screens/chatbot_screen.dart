@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
+import '../../../../config/app_text_scaling.dart';
 import '../../../../models/address_location_picker_result.dart';
 import '../../../../models/route_location_picker_result.dart';
 import '../../../../models/user_profile_model.dart';
@@ -19,6 +20,8 @@ class ChatbotScreen extends ConsumerStatefulWidget {
   @override
   ConsumerState<ChatbotScreen> createState() => _ChatbotScreenState();
 }
+
+enum _ChatbotMenuAction { restart }
 
 class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   late final TextEditingController _inputController;
@@ -79,9 +82,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           addressRequiredMessage:
               'Sebelum pesan Antar Jemput, isi Alamat Saya dulu supaya titik jemput utama kamu siap dipakai.',
           suggestions: [
-            'Antar ke Stasiun Tawang',
-            'Tujuan ke Jalan Sudirman No 10',
-            'Saya mau ke Polines',
+            'Antar ke Ramayana Salatiga',
+            'Saya mau ke Alun-Alun Salatiga',
           ],
         );
       case 'kurir':
@@ -151,7 +153,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
     if (ChatbotCommandParser.isRestartCommand(raw)) {
       _inputController.clear();
-      await _handleRestartConversation(requireConfirmation: false);
+      await _handleRestartConversation();
       return;
     }
 
@@ -169,16 +171,15 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     _scrollToBottom();
   }
 
-  Future<void> _handleRestartConversation({
-    bool requireConfirmation = true,
-  }) async {
-    if (requireConfirmation) {
-      final confirmed = await _showRestartConfirmationDialog();
-      if (confirmed != true) {
+  Future<void> _handleMenuAction(_ChatbotMenuAction action) async {
+    switch (action) {
+      case _ChatbotMenuAction.restart:
+        await _handleRestartConversation();
         return;
-      }
     }
+  }
 
+  Future<void> _handleRestartConversation() async {
     await ref
         .read(chatbotConversationProvider.notifier)
         .restartActiveSession(
@@ -187,43 +188,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         );
 
     _scrollToBottom();
-  }
-
-  Future<bool?> _showRestartConfirmationDialog() {
-    return showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: AppColors.white,
-          title: const Text(
-            'Mulai ulang pesanan?',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          content: const Text(
-            'Chat aktif untuk layanan ini akan direset. Kamu bisa mulai dari awal.',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Batal'),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.white,
-              ),
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Mulai Ulang'),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   void _scrollToBottom() {
@@ -326,12 +290,48 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           ],
         ),
         actions: [
-          IconButton(
-            tooltip: 'Mulai ulang pesanan',
-            onPressed: effectiveBusy ? null : _handleRestartConversation,
-            icon: const Icon(Icons.restart_alt),
-            color: AppColors.textPrimary,
-            disabledColor: AppColors.textSecondary,
+          PopupMenuButton<_ChatbotMenuAction>(
+            tooltip: 'Opsi chat',
+            enabled: !effectiveBusy,
+            icon: Icon(
+              Icons.more_vert,
+              color: !effectiveBusy
+                  ? AppColors.textPrimary
+                  : AppColors.textSecondary,
+            ),
+            color: AppColors.white,
+            constraints: const BoxConstraints(minWidth: 220),
+            offset: const Offset(0, 12),
+            position: PopupMenuPosition.under,
+            onSelected: _handleMenuAction,
+            itemBuilder: (context) {
+              return const [
+                PopupMenuItem<_ChatbotMenuAction>(
+                  value: _ChatbotMenuAction.restart,
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.restart_alt,
+                        color: AppColors.primary,
+                        size: 20,
+                      ),
+                      SizedBox(width: 12),
+                      Flexible(
+                        child: Text(
+                          'Mulai Ulang Pesanan',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ];
+            },
           ),
         ],
       ),
@@ -344,6 +344,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: Text(
                 state.errorMessage!,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 12,
@@ -407,9 +409,13 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                           enabled: inputEnabled,
                           minLines: 1,
                           maxLines: 3,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.textPrimary,
-                            fontSize: 14,
+                            fontSize: AppTextScaling.adaptive(
+                              context,
+                              normal: 14,
+                              large: 13.4,
+                            ),
                           ),
                           keyboardType: TextInputType.multiline,
                           textInputAction: TextInputAction.newline,
@@ -417,9 +423,13 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                             filled: true,
                             fillColor: AppColors.white,
                             hintText: 'Ketik kebutuhan layanan...',
-                            hintStyle: const TextStyle(
+                            hintStyle: TextStyle(
                               color: AppColors.textSecondary,
-                              fontSize: 14,
+                              fontSize: AppTextScaling.adaptive(
+                                context,
+                                normal: 14,
+                                large: 13.4,
+                              ),
                             ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(24),
@@ -452,8 +462,16 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                         borderRadius: BorderRadius.circular(25),
                         onTap: inputEnabled ? _sendMessage : null,
                         child: Container(
-                          width: 50,
-                          height: 50,
+                          width: AppTextScaling.adaptive(
+                            context,
+                            normal: 50,
+                            large: 54,
+                          ),
+                          height: AppTextScaling.adaptive(
+                            context,
+                            normal: 50,
+                            large: 54,
+                          ),
                           decoration: BoxDecoration(
                             color: inputEnabled
                                 ? AppColors.primary
@@ -483,22 +501,30 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   }
 
   Widget _buildSuggestionChip(String label, {required bool enabled}) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(30),
-      onTap: enabled ? () => _sendMessage(label) : null,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppColors.primary.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: AppColors.primary.withValues(alpha: 0.24)),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            color: AppColors.primaryDark,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
+    return AppTextScaling.clampForCompactComponent(
+      context: context,
+      maxScaleFactor: AppTextScaling.compactComponentMaxScaleFactor,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(30),
+        onTap: enabled ? () => _sendMessage(label) : null,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.24),
+            ),
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.primaryDark,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ),
@@ -560,52 +586,10 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                 ],
                 if (message.actionHints.isNotEmpty) ...[
                   const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final actionHint in message.actionHints)
-                        OutlinedButton.icon(
-                          onPressed: actionsEnabled
-                              ? () => _handleActionHint(actionHint)
-                              : null,
-                          icon: Icon(switch (actionHint.type) {
-                            ChatbotMessageActionType.openAddresses =>
-                              Icons.home_outlined,
-                            ChatbotMessageActionType.openMapPicker =>
-                              Icons.location_on_outlined,
-                            ChatbotMessageActionType.openMerchantPicker =>
-                              Icons.storefront_outlined,
-                            ChatbotMessageActionType.openRoutePicker =>
-                              Icons.route_outlined,
-                            ChatbotMessageActionType.sendPresetMessage =>
-                              Icons.bolt_rounded,
-                            ChatbotMessageActionType.openTrackOrder =>
-                              Icons.map_outlined,
-                            ChatbotMessageActionType.openActivity =>
-                              Icons.receipt_long_outlined,
-                          }, size: 16),
-                          label: Text(actionHint.label),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: isUser
-                                ? Colors.white
-                                : AppColors.primaryDark,
-                            side: BorderSide(
-                              color: isUser
-                                  ? Colors.white.withValues(alpha: 0.35)
-                                  : AppColors.primary,
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            textStyle: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                    ],
+                  _buildActionHintSection(
+                    actionHints: message.actionHints,
+                    actionsEnabled: actionsEnabled,
+                    isUser: isUser,
                   ),
                 ],
               ],
@@ -731,7 +715,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           const SizedBox(height: 10),
           _buildAssistantNotice(parts.feeLine),
         ],
-        if (parts.instructionLine.isNotEmpty) ...[
+        if (parts.instructionLine.isNotEmpty &&
+            !_hasPaymentActionHints(message.actionHints)) ...[
           const SizedBox(height: 10),
           Text(
             parts.instructionLine,
@@ -744,6 +729,369 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         ],
       ],
     );
+  }
+
+  Widget _buildActionHintSection({
+    required List<ChatbotMessageActionHint> actionHints,
+    required bool actionsEnabled,
+    required bool isUser,
+  }) {
+    final paymentActions = actionHints
+        .where(_isPaymentActionHint)
+        .toList(growable: false);
+    final destinationResetActions = actionHints
+        .where(_isDestinationResetActionHint)
+        .toList(growable: false);
+    final routeEditActions = actionHints
+        .where(
+          (actionHint) =>
+              _isRouteEditActionHint(actionHint) &&
+              !_isDestinationResetActionHint(actionHint),
+        )
+        .toList(growable: false);
+    final locationSetupActions = actionHints
+        .where(
+          (actionHint) =>
+              _isLocationSetupActionHint(actionHint) &&
+              !_isDestinationResetActionHint(actionHint) &&
+              !_isRouteEditActionHint(actionHint),
+        )
+        .toList(growable: false);
+    final confirmationActions = actionHints
+        .where(_isConfirmationActionHint)
+        .toList(growable: false);
+    final otherActions = actionHints
+        .where(
+          (actionHint) =>
+              !_isPaymentActionHint(actionHint) &&
+              !_isDestinationResetActionHint(actionHint) &&
+              !_isRouteEditActionHint(actionHint) &&
+              !_isLocationSetupActionHint(actionHint) &&
+              !_isConfirmationActionHint(actionHint),
+        )
+        .toList(growable: false);
+
+    if (paymentActions.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildActionHintGroup(
+            title: 'Atur lokasi',
+            actions: locationSetupActions,
+            actionsEnabled: actionsEnabled,
+            isUser: isUser,
+            isPrimaryChoice: true,
+          ),
+          if (destinationResetActions.isNotEmpty) ...[
+            if (locationSetupActions.isNotEmpty) const SizedBox(height: 14),
+            _buildActionGroupTitle('Tujuan baru'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final actionHint in destinationResetActions)
+                  _buildActionHintButton(
+                    actionHint: actionHint,
+                    actionsEnabled: actionsEnabled,
+                    isUser: isUser,
+                    isPrimaryChoice: true,
+                  ),
+              ],
+            ),
+          ],
+          if (routeEditActions.isNotEmpty) ...[
+            if (locationSetupActions.isNotEmpty ||
+                destinationResetActions.isNotEmpty)
+              const SizedBox(height: 14),
+            _buildActionGroupTitle('Ubah lokasi'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final actionHint in routeEditActions)
+                  _buildActionHintButton(
+                    actionHint: actionHint,
+                    actionsEnabled: actionsEnabled,
+                    isUser: isUser,
+                    isSecondaryAction: true,
+                  ),
+              ],
+            ),
+          ],
+          _buildActionHintGroup(
+            title: 'Selesaikan pesanan',
+            actions: confirmationActions,
+            actionsEnabled: actionsEnabled,
+            isUser: isUser,
+            isPrimaryChoice: true,
+            hasPreviousGroup:
+                locationSetupActions.isNotEmpty ||
+                destinationResetActions.isNotEmpty ||
+                routeEditActions.isNotEmpty,
+          ),
+          if (otherActions.isNotEmpty) ...[
+            if (locationSetupActions.isNotEmpty ||
+                destinationResetActions.isNotEmpty ||
+                routeEditActions.isNotEmpty ||
+                confirmationActions.isNotEmpty)
+              const SizedBox(height: 14),
+            _buildActionGroupTitle('Lanjutkan'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final actionHint in otherActions)
+                  _buildActionHintButton(
+                    actionHint: actionHint,
+                    actionsEnabled: actionsEnabled,
+                    isUser: isUser,
+                  ),
+              ],
+            ),
+          ],
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildActionGroupTitle('Pilih metode pembayaran'),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final actionHint in paymentActions)
+              _buildActionHintButton(
+                actionHint: actionHint,
+                actionsEnabled: actionsEnabled,
+                isUser: isUser,
+                isPrimaryChoice: true,
+              ),
+          ],
+        ),
+        _buildActionHintGroup(
+          title: 'Atur lokasi',
+          actions: locationSetupActions,
+          actionsEnabled: actionsEnabled,
+          isUser: isUser,
+          isPrimaryChoice: true,
+          hasPreviousGroup: true,
+        ),
+        if (routeEditActions.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          _buildActionGroupTitle('Ubah lokasi'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final actionHint in routeEditActions)
+                _buildActionHintButton(
+                  actionHint: actionHint,
+                  actionsEnabled: actionsEnabled,
+                  isUser: isUser,
+                  isSecondaryAction: true,
+                ),
+            ],
+          ),
+        ],
+        if (destinationResetActions.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          _buildActionGroupTitle('Tujuan baru'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final actionHint in destinationResetActions)
+                _buildActionHintButton(
+                  actionHint: actionHint,
+                  actionsEnabled: actionsEnabled,
+                  isUser: isUser,
+                  isPrimaryChoice: true,
+                ),
+            ],
+          ),
+        ],
+        _buildActionHintGroup(
+          title: 'Selesaikan pesanan',
+          actions: confirmationActions,
+          actionsEnabled: actionsEnabled,
+          isUser: isUser,
+          isPrimaryChoice: true,
+          hasPreviousGroup: true,
+        ),
+        if (otherActions.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          _buildActionGroupTitle('Lanjutkan'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final actionHint in otherActions)
+                _buildActionHintButton(
+                  actionHint: actionHint,
+                  actionsEnabled: actionsEnabled,
+                  isUser: isUser,
+                ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildActionHintGroup({
+    required String title,
+    required List<ChatbotMessageActionHint> actions,
+    required bool actionsEnabled,
+    required bool isUser,
+    bool isPrimaryChoice = false,
+    bool isSecondaryAction = false,
+    bool hasPreviousGroup = false,
+  }) {
+    if (actions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (hasPreviousGroup) const SizedBox(height: 14),
+        _buildActionGroupTitle(title),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final actionHint in actions)
+              _buildActionHintButton(
+                actionHint: actionHint,
+                actionsEnabled: actionsEnabled,
+                isUser: isUser,
+                isPrimaryChoice: isPrimaryChoice,
+                isSecondaryAction: isSecondaryAction,
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  bool _isDestinationResetActionHint(ChatbotMessageActionHint actionHint) {
+    final label = actionHint.label.trim().toLowerCase();
+    return actionHint.type == ChatbotMessageActionType.openRoutePicker &&
+        label == 'pilih tujuan baru';
+  }
+
+  Widget _buildActionGroupTitle(String title) {
+    return Text(
+      title,
+      style: const TextStyle(
+        color: AppColors.textPrimary,
+        fontSize: 12.5,
+        fontWeight: FontWeight.w700,
+        height: 1.35,
+      ),
+    );
+  }
+
+  Widget _buildActionHintButton({
+    required ChatbotMessageActionHint actionHint,
+    required bool actionsEnabled,
+    required bool isUser,
+    bool isPrimaryChoice = false,
+    bool isSecondaryAction = false,
+  }) {
+    final foregroundColor = isUser ? Colors.white : AppColors.primaryDark;
+    final borderColor = isUser
+        ? Colors.white.withValues(alpha: 0.35)
+        : AppColors.primary;
+
+    return OutlinedButton.icon(
+      onPressed: actionsEnabled ? () => _handleActionHint(actionHint) : null,
+      icon: Icon(_iconForActionHint(actionHint), size: 16),
+      label: Text(actionHint.label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: foregroundColor,
+        side: BorderSide(color: borderColor),
+        padding: EdgeInsets.symmetric(
+          horizontal: isPrimaryChoice ? 14 : 12,
+          vertical: isPrimaryChoice ? 9 : 8,
+        ),
+        textStyle: TextStyle(
+          fontSize: isSecondaryAction ? 11.5 : 12,
+          fontWeight: isPrimaryChoice ? FontWeight.w700 : FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  IconData _iconForActionHint(ChatbotMessageActionHint actionHint) {
+    if (_isPaymentActionHint(actionHint)) {
+      return Icons.payments_outlined;
+    }
+
+    return switch (actionHint.type) {
+      ChatbotMessageActionType.openAddresses => Icons.home_outlined,
+      ChatbotMessageActionType.openMapPicker => Icons.location_on_outlined,
+      ChatbotMessageActionType.openMerchantPicker => Icons.storefront_outlined,
+      ChatbotMessageActionType.openRoutePicker => Icons.route_outlined,
+      ChatbotMessageActionType.sendPresetMessage => Icons.bolt_rounded,
+      ChatbotMessageActionType.openTrackOrder => Icons.map_outlined,
+      ChatbotMessageActionType.openActivity => Icons.receipt_long_outlined,
+    };
+  }
+
+  bool _hasPaymentActionHints(List<ChatbotMessageActionHint> actionHints) {
+    return actionHints.any(_isPaymentActionHint);
+  }
+
+  bool _isPaymentActionHint(ChatbotMessageActionHint actionHint) {
+    final label = actionHint.label.trim().toLowerCase();
+    final message = (actionHint.presetMessage ?? '').trim().toLowerCase();
+    return actionHint.type == ChatbotMessageActionType.sendPresetMessage &&
+        (label == 'cod' ||
+            label == 'transfer' ||
+            message == 'cod' ||
+            message == 'transfer');
+  }
+
+  bool _isRouteEditActionHint(ChatbotMessageActionHint actionHint) {
+    final label = actionHint.label.trim().toLowerCase();
+    final message = (actionHint.presetMessage ?? '').trim().toLowerCase();
+
+    return (label.contains('ubah') || label.contains('ganti')) &&
+        (label.contains('tujuan') ||
+            label.contains('jemput') ||
+            label.contains('antar') ||
+            label.contains('ambil') ||
+            label.contains('lokasi') ||
+            message.contains('tujuan'));
+  }
+
+  bool _isLocationSetupActionHint(ChatbotMessageActionHint actionHint) {
+    final label = actionHint.label.trim().toLowerCase();
+    return (actionHint.type == ChatbotMessageActionType.openMapPicker ||
+            actionHint.type == ChatbotMessageActionType.openMerchantPicker ||
+            actionHint.type == ChatbotMessageActionType.openRoutePicker ||
+            actionHint.type == ChatbotMessageActionType.openAddresses) &&
+        (label.contains('atur') ||
+            label.contains('pilih') ||
+            label.contains('isi alamat'));
+  }
+
+  bool _isConfirmationActionHint(ChatbotMessageActionHint actionHint) {
+    final label = actionHint.label.trim().toLowerCase();
+    final message = (actionHint.presetMessage ?? '').trim().toLowerCase();
+    return actionHint.type == ChatbotMessageActionType.sendPresetMessage &&
+        (label.contains('konfirmasi') || message == 'konfirmasi');
   }
 
   Widget _buildResetDestinationContent({

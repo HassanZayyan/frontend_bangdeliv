@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../config/app_routes.dart';
 import '../../../../config/app_colors.dart';
+import '../widgets/bang_floating_bottom_nav_bar.dart';
 
 class MainLayout extends StatefulWidget {
   final Widget child;
@@ -21,8 +22,8 @@ class _MainLayoutState extends State<MainLayout> {
     if (location.startsWith(AppRoutes.home)) return 0;
     if (location.startsWith(AppRoutes.nearbyMerchants)) return 0;
     if (location.startsWith(AppRoutes.activity)) return 1;
-    if (location.startsWith(AppRoutes.history)) return 2;
-    if (location.startsWith(AppRoutes.profile)) return 3;
+    if (location.startsWith(AppRoutes.history)) return 1;
+    if (location.startsWith(AppRoutes.profile)) return 2;
     return 0;
   }
 
@@ -35,15 +36,22 @@ class _MainLayoutState extends State<MainLayout> {
         context.go(AppRoutes.activity);
         break;
       case 2:
-        context.go(AppRoutes.history);
-        break;
-      case 3:
         context.go(AppRoutes.profile);
         break;
     }
   }
 
-  Future<void> _handleSystemBack() async {
+  bool _shouldReturnToHome(String location) {
+    return location == AppRoutes.nearbyMerchants;
+  }
+
+  Future<void> _handleSystemBack(String location) async {
+    if (_shouldReturnToHome(location)) {
+      context.go(AppRoutes.home);
+      _lastBackPressedAt = null;
+      return;
+    }
+
     final now = DateTime.now();
     final hasRecentBackPress =
         _lastBackPressedAt != null &&
@@ -69,40 +77,39 @@ class _MainLayoutState extends State<MainLayout> {
 
   @override
   Widget build(BuildContext context) {
+    final location = GoRouterState.of(context).uri.path;
+    final canPopRoute =
+        GoRouter.of(context).canPop() && !_shouldReturnToHome(location);
+
     return PopScope<void>(
-      canPop: false,
+      canPop: canPopRoute,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) {
           return;
         }
 
-        _handleSystemBack();
+        _handleSystemBack(location);
       },
       child: Scaffold(
         backgroundColor: AppColors.background,
-        body: widget.child,
-        bottomNavigationBar: BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: AppColors.white,
-          selectedItemColor: AppColors.primary,
-          unselectedItemColor: AppColors.textSecondary,
-          currentIndex: _calculateSelectedIndex(context),
-          onTap: (index) => _onItemTapped(index, context),
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home_filled),
-              label: 'Beranda',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.assignment_rounded),
-              label: 'Aktivitas',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.history),
-              label: 'Riwayat',
-            ),
-            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Akun'),
-          ],
+        body: BangFloatingBottomNavHost(
+          navigationBar: BangFloatingBottomNavBar(
+            currentIndex: _calculateSelectedIndex(context),
+            onTap: (index) => _onItemTapped(index, context),
+            items: const [
+              BangFloatingNavItem(icon: Icons.home_filled, label: 'Beranda'),
+              BangFloatingNavItem(
+                icon: Icons.assignment_rounded,
+                label: 'Aktivitas',
+              ),
+              BangFloatingNavItem(
+                icon: Icons.person_outline,
+                activeIcon: Icons.person,
+                label: 'Profil',
+              ),
+            ],
+          ),
+          child: widget.child,
         ),
       ),
     );

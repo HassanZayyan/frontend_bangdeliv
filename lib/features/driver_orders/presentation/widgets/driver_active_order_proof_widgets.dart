@@ -36,21 +36,27 @@ class DriverOrderProofChecklistCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 16,
+            spreadRadius: 2,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Row(
             children: [
-              Icon(Icons.photo_camera_outlined, color: AppColors.primary),
-              SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Bukti Foto Order',
                   style: TextStyle(
                     color: AppColors.textPrimary,
-                    fontSize: 15,
+                    fontSize: 16,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -58,12 +64,20 @@ class DriverOrderProofChecklistCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          ...requirements.map(
-            (requirement) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _proofRow(context, requirement),
-            ),
-          ),
+          ...() {
+            final widgets = <Widget>[];
+            for (var i = 0; i < requirements.length; i++) {
+              widgets.add(_proofRow(context, requirements[i]));
+              if (i < requirements.length - 1) {
+                widgets.add(const Divider(
+                  height: 1,
+                  thickness: 0.5,
+                  color: Color(0xFFEEEEEE),
+                ));
+              }
+            }
+            return widgets;
+          }(),
         ],
       ),
     );
@@ -75,29 +89,13 @@ class DriverOrderProofChecklistCard extends StatelessWidget {
 
     return <_ProofRequirement>[
       if (serviceType == ServiceTypeCodes.courier) ...[
-        const _ProofRequirement(
-          type: 'pickup',
-          title: 'Pengambilan',
-          description: 'Foto saat barang/order diambil.',
-        ),
-        const _ProofRequirement(
-          type: 'delivery',
-          title: 'Diterima',
-          description: 'Foto saat order selesai diterima.',
-        ),
+        const _ProofRequirement(type: 'pickup', title: 'Pengambilan'),
+        const _ProofRequirement(type: 'delivery', title: 'Diterima'),
       ],
       if (serviceType == ServiceTypeCodes.shopping)
-        const _ProofRequirement(
-          type: 'receipt',
-          title: 'Struk belanja',
-          description: 'Foto struk untuk total belanja nitip.',
-        ),
+        const _ProofRequirement(type: 'receipt', title: 'Struk belanja'),
       if (hasStoreClosedProof)
-        const _ProofRequirement(
-          type: 'store_closed',
-          title: 'Toko tutup',
-          description: 'Bukti toko tutup/gagal pickup.',
-        ),
+        const _ProofRequirement(type: 'store_closed', title: 'Toko tutup'),
     ];
   }
 
@@ -108,11 +106,10 @@ class DriverOrderProofChecklistCard extends StatelessWidget {
     final isUploading = isProofUploading(requirement.type);
 
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
@@ -123,25 +120,13 @@ class DriverOrderProofChecklistCard extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  requirement.title,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  requirement.description,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
+            child: Text(
+              requirement.title,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -251,13 +236,8 @@ class DriverOrderProofChecklistCard extends StatelessWidget {
 }
 
 class _ProofRequirement {
-  const _ProofRequirement({
-    required this.type,
-    required this.title,
-    required this.description,
-  });
+  const _ProofRequirement({required this.type, required this.title});
 
   final String type;
   final String title;
-  final String description;
 }

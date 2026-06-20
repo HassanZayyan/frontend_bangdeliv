@@ -23,7 +23,6 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
   final _platePrefixController = TextEditingController();
   final _plateNumberController = TextEditingController();
   final _plateSuffixController = TextEditingController();
-  final _licenseNumberController = TextEditingController();
   final _platePrefixFocusNode = FocusNode();
   final _plateNumberFocusNode = FocusNode();
   final _plateSuffixFocusNode = FocusNode();
@@ -61,7 +60,7 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
               SliverToBoxAdapter(child: _hero(context)),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 10, 18, 24),
+                  padding: const EdgeInsets.fromLTRB(18, 8, 18, 24),
                   child: _formCard(context, profile),
                 ),
               ),
@@ -74,43 +73,46 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
 
   Widget _hero(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
+      padding: const EdgeInsets.fromLTRB(18, 10, 18, 0),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 344, minHeight: 118),
+          constraints: const BoxConstraints(maxWidth: 344, minHeight: 104),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
                 flex: 56,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Siap jadi mitra pengantar?',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: AppColors.darkBlue,
-                        fontSize: 17,
-                        height: 1.25,
-                        fontWeight: FontWeight.w800,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Siap jadi mitra pengantar?',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: AppColors.darkBlue,
+                          fontSize: 17,
+                          height: 1.25,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Lengkapi data kendaraan untuk proses verifikasi.',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                        height: 1.35,
-                        fontWeight: FontWeight.w500,
+                      const SizedBox(height: 6),
+                      Text(
+                        'Lengkapi data kendaraan untuk proses verifikasi.',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                          height: 1.35,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
@@ -121,7 +123,7 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
                   image: true,
                   child: Image.asset(
                     'assets/images/bangdeliv.png',
-                    height: 106,
+                    height: 96,
                     fit: BoxFit.contain,
                     alignment: Alignment.centerRight,
                   ),
@@ -150,9 +152,9 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
             border: Border.all(color: AppColors.border.withValues(alpha: 0.8)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 18,
-                offset: const Offset(0, 7),
+                color: Colors.black.withValues(alpha: 0.045),
+                blurRadius: 14,
+                offset: const Offset(0, 5),
               ),
             ],
           ),
@@ -167,7 +169,7 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Lengkapi Data Driver',
+          'Data Kendaraan',
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
             color: AppColors.darkBlue,
             fontSize: 16,
@@ -176,7 +178,7 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
         ),
         const SizedBox(height: 4),
         Text(
-          'Anda tidak perlu membuat akun baru. Cukup lengkapi data kendaraan di bawah ini.',
+          'Pastikan data sesuai kendaraan yang akan digunakan.',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: AppColors.textSecondary,
             fontSize: 11.5,
@@ -187,79 +189,58 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
     );
   }
 
-  Widget _fieldLabel(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Text(
-        text,
-        style: const TextStyle(
+  Widget _profileField({required String label, required String value}) {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: AppColors.border),
+    );
+
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: label,
+        floatingLabelBehavior: FloatingLabelBehavior.always,
+        labelStyle: const TextStyle(
           color: AppColors.textSecondary,
           fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+        isDense: true,
+        filled: true,
+        fillColor: AppColors.background,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 12,
+        ),
+        border: border,
+        enabledBorder: border,
+      ),
+      child: Text(
+        value.isEmpty ? '-' : value,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: AppColors.textPrimary,
+          fontSize: 14,
           fontWeight: FontWeight.w600,
         ),
       ),
     );
   }
 
-  Widget _profileField({required String label, required String value}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _fieldLabel(label),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          decoration: BoxDecoration(
-            color: AppColors.background,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Text(
-            value.isEmpty ? '-' : value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  InputDecoration _inputDecoration({required String hintText}) {
-    return InputDecoration(
-      hintText: hintText,
-      isDense: true,
-      filled: true,
-      fillColor: AppColors.white,
-      hintStyle: const TextStyle(
-        color: AppColors.textSecondary,
-        fontSize: 14,
-        fontWeight: FontWeight.w400,
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: AppColors.border),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: AppColors.border),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: AppColors.primary, width: 1.4),
-      ),
-    );
-  }
-
-  InputDecoration _plainInputDecoration({required String hintText}) {
+  InputDecoration _plainInputDecoration({
+    String? labelText,
+    required String hintText,
+  }) {
     final borderColor = _showPlateError ? AppColors.error : AppColors.border;
 
     return InputDecoration(
+      labelText: labelText,
+      floatingLabelBehavior: FloatingLabelBehavior.always,
+      labelStyle: const TextStyle(
+        color: AppColors.textSecondary,
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+      ),
       hintText: hintText,
       isDense: true,
       filled: true,
@@ -291,9 +272,9 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
       child: ElevatedButton(
         onPressed: _isSubmitting ? null : _handleUpgrade,
         style: ElevatedButton.styleFrom(
-          minimumSize: const Size.fromHeight(52),
+          minimumSize: const Size.fromHeight(48),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
           ),
         ),
         child: _isSubmitting
@@ -305,13 +286,9 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
                   color: AppColors.white,
                 ),
               )
-            : const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Aktifkan Akun Driver'),
-                  SizedBox(width: 8),
-                  Icon(Icons.arrow_forward_rounded, size: 18),
-                ],
+            : const Text(
+                'Kirim Pengajuan Driver',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
               ),
       ),
     );
@@ -373,30 +350,16 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
           ),
           const SizedBox(height: 16),
           _buildVehiclePlateFields(),
-          const SizedBox(height: 16),
-          _fieldLabel('Nomor SIM'),
-          TextFormField(
-            controller: _licenseNumberController,
-            textInputAction: TextInputAction.done,
-            keyboardType: TextInputType.number,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
+          const SizedBox(height: 14),
+          Text(
+            'Data akan ditinjau sebelum akun driver aktif.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.textSecondary,
+              fontSize: 11.5,
+              height: 1.35,
             ),
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            onFieldSubmitted: (_) => _handleUpgrade(),
-            decoration: _inputDecoration(hintText: 'Masukkan nomor SIM'),
-            validator: (value) {
-              final licenseNumber = value?.trim() ?? '';
-              if (licenseNumber.isEmpty) {
-                return 'Nomor SIM wajib diisi';
-              }
-
-              return null;
-            },
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 18),
           _submitButton(),
         ],
       ),
@@ -407,7 +370,15 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _fieldLabel('Nomor plat kendaraan'),
+        const Text(
+          'Nomor Polisi',
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 6),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -430,7 +401,10 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
                 ),
-                decoration: _plainInputDecoration(hintText: 'H'),
+                decoration: _plainInputDecoration(
+                  labelText: 'Kode',
+                  hintText: 'H',
+                ),
                 onChanged: (_) {
                   if (_showPlateError && _isPlateComplete()) {
                     setState(() {
@@ -461,7 +435,10 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
                 ),
-                decoration: _plainInputDecoration(hintText: '1234'),
+                decoration: _plainInputDecoration(
+                  labelText: 'Nomor',
+                  hintText: '1234',
+                ),
                 onChanged: (_) {
                   if (_showPlateError && _isPlateComplete()) {
                     setState(() {
@@ -494,7 +471,10 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
                 ),
-                decoration: _plainInputDecoration(hintText: 'ABC'),
+                decoration: _plainInputDecoration(
+                  labelText: 'Seri',
+                  hintText: 'ABC',
+                ),
                 onChanged: (_) {
                   if (_showPlateError && _isPlateComplete()) {
                     setState(() {
@@ -562,7 +542,6 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
         vehicleBrand: (_selectedVehicleBrand ?? '').trim(),
         vehicleModel: _vehicleModelController.text.trim(),
         vehiclePlate: _buildVehiclePlate(),
-        licenseNumber: _licenseNumberController.text.trim(),
       );
 
       await ref.read(authSessionProvider.notifier).refreshSession();
@@ -597,7 +576,6 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
     _platePrefixController.dispose();
     _plateNumberController.dispose();
     _plateSuffixController.dispose();
-    _licenseNumberController.dispose();
     _vehicleModelController.dispose();
     _platePrefixFocusNode.dispose();
     _plateNumberFocusNode.dispose();

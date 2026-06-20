@@ -253,7 +253,6 @@ AuthSessionState _driverSession() {
         vehicleBrand: 'Honda',
         vehicleModel: 'Beat',
         vehiclePlate: 'H 1234 DL',
-        licenseNumber: 'SIM-DRIVER-001',
         totalDeliveries: 12,
       ),
       stats: const UserStatsModel(totalOrders: 0, totalPaid: 0),

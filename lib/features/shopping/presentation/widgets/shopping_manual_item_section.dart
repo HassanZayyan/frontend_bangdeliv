@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../config/app_colors.dart';
+import '../../../../config/app_text_scaling.dart';
 import '../../../../services/customer_order_api_service.dart';
 import '../../../../utils/order_formatters.dart';
 import 'shopping_inline_info_panel.dart';
@@ -72,7 +73,6 @@ class ShoppingManualItemSection extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const ShoppingFieldLabel('Nama item'),
               TextField(
                 controller: controller,
                 textInputAction: TextInputAction.next,
@@ -82,12 +82,13 @@ class ShoppingManualItemSection extends StatelessWidget {
                   fontWeight: FontWeight.w400,
                 ),
                 decoration: const InputDecoration(
+                  labelText: 'Nama item',
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
                   hintText: 'Contoh: telur 1 kg',
                 ),
                 onChanged: (_) => onChanged(),
               ),
               const SizedBox(height: 10),
-              const ShoppingFieldLabel('Catatan'),
               TextField(
                 controller: noteController,
                 minLines: 1,
@@ -97,7 +98,11 @@ class ShoppingManualItemSection extends StatelessWidget {
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
                 ),
-                decoration: const InputDecoration(hintText: 'Opsional'),
+                decoration: const InputDecoration(
+                  labelText: 'Catatan',
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
+                  hintText: 'Opsional',
+                ),
               ),
               const SizedBox(height: 12),
               Row(
@@ -111,40 +116,38 @@ class ShoppingManualItemSection extends StatelessWidget {
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: SizedBox(
-                      height: 42,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: AppTextScaling.adaptive(
+                          context,
+                          normal: 42,
+                          large: 48,
+                        ),
+                      ),
                       child: FilledButton.icon(
                         onPressed: isAddDisabled ? null : onAdd,
                         icon: Icon(
                           isEditing ? Icons.check_rounded : Icons.add_rounded,
                           size: 18,
                         ),
-                        label: Text(isEditing ? 'Simpan' : 'Tambah'),
+                        label: Text(
+                          isEditing ? 'Simpan' : 'Tambah',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 10),
-              const Row(
-                children: [
-                  Icon(
-                    Icons.receipt_long_outlined,
-                    color: AppColors.textSecondary,
-                    size: 16,
-                  ),
-                  SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'Harga dikonfirmasi driver dari nota.',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
+              const Text(
+                'Harga dikonfirmasi driver dari nota.',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
@@ -257,6 +260,8 @@ class _MenuQuickPickTile extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   formatCurrency(menu.price),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 12,

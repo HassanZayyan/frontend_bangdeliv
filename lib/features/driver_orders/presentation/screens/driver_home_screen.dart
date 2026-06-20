@@ -5,17 +5,20 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
+import '../../../../config/app_text_scaling.dart';
 import '../../../../models/driver_order_model.dart';
 import '../../../auth/application/auth_session_provider.dart';
+import '../../../navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
 import '../../application/driver_order_providers.dart';
 import '../../../../utils/order_formatters.dart';
+import '../../../../utils/service_type.dart';
 
 class DriverHomeScreen extends ConsumerWidget {
   const DriverHomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final DriverOrderModel? activeOrder = ref.watch(driverActiveOrderProvider);
+    final activeOrder = ref.watch(driverActiveOrderProvider);
     final session = ref.watch(authSessionProvider);
     final stats = session.profile?.stats;
     final totalPaid = stats?.totalPaid ?? 0;
@@ -36,161 +39,133 @@ class DriverHomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text(
           'Beranda Driver',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
         ),
         backgroundColor: AppColors.white,
         elevation: 0,
+        scrolledUnderElevation: 0.5,
+        automaticallyImplyLeading: false,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-              border: Border.all(
-                color: AppColors.border.withValues(alpha: 0.5),
-              ),
+      body: RefreshIndicator(
+        color: AppColors.primary,
+        onRefresh: () async {
+          ref.invalidate(driverOrdersProvider);
+          ref.invalidate(driverAvailabilityProvider);
+          try {
+            await Future.wait([
+              ref.read(driverOrdersProvider.future),
+              ref.read(driverAvailabilityProvider.future),
+            ]);
+          } catch (_) {
+            // Provider states render errors independently.
+          }
+        },
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: ClampingScrollPhysics(),
+          ),
+          padding: const EdgeInsets.fromLTRB(
+            16,
+            14,
+            16,
+            BangFloatingBottomNavBar.scrollClearance,
+          ),
+          children: [
+            _AvailabilityCard(
+              status: availabilityStatus,
+              isOnline: isOnline,
+              isUpdating: isUpdatingAvailability,
+              hasSyncIssue: hasAvailabilitySyncIssue,
+              syncIssueMessage: availabilitySyncIssueMessage,
+              onChanged: (value) => _setAvailability(context, ref, value),
             ),
-            child: Row(
+            const SizedBox(height: 12),
+            Row(
               children: [
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Status Kerja',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _availabilityLabel(availabilityStatus),
-                        style: TextStyle(
-                          color: _availabilityColor(availabilityStatus),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16,
-                        ),
-                      ),
-                      if (hasAvailabilitySyncIssue)
-                        Padding(
-                          padding: EdgeInsets.only(top: 4),
-                          child: Text(
-                            availabilitySyncIssueMessage,
-                            style: const TextStyle(
-                              color: AppColors.error,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                    ],
+                  child: _MetricTile(
+                    label: 'Pendapatan',
+                    value: formatCurrency(totalPaid),
+                    icon: Icons.payments_outlined,
                   ),
                 ),
-                Switch(
-                  value: isOnline,
-                  onChanged: isUpdatingAvailability
-                      ? null
-                      : (value) async {
-                          final error = await ref
-                              .read(driverAvailabilityProvider.notifier)
-                              .setOnline(value);
-
-                          if (!context.mounted) {
-                            return;
-                          }
-
-                          if (error != null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(error),
-                                backgroundColor: AppColors.error,
-                              ),
-                            );
-                            return;
-                          }
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                value
-                                    ? 'Status kerja diubah ke online.'
-                                    : 'Status kerja diubah ke offline.',
-                              ),
-                              backgroundColor: AppColors.success,
-                            ),
-                          );
-                        },
-                  activeThumbColor: AppColors.success,
-                  inactiveThumbColor: AppColors.textSecondary,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _MetricTile(
+                    label: 'Order selesai',
+                    value: totalOrders.toString(),
+                    icon: Icons.task_alt_rounded,
+                  ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _SummaryTile(
-                  title: 'Total Pendapatan',
-                  value: formatCurrency(totalPaid),
-                  icon: Icons.payments_outlined,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _SummaryTile(
-                  title: 'Total Order Selesai',
-                  value: totalOrders.toString(),
-                  icon: Icons.check_circle_outline,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _ActiveOrderCard(
-            activeOrder: activeOrder,
-            onOpenDetail: activeOrder == null
-                ? null
-                : () {
-                    if (!_isServerOrderId(activeOrder.id)) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'ID order dari server tidak valid. Refresh daftar order dan coba lagi.',
-                          ),
-                          backgroundColor: AppColors.primaryDark,
-                        ),
-                      );
-                      context.go(AppRoutes.driverOrders);
-                      return;
-                    }
-
-                    context.push(
-                      AppRoutes.driverOrderActivePath(activeOrder.id),
-                    );
-                  },
-          ),
-        ],
+            const SizedBox(height: 14),
+            _ActiveOrderSection(
+              activeOrder: activeOrder,
+              onOpenDetail: activeOrder == null
+                  ? null
+                  : () => _openActiveOrder(context, activeOrder),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  static Future<void> _setAvailability(
+    BuildContext context,
+    WidgetRef ref,
+    bool value,
+  ) async {
+    final error = await ref
+        .read(driverAvailabilityProvider.notifier)
+        .setOnline(value);
+
+    if (!context.mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            error ??
+                (value
+                    ? 'Status kerja diubah ke online.'
+                    : 'Status kerja diubah ke offline.'),
+          ),
+          backgroundColor: error == null ? AppColors.success : AppColors.error,
+        ),
+      );
+  }
+
+  static void _openActiveOrder(BuildContext context, DriverOrderModel order) {
+    if (!_isServerOrderId(order.id)) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              'ID order dari server tidak valid. Refresh daftar order dan coba lagi.',
+            ),
+            backgroundColor: AppColors.primaryDark,
+          ),
+        );
+      context.go(AppRoutes.driverOrders);
+      return;
+    }
+
+    context.push(AppRoutes.driverOrderActivePath(order.id));
   }
 
   static bool _isServerOrderId(String orderId) {
     return RegExp(r'^\d+$').hasMatch(orderId.trim());
   }
 
-  static Color _availabilityColor(String status) {
+  static Color availabilityColor(String status) {
     switch (status.trim().toLowerCase()) {
       case 'available':
       case 'online':
@@ -202,79 +177,237 @@ class DriverHomeScreen extends ConsumerWidget {
     }
   }
 
-  static String _availabilityLabel(String status) {
+  static String availabilityLabel(String status) {
     switch (status.trim().toLowerCase()) {
       case 'available':
       case 'online':
-        return 'Online - Siap Terima Order';
+        return 'Online';
       case 'busy':
-        return 'Sedang Mengantar';
+        return 'Sedang mengantar';
       default:
         return 'Offline';
     }
   }
+
+  static String? availabilityDescription(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'available':
+      case 'online':
+        return 'Siap menerima order masuk';
+      case 'busy':
+        return null;
+      default:
+        return 'Aktifkan untuk menerima order';
+    }
+  }
 }
 
-class _ActiveOrderCard extends StatelessWidget {
-  final DriverOrderModel? activeOrder;
-  final VoidCallback? onOpenDetail;
+class _AvailabilityCard extends StatelessWidget {
+  const _AvailabilityCard({
+    required this.status,
+    required this.isOnline,
+    required this.isUpdating,
+    required this.hasSyncIssue,
+    required this.syncIssueMessage,
+    required this.onChanged,
+  });
 
-  const _ActiveOrderCard({this.activeOrder, this.onOpenDetail});
+  final String status;
+  final bool isOnline;
+  final bool isUpdating;
+  final bool hasSyncIssue;
+  final String syncIssueMessage;
+  final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    if (activeOrder == null) {
-      return Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+    final statusColor = DriverHomeScreen.availabilityColor(status);
+    final description = DriverHomeScreen.availabilityDescription(status);
+    final supportingText = hasSyncIssue ? syncIssueMessage : description;
+
+    return _DriverSurface(
+      padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Status kerja',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        DriverHomeScreen.availabilityLabel(status),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: statusColor,
+                          fontSize: AppTextScaling.adaptive(
+                            context,
+                            normal: 15,
+                            large: 14,
+                          ),
+                          fontWeight: FontWeight.w800,
+                          height: 1.15,
+                        ),
+                      ),
+                    ),
+                    if (isUpdating) ...[
+                      const SizedBox(width: 8),
+                      const SizedBox.square(
+                        dimension: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ],
+                  ],
+                ),
+                if ((supportingText ?? '').trim().isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    supportingText!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: hasSyncIssue
+                          ? AppColors.error
+                          : AppColors.textSecondary,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ],
             ),
-          ],
-          border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
-        ),
+          ),
+          const SizedBox(width: 12),
+          Switch.adaptive(
+            value: isOnline,
+            onChanged: isUpdating ? null : onChanged,
+            activeThumbColor: AppColors.success,
+            inactiveThumbColor: AppColors.textSecondary,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricTile extends StatelessWidget {
+  const _MetricTile({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return _DriverSurface(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: AppColors.textSecondary, size: 18),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    height: 1.2,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: AppTextScaling.adaptive(
+                context,
+                normal: 16,
+                large: 14.5,
+              ),
+              fontWeight: FontWeight.w800,
+              height: 1.1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActiveOrderSection extends StatelessWidget {
+  const _ActiveOrderSection({this.activeOrder, this.onOpenDetail});
+
+  final DriverOrderModel? activeOrder;
+  final VoidCallback? onOpenDetail;
+
+  @override
+  Widget build(BuildContext context) {
+    final order = activeOrder;
+    if (order == null) {
+      return _DriverSurface(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              Icons.assignment_outlined,
-              size: 48,
-              color: AppColors.textSecondary.withAlpha(128),
-            ),
+            const _SectionHeader(title: 'Order aktif'),
             const SizedBox(height: 12),
             const Text(
-              'Belum Ada Order Aktif',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              'Belum ada order berjalan.',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+              ),
             ),
             const SizedBox(height: 4),
             const Text(
-              'Aktifkan status kerja untuk menerima order masuk.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              'Order baru akan muncul di menu Orderan saat status kerja aktif.',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                height: 1.35,
+              ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
-              child: FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                  foregroundColor: AppColors.primaryDark,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  textStyle: GoogleFonts.nunitoSans(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+              child: OutlinedButton(
                 onPressed: () => context.go(AppRoutes.driverOrders),
-                icon: const Icon(Icons.assignment_outlined),
-                label: const Text('Lihat Orderan Masuk'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primaryDark,
+                  side: const BorderSide(color: AppColors.border),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: const Text('Lihat Orderan'),
               ),
             ),
           ],
@@ -282,263 +415,231 @@ class _ActiveOrderCard extends StatelessWidget {
       );
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.1),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
+    return _DriverSurface(
+      padding: const EdgeInsets.all(16),
+      borderColor: AppColors.primary.withValues(alpha: 0.22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeader(
+            title: 'Order aktif',
+            trailing: '#${order.id}',
+            trailingColor: AppColors.primaryDark,
+          ),
+          const SizedBox(height: 10),
+          _ServiceLabelPill(label: serviceTypeLabel(order.serviceTypeCode)),
+          const SizedBox(height: 12),
+          _RouteSummary(order: order),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: onOpenDetail,
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                textStyle: GoogleFonts.nunitoSans(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+              child: const Text('Buka Detail Order'),
+            ),
           ),
         ],
-        border: Border.all(
-          color: AppColors.primary.withValues(alpha: 0.3),
-          width: 1.5,
-        ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.delivery_dining,
-                        color: AppColors.primary,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Order Aktif',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 15,
-                        color: AppColors.primaryDark,
-                      ),
-                    ),
-                  ],
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(100),
-                  ),
-                  child: Text(
-                    '#${activeOrder!.id}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primaryDark,
-                    ),
-                  ),
-                ),
-              ],
+    );
+  }
+}
+
+class _RouteSummary extends StatelessWidget {
+  const _RouteSummary({required this.order});
+
+  final DriverOrderModel order;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        children: [
+          _AddressLine(
+            icon: Icons.radio_button_checked,
+            color: AppColors.primary,
+            text: order.pickupAddress,
+            maxLines: 2,
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 9),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Container(width: 1, height: 14, color: AppColors.border),
             ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.background,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.border.withValues(alpha: 0.6),
-                ),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        margin: const EdgeInsets.only(top: 2),
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.storefront_rounded,
-                          size: 14,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          activeOrder!.pickupAddress,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.textPrimary,
-                            fontSize: 13,
-                            height: 1.4,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 11),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Column(
-                        children: List.generate(
-                          3,
-                          (index) => Container(
-                            width: 2,
-                            height: 3,
-                            margin: const EdgeInsets.symmetric(vertical: 1.5),
-                            decoration: BoxDecoration(
-                              color: AppColors.border,
-                              borderRadius: BorderRadius.circular(1),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        margin: const EdgeInsets.only(top: 2),
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: const Color(
-                            0xFF2563EB,
-                          ).withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.location_on_rounded,
-                          size: 14,
-                          color: Color(0xFF2563EB),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          activeOrder!.dropoffAddress,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.textPrimary,
-                            fontSize: 13,
-                            height: 1.4,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: onOpenDetail,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.white,
-                  elevation: 4,
-                  shadowColor: AppColors.primary.withValues(alpha: 0.4),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  textStyle: GoogleFonts.nunitoSans(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                  ),
-                ),
-                child: const Text('Buka Detail Order'),
-              ),
-            ),
-          ],
+          ),
+          _AddressLine(
+            icon: Icons.location_on_rounded,
+            color: const Color(0xFF2563EB),
+            text: order.dropoffAddress,
+            maxLines: 2,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ServiceLabelPill extends StatelessWidget {
+  const _ServiceLabelPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: AppColors.primaryDark,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          height: 1.2,
         ),
       ),
     );
   }
 }
 
-class _SummaryTile extends StatelessWidget {
-  final String title;
-  final String value;
-  final IconData icon;
-
-  const _SummaryTile({
-    required this.title,
-    required this.value,
+class _AddressLine extends StatelessWidget {
+  const _AddressLine({
     required this.icon,
+    required this.color,
+    required this.text,
+    required this.maxLines,
   });
+
+  final IconData icon;
+  final Color color;
+  final String text;
+  final int maxLines;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Icon(icon, size: 18, color: color),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: maxLines,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({
+    required this.title,
+    this.trailing,
+    this.trailingColor = AppColors.textSecondary,
+  });
+
+  final String title;
+  final String? trailing;
+  final Color trailingColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              height: 1.2,
+            ),
+          ),
+        ),
+        if (trailing != null) ...[
+          const SizedBox(width: 8),
+          AppTextScaling.clampForCompactComponent(
+            context: context,
+            maxScaleFactor: AppTextScaling.denseComponentMaxScaleFactor,
+            child: Text(
+              trailing!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: trailingColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                height: 1.2,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _DriverSurface extends StatelessWidget {
+  const _DriverSurface({
+    required this.child,
+    this.padding = const EdgeInsets.all(16),
+    this.borderColor,
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final Color? borderColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor ?? AppColors.border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: AppColors.black.withValues(alpha: 0.025),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
       ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 24, color: AppColors.primary),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: const TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 14.5,
-              color: AppColors.textPrimary,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              height: 1.2,
-            ),
-          ),
-        ],
-      ),
+      child: Padding(padding: padding, child: child),
     );
   }
 }
