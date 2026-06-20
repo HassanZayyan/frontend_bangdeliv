@@ -14,6 +14,7 @@ class ShoppingOrderCapabilitiesModel {
     this.canDriverSubmitShoppingQuote = false,
     this.canDriverSubmitMerchantQuote = false,
     this.canDriverUploadReceipt = false,
+    this.hasCheckoutSaved = false,
     this.hasPendingItemChangeRequest = false,
   });
 
@@ -29,6 +30,7 @@ class ShoppingOrderCapabilitiesModel {
   final bool canDriverSubmitShoppingQuote;
   final bool canDriverSubmitMerchantQuote;
   final bool canDriverUploadReceipt;
+  final bool hasCheckoutSaved;
   final bool hasPendingItemChangeRequest;
 
   static ShoppingOrderCapabilitiesModel fromRaw(dynamic raw) {
@@ -82,6 +84,9 @@ class ShoppingOrderCapabilitiesModel {
       ),
       canDriverUploadReceipt: ModelParseUtils.boolValue(
         raw['can_driver_upload_receipt'] ?? raw['canDriverUploadReceipt'],
+      ),
+      hasCheckoutSaved: ModelParseUtils.boolValue(
+        raw['has_checkout_saved'] ?? raw['hasCheckoutSaved'],
       ),
       hasPendingItemChangeRequest: ModelParseUtils.boolValue(
         raw['has_pending_item_change_request'] ??

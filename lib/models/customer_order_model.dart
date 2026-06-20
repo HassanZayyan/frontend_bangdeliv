@@ -647,6 +647,15 @@ class CustomerOrderDetailModel {
         shoppingItemChangeRequest?.isPending == true;
   }
 
+  bool get isCancelledWithFee {
+    return order_status.normalizeOrderStatusCode(summary.statusCode) ==
+        order_status.OrderStatusCodes.cancelledWithFee;
+  }
+
+  String get shoppingServiceFeeLabel {
+    return isCancelledWithFee ? 'Fee pembatalan' : 'Biaya layanan';
+  }
+
   bool get canResolveFailedShoppingMerchant {
     return false;
   }
@@ -1080,6 +1089,7 @@ class CustomerOrderProofModel {
     this.photoUrl,
     this.status,
     this.note,
+    this.uploaderUserId,
     this.createdAt,
   });
 
@@ -1089,6 +1099,7 @@ class CustomerOrderProofModel {
   final String? photoUrl;
   final String? status;
   final String? note;
+  final int? uploaderUserId;
   final DateTime? createdAt;
 
   factory CustomerOrderProofModel.fromJson(Map<String, dynamic> json) {
@@ -1113,6 +1124,11 @@ class CustomerOrderProofModel {
       photoUrl: rawUrl.isEmpty ? null : AppEnv.resolveBackendAssetUrl(rawUrl),
       status: (json['status'] ?? json['verification_status'])?.toString(),
       note: json['note']?.toString(),
+      uploaderUserId: int.tryParse(
+        (json['uploader_user_id'] ?? json['user_id'] ?? json['userId'])
+                ?.toString() ??
+            '',
+      ),
       createdAt: CustomerOrderSummaryModel._asDateTime(
         json['created_at'] ?? json['createdAt'],
       ),
@@ -1210,9 +1226,6 @@ class CustomerShoppingStopModel {
   final int sequenceNo;
   final String fulfillmentStatus;
   final int failedAttemptCount;
-  final String? failureReason;
-  final DateTime? failedAt;
-  final DateTime? resolvedAt;
   final CustomerShoppingMerchantModel merchant;
   final List<CustomerShoppingItemModel> items;
   final bool hasExplicitUnavailableItemActions;
@@ -1225,9 +1238,6 @@ class CustomerShoppingStopModel {
     required this.sequenceNo,
     this.fulfillmentStatus = 'PENDING',
     this.failedAttemptCount = 0,
-    this.failureReason,
-    this.failedAt,
-    this.resolvedAt,
     required this.merchant,
     required this.items,
     this.hasExplicitUnavailableItemActions = false,
@@ -1279,9 +1289,6 @@ class CustomerShoppingStopModel {
       failedAttemptCount: CustomerOrderSummaryModel._asInt(
         json['failed_attempt_count'],
       ),
-      failureReason: json['failure_reason']?.toString(),
-      failedAt: CustomerOrderSummaryModel._asDateTime(json['failed_at']),
-      resolvedAt: CustomerOrderSummaryModel._asDateTime(json['resolved_at']),
       merchant: CustomerShoppingMerchantModel.fromJson(merchantJson),
       items: rawItems
           .map(CustomerShoppingItemModel.fromJson)

@@ -453,6 +453,9 @@ class _OrderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final serviceLabel = serviceTypeLabel(order.serviceTypeCode);
     final packageDetails = buildCourierPackageDetails(order);
+    final isShoppingOrder =
+        normalizeServiceTypeCode(order.serviceTypeCode) ==
+        ServiceTypeCodes.shopping;
 
     return Container(
       decoration: BoxDecoration(
@@ -589,6 +592,9 @@ class _OrderCard extends StatelessWidget {
                 _OrderRouteSection(
                   pickupAddress: order.pickupAddress,
                   dropoffAddress: order.dropoffAddress,
+                  shoppingStops: isShoppingOrder
+                      ? order.shoppingStops
+                      : const <DriverShoppingStopModel>[],
                 ),
               ],
             ),
@@ -850,10 +856,12 @@ class _StatusPill extends StatelessWidget {
 class _OrderRouteSection extends StatefulWidget {
   final String pickupAddress;
   final String dropoffAddress;
+  final List<DriverShoppingStopModel> shoppingStops;
 
   const _OrderRouteSection({
     required this.pickupAddress,
     required this.dropoffAddress,
+    this.shoppingStops = const <DriverShoppingStopModel>[],
   });
 
   @override
@@ -866,12 +874,20 @@ class _OrderRouteSectionState extends State<_OrderRouteSection> {
   static const int _collapsedMaxLines = 2;
 
   bool get _needsExpansion {
-    return widget.pickupAddress.length > 80 ||
+    return widget.shoppingStops.length > 1 ||
+        widget.pickupAddress.length > 80 ||
+        widget.shoppingStops.any(
+          (stop) => _shoppingStopAddress(stop).length > 80,
+        ) ||
         widget.dropoffAddress.length > 80;
   }
 
   @override
   Widget build(BuildContext context) {
+    final shoppingPickupStops = widget.shoppingStops
+        .where((stop) => !stop.isSkipped && !stop.isReplaced)
+        .toList(growable: false);
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -882,33 +898,30 @@ class _OrderRouteSectionState extends State<_OrderRouteSection> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _routeStop(
-            icon: Icons.storefront_rounded,
-            iconColor: AppColors.primary,
-            label: 'Jemput',
-            address: widget.pickupAddress,
-          ),
-          Padding(
-            padding: const EdgeInsets.only(left: 11),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: List.generate(
-                  5,
-                  (index) => Container(
-                    width: 2,
-                    height: 4,
-                    margin: const EdgeInsets.symmetric(vertical: 1.5),
-                    decoration: BoxDecoration(
-                      color: AppColors.textSecondary.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(1),
-                    ),
-                  ),
-                ),
-              ),
+          if (shoppingPickupStops.isEmpty) ...[
+            _routeStop(
+              icon: Icons.storefront_rounded,
+              iconColor: AppColors.primary,
+              label: 'Jemput',
+              address: widget.pickupAddress,
             ),
-          ),
+            _routeDivider(),
+          ] else ...[
+            ...shoppingPickupStops.indexed.expand((entry) {
+              final index = entry.$1;
+              final stop = entry.$2;
+
+              return <Widget>[
+                _routeStop(
+                  icon: Icons.storefront_rounded,
+                  iconColor: AppColors.primary,
+                  label: 'Merchant ${index + 1}',
+                  address: _shoppingStopAddress(stop),
+                ),
+                _routeDivider(),
+              ];
+            }),
+          ],
           _routeStop(
             icon: Icons.location_on_rounded,
             iconColor: const Color(0xFF2563EB),
@@ -943,6 +956,40 @@ class _OrderRouteSectionState extends State<_OrderRouteSection> {
         ],
       ),
     );
+  }
+
+  Widget _routeDivider() {
+    return Padding(
+      padding: const EdgeInsets.only(left: 11),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: List.generate(
+            5,
+            (index) => Container(
+              width: 2,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 1.5),
+              decoration: BoxDecoration(
+                color: AppColors.textSecondary.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _shoppingStopAddress(DriverShoppingStopModel stop) {
+    final merchantName = stop.merchant.name.trim();
+    final merchantAddress = (stop.merchant.address ?? '').trim();
+    if (merchantAddress.isEmpty || merchantAddress == merchantName) {
+      return merchantName.isEmpty ? widget.pickupAddress : merchantName;
+    }
+
+    return '$merchantName\n$merchantAddress';
   }
 
   Widget _routeStop({

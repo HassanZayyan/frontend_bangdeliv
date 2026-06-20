@@ -61,6 +61,28 @@ void main() {
     expect(find.text('Lanjut tanpa ini'), findsNothing);
     expect(find.text('Batal merchant'), findsOneWidget);
   });
+
+  testWidgets('cancelled with fee pricing uses cancellation fee label', (
+    tester,
+  ) async {
+    await _pumpCard(
+      tester,
+      _FakeCustomerOrderRepository(),
+      detail: _shoppingDetail(
+        statusCode: 'CANCELLED_WITH_FEE',
+        shoppingPricing: const CustomerShoppingPricingModel(
+          subtotal: 0,
+          deliveryFee: 0,
+          serviceFee: 9000,
+          totalPrice: 9000,
+          cancellationPenalty: 9000,
+        ),
+      ),
+    );
+
+    expect(find.text('Fee pembatalan'), findsOneWidget);
+    expect(find.text('Biaya layanan'), findsNothing);
+  });
 }
 
 Future<void> _pumpCard(
@@ -184,6 +206,8 @@ CustomerOrderDetailModel _shoppingDetail({
   bool includeAvailableItem = true,
   bool hasExplicitUnavailableItemActions = false,
   bool canContinueWithoutUnavailableItem = true,
+  String statusCode = 'ARRIVED_MERCHANT',
+  CustomerShoppingPricingModel? shoppingPricing,
 }) {
   const unavailableItem = CustomerShoppingItemModel(
     id: 12,
@@ -221,7 +245,7 @@ CustomerOrderDetailModel _shoppingDetail({
       restaurantName: 'Kedai Tinari',
       itemsSummary: '1x ramen mala, 1x es jeruk',
       totalAmount: 9000,
-      statusCode: 'ARRIVED_MERCHANT',
+      statusCode: statusCode,
       statusLabel: 'Driver di merchant',
       isTerminalStatus: false,
       createdAt: DateTime(2026, 6, 18),
@@ -265,13 +289,15 @@ CustomerOrderDetailModel _shoppingDetail({
         items: stopItems,
       ),
     ],
-    shoppingPricing: const CustomerShoppingPricingModel(
-      subtotal: 0,
-      deliveryFee: 9000,
-      serviceFee: 0,
-      totalPrice: 9000,
-      cancellationPenalty: 0,
-    ),
+    shoppingPricing:
+        shoppingPricing ??
+        const CustomerShoppingPricingModel(
+          subtotal: 0,
+          deliveryFee: 9000,
+          serviceFee: 0,
+          totalPrice: 9000,
+          cancellationPenalty: 0,
+        ),
     shoppingCapabilities: const ShoppingOrderCapabilitiesModel(
       isExplicit: true,
       canCustomerEditUnavailableItems: true,

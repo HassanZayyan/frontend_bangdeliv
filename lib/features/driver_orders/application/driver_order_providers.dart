@@ -130,7 +130,12 @@ class DriverOrderActionKeys {
     return _build(orderId, 'respondShoppingItemChange:${_normalize(action)}');
   }
 
-  static String pickupFailed(String orderId) => _build(orderId, 'pickupFailed');
+  static String pickupFailed(String orderId, [int? pickupLocationId]) {
+    final suffix = pickupLocationId != null && pickupLocationId > 0
+        ? ':$pickupLocationId'
+        : '';
+    return _build(orderId, 'pickupFailed$suffix');
+  }
 
   static bool belongsToOrder(String actionKey, String orderId) {
     return actionKey.startsWith('$orderId$_separator');
@@ -1054,7 +1059,10 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       return null;
     }
 
-    final actionKey = DriverOrderActionKeys.pickupFailed(orderId);
+    final actionKey = DriverOrderActionKeys.pickupFailed(
+      orderId,
+      pickupLocationId,
+    );
     state = AsyncData(_markActionProcessing(current, actionKey: actionKey));
 
     try {

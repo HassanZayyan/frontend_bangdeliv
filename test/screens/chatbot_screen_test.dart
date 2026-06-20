@@ -401,7 +401,31 @@ void main() {
     expect(find.textContaining('belum bisa digunakan'), findsNothing);
   });
 
-  testWidgets('track order action clears completed active session', (
+  testWidgets('order created keeps chat usable with a fresh session', (
+    WidgetTester tester,
+  ) async {
+    final fakeService = _FakeChatbotApiService();
+
+    await _pumpChatbot(
+      tester,
+      serviceType: 'antar_jemput',
+      chatbotApiService: fakeService,
+    );
+
+    await _sendMessage(tester, 'Konfirmasi');
+    final completedSessionId = fakeService.lastClearedSessionId;
+
+    expect(fakeService.clearSessionCallCount, 1);
+    expect(find.text('Lacak Pesanan'), findsOneWidget);
+
+    await _sendMessage(tester, 'alamat baru');
+
+    expect(fakeService.callCount, 2);
+    expect(fakeService.lastSessionId, isNot(completedSessionId));
+    expect(find.textContaining('Alamat jemput di profil'), findsOneWidget);
+  });
+
+  testWidgets('track order action keeps completed chat while navigating', (
     WidgetTester tester,
   ) async {
     final fakeService = _FakeChatbotApiService();
@@ -421,7 +445,7 @@ void main() {
     expect(fakeService.lastClearedSessionId, isNotEmpty);
   });
 
-  testWidgets('back button clears completed active session', (
+  testWidgets('back button leaves completed chat cleanup to auto rotation', (
     WidgetTester tester,
   ) async {
     final fakeService = _FakeChatbotApiService();
