@@ -154,15 +154,10 @@ class DriverOrderService {
     required String orderId,
     required double amount,
     required String reason,
-    bool? carefulCarryRequired,
   }) async {
     final response = await _post(
       '/v1/driver/orders/$orderId/delivery-fee-override',
-      body: <String, dynamic>{
-        'amount': amount,
-        'reason': reason.trim(),
-        'careful_carry_required': ?carefulCarryRequired,
-      },
+      body: <String, dynamic>{'amount': amount, 'reason': reason.trim()},
       fallback: 'Gagal memperbarui ongkir manual.',
     );
 

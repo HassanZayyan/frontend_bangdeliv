@@ -1,7 +1,4 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../models/route_location_picker_result.dart';
 import '../../../../services/google_maps_lookup_service.dart';
+import '../../../../utils/map_picker_helpers.dart';
 
 class RouteLocationPickerScreen extends StatefulWidget {
   const RouteLocationPickerScreen({super.key, required this.args});
@@ -63,14 +61,14 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
   void initState() {
     super.initState();
 
-    final pickupInitial = _validLatLng(
+    final pickupInitial = MapPickerHelpers.validLatLng(
       widget.args.pickupInitialLatitude ?? widget.args.defaultPickupLatitude,
       widget.args.pickupInitialLongitude ?? widget.args.defaultPickupLongitude,
     );
     final hasExplicitPickupInitial =
         widget.args.pickupInitialLatitude != null &&
         widget.args.pickupInitialLongitude != null;
-    final destinationInitial = _validLatLng(
+    final destinationInitial = MapPickerHelpers.validLatLng(
       widget.args.destinationInitialLatitude,
       widget.args.destinationInitialLongitude,
     );
@@ -129,15 +127,9 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
   }
 
   Future<void> _checkLocationPermission() async {
-    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return;
-
-    final permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.always ||
-        permission == LocationPermission.whileInUse) {
-      if (mounted) {
-        setState(() => _isLocationPermissionGranted = true);
-      }
+    final isGranted = await MapPickerHelpers.hasLocationPermission();
+    if (isGranted && mounted) {
+      setState(() => _isLocationPermissionGranted = true);
     }
   }
 
@@ -652,33 +644,10 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     });
 
     try {
-      final isServiceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!isServiceEnabled) {
-        _showMessage(
-          'Layanan lokasi belum aktif. Aktifkan GPS lalu coba lagi.',
-        );
-        setState(() {
-          _statusHint = 'GPS belum aktif, pilih titik manual di peta.';
-        });
-        return;
-      }
-
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-
-      if (permission == LocationPermission.denied) {
-        _showMessage('Izin lokasi ditolak. Pilih titik manual di peta.');
-        setState(() {
-          _statusHint = 'Izin lokasi ditolak, pilih titik manual di peta.';
-        });
-        return;
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        _showMessage('Izin lokasi ditolak permanen. Aktifkan dari pengaturan.');
-        await Geolocator.openAppSettings();
+      final location = await MapPickerHelpers.currentLocation();
+      final failure = location.failure;
+      if (failure != null) {
+        _handleCurrentLocationFailure(failure);
         return;
       }
 
@@ -686,13 +655,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
         setState(() => _isLocationPermissionGranted = true);
       }
 
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
-      );
-
-      final target = LatLng(position.latitude, position.longitude);
+      final target = location.target!;
       _cameraTarget = target;
       await _animateCameraSafely(target, 18);
       final address = await _mapsLookup.reverseGeocode(target);
@@ -818,11 +781,9 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
       return;
     }
 
-    final routeDistanceMeters = _distanceMeters(
-      pickup.latitude,
-      pickup.longitude,
-      destination.latitude,
-      destination.longitude,
+    final routeDistanceMeters = MapPickerHelpers.distanceMeters(
+      LatLng(pickup.latitude, pickup.longitude),
+      LatLng(destination.latitude, destination.longitude),
     );
     if (routeDistanceMeters < _minimumRouteDistanceMeters) {
       _showMessage(_routeTooCloseMessage);
@@ -834,7 +795,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     }
 
     final hasDefaultPickup =
-        _validLatLng(
+        MapPickerHelpers.validLatLng(
           widget.args.defaultPickupLatitude,
           widget.args.defaultPickupLongitude,
         ) !=
@@ -916,39 +877,27 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     );
   }
 
-  LatLng? _validLatLng(double? latitude, double? longitude) {
-    if (latitude == null || longitude == null) return null;
-    if (latitude < -90 || latitude > 90) return null;
-    if (longitude < -180 || longitude > 180) return null;
-    if (latitude == 0 && longitude == 0) return null;
-    return LatLng(latitude, longitude);
+  void _handleCurrentLocationFailure(MapPickerLocationFailure failure) {
+    switch (failure) {
+      case MapPickerLocationFailure.serviceDisabled:
+        _showMessage(
+          'Layanan lokasi belum aktif. Aktifkan GPS lalu coba lagi.',
+        );
+        setState(() {
+          _statusHint = 'GPS belum aktif, pilih titik manual di peta.';
+        });
+        return;
+      case MapPickerLocationFailure.permissionDenied:
+        _showMessage('Izin lokasi ditolak. Pilih titik manual di peta.');
+        setState(() {
+          _statusHint = 'Izin lokasi ditolak, pilih titik manual di peta.';
+        });
+        return;
+      case MapPickerLocationFailure.permissionDeniedForever:
+        _showMessage('Izin lokasi ditolak permanen. Aktifkan dari pengaturan.');
+        return;
+    }
   }
-
-  double _distanceMeters(
-    double startLatitude,
-    double startLongitude,
-    double endLatitude,
-    double endLongitude,
-  ) {
-    const earthRadiusMeters = 6371000.0;
-    final startLatitudeRad = _degreesToRadians(startLatitude);
-    final endLatitudeRad = _degreesToRadians(endLatitude);
-    final deltaLatitudeRad = _degreesToRadians(endLatitude - startLatitude);
-    final deltaLongitudeRad = _degreesToRadians(endLongitude - startLongitude);
-
-    final haversine =
-        math.sin(deltaLatitudeRad / 2) * math.sin(deltaLatitudeRad / 2) +
-        math.cos(startLatitudeRad) *
-            math.cos(endLatitudeRad) *
-            math.sin(deltaLongitudeRad / 2) *
-            math.sin(deltaLongitudeRad / 2);
-    final centralAngle =
-        2 * math.atan2(math.sqrt(haversine), math.sqrt(1 - haversine));
-
-    return earthRadiusMeters * centralAngle;
-  }
-
-  double _degreesToRadians(double value) => value * math.pi / 180;
 }
 
 class _InfoHint extends StatelessWidget {

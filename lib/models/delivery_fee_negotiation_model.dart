@@ -5,12 +5,10 @@ class DeliveryFeeNegotiationModel {
   const DeliveryFeeNegotiationModel({
     required this.amount,
     this.oldDeliveryFee,
-    this.carefulCarryRequired,
   });
 
   final AmountNegotiationModel amount;
   final double? oldDeliveryFee;
-  final bool? carefulCarryRequired;
 
   String get status => amount.status;
   String? get triggerType => amount.triggerType;
@@ -40,9 +38,6 @@ class DeliveryFeeNegotiationModel {
       amount: AmountNegotiationModel.fromRaw(raw),
       oldDeliveryFee: ModelParseUtils.doubleOrNull(
         raw['old_delivery_fee'] ?? raw['oldDeliveryFee'],
-      ),
-      carefulCarryRequired: ModelParseUtils.boolOrNull(
-        raw['careful_carry_required'] ?? raw['carefulCarryRequired'],
       ),
     );
   }

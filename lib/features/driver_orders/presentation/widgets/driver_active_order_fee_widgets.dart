@@ -6,7 +6,6 @@ import '../../../../core/widgets/bang_negotiation_status_panel.dart';
 import '../../../../models/delivery_fee_negotiation_model.dart';
 import '../../../../models/driver_order_model.dart';
 import '../../../../utils/currency_formatter.dart';
-import '../../../../utils/service_type.dart';
 import 'driver_active_order_widget_helpers.dart';
 
 class DriverManualDeliveryFeeCard extends StatelessWidget {
@@ -27,16 +26,12 @@ class DriverManualDeliveryFeeCard extends StatelessWidget {
   final Future<String?> Function({
     required double amount,
     required String reason,
-    required bool carefulCarryRequired,
   })
   onSave;
   final Future<String?> Function() onAcceptCounter;
 
   @override
   Widget build(BuildContext context) {
-    final supportsCarefulCarry = serviceTypeSupportsCarefulCarry(
-      order.serviceTypeCode,
-    );
     final deliveryFeeSource = (order.deliveryFeeSource ?? '')
         .trim()
         .toLowerCase();
@@ -112,8 +107,6 @@ class DriverManualDeliveryFeeCard extends StatelessWidget {
               ),
               if (deliveryFeeSourceLabel.isNotEmpty)
                 _summaryChip('Sumber', deliveryFeeSourceLabel),
-              if (supportsCarefulCarry && order.carefulCarryRequired)
-                _summaryChip('Perlu 2 orang', 'aktif'),
             ],
           ),
           if (negotiation != null && negotiation.hasQuote) ...[
@@ -181,19 +174,11 @@ class DriverManualDeliveryFeeCard extends StatelessWidget {
   }
 
   Future<void> _openDialog(BuildContext context) async {
-    final supportsCarefulCarry = serviceTypeSupportsCarefulCarry(
-      order.serviceTypeCode,
-    );
-
     final result = await showDialog<_ManualDeliveryFeeInput>(
       context: context,
       builder: (context) => _ManualDeliveryFeeDialog(
         initialAmount: order.deliveryFee,
         initialReason: '',
-        initialCarefulCarryRequired:
-            supportsCarefulCarry && order.carefulCarryRequired,
-        supportsCarefulCarry: supportsCarefulCarry,
-        systemDeliveryFee: order.deliveryFee,
       ),
     );
 
@@ -201,11 +186,7 @@ class DriverManualDeliveryFeeCard extends StatelessWidget {
       return;
     }
 
-    final error = await onSave(
-      amount: result.amount,
-      reason: result.reason,
-      carefulCarryRequired: result.carefulCarryRequired,
-    );
+    final error = await onSave(amount: result.amount, reason: result.reason);
 
     if (!context.mounted) {
       return;
@@ -238,16 +219,10 @@ class _ManualDeliveryFeeDialog extends StatefulWidget {
   const _ManualDeliveryFeeDialog({
     required this.initialAmount,
     required this.initialReason,
-    required this.initialCarefulCarryRequired,
-    required this.supportsCarefulCarry,
-    required this.systemDeliveryFee,
   });
 
   final double? initialAmount;
   final String initialReason;
-  final bool initialCarefulCarryRequired;
-  final bool supportsCarefulCarry;
-  final double? systemDeliveryFee;
 
   @override
   State<_ManualDeliveryFeeDialog> createState() =>
@@ -257,8 +232,6 @@ class _ManualDeliveryFeeDialog extends StatefulWidget {
 class _ManualDeliveryFeeDialogState extends State<_ManualDeliveryFeeDialog> {
   late final TextEditingController _amountController;
   late final TextEditingController _reasonController;
-  late bool _carefulCarryRequired;
-  bool _amountTouchedByUser = false;
 
   @override
   void initState() {
@@ -268,8 +241,6 @@ class _ManualDeliveryFeeDialogState extends State<_ManualDeliveryFeeDialog> {
       text: initialAmount > 0 ? initialAmount.round().toString() : '',
     );
     _reasonController = TextEditingController(text: widget.initialReason);
-    _carefulCarryRequired =
-        widget.supportsCarefulCarry && widget.initialCarefulCarryRequired;
   }
 
   @override
@@ -317,7 +288,6 @@ class _ManualDeliveryFeeDialogState extends State<_ManualDeliveryFeeDialog> {
                     TextField(
                       controller: _amountController,
                       keyboardType: TextInputType.number,
-                      onChanged: (_) => _amountTouchedByUser = true,
                       style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 14,
@@ -343,17 +313,6 @@ class _ManualDeliveryFeeDialogState extends State<_ManualDeliveryFeeDialog> {
                         hintText: 'Contoh: rute sistem kurang akurat',
                       ),
                     ),
-                    if (widget.supportsCarefulCarry) ...[
-                      const SizedBox(height: 6),
-                      CheckboxListTile(
-                        value: _carefulCarryRequired,
-                        onChanged: _handleCarefulCarryChanged,
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        title: const Text('Perlu 2 orang / hati-hati'),
-                      ),
-                    ],
                     const SizedBox(height: 12),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
@@ -379,23 +338,6 @@ class _ManualDeliveryFeeDialogState extends State<_ManualDeliveryFeeDialog> {
     );
   }
 
-  void _handleCarefulCarryChanged(bool? value) {
-    setState(() {
-      _carefulCarryRequired = value ?? false;
-      final systemDeliveryFee = widget.systemDeliveryFee;
-      if (_carefulCarryRequired &&
-          !_amountTouchedByUser &&
-          systemDeliveryFee != null &&
-          systemDeliveryFee > 0) {
-        _amountController.text = systemDeliveryFee.round().toString();
-      }
-
-      if (_carefulCarryRequired && _reasonController.text.trim().isEmpty) {
-        _reasonController.text = 'Perlu 2 orang / barang harus hati-hati';
-      }
-    });
-  }
-
   void _close() {
     FocusManager.instance.primaryFocus?.unfocus();
     Navigator.of(context).pop();
@@ -409,25 +351,15 @@ class _ManualDeliveryFeeDialogState extends State<_ManualDeliveryFeeDialog> {
     }
 
     FocusManager.instance.primaryFocus?.unfocus();
-    Navigator.of(context).pop(
-      _ManualDeliveryFeeInput(
-        amount: amount,
-        reason: reason,
-        carefulCarryRequired:
-            widget.supportsCarefulCarry && _carefulCarryRequired,
-      ),
-    );
+    Navigator.of(
+      context,
+    ).pop(_ManualDeliveryFeeInput(amount: amount, reason: reason));
   }
 }
 
 class _ManualDeliveryFeeInput {
-  const _ManualDeliveryFeeInput({
-    required this.amount,
-    required this.reason,
-    required this.carefulCarryRequired,
-  });
+  const _ManualDeliveryFeeInput({required this.amount, required this.reason});
 
   final double amount;
   final String reason;
-  final bool carefulCarryRequired;
 }

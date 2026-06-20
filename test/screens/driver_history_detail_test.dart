@@ -211,7 +211,6 @@ class _FakeDriverHistoryService extends DriverOrderService {
           unitPrice: 12000,
           subtotal: 12000,
           isAvailable: true,
-          isHeavy: false,
           notes: 'less ice',
         ),
       ],

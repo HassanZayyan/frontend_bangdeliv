@@ -20,8 +20,6 @@ class ChatbotScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatbotScreen> createState() => _ChatbotScreenState();
 }
 
-enum _ChatbotMenuAction { history, restart }
-
 class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   late final TextEditingController _inputController;
   late final ScrollController _scrollController;
@@ -171,17 +169,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     _scrollToBottom();
   }
 
-  Future<void> _handleMenuAction(_ChatbotMenuAction action) async {
-    switch (action) {
-      case _ChatbotMenuAction.history:
-        await _openSessionPicker();
-        return;
-      case _ChatbotMenuAction.restart:
-        await _handleRestartConversation();
-        return;
-    }
-  }
-
   Future<void> _handleRestartConversation({
     bool requireConfirmation = true,
   }) async {
@@ -217,7 +204,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             ),
           ),
           content: const Text(
-            'Draft dan chat aktif untuk layanan ini akan diarsipkan. Kamu bisa mulai dari awal.',
+            'Chat aktif untuk layanan ini akan direset. Kamu bisa mulai dari awal.',
             style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
           ),
           actions: [
@@ -234,115 +221,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
               child: const Text('Mulai Ulang'),
             ),
           ],
-        );
-      },
-    );
-  }
-
-  Future<void> _openSessionPicker() async {
-    final notifier = ref.read(chatbotConversationProvider.notifier);
-    await notifier.refreshSessions(serviceType: _serviceContext.serviceType);
-
-    if (!mounted) {
-      return;
-    }
-
-    final state = ref.read(chatbotConversationProvider);
-
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppColors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        final sessions = state.sessions;
-
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Pilih Sesi Chat',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 10),
-                if (sessions.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    child: Text(
-                      'Belum ada sesi tersimpan untuk layanan ini.',
-                      style: TextStyle(color: AppColors.textSecondary),
-                    ),
-                  )
-                else
-                  Flexible(
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: sessions.length,
-                      separatorBuilder: (_, _) =>
-                          const Divider(height: 1, color: AppColors.border),
-                      itemBuilder: (context, index) {
-                        final session = sessions[index];
-                        final isActive =
-                            session.sessionId == state.sessionId?.trim();
-
-                        return ListTile(
-                          dense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 2,
-                            vertical: 2,
-                          ),
-                          title: Text(
-                            session.lastMessage.isEmpty
-                                ? session.sessionId
-                                : session.lastMessage,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 13),
-                          ),
-                          subtitle: Text(
-                            'Pesan: ${session.messageCount}',
-                            style: const TextStyle(fontSize: 11),
-                          ),
-                          trailing: isActive
-                              ? const Icon(
-                                  Icons.check_circle,
-                                  color: AppColors.success,
-                                  size: 18,
-                                )
-                              : null,
-                          onTap: () async {
-                            Navigator.of(context).pop();
-                            final hasSavedAddress = _hasSavedAddressInProfile();
-                            await notifier.selectSession(
-                              session.sessionId,
-                              serviceType: _serviceContext.serviceType,
-                              welcomeMessage: _serviceContext.welcomeMessageFor(
-                                hasSavedAddress,
-                              ),
-                            );
-                            if (!mounted) {
-                              return;
-                            }
-                            if (!hasSavedAddress) {
-                              notifier.ensureAddressGuardMessage(
-                                serviceType: _serviceContext.serviceType,
-                                message: _serviceContext.addressRequiredMessage,
-                              );
-                            }
-                            _scrollToBottom();
-                          },
-                        );
-                      },
-                    ),
-                  ),
-              ],
-            ),
-          ),
         );
       },
     );
@@ -464,61 +342,14 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           ],
         ),
         actions: [
-          PopupMenuButton<_ChatbotMenuAction>(
-            tooltip: 'Opsi chat',
-            enabled: !effectiveBusy && !state.pendingClearAfterOrderCreated,
-            icon: Icon(
-              Icons.more_vert,
-              color: !effectiveBusy && !state.pendingClearAfterOrderCreated
-                  ? AppColors.textPrimary
-                  : AppColors.textSecondary,
-            ),
-            color: AppColors.white,
-            onSelected: _handleMenuAction,
-            itemBuilder: (context) {
-              return const [
-                PopupMenuItem<_ChatbotMenuAction>(
-                  value: _ChatbotMenuAction.history,
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.history,
-                        color: AppColors.textPrimary,
-                        size: 20,
-                      ),
-                      SizedBox(width: 12),
-                      Flexible(
-                        child: Text(
-                          'Riwayat Sesi',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                PopupMenuItem<_ChatbotMenuAction>(
-                  value: _ChatbotMenuAction.restart,
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.restart_alt,
-                        color: AppColors.primary,
-                        size: 20,
-                      ),
-                      SizedBox(width: 12),
-                      Flexible(
-                        child: Text(
-                          'Mulai Ulang Pesanan',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ];
-            },
+          IconButton(
+            tooltip: 'Mulai ulang pesanan',
+            onPressed: effectiveBusy || state.pendingClearAfterOrderCreated
+                ? null
+                : _handleRestartConversation,
+            icon: const Icon(Icons.restart_alt),
+            color: AppColors.textPrimary,
+            disabledColor: AppColors.textSecondary,
           ),
         ],
       ),
@@ -914,24 +745,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             textColor: textColor,
           ),
         ],
-        if (parts.packageSizeLine != null &&
-            parts.packageSizeLine!.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          _buildDraftField(
-            label: 'Berat/Ukuran',
-            value: parts.packageSizeLine!,
-            textColor: textColor,
-          ),
-        ],
-        if (parts.packageSafetyLine != null &&
-            parts.packageSafetyLine!.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          _buildDraftField(
-            label: 'Status Barang',
-            value: parts.packageSafetyLine!,
-            textColor: textColor,
-          ),
-        ],
         if (parts.feeLine.isNotEmpty) ...[
           const SizedBox(height: 10),
           _buildAssistantNotice(parts.feeLine),
@@ -1293,9 +1106,9 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           value: parts.deliveryAddress,
           textColor: textColor,
         ),
-        if (parts.feeLines.isNotEmpty) ...[
+        if (parts.estimateLines.isNotEmpty) ...[
           const SizedBox(height: 10),
-          _buildAssistantNotice(parts.feeLines.join('\n')),
+          _buildAssistantNotice(parts.estimateLines.join('\n')),
         ],
         if (parts.instructionLines.isNotEmpty) ...[
           const SizedBox(height: 10),
@@ -1603,7 +1416,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       }
     }
 
-    final feeLines = _normalizeShoppingFeeLines(lines, firstFeeIndex);
+    final estimateLines = _normalizeShoppingEstimateLines(lines, firstFeeIndex);
     final instructionLines = _normalizeShoppingInstructionLines(
       lines,
       firstFeeIndex,
@@ -1617,17 +1430,19 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       headline: headline,
       stops: stops,
       deliveryAddress: deliveryAddress,
-      feeLines: feeLines,
+      estimateLines: estimateLines,
       instructionLines: instructionLines,
     );
   }
 
   bool _isShoppingMerchantHeader(String line) {
-    return RegExp(r'^merchant(?:\s+\d+)?$', caseSensitive: false)
-        .hasMatch(line.trim());
+    return RegExp(
+      r'^merchant(?:\s+\d+)?$',
+      caseSensitive: false,
+    ).hasMatch(line.trim());
   }
 
-  bool _isShoppingFeeLine(String line) {
+  bool _isShoppingEstimateLine(String line) {
     final lower = line.toLowerCase();
     return lower.startsWith('estimasi ongkir sementara:') ||
         lower.startsWith('estimasi total sementara:');
@@ -1664,29 +1479,32 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     return items;
   }
 
-  List<String> _normalizeShoppingFeeLines(List<String> lines, int startIndex) {
-    final feeLines = <String>[];
+  List<String> _normalizeShoppingEstimateLines(
+    List<String> lines,
+    int startIndex,
+  ) {
+    final estimateLines = <String>[];
     var index = startIndex;
 
     while (index < lines.length) {
       final line = lines[index].trim();
-      final isFeeLine = _isShoppingFeeLine(line);
+      final isEstimateLine = _isShoppingEstimateLine(line);
 
-      if (!isFeeLine) {
+      if (!isEstimateLine) {
         index += 1;
         continue;
       }
 
       if (line.toLowerCase().endsWith('rp') && index + 1 < lines.length) {
-        feeLines.add('$line ${lines[index + 1].trim()}');
+        estimateLines.add('$line ${lines[index + 1].trim()}');
         index += 2;
       } else {
-        feeLines.add(line);
+        estimateLines.add(line);
         index += 1;
       }
     }
 
-    return feeLines;
+    return estimateLines;
   }
 
   List<String> _normalizeShoppingInstructionLines(
@@ -1697,7 +1515,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     var hasSeenFee = false;
 
     for (final line in lines.skip(startIndex)) {
-      if (_isShoppingFeeLine(line)) {
+      if (_isShoppingEstimateLine(line)) {
         hasSeenFee = true;
         continue;
       }
@@ -1737,14 +1555,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     final packageIndex = lines.indexWhere(
       (line) => line.toLowerCase().startsWith('barang:'),
     );
-    final packageSizeIndex = lines.indexWhere((line) {
-      final lower = line.toLowerCase();
-      return lower.startsWith('ukuran/berat:') ||
-          lower.startsWith('berat/ukuran:');
-    });
-    final packageSafetyIndex = lines.indexWhere(
-      (line) => line.toLowerCase().startsWith('status barang:'),
-    );
     final feeIndex = lines.indexWhere((line) {
       final lower = line.toLowerCase();
       return lower.startsWith('estimasi ongkir sementara:') ||
@@ -1777,19 +1587,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             '',
           )
         : null;
-    final packageSizeLine = packageSizeIndex >= 0
-        ? lines[packageSizeIndex].replaceFirst(
-            RegExp(r'^(Ukuran/Berat|Berat/Ukuran):\s*', caseSensitive: false),
-            '',
-          )
-        : null;
-    final packageSafetyLine = packageSafetyIndex >= 0
-        ? lines[packageSafetyIndex].replaceFirst(
-            RegExp(r'^Status Barang:\s*', caseSensitive: false),
-            '',
-          )
-        : null;
-
     if (pickupAddress.isEmpty || destinationAddress.isEmpty) {
       return null;
     }
@@ -1806,8 +1603,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       pickupAddress: pickupAddress,
       destinationAddress: destinationAddress,
       packageDescription: packageDescription,
-      packageSizeLine: packageSizeLine,
-      packageSafetyLine: packageSafetyLine,
       feeLine: lines[feeIndex],
       instructionLine: instructionLine,
     );
@@ -1935,10 +1730,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     ref
         .read(chatbotConversationProvider.notifier)
         .onAddressBookUpdated(serviceType: _serviceContext.serviceType);
-
-    await ref
-        .read(chatbotConversationProvider.notifier)
-        .refreshSessions(serviceType: _serviceContext.serviceType);
 
     _scrollToBottom();
   }
@@ -2138,8 +1929,6 @@ class _DraftMessageParts {
     required this.pickupAddress,
     required this.destinationAddress,
     this.packageDescription,
-    this.packageSizeLine,
-    this.packageSafetyLine,
     required this.feeLine,
     required this.instructionLine,
   });
@@ -2149,8 +1938,6 @@ class _DraftMessageParts {
   final String pickupAddress;
   final String destinationAddress;
   final String? packageDescription;
-  final String? packageSizeLine;
-  final String? packageSafetyLine;
   final String feeLine;
   final String instructionLine;
 }
@@ -2160,14 +1947,14 @@ class _ShoppingDraftMessageParts {
     required this.headline,
     required this.stops,
     required this.deliveryAddress,
-    required this.feeLines,
+    required this.estimateLines,
     required this.instructionLines,
   });
 
   final String headline;
   final List<_ShoppingDraftStopParts> stops;
   final String deliveryAddress;
-  final List<String> feeLines;
+  final List<String> estimateLines;
   final List<String> instructionLines;
 }
 

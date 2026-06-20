@@ -5,7 +5,6 @@ import '../../../../models/driver_order_model.dart';
 import '../../../../utils/courier_package_formatter.dart';
 import '../../../../utils/currency_formatter.dart';
 import '../../../../utils/service_type.dart';
-import '../../../../widgets/shopping_fee_breakdown.dart';
 
 class DriverOrderMetaCard extends StatelessWidget {
   final DriverOrderModel order;
@@ -345,10 +344,6 @@ class DriverOrderMetaCard extends StatelessWidget {
   Widget _buildPricingSummary() {
     final fee = order.fee;
     final total = order.totalPrice.round();
-    final pricing = order.shoppingPricing;
-    final supportsCarefulCarry = serviceTypeSupportsCarefulCarry(
-      order.serviceTypeCode,
-    );
     final deliveryFeeSource = (order.deliveryFeeSource ?? '')
         .trim()
         .toLowerCase();
@@ -413,15 +408,9 @@ class DriverOrderMetaCard extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  if (deliveryFeeSourceLabel.isNotEmpty ||
-                      (supportsCarefulCarry && order.carefulCarryRequired))
+                  if (deliveryFeeSourceLabel.isNotEmpty)
                     Text(
-                      [
-                        if (deliveryFeeSourceLabel.isNotEmpty)
-                          deliveryFeeSourceLabel,
-                        if (supportsCarefulCarry && order.carefulCarryRequired)
-                          'perlu 2 orang',
-                      ].join(' - '),
+                      deliveryFeeSourceLabel,
                       style: const TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 11,
@@ -446,33 +435,6 @@ class DriverOrderMetaCard extends StatelessWidget {
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                if (pricing != null && pricing.feeBreakdown.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  ShoppingFeeBreakdown(
-                    items: pricing.feeBreakdown
-                        .map(
-                          (item) => ShoppingFeeBreakdownItem(
-                            label: item.label,
-                            description: item.description,
-                            amount: item.amount,
-                          ),
-                        )
-                        .toList(growable: false),
-                  ),
-                ] else if (order.feeBreakdown.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  ShoppingFeeBreakdown(
-                    items: order.feeBreakdown
-                        .map(
-                          (item) => ShoppingFeeBreakdownItem(
-                            label: item.label,
-                            description: item.description,
-                            amount: item.amount,
-                          ),
-                        )
-                        .toList(growable: false),
-                  ),
-                ],
               ],
             ),
           ),

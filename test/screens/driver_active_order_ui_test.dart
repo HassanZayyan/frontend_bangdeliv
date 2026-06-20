@@ -34,12 +34,8 @@ void main() {
   test('shopping checkout item cards use compact spacing', () {
     final widgetsSource = File(shoppingWidgetsPath).readAsStringSync();
     final itemEditor = widgetsSource.substring(
-      widgetsSource.indexOf(
-        'Widget _buildItemEditor(DriverShoppingItemModel item)',
-      ),
-      widgetsSource.indexOf(
-        'Widget _buildStopSection(DriverShoppingStopModel stop)',
-      ),
+      widgetsSource.indexOf('Widget _buildItemEditor('),
+      widgetsSource.indexOf('Widget _buildStopSection('),
     );
 
     expect(

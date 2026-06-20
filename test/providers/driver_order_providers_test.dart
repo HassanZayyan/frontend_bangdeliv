@@ -558,7 +558,6 @@ void main() {
                   unitPrice: 0,
                   subtotal: 0,
                   isAvailable: true,
-                  isHeavy: false,
                 ),
               ],
             ),
@@ -602,7 +601,6 @@ void main() {
                 unitPrice: 0,
                 subtotal: 0,
                 isAvailable: true,
-                isHeavy: false,
               ),
               DriverShoppingItemModel(
                 id: 2,
@@ -612,7 +610,6 @@ void main() {
                 unitPrice: 0,
                 subtotal: 0,
                 isAvailable: true,
-                isHeavy: false,
               ),
             ],
           ),

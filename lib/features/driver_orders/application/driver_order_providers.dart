@@ -800,7 +800,6 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     required String orderId,
     required double amount,
     required String reason,
-    bool? carefulCarryRequired,
   }) async {
     return _mutateRunningOrder(
       orderId: orderId,
@@ -809,7 +808,6 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         orderId: orderId,
         amount: amount,
         reason: reason,
-        carefulCarryRequired: carefulCarryRequired,
       ),
     );
   }

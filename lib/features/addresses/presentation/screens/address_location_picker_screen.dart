@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../models/address_location_picker_result.dart';
 import '../../../../services/google_maps_lookup_service.dart';
+import '../../../../utils/map_picker_helpers.dart';
 
 class AddressLocationPickerScreen extends StatefulWidget {
   const AddressLocationPickerScreen({
@@ -43,17 +43,14 @@ class _AddressLocationPickerScreenState
   void initState() {
     super.initState();
 
-    final hasInitialCoordinate =
-        widget.initialLatitude != null &&
-        widget.initialLongitude != null &&
-        widget.initialLatitude! >= -90 &&
-        widget.initialLatitude! <= 90 &&
-        widget.initialLongitude! >= -180 &&
-        widget.initialLongitude! <= 180;
+    final initialTarget = MapPickerHelpers.validLatLng(
+      widget.initialLatitude,
+      widget.initialLongitude,
+      allowZero: true,
+    );
+    final hasInitialCoordinate = initialTarget != null;
 
-    _cameraTarget = hasInitialCoordinate
-        ? LatLng(widget.initialLatitude!, widget.initialLongitude!)
-        : _fallbackCenter;
+    _cameraTarget = initialTarget ?? _fallbackCenter;
 
     _initialZoom = hasInitialCoordinate ? 17.0 : 13.0;
 
@@ -71,17 +68,11 @@ class _AddressLocationPickerScreenState
   }
 
   Future<void> _checkLocationPermission() async {
-    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return;
-
-    final permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.always ||
-        permission == LocationPermission.whileInUse) {
-      if (mounted) {
-        setState(() {
-          _isLocationPermissionGranted = true;
-        });
-      }
+    final isGranted = await MapPickerHelpers.hasLocationPermission();
+    if (isGranted && mounted) {
+      setState(() {
+        _isLocationPermissionGranted = true;
+      });
     }
   }
 
@@ -377,45 +368,19 @@ class _AddressLocationPickerScreenState
     });
 
     try {
-      final isServiceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!isServiceEnabled) {
-        _showMessage(
-          'Layanan lokasi belum aktif. Aktifkan GPS lalu coba lagi.',
-        );
-        return;
-      }
+      final location = await MapPickerHelpers.currentLocation();
+      final failure = location.failure;
+      if (failure != null) {
+        _showCurrentLocationFailure(failure);
 
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-
-      if (permission == LocationPermission.denied) {
-        _showMessage('Izin lokasi ditolak. Pilih titik manual di peta.');
-        return;
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        _showMessage(
-          'Izin lokasi ditolak permanen. Buka pengaturan untuk mengaktifkannya.',
-        );
-        await Geolocator.openAppSettings();
         return;
       }
 
       if (!_isLocationPermissionGranted && mounted) {
-        setState(() {
-          _isLocationPermissionGranted = true;
-        });
+        setState(() => _isLocationPermissionGranted = true);
       }
 
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
-      );
-
-      final target = LatLng(position.latitude, position.longitude);
+      final target = location.target!;
       _cameraTarget = target;
 
       final controller = _mapController;
@@ -463,6 +428,24 @@ class _AddressLocationPickerScreenState
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.black87),
     );
+  }
+
+  void _showCurrentLocationFailure(MapPickerLocationFailure failure) {
+    switch (failure) {
+      case MapPickerLocationFailure.serviceDisabled:
+        _showMessage(
+          'Layanan lokasi belum aktif. Aktifkan GPS lalu coba lagi.',
+        );
+        return;
+      case MapPickerLocationFailure.permissionDenied:
+        _showMessage('Izin lokasi ditolak. Pilih titik manual di peta.');
+        return;
+      case MapPickerLocationFailure.permissionDeniedForever:
+        _showMessage(
+          'Izin lokasi ditolak permanen. Buka pengaturan untuk mengaktifkannya.',
+        );
+        return;
+    }
   }
 
   Future<void> _goToPlace(String? placeId) async {

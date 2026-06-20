@@ -9,17 +9,6 @@ abstract class ChatbotRepository {
     String? sessionId,
   });
 
-  Future<List<ChatbotSessionSummary>> fetchSessions({
-    String? serviceType,
-    int limit = 20,
-  });
-
-  Future<ChatbotHistoryPage> fetchSessionHistory(
-    String sessionId, {
-    int limit = 50,
-    int? beforeId,
-  });
-
   Future<ChatbotResult> patchSessionLocation(
     String sessionId, {
     required String serviceType,
@@ -61,27 +50,6 @@ class ApiChatbotRepository implements ChatbotRepository {
       message,
       serviceType: serviceType,
       sessionId: sessionId,
-    );
-  }
-
-  @override
-  Future<List<ChatbotSessionSummary>> fetchSessions({
-    String? serviceType,
-    int limit = 20,
-  }) {
-    return _service.fetchSessions(serviceType: serviceType, limit: limit);
-  }
-
-  @override
-  Future<ChatbotHistoryPage> fetchSessionHistory(
-    String sessionId, {
-    int limit = 50,
-    int? beforeId,
-  }) {
-    return _service.fetchSessionHistory(
-      sessionId,
-      limit: limit,
-      beforeId: beforeId,
     );
   }
 

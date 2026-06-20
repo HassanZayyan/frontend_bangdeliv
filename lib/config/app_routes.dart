@@ -36,7 +36,6 @@ class AppRoutes {
   static const String register = '/register';
   static const String registerDriver = '/register-driver';
   static const String registerSuccess = '/register-success';
-  static const String forgotPassword = '/forgot-password';
   static const String privacyMapPreview = '/privacy-map-preview';
 
   static String menuDetailPath(String menuId) {

@@ -75,14 +75,6 @@ bool isPaymentPaid(String? status) {
   return (status ?? '').trim().toLowerCase() == 'paid';
 }
 
-int carefulCarryDefaultDeliveryFee(double baseDeliveryFee) {
-  if (baseDeliveryFee <= 0) {
-    return 0;
-  }
-
-  return (baseDeliveryFee * 1.5).round();
-}
-
 String paymentStatusLabel(String? status) {
   return isPaymentPaid(status) ? 'Sudah dibayar' : 'Belum dibayar';
 }

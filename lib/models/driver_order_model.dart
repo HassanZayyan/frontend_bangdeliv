@@ -30,7 +30,6 @@ class DriverOrderModel {
   final String? deliveryFeeSource;
   final double? manualDeliveryFee;
   final String? manualDeliveryFeeReason;
-  final bool carefulCarryRequired;
   final double totalPrice;
   final int itemCount;
   final String statusCode;
@@ -49,7 +48,6 @@ class DriverOrderModel {
   final ShoppingNegotiationModel? shoppingNegotiation;
   final ShoppingOrderCapabilitiesModel shoppingCapabilities;
   final ShoppingItemChangeRequestModel? shoppingItemChangeRequest;
-  final List<DriverShoppingFeeBreakdownModel> feeBreakdown;
   final List<DriverOrderProofModel> proofs;
   final bool hasPendingShoppingPrices;
   final DriverDispatchModel? dispatch;
@@ -75,7 +73,6 @@ class DriverOrderModel {
     this.deliveryFeeSource,
     this.manualDeliveryFee,
     this.manualDeliveryFeeReason,
-    this.carefulCarryRequired = false,
     this.totalPrice = 0,
     required this.itemCount,
     this.statusCode = OrderStatusCodes.pending,
@@ -95,7 +92,6 @@ class DriverOrderModel {
     this.shoppingNegotiation,
     this.shoppingCapabilities = const ShoppingOrderCapabilitiesModel(),
     this.shoppingItemChangeRequest,
-    this.feeBreakdown = const <DriverShoppingFeeBreakdownModel>[],
     this.proofs = const <DriverOrderProofModel>[],
     this.hasPendingShoppingPrices = false,
     this.dispatch,
@@ -155,7 +151,6 @@ class DriverOrderModel {
       deliveryFeeSource: deliveryFeeSource,
       manualDeliveryFee: manualDeliveryFee,
       manualDeliveryFeeReason: manualDeliveryFeeReason,
-      carefulCarryRequired: carefulCarryRequired,
       totalPrice: totalPrice,
       itemCount: itemCount,
       statusCode: statusCode ?? this.statusCode,
@@ -174,7 +169,6 @@ class DriverOrderModel {
       shoppingNegotiation: shoppingNegotiation,
       shoppingCapabilities: shoppingCapabilities,
       shoppingItemChangeRequest: shoppingItemChangeRequest,
-      feeBreakdown: feeBreakdown,
       proofs: proofs,
       hasPendingShoppingPrices: hasPendingShoppingPrices,
       dispatch: dispatch,
@@ -297,12 +291,6 @@ class DriverOrderModel {
       ),
       manualDeliveryFee: null,
       manualDeliveryFeeReason: null,
-      carefulCarryRequired: _asBool(
-        json['careful_carry_required'] ??
-            json['carefulCarryRequired'] ??
-            pricingRaw?['careful_carry_required'] ??
-            pricingSnapshot['careful_carry_required'],
-      ),
       totalPrice: _asDouble(json['total_price'] ?? json['totalPrice']),
       itemCount: _asInt(json['item_count'] ?? json['itemCount'], fallback: 0),
       statusCode: normalizeOrderStatusCode(
@@ -350,11 +338,6 @@ class DriverOrderModel {
         json['shopping_item_change_request'] ??
             json['shoppingItemChangeRequest'],
       ),
-      feeBreakdown: _parseTopLevelFeeBreakdown(
-        json['fee_breakdown'] ??
-            pricingRaw?['fee_breakdown'] ??
-            pricingSnapshot['fee_breakdown'],
-      ),
       proofs: DriverOrderProofModel.parseList(
         json['proofs'] ??
             json['order_proofs'] ??
@@ -398,12 +381,6 @@ class DriverOrderModel {
     return parseBackendDateTime(value);
   }
 
-  static bool _asBool(dynamic value) {
-    if (value is bool) return value;
-    final normalized = value?.toString().trim().toLowerCase() ?? '';
-    return normalized == 'true' || normalized == '1' || normalized == 'yes';
-  }
-
   static String? _normalizeDeliveryFeeSource(dynamic value) {
     final source = value?.toString().trim().toLowerCase() ?? '';
     if (source.isEmpty) {
@@ -411,20 +388,6 @@ class DriverOrderModel {
     }
 
     return source == 'manual' ? 'driver_manual' : source;
-  }
-
-  static List<DriverShoppingFeeBreakdownModel> _parseTopLevelFeeBreakdown(
-    dynamic raw,
-  ) {
-    if (raw is! List) {
-      return const <DriverShoppingFeeBreakdownModel>[];
-    }
-
-    return raw
-        .whereType<Map<String, dynamic>>()
-        .map(DriverShoppingFeeBreakdownModel.fromJson)
-        .where((row) => row.amount > 0)
-        .toList(growable: false);
   }
 }
 
@@ -566,7 +529,6 @@ class DriverShoppingItemModel {
   final double unitPrice;
   final double subtotal;
   final bool isAvailable;
-  final bool isHeavy;
   final String? notes;
   final String? priceStatus;
 
@@ -580,7 +542,6 @@ class DriverShoppingItemModel {
     required this.unitPrice,
     required this.subtotal,
     required this.isAvailable,
-    required this.isHeavy,
     this.notes,
     this.priceStatus,
   });
@@ -608,7 +569,6 @@ class DriverShoppingItemModel {
       unitPrice: DriverOrderModel._asDouble(json['unit_price']),
       subtotal: DriverOrderModel._asDouble(json['subtotal']),
       isAvailable: json['is_available'] != false,
-      isHeavy: json['is_heavy'] == true,
       notes: json['notes']?.toString(),
       priceStatus: json['price_status']?.toString(),
     );
@@ -744,59 +704,36 @@ class DriverShoppingPricingModel {
   final double deliveryFee;
   final double serviceFee;
   final double totalPrice;
-  final double itemSurcharge;
-  final double overweightSurcharge;
   final double cancellationPenalty;
   final int recalculationVersion;
   final bool hasPendingManualPrices;
   final int failedAttemptCount;
   final int failedAttemptThreshold;
   final bool canCancelWithFee;
-  final List<DriverShoppingFeeBreakdownModel> feeBreakdown;
 
   const DriverShoppingPricingModel({
     required this.subtotal,
     required this.deliveryFee,
     required this.serviceFee,
     required this.totalPrice,
-    required this.itemSurcharge,
-    required this.overweightSurcharge,
     required this.cancellationPenalty,
     required this.recalculationVersion,
     required this.hasPendingManualPrices,
     this.failedAttemptCount = 0,
     this.failedAttemptThreshold = 3,
     this.canCancelWithFee = false,
-    this.feeBreakdown = const <DriverShoppingFeeBreakdownModel>[],
   });
 
   factory DriverShoppingPricingModel.fromJson(Map<String, dynamic> json) {
-    final itemSurcharge = DriverOrderModel._asDouble(json['item_surcharge']);
-    final overweightSurcharge = DriverOrderModel._asDouble(
-      json['overweight_surcharge'],
-    );
     final cancellationPenalty = DriverOrderModel._asDouble(
       json['cancellation_penalty'],
-    );
-    final feeBreakdown = DriverShoppingFeeBreakdownModel.parse(
-      json['fee_breakdown'],
-      itemSurcharge: itemSurcharge,
-      overweightSurcharge: overweightSurcharge,
-      cancellationPenalty: cancellationPenalty,
-    );
-    final rawServiceFee = DriverOrderModel._asDouble(json['service_fee']);
-    final feeBreakdownTotal = feeBreakdown.fold<double>(
-      0,
-      (total, row) => total + row.amount,
     );
 
     return DriverShoppingPricingModel(
       subtotal: DriverOrderModel._asDouble(json['subtotal']),
       deliveryFee: DriverOrderModel._asDouble(json['delivery_fee']),
-      serviceFee: rawServiceFee > 0 ? rawServiceFee : feeBreakdownTotal,
+      serviceFee: DriverOrderModel._asDouble(json['service_fee']),
       totalPrice: DriverOrderModel._asDouble(json['total_price']),
-      itemSurcharge: itemSurcharge,
-      overweightSurcharge: overweightSurcharge,
       cancellationPenalty: cancellationPenalty,
       recalculationVersion: DriverOrderModel._asInt(
         json['recalculation_version'],
@@ -812,73 +749,7 @@ class DriverShoppingPricingModel {
         fallback: 3,
       ),
       canCancelWithFee: json['can_cancel_with_fee'] == true,
-      feeBreakdown: feeBreakdown,
     );
-  }
-}
-
-class DriverShoppingFeeBreakdownModel {
-  final String code;
-  final String label;
-  final String description;
-  final double amount;
-
-  const DriverShoppingFeeBreakdownModel({
-    required this.code,
-    required this.label,
-    required this.description,
-    required this.amount,
-  });
-
-  factory DriverShoppingFeeBreakdownModel.fromJson(Map<String, dynamic> json) {
-    return DriverShoppingFeeBreakdownModel(
-      code: (json['code'] ?? '').toString(),
-      label: (json['label'] ?? 'Biaya layanan').toString(),
-      description: (json['description'] ?? '').toString(),
-      amount: DriverOrderModel._asDouble(json['amount']),
-    );
-  }
-
-  static List<DriverShoppingFeeBreakdownModel> parse(
-    dynamic raw, {
-    required double itemSurcharge,
-    required double overweightSurcharge,
-    required double cancellationPenalty,
-  }) {
-    if (raw is List) {
-      final parsed = raw
-          .whereType<Map<String, dynamic>>()
-          .map(DriverShoppingFeeBreakdownModel.fromJson)
-          .where((row) => row.amount > 0)
-          .toList(growable: false);
-      if (parsed.isNotEmpty) {
-        return parsed;
-      }
-    }
-
-    return [
-      if (itemSurcharge > 0)
-        DriverShoppingFeeBreakdownModel(
-          code: 'ITEM_BLOCK_SURCHARGE',
-          label: 'Biaya banyak item',
-          description: 'Tambahan saat jumlah item melewati batas gratis',
-          amount: itemSurcharge,
-        ),
-      if (overweightSurcharge > 0)
-        DriverShoppingFeeBreakdownModel(
-          code: 'OVERWEIGHT_FLAT_SURCHARGE',
-          label: 'Item berat',
-          description: 'Dikenakan sekali per order',
-          amount: overweightSurcharge,
-        ),
-      if (cancellationPenalty > 0)
-        DriverShoppingFeeBreakdownModel(
-          code: 'CANCELLATION_PENALTY_AFTER_FAILED_ATTEMPTS',
-          label: 'Penalty merchant gagal',
-          description: '50% ongkir setelah batas percobaan gagal',
-          amount: cancellationPenalty,
-        ),
-    ];
   }
 }
 
