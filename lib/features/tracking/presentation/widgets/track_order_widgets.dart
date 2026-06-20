@@ -130,7 +130,7 @@ class _TrackShoppingOrderItemsCardState
             const Divider(height: 18, color: AppColors.border),
             _pricingRow('Subtotal barang', pricing.subtotal),
             _pricingRow('Ongkir', pricing.deliveryFee),
-            _pricingRow('Biaya layanan', pricing.serviceFee),
+            _pricingRow(detail.shoppingServiceFeeLabel, pricing.serviceFee),
             const SizedBox(height: 4),
             _pricingRow('Total', pricing.totalPrice, isTotal: true),
           ],
@@ -171,16 +171,6 @@ class _TrackShoppingOrderItemsCardState
               ),
             ],
           ),
-          if ((stop.failureReason ?? '').trim().isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              stop.failureReason!.trim(),
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12,
-              ),
-            ),
-          ],
         ],
       ),
     );

@@ -399,6 +399,7 @@ class DriverOrderProofModel {
     this.photoUrl,
     this.status,
     this.note,
+    this.uploaderUserId,
     this.pickupLocationId,
     this.createdAt,
   });
@@ -409,6 +410,7 @@ class DriverOrderProofModel {
   final String? photoUrl;
   final String? status;
   final String? note;
+  final int? uploaderUserId;
   final int? pickupLocationId;
   final DateTime? createdAt;
 
@@ -438,6 +440,9 @@ class DriverOrderProofModel {
       photoUrl: rawUrl.isEmpty ? null : AppEnv.resolveBackendAssetUrl(rawUrl),
       status: (json['status'] ?? json['verification_status'])?.toString(),
       note: (json['note'] ?? json['notes'])?.toString(),
+      uploaderUserId: DriverOrderModel._asIntOrNull(
+        json['uploader_user_id'] ?? json['user_id'] ?? json['userId'],
+      ),
       pickupLocationId: DriverOrderModel._asIntOrNull(
         json['pickup_location_id'] ?? json['pickupLocationId'],
       ),
@@ -580,9 +585,6 @@ class DriverShoppingStopModel {
   final int sequenceNo;
   final String fulfillmentStatus;
   final int failedAttemptCount;
-  final String? failureReason;
-  final DateTime? failedAt;
-  final DateTime? resolvedAt;
   final bool availabilityConfirmed;
   final DriverShoppingMerchantModel merchant;
   final List<DriverShoppingItemModel> items;
@@ -592,9 +594,6 @@ class DriverShoppingStopModel {
     required this.sequenceNo,
     this.fulfillmentStatus = 'PENDING',
     this.failedAttemptCount = 0,
-    this.failureReason,
-    this.failedAt,
-    this.resolvedAt,
     this.availabilityConfirmed = false,
     required this.merchant,
     required this.items,
@@ -640,9 +639,6 @@ class DriverShoppingStopModel {
         json['failed_attempt_count'],
         fallback: 0,
       ),
-      failureReason: json['failure_reason']?.toString(),
-      failedAt: DriverOrderModel._asDateTime(json['failed_at']),
-      resolvedAt: DriverOrderModel._asDateTime(json['resolved_at']),
       availabilityConfirmed: json['availability_confirmed'] == true,
       merchant: DriverShoppingMerchantModel.fromJson(merchantJson),
       items: rawItems

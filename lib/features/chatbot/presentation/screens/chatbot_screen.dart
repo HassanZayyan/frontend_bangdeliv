@@ -248,23 +248,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     return _serviceContext.welcomeMessageFor(hasUsableSavedAddress(addresses));
   }
 
-  Future<void> _clearCompletedActiveChatbotSession() async {
-    final state = ref.read(chatbotConversationProvider);
-    if (state.serviceType != _serviceContext.serviceType ||
-        !state.pendingClearAfterOrderCreated) {
-      return;
-    }
-
-    await ref
-        .read(chatbotConversationProvider.notifier)
-        .clearCompletedActiveSession(
-          serviceType: _serviceContext.serviceType,
-          welcomeMessage: _currentWelcomeMessage(),
-        );
-  }
-
   Future<void> _handleBack() async {
-    await _clearCompletedActiveChatbotSession();
     if (!mounted) {
       return;
     }
@@ -288,7 +272,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     final state = ref.watch(chatbotConversationProvider);
     final isServiceMismatch = state.serviceType != _serviceContext.serviceType;
     final effectiveBusy = state.isBusy || isServiceMismatch;
-    final inputEnabled = !effectiveBusy && !state.pendingClearAfterOrderCreated;
+    final inputEnabled = !effectiveBusy;
     final latestActionMessageIndex = state.messages.lastIndexWhere(
       (message) => !message.isUser && message.actionHints.isNotEmpty,
     );
@@ -344,9 +328,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         actions: [
           IconButton(
             tooltip: 'Mulai ulang pesanan',
-            onPressed: effectiveBusy || state.pendingClearAfterOrderCreated
-                ? null
-                : _handleRestartConversation,
+            onPressed: effectiveBusy ? null : _handleRestartConversation,
             icon: const Icon(Icons.restart_alt),
             color: AppColors.textPrimary,
             disabledColor: AppColors.textSecondary,
@@ -1900,14 +1882,11 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         ? context.push(AppRoutes.track, extra: orderId)
         : context.push(AppRoutes.track);
 
-    await _clearCompletedActiveChatbotSession();
     await routeFuture;
   }
 
   Future<void> _handleOpenActivityAction() async {
-    final cleanupFuture = _clearCompletedActiveChatbotSession();
     context.go(AppRoutes.activity);
-    await cleanupFuture;
   }
 
   SavedAddressModel? _defaultSavedAddress() {

@@ -409,16 +409,25 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
   final Map<int, bool> _availability = {};
   final Set<int> _dirtyAvailabilityIds = {};
   bool _isUploadingReceipt = false;
+  bool _checkoutSavedLocally = false;
 
   @override
   void initState() {
     super.initState();
+    _checkoutSavedLocally = widget.order.shoppingCapabilities.hasCheckoutSaved;
     _syncControllers();
   }
 
   @override
   void didUpdateWidget(covariant DriverShoppingItemsCard oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.order.id != widget.order.id) {
+      _checkoutSavedLocally =
+          widget.order.shoppingCapabilities.hasCheckoutSaved;
+    } else if (widget.order.shoppingCapabilities.hasCheckoutSaved) {
+      _checkoutSavedLocally = true;
+    }
+
     if (oldWidget.order.shoppingItems != widget.order.shoppingItems) {
       _syncControllers();
     }
@@ -453,7 +462,12 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     final checkoutAllowed =
         widget.canCheckout &&
         (widget.order.shoppingNegotiation?.checkoutAllowed ?? false);
-    final showCheckoutFields = widget.canUploadReceipt && checkoutAllowed;
+    final checkoutSaved =
+        widget.order.shoppingCapabilities.hasCheckoutSaved ||
+        _checkoutSavedLocally;
+    final showCheckoutFields =
+        widget.canUploadReceipt && (checkoutAllowed || checkoutSaved);
+    final canSaveCheckout = checkoutAllowed && !checkoutSaved;
     final canEditAvailability =
         widget.canEditAvailability &&
         !widget.order.shoppingCapabilities.hasPendingItemChangeRequest;
@@ -539,11 +553,15 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
             SizedBox(
               width: double.infinity,
               child: BangActionButton(
-                label: 'Simpan Checkout Nitip',
-                icon: Icons.receipt_long,
+                label: checkoutSaved
+                    ? 'Checkout Nitip Tersimpan'
+                    : 'Simpan Checkout Nitip',
+                icon: checkoutSaved
+                    ? Icons.check_circle_outline
+                    : Icons.receipt_long,
                 isLoading: widget.isSavingCheckout,
                 isEnabled:
-                    checkoutAllowed &&
+                    canSaveCheckout &&
                     (!widget.isOrderBusy || widget.isSavingCheckout),
                 onPressed: _save,
               ),
@@ -786,20 +804,6 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
                   color: AppColors.textSecondary,
                   fontSize: 12,
                   height: 1.35,
-                ),
-              ),
-            ),
-          ],
-          if ((stop.failureReason ?? '').trim().isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Padding(
-              padding: const EdgeInsets.only(left: 32),
-              child: Text(
-                stop.failureReason!.trim(),
-                style: const TextStyle(
-                  color: AppColors.error,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
@@ -1119,7 +1123,10 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     );
 
     if (error == null) {
-      setState(_syncControllers);
+      setState(() {
+        _checkoutSavedLocally = true;
+        _syncControllers();
+      });
     }
   }
 }

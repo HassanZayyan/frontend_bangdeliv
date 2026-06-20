@@ -108,7 +108,6 @@ class ChatbotConversationState {
     required this.isSending,
     required this.isApplyingAction,
     required this.hasInitialized,
-    required this.pendingClearAfterOrderCreated,
     required this.errorMessage,
   });
 
@@ -119,7 +118,6 @@ class ChatbotConversationState {
   final bool isSending;
   final bool isApplyingAction;
   final bool hasInitialized;
-  final bool pendingClearAfterOrderCreated;
   final String? errorMessage;
 
   bool get isBusy => isBootstrapping || isSending || isApplyingAction;
@@ -132,7 +130,6 @@ class ChatbotConversationState {
     bool? isSending,
     bool? isApplyingAction,
     bool? hasInitialized,
-    bool? pendingClearAfterOrderCreated,
     String? errorMessage,
     bool clearSessionId = false,
     bool clearErrorMessage = false,
@@ -145,8 +142,6 @@ class ChatbotConversationState {
       isSending: isSending ?? this.isSending,
       isApplyingAction: isApplyingAction ?? this.isApplyingAction,
       hasInitialized: hasInitialized ?? this.hasInitialized,
-      pendingClearAfterOrderCreated:
-          pendingClearAfterOrderCreated ?? this.pendingClearAfterOrderCreated,
       errorMessage: clearErrorMessage
           ? null
           : (errorMessage ?? this.errorMessage),
@@ -165,7 +160,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       isSending: false,
       isApplyingAction: false,
       hasInitialized: false,
-      pendingClearAfterOrderCreated: false,
       errorMessage: null,
     );
   }
@@ -183,7 +177,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       isSending: false,
       isApplyingAction: false,
       hasInitialized: false,
-      pendingClearAfterOrderCreated: false,
       errorMessage: null,
     );
   }
@@ -201,7 +194,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     state = state.copyWith(
       isBootstrapping: true,
       hasInitialized: true,
-      pendingClearAfterOrderCreated: false,
       clearErrorMessage: true,
     );
 
@@ -218,7 +210,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         ),
       ],
       isBootstrapping: false,
-      pendingClearAfterOrderCreated: false,
       clearErrorMessage: true,
     );
   }
@@ -230,10 +221,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     _ensureService(serviceType);
 
     final message = rawMessage.trim();
-    if (message.isEmpty ||
-        state.isSending ||
-        state.isBootstrapping ||
-        state.pendingClearAfterOrderCreated) {
+    if (message.isEmpty || state.isSending || state.isBootstrapping) {
       return;
     }
 
@@ -266,10 +254,11 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         sessionId: sessionId,
       );
 
-      final canonicalSessionId = result.sessionId?.trim();
-      if (canonicalSessionId != null && canonicalSessionId.isNotEmpty) {
-        sessionId = canonicalSessionId;
-      }
+      sessionId = await _sessionIdAfterResult(
+        result,
+        serviceType: serviceType,
+        fallbackSessionId: sessionId,
+      );
 
       state = state.copyWith(
         serviceType: serviceType,
@@ -279,7 +268,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
           ...state.messages,
           _messageFromResult(result, serviceType),
         ],
-        pendingClearAfterOrderCreated: result.isOrderCreated,
         clearErrorMessage: true,
       );
     } on ApiException catch (error) {
@@ -340,11 +328,11 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         address: address,
       );
 
-      final canonicalSessionId = result.sessionId?.trim();
-      final resolvedSessionId =
-          canonicalSessionId != null && canonicalSessionId.isNotEmpty
-          ? canonicalSessionId
-          : sessionId;
+      final resolvedSessionId = await _sessionIdAfterResult(
+        result,
+        serviceType: serviceType,
+        fallbackSessionId: sessionId,
+      );
 
       state = state.copyWith(
         serviceType: serviceType,
@@ -354,7 +342,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
           ...state.messages,
           _messageFromResult(result, serviceType),
         ],
-        pendingClearAfterOrderCreated: result.isOrderCreated,
         clearErrorMessage: true,
       );
     } catch (_) {
@@ -402,11 +389,11 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
             .toList(growable: false),
       );
 
-      final canonicalSessionId = result.sessionId?.trim();
-      final resolvedSessionId =
-          canonicalSessionId != null && canonicalSessionId.isNotEmpty
-          ? canonicalSessionId
-          : sessionId;
+      final resolvedSessionId = await _sessionIdAfterResult(
+        result,
+        serviceType: serviceType,
+        fallbackSessionId: sessionId,
+      );
 
       state = state.copyWith(
         serviceType: serviceType,
@@ -416,7 +403,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
           ...state.messages,
           _messageFromResult(result, serviceType),
         ],
-        pendingClearAfterOrderCreated: result.isOrderCreated,
         clearErrorMessage: true,
       );
     } catch (_) {
@@ -459,11 +445,11 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         mode: mode,
       );
 
-      final canonicalSessionId = result.sessionId?.trim();
-      final resolvedSessionId =
-          canonicalSessionId != null && canonicalSessionId.isNotEmpty
-          ? canonicalSessionId
-          : sessionId;
+      final resolvedSessionId = await _sessionIdAfterResult(
+        result,
+        serviceType: serviceType,
+        fallbackSessionId: sessionId,
+      );
 
       state = state.copyWith(
         serviceType: serviceType,
@@ -473,7 +459,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
           ...state.messages,
           _messageFromResult(result, serviceType),
         ],
-        pendingClearAfterOrderCreated: result.isOrderCreated,
         clearErrorMessage: true,
       );
     } catch (_) {
@@ -484,47 +469,28 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     }
   }
 
-  Future<void> clearCompletedActiveSession({
+  Future<String> _sessionIdAfterResult(
+    ChatbotResult result, {
     required String serviceType,
-    required String welcomeMessage,
+    required String fallbackSessionId,
   }) async {
-    _ensureService(serviceType);
+    final canonicalSessionId = result.sessionId?.trim();
+    final sessionId =
+        canonicalSessionId != null && canonicalSessionId.isNotEmpty
+        ? canonicalSessionId
+        : fallbackSessionId;
 
-    if (!state.pendingClearAfterOrderCreated) {
-      return;
+    if (!result.isOrderCreated) {
+      return sessionId;
     }
 
-    final sessionId = state.sessionId?.trim();
-    final api = ref.read(chatbotRepositoryProvider);
-
-    if (sessionId != null && sessionId.isNotEmpty) {
-      try {
-        await api.clearSession(sessionId);
-      } catch (_) {
-        // Best effort: the completed session is still cleared locally.
-      }
+    try {
+      await ref.read(chatbotRepositoryProvider).clearSession(sessionId);
+    } catch (_) {
+      // Best effort: backend already clears completed draft data.
     }
 
-    final normalizedWelcome = welcomeMessage.trim();
-    state = state.copyWith(
-      serviceType: serviceType,
-      clearSessionId: true,
-      messages: normalizedWelcome.isEmpty
-          ? const <ChatbotConversationMessage>[]
-          : <ChatbotConversationMessage>[
-              _botMessage(
-                text: normalizedWelcome,
-                timestamp: _nowLabel(),
-                actionHints: _bootstrapActionHints(serviceType),
-              ),
-            ],
-      isBootstrapping: false,
-      isSending: false,
-      isApplyingAction: false,
-      hasInitialized: normalizedWelcome.isNotEmpty,
-      pendingClearAfterOrderCreated: false,
-      clearErrorMessage: true,
-    );
+    return _generateSessionId(serviceType);
   }
 
   Future<void> restartActiveSession({
@@ -545,7 +511,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     state = state.copyWith(
       isApplyingAction: true,
       messages: _clearActionHints(state.messages),
-      pendingClearAfterOrderCreated: false,
       clearErrorMessage: true,
     );
 
@@ -574,7 +539,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       isSending: false,
       isApplyingAction: false,
       hasInitialized: normalizedWelcome.isNotEmpty,
-      pendingClearAfterOrderCreated: false,
       errorMessage: clearFailed
           ? 'Pesanan dimulai ulang. Sesi lama mungkin belum terhapus di server.'
           : null,

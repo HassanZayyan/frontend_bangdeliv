@@ -108,6 +108,82 @@ void main() {
     expect(find.text('Upload Foto Struk Opsional'), findsOneWidget);
   });
 
+  testWidgets('saved shopping checkout disables checkout action', (
+    tester,
+  ) async {
+    await _pumpShoppingItemsCard(
+      tester,
+      order: _order(
+        serviceTypeCode: ServiceTypeCodes.shopping,
+        shoppingItems: const [
+          DriverShoppingItemModel(
+            id: 1,
+            itemSource: 'MANUAL',
+            name: 'Mie ayam',
+            quantity: 1,
+            unitPrice: 12000,
+            subtotal: 12000,
+            isAvailable: true,
+          ),
+        ],
+        shoppingCapabilities: const ShoppingOrderCapabilitiesModel(
+          canDriverUploadReceipt: true,
+          hasCheckoutSaved: true,
+        ),
+      ),
+      canUploadReceipt: true,
+      canCheckout: true,
+    );
+
+    expect(find.text('Checkout Nitip Tersimpan'), findsOneWidget);
+    final checkoutButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Checkout Nitip Tersimpan'),
+    );
+    expect(checkoutButton.onPressed, isNull);
+  });
+
+  testWidgets('shopping merchant closed spinner is scoped to selected stop', (
+    tester,
+  ) async {
+    const firstStop = DriverShoppingStopModel(
+      pickupLocationId: 7,
+      sequenceNo: 1,
+      fulfillmentStatus: 'PENDING',
+      merchant: DriverShoppingMerchantModel(
+        id: 1,
+        name: 'Kedai Tinari',
+        merchantType: 'restaurant',
+        address: 'Jl. Merchant 1',
+      ),
+      items: <DriverShoppingItemModel>[],
+    );
+    const secondStop = DriverShoppingStopModel(
+      pickupLocationId: 8,
+      sequenceNo: 2,
+      fulfillmentStatus: 'PENDING',
+      merchant: DriverShoppingMerchantModel(
+        id: 2,
+        name: 'Burjo SS',
+        merchantType: 'restaurant',
+        address: 'Jl. Merchant 2',
+      ),
+      items: <DriverShoppingItemModel>[],
+    );
+
+    await _pumpShoppingItemsCard(
+      tester,
+      order: _order(
+        serviceTypeCode: ServiceTypeCodes.shopping,
+        shoppingStops: const [firstStop, secondStop],
+      ),
+      isOrderBusy: true,
+      closingMerchantIds: const {8},
+    );
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text('Resto tutup'), findsOneWidget);
+  });
+
   testWidgets(
     'shopping merchant quote card is hidden while item decision is pending',
     (tester) async {
@@ -257,6 +333,7 @@ Future<void> _pumpShoppingItemsCard(
   bool canEditAvailability = false,
   bool canUploadReceipt = false,
   bool canCheckout = false,
+  Set<int> closingMerchantIds = const <int>{},
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -272,7 +349,8 @@ Future<void> _pumpShoppingItemsCard(
           isSubmittingQuote: (_) => false,
           isBypassingPrice: (_) => false,
           isMarkingMerchantOpen: (_) => false,
-          isClosingMerchant: (_) => false,
+          isClosingMerchant: (pickupLocationId) =>
+              closingMerchantIds.contains(pickupLocationId),
           onUploadReceipt: (_) async => null,
           onSubmitQuote: ({required amount, pickupLocationId}) async => null,
           onBypassPrice: ({required pickupLocationId}) async => null,

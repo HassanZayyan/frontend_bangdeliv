@@ -239,7 +239,10 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                           ),
                         ),
                     isClosingMerchant: (pickupLocationId) => isProcessingAction(
-                      DriverOrderActionKeys.pickupFailed(order.id),
+                      DriverOrderActionKeys.pickupFailed(
+                        order.id,
+                        pickupLocationId,
+                      ),
                     ),
                     onUploadReceipt: (photo) {
                       return ref
@@ -382,9 +385,18 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                 DriverOrderActionCard(
                   order: order,
                   isOrderBusy: isOrderBusy,
-                  isReportPickupFailedProcessing: isProcessingAction(
-                    DriverOrderActionKeys.pickupFailed(order.id),
-                  ),
+                  isReportPickupFailedProcessing:
+                      isProcessingAction(
+                        DriverOrderActionKeys.pickupFailed(order.id),
+                      ) ||
+                      order.shoppingStops.any(
+                        (stop) => isProcessingAction(
+                          DriverOrderActionKeys.pickupFailed(
+                            order.id,
+                            stop.pickupLocationId,
+                          ),
+                        ),
+                      ),
                   isActionProcessing: (action) => isProcessingAction(
                     action.isCodCollection
                         ? DriverOrderActionKeys.collectCod(order.id)
