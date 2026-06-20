@@ -228,22 +228,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             },
           ),
 
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: () {
-                context.push(AppRoutes.forgotPassword);
-              },
-              child: const Text(
-                'Lupa password?',
-                style: TextStyle(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-
           SizedBox(height: isCompact ? 10 : 16),
 
           BangPrimaryButton(

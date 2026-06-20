@@ -141,25 +141,19 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                   isAcceptingCounter: isProcessingAction(
                     DriverOrderActionKeys.acceptDeliveryFeeCounter(order.id),
                   ),
-                  onSave:
-                      ({
-                        required amount,
-                        required reason,
-                        required carefulCarryRequired,
-                      }) async {
-                        final error = await ref
-                            .read(driverOrdersProvider.notifier)
-                            .updateDeliveryFeeOverride(
-                              orderId: order.id,
-                              amount: amount,
-                              reason: reason,
-                              carefulCarryRequired: carefulCarryRequired,
-                            );
-                        if (error == null) {
-                          ref.invalidate(driverOrderDetailProvider(order.id));
-                        }
-                        return error;
-                      },
+                  onSave: ({required amount, required reason}) async {
+                    final error = await ref
+                        .read(driverOrdersProvider.notifier)
+                        .updateDeliveryFeeOverride(
+                          orderId: order.id,
+                          amount: amount,
+                          reason: reason,
+                        );
+                    if (error == null) {
+                      ref.invalidate(driverOrderDetailProvider(order.id));
+                    }
+                    return error;
+                  },
                   onAcceptCounter: () async {
                     final error = await ref
                         .read(driverOrdersProvider.notifier)

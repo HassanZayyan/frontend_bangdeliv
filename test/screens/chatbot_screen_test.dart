@@ -112,7 +112,7 @@ void main() {
     expect(input.onSubmitted, isNull);
   });
 
-  testWidgets('chatbot app bar menu keeps history and restart actions', (
+  testWidgets('chatbot app bar exposes reset action only', (
     WidgetTester tester,
   ) async {
     await _pumpChatbot(
@@ -121,23 +121,18 @@ void main() {
       chatbotApiService: _FakeChatbotApiService(),
     );
 
-    await tester.tap(find.byIcon(Icons.more_vert));
+    expect(find.byIcon(Icons.more_vert), findsNothing);
+    expect(find.text('Riwayat Sesi'), findsNothing);
+
+    await tester.tap(find.byTooltip('Mulai ulang pesanan'));
     await _pumpChatbotFrame(tester);
 
-    expect(find.text('Riwayat Sesi'), findsOneWidget);
-    expect(find.text('Mulai Ulang Pesanan'), findsOneWidget);
-
-    await tester.tap(find.text('Riwayat Sesi'));
-    await _pumpChatbotFrame(tester);
-
-    expect(find.text('Pilih Sesi Chat'), findsOneWidget);
-    expect(
-      find.text('Belum ada sesi tersimpan untuk layanan ini.'),
-      findsOneWidget,
-    );
+    expect(find.text('Mulai ulang pesanan?'), findsOneWidget);
+    expect(find.textContaining('Chat aktif'), findsOneWidget);
+    expect(find.text('Pilih Sesi Chat'), findsNothing);
   });
 
-  testWidgets('restart menu confirms and starts a fresh chatbot session', (
+  testWidgets('restart button confirms and starts a fresh chatbot session', (
     WidgetTester tester,
   ) async {
     final fakeService = _FakeChatbotApiService();
@@ -149,12 +144,9 @@ void main() {
     );
 
     await _sendMessage(tester, 'antar ke polines');
-    final prefs = await SharedPreferences.getInstance();
-    final oldSessionId = prefs.getString('chatbot_session_id_antar_jemput');
+    final oldSessionId = fakeService.lastSessionId;
 
-    await tester.tap(find.byIcon(Icons.more_vert));
-    await _pumpChatbotFrame(tester);
-    await tester.tap(find.text('Mulai Ulang Pesanan'));
+    await tester.tap(find.byTooltip('Mulai ulang pesanan'));
     await _pumpChatbotFrame(tester);
 
     expect(find.text('Mulai ulang pesanan?'), findsOneWidget);
@@ -162,13 +154,9 @@ void main() {
     await tester.tap(find.text('Mulai Ulang'));
     await _pumpChatbotFrame(tester);
 
-    final newSessionId = prefs.getString('chatbot_session_id_antar_jemput');
-
     expect(fakeService.clearSessionCallCount, 1);
     expect(fakeService.lastClearedSessionId, oldSessionId);
     expect(fakeService.callCount, 1);
-    expect(newSessionId, isNotNull);
-    expect(newSessionId, isNot(oldSessionId));
     expect(
       find.textContaining('Halo! Saya BangBot untuk layanan Antar Jemput'),
       findsOneWidget,
@@ -183,35 +171,26 @@ void main() {
     expect(ChatbotCommandParser.isRestartCommand('tolong refresh'), isFalse);
   });
 
-  for (final entry in const <String, String>{
-    'antar_jemput': 'chatbot_session_id_antar_jemput',
-    'kurir': 'chatbot_session_id_kurir',
-    'nitip': 'chatbot_session_id_nitip',
-  }.entries) {
-    testWidgets('manual refresh command restarts ${entry.key} order flow', (
+  for (final serviceType in const <String>['antar_jemput', 'kurir', 'nitip']) {
+    testWidgets('manual refresh command restarts $serviceType order flow', (
       WidgetTester tester,
     ) async {
       final fakeService = _FakeChatbotApiService();
 
       await _pumpChatbot(
         tester,
-        serviceType: entry.key,
+        serviceType: serviceType,
         chatbotApiService: fakeService,
       );
 
       await _sendMessage(tester, 'mulai draft');
-      final prefs = await SharedPreferences.getInstance();
-      final oldSessionId = prefs.getString(entry.value);
+      final oldSessionId = fakeService.lastSessionId;
 
       await _sendMessage(tester, 'refresh');
-
-      final newSessionId = prefs.getString(entry.value);
 
       expect(fakeService.clearSessionCallCount, 1);
       expect(fakeService.lastClearedSessionId, oldSessionId);
       expect(fakeService.callCount, 1);
-      expect(newSessionId, isNotNull);
-      expect(newSessionId, isNot(oldSessionId));
       expect(find.textContaining('Halo! Saya BangBot'), findsOneWidget);
       expect(find.textContaining('Draft siap'), findsNothing);
     });
@@ -437,12 +416,9 @@ void main() {
     await tester.tap(find.text('Lacak Pesanan'));
     await _pumpChatbotFrame(tester);
 
-    final prefs = await SharedPreferences.getInstance();
-
     expect(find.text('Track Screen 33'), findsOneWidget);
     expect(fakeService.clearSessionCallCount, 1);
     expect(fakeService.lastClearedSessionId, isNotEmpty);
-    expect(prefs.getString('chatbot_session_id_antar_jemput'), isNull);
   });
 
   testWidgets('back button clears completed active session', (
@@ -460,12 +436,9 @@ void main() {
     await tester.tap(find.byIcon(Icons.chevron_left));
     await _pumpChatbotFrame(tester);
 
-    final prefs = await SharedPreferences.getInstance();
-
     expect(find.text('Home Screen'), findsOneWidget);
     expect(fakeService.clearSessionCallCount, 1);
     expect(fakeService.lastClearedSessionId, isNotEmpty);
-    expect(prefs.getString('chatbot_session_id_antar_jemput'), isNull);
   });
 
   for (final entry in const <String, ({String message, String action})>{
@@ -629,7 +602,7 @@ void main() {
     expect(fakeService.lastRouteAddresses, [null]);
   });
 
-  testWidgets('show small courier draft size line without fake numbers', (
+  testWidgets('courier draft does not show size, weight, or policy warning', (
     WidgetTester tester,
   ) async {
     await _pumpChatbot(
@@ -640,8 +613,10 @@ void main() {
 
     await _sendMessage(tester, 'draft kacamata');
 
-    expect(find.text('Berat/Ukuran'), findsOneWidget);
-    expect(find.text('kecil/ringan untuk motor'), findsOneWidget);
+    expect(find.text('Berat/Ukuran'), findsNothing);
+    expect(find.text('Status Barang'), findsNothing);
+    expect(find.text('kecil/ringan untuk motor'), findsNothing);
+    expect(find.textContaining('Paket aman'), findsNothing);
     expect(find.textContaining('0 kg'), findsNothing);
   });
 
@@ -846,33 +821,12 @@ class _FakeChatbotApiService extends ChatbotApiService {
   int patchMerchantCallCount = 0;
   int clearSessionCallCount = 0;
   String? lastServiceType;
+  String? lastSessionId;
   String? lastPatchTarget;
   String? lastMerchantMode;
   String? lastClearedSessionId;
   List<String> lastRouteTargets = const <String>[];
   List<String?> lastRouteAddresses = const <String?>[];
-
-  @override
-  Future<List<ChatbotSessionSummary>> fetchSessions({
-    String? serviceType,
-    int limit = 20,
-  }) async {
-    return const <ChatbotSessionSummary>[];
-  }
-
-  @override
-  Future<ChatbotHistoryPage> fetchSessionHistory(
-    String sessionId, {
-    int limit = 50,
-    int? beforeId,
-  }) async {
-    return ChatbotHistoryPage(
-      sessionId: sessionId,
-      messages: const <ChatbotHistoryMessage>[],
-      hasMore: false,
-      nextBeforeId: null,
-    );
-  }
 
   @override
   Future<void> clearSession(String sessionId) async {
@@ -888,6 +842,7 @@ class _FakeChatbotApiService extends ChatbotApiService {
   }) async {
     callCount += 1;
     lastServiceType = serviceType;
+    lastSessionId = sessionId;
 
     final normalized = message.trim().toLowerCase();
     if (normalized == 'trigger error') {
@@ -1164,8 +1119,6 @@ class _FakeChatbotApiService extends ChatbotApiService {
               'Ambil: Jalan Mawar No 1\n'
               'Tujuan: Erha Setiabudi Tembalang\n'
               'Barang: kacamata\n'
-              'Ukuran/Berat: kecil/ringan untuk motor\n'
-              'Status barang: Paket aman untuk layanan kurir motor.\n'
               'Estimasi ongkir sementara: Rp 8.000 (kalkulasi detail menyusul).\n'
               'Ketik "Konfirmasi" untuk lanjut. Pembayaran dilakukan tunai saat driver tiba dan mengecek barang di titik ambil.',
           'validation': {

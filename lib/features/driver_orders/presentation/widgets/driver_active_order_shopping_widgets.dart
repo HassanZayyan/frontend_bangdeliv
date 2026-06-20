@@ -407,9 +407,7 @@ class DriverShoppingItemsCard extends StatefulWidget {
 
 class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
   final Map<int, bool> _availability = {};
-  final Map<int, bool> _heavy = {};
   final Set<int> _dirtyAvailabilityIds = {};
-  final Set<int> _dirtyHeavyIds = {};
   bool _isUploadingReceipt = false;
 
   @override
@@ -433,9 +431,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
         .toList(growable: false);
     for (final id in staleIds) {
       _availability.remove(id);
-      _heavy.remove(id);
       _dirtyAvailabilityIds.remove(id);
-      _dirtyHeavyIds.remove(id);
     }
 
     for (final item in widget.order.shoppingItems) {
@@ -449,17 +445,6 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
       } else {
         _availability[item.id] = item.isAvailable;
       }
-
-      if (!_heavy.containsKey(item.id)) {
-        _dirtyHeavyIds.remove(item.id);
-        _heavy[item.id] = item.isHeavy;
-      } else if (_dirtyHeavyIds.contains(item.id)) {
-        if (_heavy[item.id] == item.isHeavy) {
-          _dirtyHeavyIds.remove(item.id);
-        }
-      } else {
-        _heavy[item.id] = item.isHeavy;
-      }
     }
   }
 
@@ -472,7 +457,6 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     final canEditAvailability =
         widget.canEditAvailability &&
         !widget.order.shoppingCapabilities.hasPendingItemChangeRequest;
-    final editableAvailabilityItems = _editableItemsForAvailabilityControls();
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -507,10 +491,6 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
             ],
           ),
           const SizedBox(height: 10),
-          if (editableAvailabilityItems.isNotEmpty) ...[
-            _buildHeavyToggleForItems(editableAvailabilityItems),
-            const SizedBox(height: 10),
-          ],
           if (widget.order.shoppingStops.isEmpty) ...[
             ...widget.order.shoppingItems.map(
               (item) => _buildItemEditor(
@@ -646,23 +626,6 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
   bool _areItemsReadyForQuote(List<DriverShoppingItemModel> items) {
     return items.isNotEmpty &&
         items.every((item) => _availability[item.id] ?? item.isAvailable);
-  }
-
-  List<DriverShoppingItemModel> _editableItemsForAvailabilityControls() {
-    if (!widget.canEditAvailability ||
-        widget.order.shoppingCapabilities.hasPendingItemChangeRequest) {
-      return const <DriverShoppingItemModel>[];
-    }
-
-    if (widget.order.shoppingStops.isEmpty) {
-      return widget.order.shoppingItems;
-    }
-
-    return widget.order.shoppingStops
-        .where((stop) => !stop.isSkipped && !stop.isReplaced)
-        .where(_canEditAvailabilityForStop)
-        .expand((stop) => stop.items)
-        .toList(growable: false);
   }
 
   bool _isStopAvailabilityLocked(
@@ -981,55 +944,6 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     );
   }
 
-  Widget _buildHeavyToggleForItems(List<DriverShoppingItemModel> items) {
-    if (items.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    final availableItems = items
-        .where((item) => _availability[item.id] ?? item.isAvailable)
-        .toList(growable: false);
-    final targetItems = availableItems.isEmpty ? items : availableItems;
-    final isHeavy = targetItems.any((item) => _heavy[item.id] ?? item.isHeavy);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.14)),
-      ),
-      child: CheckboxListTile(
-        value: isHeavy,
-        onChanged: (value) {
-          final nextValue = value ?? false;
-          setState(() {
-            for (final item in items) {
-              _dirtyHeavyIds.add(item.id);
-              _heavy[item.id] = nextValue;
-            }
-          });
-        },
-        dense: true,
-        visualDensity: const VisualDensity(horizontal: -2, vertical: -3),
-        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-        controlAffinity: ListTileControlAffinity.leading,
-        title: const Text(
-          'Item berat',
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w700,
-            fontSize: 12.5,
-          ),
-        ),
-        subtitle: const Text(
-          'Tambahan biaya Rp6.000 sekali per order',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5),
-        ),
-      ),
-    );
-  }
-
   List<DriverOrderProofModel> _shoppingProofs() {
     return widget.order.proofs
         .where(
@@ -1142,11 +1056,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
   }
 
   bool _hasItemChangesForItems(List<DriverShoppingItemModel> items) {
-    return items.any(
-      (item) =>
-          _dirtyAvailabilityIds.contains(item.id) ||
-          _dirtyHeavyIds.contains(item.id),
-    );
+    return items.any((item) => _dirtyAvailabilityIds.contains(item.id));
   }
 
   List<Map<String, dynamic>> _itemPayload(List<DriverShoppingItemModel> items) {
@@ -1157,7 +1067,6 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
             'quantity': item.quantity,
             'is_available': _availability[item.id] ?? item.isAvailable,
             'notes': item.notes,
-            'is_heavy': _heavy[item.id] ?? item.isHeavy,
           },
         )
         .toList(growable: false);
@@ -1187,7 +1096,6 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
       setState(() {
         for (final item in items) {
           _dirtyAvailabilityIds.remove(item.id);
-          _dirtyHeavyIds.remove(item.id);
         }
       });
     }

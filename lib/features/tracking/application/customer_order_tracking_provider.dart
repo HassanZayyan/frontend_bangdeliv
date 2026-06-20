@@ -243,16 +243,12 @@ class CustomerOrderTrackingNotifier
     ]);
     final paymentMethod = pricing['payment_method']?.toString();
     final paymentStatus = pricing['payment_status']?.toString();
-    final carefulCarryRequired = _asNullableBool(
-      pricing['careful_carry_required'],
-    );
 
     final patchedSummary = current.detail.summary.copyWith(
       totalAmount: totalPrice,
       deliveryFee: deliveryFee,
       deliveryFeeSource: deliveryFeeSource,
       deliveryFeeChangeNote: deliveryFeeChangeNote,
-      carefulCarryRequired: carefulCarryRequired,
       paymentMethod: paymentMethod,
       paymentStatus: paymentStatus,
     );
@@ -260,7 +256,6 @@ class CustomerOrderTrackingNotifier
       summary: patchedSummary,
       deliveryFeeSource: deliveryFeeSource,
       deliveryFeeChangeNote: deliveryFeeChangeNote,
-      carefulCarryRequired: carefulCarryRequired,
       paymentMethod: paymentMethod,
       paymentStatus: paymentStatus,
     );
@@ -450,20 +445,6 @@ class CustomerOrderTrackingNotifier
     if (value == null) return null;
     if (value is num) return value.toDouble();
     return double.tryParse(value.toString());
-  }
-
-  bool? _asNullableBool(dynamic value) {
-    if (value == null) return null;
-    if (value is bool) return value;
-    final normalized = value.toString().trim().toLowerCase();
-    if (normalized == 'true' || normalized == '1' || normalized == 'yes') {
-      return true;
-    }
-    if (normalized == 'false' || normalized == '0' || normalized == 'no') {
-      return false;
-    }
-
-    return null;
   }
 
   String? _firstNonEmptyString(List<dynamic> values) {

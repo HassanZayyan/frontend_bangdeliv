@@ -34,7 +34,6 @@ abstract class DriverOrderRepository {
     required String orderId,
     required double amount,
     required String reason,
-    bool? carefulCarryRequired,
   });
 
   Future<DriverOrderModel> acceptDeliveryFeeCounterOffer({
@@ -170,13 +169,11 @@ class ApiDriverOrderRepository implements DriverOrderRepository {
     required String orderId,
     required double amount,
     required String reason,
-    bool? carefulCarryRequired,
   }) {
     return _service.updateDeliveryFeeOverride(
       orderId: orderId,
       amount: amount,
       reason: reason,
-      carefulCarryRequired: carefulCarryRequired,
     );
   }
 

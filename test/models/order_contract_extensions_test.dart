@@ -16,15 +16,6 @@ void main() {
       'delivery_distance_km': '3.7',
       'delivery_fee': 13000,
       'delivery_fee_source': 'driver_manual',
-      'careful_carry_required': true,
-      'fee_breakdown': [
-        {
-          'code': 'ITEM_BLOCK_SURCHARGE',
-          'label': 'Biaya banyak item',
-          'description': 'Tambahan nitip',
-          'amount': 2000,
-        },
-      ],
       'proofs': [
         {'id': 7, 'type': 'pickup', 'photo_url': '/storage/proofs/pickup.jpg'},
         {
@@ -44,8 +35,6 @@ void main() {
     expect(order.deliveryFeeSource, 'driver_manual');
     expect(order.manualDeliveryFee, isNull);
     expect(order.manualDeliveryFeeReason, isNull);
-    expect(order.carefulCarryRequired, isTrue);
-    expect(order.feeBreakdown.single.amount, 2000);
     expect(order.hasProof('pickup'), isTrue);
     expect(order.hasProof('payment_transfer'), isTrue);
 

@@ -65,7 +65,6 @@ void main() {
       'status': 'PENDING_DRIVER',
       'counter_amount': '12000',
       'old_delivery_fee': '9000',
-      'careful_carry_required': 'true',
       'can_driver_accept_counter': true,
     });
 
@@ -74,7 +73,6 @@ void main() {
     expect(model.counterAmount, 12000);
     expect(model.displayAmount, 12000);
     expect(model.oldDeliveryFee, 9000);
-    expect(model.carefulCarryRequired, isTrue);
     expect(model.canDriverAcceptCounter, isTrue);
   });
 }

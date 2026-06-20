@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../models/chatbot_model.dart';
 import '../../../services/api_exception.dart';
@@ -105,7 +104,6 @@ class ChatbotConversationState {
     required this.serviceType,
     required this.sessionId,
     required this.messages,
-    required this.sessions,
     required this.isBootstrapping,
     required this.isSending,
     required this.isApplyingAction,
@@ -117,7 +115,6 @@ class ChatbotConversationState {
   final String serviceType;
   final String? sessionId;
   final List<ChatbotConversationMessage> messages;
-  final List<ChatbotSessionSummary> sessions;
   final bool isBootstrapping;
   final bool isSending;
   final bool isApplyingAction;
@@ -131,7 +128,6 @@ class ChatbotConversationState {
     String? serviceType,
     String? sessionId,
     List<ChatbotConversationMessage>? messages,
-    List<ChatbotSessionSummary>? sessions,
     bool? isBootstrapping,
     bool? isSending,
     bool? isApplyingAction,
@@ -145,7 +141,6 @@ class ChatbotConversationState {
       serviceType: serviceType ?? this.serviceType,
       sessionId: clearSessionId ? null : (sessionId ?? this.sessionId),
       messages: messages ?? this.messages,
-      sessions: sessions ?? this.sessions,
       isBootstrapping: isBootstrapping ?? this.isBootstrapping,
       isSending: isSending ?? this.isSending,
       isApplyingAction: isApplyingAction ?? this.isApplyingAction,
@@ -166,7 +161,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       serviceType: 'nitip',
       sessionId: null,
       messages: <ChatbotConversationMessage>[],
-      sessions: <ChatbotSessionSummary>[],
       isBootstrapping: false,
       isSending: false,
       isApplyingAction: false,
@@ -185,7 +179,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       serviceType: serviceType,
       sessionId: null,
       messages: const <ChatbotConversationMessage>[],
-      sessions: const <ChatbotSessionSummary>[],
       isBootstrapping: false,
       isSending: false,
       isApplyingAction: false,
@@ -212,146 +205,22 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       clearErrorMessage: true,
     );
 
-    final api = ref.read(chatbotRepositoryProvider);
-    final fallbackSessionId = _generateSessionId(serviceType);
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final storageKey = _sessionStorageKey(serviceType);
-      final storedSessionId = prefs.getString(storageKey)?.trim();
-
-      final sessions = await api.fetchSessions(serviceType: serviceType);
-      var sessionId = (storedSessionId == null || storedSessionId.isEmpty)
-          ? (sessions.isNotEmpty ? sessions.first.sessionId : fallbackSessionId)
-          : storedSessionId;
-
-      var messages = <ChatbotConversationMessage>[];
-      if (sessionId.isNotEmpty) {
-        try {
-          final history = await api.fetchSessionHistory(sessionId, limit: 100);
-          if (history.sessionId.isNotEmpty) {
-            sessionId = history.sessionId;
-          }
-
-          messages = history.messages
-              .map((entry) => _messageFromHistoryEntry(entry, serviceType))
-              .toList(growable: false);
-        } catch (_) {
-          sessionId = fallbackSessionId;
-          messages = const <ChatbotConversationMessage>[];
-        }
-      }
-
-      if (messages.isEmpty) {
-        messages = <ChatbotConversationMessage>[
-          _botMessage(
-            text: welcomeMessage,
-            timestamp: _nowLabel(),
-            actionHints: _bootstrapActionHints(serviceType),
-          ),
-        ];
-      }
-
-      await prefs.setString(storageKey, sessionId);
-
-      state = state.copyWith(
-        serviceType: serviceType,
-        sessionId: sessionId,
-        sessions: sessions,
-        messages: messages,
-        isBootstrapping: false,
-        pendingClearAfterOrderCreated: false,
-        clearErrorMessage: true,
-      );
-    } catch (_) {
-      state = state.copyWith(
-        serviceType: serviceType,
-        sessionId: fallbackSessionId,
-        messages: <ChatbotConversationMessage>[
-          _botMessage(
-            text: welcomeMessage,
-            timestamp: _nowLabel(),
-            actionHints: _bootstrapActionHints(serviceType),
-          ),
-        ],
-        isBootstrapping: false,
-        pendingClearAfterOrderCreated: false,
-        errorMessage: 'Gagal memuat histori chat. Sesi baru dibuat.',
-      );
-
-      await _persistSessionId(serviceType, fallbackSessionId);
-    }
-  }
-
-  Future<void> refreshSessions({required String serviceType}) async {
-    _ensureService(serviceType);
-
-    final api = ref.read(chatbotRepositoryProvider);
-    try {
-      final sessions = await api.fetchSessions(serviceType: serviceType);
-      state = state.copyWith(sessions: sessions, clearErrorMessage: true);
-    } catch (_) {
-      // Silent refresh failure.
-    }
-  }
-
-  Future<void> selectSession(
-    String sessionId, {
-    required String serviceType,
-    required String welcomeMessage,
-  }) async {
-    _ensureService(serviceType);
-
-    final normalized = sessionId.trim();
-    if (normalized.isEmpty || state.isBootstrapping) {
-      return;
-    }
+    final sessionId = _generateSessionId(serviceType);
 
     state = state.copyWith(
-      isBootstrapping: true,
+      serviceType: serviceType,
+      sessionId: sessionId,
+      messages: <ChatbotConversationMessage>[
+        _botMessage(
+          text: welcomeMessage,
+          timestamp: _nowLabel(),
+          actionHints: _bootstrapActionHints(serviceType),
+        ),
+      ],
+      isBootstrapping: false,
       pendingClearAfterOrderCreated: false,
       clearErrorMessage: true,
     );
-
-    final api = ref.read(chatbotRepositoryProvider);
-    try {
-      final history = await api.fetchSessionHistory(normalized, limit: 100);
-      final resolvedSessionId = history.sessionId.isNotEmpty
-          ? history.sessionId
-          : normalized;
-
-      var messages = history.messages
-          .map((entry) => _messageFromHistoryEntry(entry, serviceType))
-          .toList(growable: false);
-
-      if (messages.isEmpty) {
-        messages = <ChatbotConversationMessage>[
-          _botMessage(
-            text: welcomeMessage,
-            timestamp: _nowLabel(),
-            actionHints: _bootstrapActionHints(serviceType),
-          ),
-        ];
-      }
-
-      await _persistSessionId(serviceType, resolvedSessionId);
-
-      state = state.copyWith(
-        serviceType: serviceType,
-        sessionId: resolvedSessionId,
-        messages: messages,
-        isBootstrapping: false,
-        pendingClearAfterOrderCreated: false,
-        clearErrorMessage: true,
-      );
-
-      await refreshSessions(serviceType: serviceType);
-    } catch (_) {
-      state = state.copyWith(
-        isBootstrapping: false,
-        errorMessage: 'Gagal membuka sesi chat terpilih.',
-      );
-    }
   }
 
   Future<void> sendMessage(
@@ -371,7 +240,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     var sessionId = state.sessionId?.trim();
     if (sessionId == null || sessionId.isEmpty) {
       sessionId = _generateSessionId(serviceType);
-      await _persistSessionId(serviceType, sessionId);
     }
 
     state = state.copyWith(
@@ -403,8 +271,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         sessionId = canonicalSessionId;
       }
 
-      await _persistSessionId(serviceType, sessionId);
-
       state = state.copyWith(
         serviceType: serviceType,
         sessionId: sessionId,
@@ -416,8 +282,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         pendingClearAfterOrderCreated: result.isOrderCreated,
         clearErrorMessage: true,
       );
-
-      await refreshSessions(serviceType: serviceType);
     } on ApiException catch (error) {
       final message = error.message.trim().isEmpty
           ? 'Gagal mengirim pesan.'
@@ -482,8 +346,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
           ? canonicalSessionId
           : sessionId;
 
-      await _persistSessionId(serviceType, resolvedSessionId);
-
       state = state.copyWith(
         serviceType: serviceType,
         sessionId: resolvedSessionId,
@@ -495,8 +357,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         pendingClearAfterOrderCreated: result.isOrderCreated,
         clearErrorMessage: true,
       );
-
-      await refreshSessions(serviceType: serviceType);
     } catch (_) {
       state = state.copyWith(
         isApplyingAction: false,
@@ -548,8 +408,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
           ? canonicalSessionId
           : sessionId;
 
-      await _persistSessionId(serviceType, resolvedSessionId);
-
       state = state.copyWith(
         serviceType: serviceType,
         sessionId: resolvedSessionId,
@@ -561,8 +419,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         pendingClearAfterOrderCreated: result.isOrderCreated,
         clearErrorMessage: true,
       );
-
-      await refreshSessions(serviceType: serviceType);
     } catch (_) {
       state = state.copyWith(
         isApplyingAction: false,
@@ -609,8 +465,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
           ? canonicalSessionId
           : sessionId;
 
-      await _persistSessionId(serviceType, resolvedSessionId);
-
       state = state.copyWith(
         serviceType: serviceType,
         sessionId: resolvedSessionId,
@@ -622,8 +476,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         pendingClearAfterOrderCreated: result.isOrderCreated,
         clearErrorMessage: true,
       );
-
-      await refreshSessions(serviceType: serviceType);
     } catch (_) {
       state = state.copyWith(
         isApplyingAction: false,
@@ -653,25 +505,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       }
     }
 
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_sessionStorageKey(serviceType));
-    } catch (_) {
-      // Best effort cache removal.
-    }
-
-    List<ChatbotSessionSummary> withoutCompletedSession(
-      List<ChatbotSessionSummary> sessions,
-    ) {
-      if (sessionId == null || sessionId.isEmpty) {
-        return sessions;
-      }
-
-      return sessions
-          .where((session) => session.sessionId.trim() != sessionId)
-          .toList(growable: false);
-    }
-
     final normalizedWelcome = welcomeMessage.trim();
     state = state.copyWith(
       serviceType: serviceType,
@@ -685,7 +518,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
                 actionHints: _bootstrapActionHints(serviceType),
               ),
             ],
-      sessions: withoutCompletedSession(state.sessions),
       isBootstrapping: false,
       isSending: false,
       isApplyingAction: false,
@@ -693,18 +525,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       pendingClearAfterOrderCreated: false,
       clearErrorMessage: true,
     );
-
-    try {
-      final sessions = await api.fetchSessions(serviceType: serviceType);
-      if (state.serviceType == serviceType) {
-        state = state.copyWith(
-          sessions: withoutCompletedSession(sessions),
-          clearErrorMessage: true,
-        );
-      }
-    } catch (_) {
-      // Silent refresh failure.
-    }
   }
 
   Future<void> restartActiveSession({
@@ -720,7 +540,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     final oldSessionId = state.sessionId?.trim();
     final newSessionId = _generateSessionId(serviceType);
     final api = ref.read(chatbotRepositoryProvider);
-    var archiveFailed = false;
+    var clearFailed = false;
 
     state = state.copyWith(
       isApplyingAction: true,
@@ -733,22 +553,8 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       try {
         await api.clearSession(oldSessionId);
       } catch (_) {
-        archiveFailed = true;
+        clearFailed = true;
       }
-    }
-
-    await _persistSessionId(serviceType, newSessionId);
-
-    List<ChatbotSessionSummary> withoutRestartedSession(
-      List<ChatbotSessionSummary> sessions,
-    ) {
-      if (oldSessionId == null || oldSessionId.isEmpty) {
-        return sessions;
-      }
-
-      return sessions
-          .where((session) => session.sessionId.trim() != oldSessionId)
-          .toList(growable: false);
     }
 
     final normalizedWelcome = welcomeMessage.trim();
@@ -764,30 +570,16 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
                 actionHints: _bootstrapActionHints(serviceType),
               ),
             ],
-      sessions: withoutRestartedSession(state.sessions),
       isBootstrapping: false,
       isSending: false,
       isApplyingAction: false,
       hasInitialized: normalizedWelcome.isNotEmpty,
       pendingClearAfterOrderCreated: false,
-      errorMessage: archiveFailed
-          ? 'Pesanan dimulai ulang. Sesi lama mungkin masih muncul jika arsip belum tersinkron.'
+      errorMessage: clearFailed
+          ? 'Pesanan dimulai ulang. Sesi lama mungkin belum terhapus di server.'
           : null,
-      clearErrorMessage: !archiveFailed,
+      clearErrorMessage: !clearFailed,
     );
-
-    try {
-      final sessions = await api.fetchSessions(serviceType: serviceType);
-      if (state.serviceType == serviceType) {
-        state = state.copyWith(
-          sessions: withoutRestartedSession(sessions),
-          clearErrorMessage: !archiveFailed,
-          errorMessage: archiveFailed ? state.errorMessage : null,
-        );
-      }
-    } catch (_) {
-      // Silent refresh failure. The new active session is already local.
-    }
   }
 
   void onAddressBookUpdated({required String serviceType}) {
@@ -858,44 +650,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         ),
       ],
       clearErrorMessage: true,
-    );
-  }
-
-  ChatbotConversationMessage _messageFromHistoryEntry(
-    ChatbotHistoryMessage entry,
-    String serviceType,
-  ) {
-    if (entry.isUser) {
-      return ChatbotConversationMessage(
-        text: entry.message,
-        timestamp: _labelFromDateTime(entry.createdAt),
-        isUser: true,
-      );
-    }
-
-    final metaParts = <String>[];
-    final effectiveServiceType = entry.serviceType.trim().isEmpty
-        ? serviceType
-        : entry.serviceType;
-    metaParts.add('Layanan: $effectiveServiceType');
-    if (entry.modelUsed != null && entry.modelUsed!.trim().isNotEmpty) {
-      metaParts.add('Model: ${entry.modelUsed}');
-    }
-    if (entry.orderId != null) {
-      metaParts.add('Order ID: ${entry.orderId}');
-    }
-
-    return ChatbotConversationMessage(
-      text: entry.message,
-      timestamp: _labelFromDateTime(entry.createdAt),
-      isUser: false,
-      meta: metaParts.join(' • '),
-      actionHints: entry.aiResponse == null
-          ? const <ChatbotMessageActionHint>[]
-          : _resolveActionHintsFromPayload(
-              entry.aiResponse!,
-              serviceType: effectiveServiceType,
-            ),
     );
   }
 
@@ -987,49 +741,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     return _resolveActionHints(
       nextActions: effectiveNextActions,
       actionPayloads: result.actionPayloads,
-      serviceType: serviceType,
-    );
-  }
-
-  List<ChatbotMessageActionHint> _resolveActionHintsFromPayload(
-    Map<String, dynamic> payload, {
-    required String serviceType,
-  }) {
-    final validation = (payload['validation'] is Map<String, dynamic>)
-        ? payload['validation'] as Map<String, dynamic>
-        : null;
-    final nextActionsRaw = (validation?['next_actions'] is List<dynamic>)
-        ? validation!['next_actions'] as List<dynamic>
-        : const <dynamic>[];
-
-    final nextActions = nextActionsRaw
-        .map((item) => item.toString().trim().toUpperCase())
-        .where((item) => item.isNotEmpty)
-        .toList(growable: false);
-    final shopping = (payload['shopping'] is Map<String, dynamic>)
-        ? payload['shopping'] as Map<String, dynamic>
-        : const <String, dynamic>{};
-    final effectiveNextActions = _sanitizePaymentActionsForResolvedDraft(
-      nextActions: nextActions,
-      serviceType: serviceType,
-      readyToConfirm:
-          shopping['ready_to_confirm'] == true ||
-          validation?['is_valid_order'] == true,
-      paymentMethod:
-          shopping['payment_method']?.toString() ??
-          ((payload['order'] is Map<String, dynamic>)
-              ? (payload['order'] as Map<String, dynamic>)['payment_method']
-                    ?.toString()
-              : null),
-    );
-
-    final actionPayloads = (payload['action_payloads'] is Map<String, dynamic>)
-        ? payload['action_payloads'] as Map<String, dynamic>
-        : null;
-
-    return _resolveActionHints(
-      nextActions: effectiveNextActions,
-      actionPayloads: actionPayloads,
       serviceType: serviceType,
     );
   }
@@ -1347,8 +1058,8 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     final payloadMap = payload is Map<String, dynamic>
         ? payload
         : <String, dynamic>{};
-    final mode = (payloadMap['mode']?.toString().trim().toLowerCase() ?? '')
-        .isEmpty
+    final mode =
+        (payloadMap['mode']?.toString().trim().toLowerCase() ?? '').isEmpty
         ? fallbackMode
         : payloadMap['mode'].toString().trim().toLowerCase();
 
@@ -1567,24 +1278,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         currentKeys.containsAll(incomingKeys);
   }
 
-  String _sessionStorageKey(String serviceType) {
-    return 'chatbot_session_id_$serviceType';
-  }
-
-  Future<void> _persistSessionId(String serviceType, String sessionId) async {
-    final normalized = sessionId.trim();
-    if (normalized.isEmpty) {
-      return;
-    }
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_sessionStorageKey(serviceType), normalized);
-    } catch (_) {
-      // Best effort cache write.
-    }
-  }
-
   String _generateSessionId(String serviceType) {
     final now = DateTime.now().millisecondsSinceEpoch;
     return 'chat-$serviceType-$now-${identityHashCode(this)}';
@@ -1592,14 +1285,6 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
 
   String _nowLabel() {
     return currentWibHourMinute();
-  }
-
-  String _labelFromDateTime(DateTime? value) {
-    if (value == null) {
-      return _nowLabel();
-    }
-
-    return formatTime(value, includeZone: false);
   }
 }
 

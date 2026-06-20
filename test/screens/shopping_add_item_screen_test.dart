@@ -300,7 +300,6 @@ void main() {
             unitPrice: 0,
             subtotal: 0,
             isAvailable: false,
-            isHeavy: false,
           ),
         ],
       );
@@ -518,8 +517,6 @@ CustomerOrderDetailModel _shoppingDetail({
       deliveryFee: deliveryFee,
       serviceFee: 0,
       totalPrice: totalPrice,
-      itemSurcharge: 0,
-      overweightSurcharge: 0,
       cancellationPenalty: 0,
     ),
     shoppingCapabilities: shoppingCapabilities,

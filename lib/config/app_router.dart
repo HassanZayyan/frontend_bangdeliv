@@ -5,7 +5,6 @@ import '../features/auth/presentation/screens/login_screen.dart';
 import '../features/auth/presentation/screens/register_screen.dart';
 import '../features/auth/presentation/screens/register_driver_screen.dart';
 import '../features/auth/presentation/screens/register_success_screen.dart';
-import '../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../features/auth/presentation/screens/splash_screen.dart';
 import '../features/driver_orders/presentation/screens/driver_home_screen.dart';
 import '../features/driver_orders/presentation/screens/driver_orders_screen.dart';
@@ -130,10 +129,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       _rootRoute(
         path: AppRoutes.registerSuccess,
         builder: (context, state) => const RegisterSuccessScreen(),
-      ),
-      _rootRoute(
-        path: AppRoutes.forgotPassword,
-        builder: (context, state) => const ForgotPasswordScreen(),
       ),
       _rootRoute(
         path: AppRoutes.chatbot,
@@ -532,7 +527,6 @@ const Set<String> _publicRoutes = {
   AppRoutes.login,
   AppRoutes.register,
   AppRoutes.registerSuccess,
-  AppRoutes.forgotPassword,
 };
 
 const Set<String> _guestAccessibleRoutes = {

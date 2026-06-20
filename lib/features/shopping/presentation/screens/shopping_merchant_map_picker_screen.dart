@@ -4,6 +4,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../services/customer_order_api_service.dart';
 import '../../../../services/google_maps_lookup_service.dart';
+import '../../../../utils/map_picker_helpers.dart';
 import '../widgets/shopping_widget_helpers.dart';
 
 class ShoppingMerchantMapPickerArgs {
@@ -44,7 +45,7 @@ class _ShoppingMerchantMapPickerScreenState
   @override
   void initState() {
     super.initState();
-    _sessionToken = _newSessionToken();
+    _sessionToken = MapPickerHelpers.newMapsSessionToken();
   }
 
   @override
@@ -55,13 +56,11 @@ class _ShoppingMerchantMapPickerScreenState
   }
 
   LatLng get _initialTarget {
-    final latitude = widget.args?.initialLatitude;
-    final longitude = widget.args?.initialLongitude;
-    if (latitude == null || longitude == null) {
-      return _fallbackCenter;
-    }
-
-    return LatLng(latitude, longitude);
+    return MapPickerHelpers.validLatLng(
+          widget.args?.initialLatitude,
+          widget.args?.initialLongitude,
+        ) ??
+        _fallbackCenter;
   }
 
   Future<void> _searchPlaces() async {
@@ -128,14 +127,14 @@ class _ShoppingMerchantMapPickerScreenState
       name:
           resolved.name ??
           prediction.name ??
-          _firstAddressSegment(prediction.description),
+          MapPickerHelpers.firstAddressSegment(prediction.description),
       address: resolved.address ?? prediction.description,
       latitude: resolved.target.latitude,
       longitude: resolved.target.longitude,
       types: resolved.types,
     );
 
-    _sessionToken = _newSessionToken();
+    _sessionToken = MapPickerHelpers.newMapsSessionToken();
     _setSelectedPlace(place);
   }
 
@@ -158,7 +157,7 @@ class _ShoppingMerchantMapPickerScreenState
     _setSelectedPlace(
       ShoppingMerchantPlacePayload(
         placeId: null,
-        name: _firstAddressSegment(displayAddress),
+        name: MapPickerHelpers.firstAddressSegment(displayAddress),
         address: displayAddress,
         latitude: target.latitude,
         longitude: target.longitude,
@@ -493,17 +492,4 @@ class _SelectedPlacePanel extends StatelessWidget {
       ),
     );
   }
-}
-
-String _newSessionToken() {
-  return '${DateTime.now().microsecondsSinceEpoch}-${Object().hashCode}';
-}
-
-String _firstAddressSegment(String value) {
-  final segments = value
-      .split(',')
-      .map((segment) => segment.trim())
-      .where((segment) => segment.isNotEmpty)
-      .toList(growable: false);
-  return segments.isEmpty ? value.trim() : segments.first;
 }

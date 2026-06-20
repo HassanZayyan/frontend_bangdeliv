@@ -10,7 +10,6 @@ import '../../../../core/widgets/bang_shopping_merchant_request_summary.dart';
 import '../../../../models/customer_order_model.dart';
 import '../../../../models/shopping_order_capability_model.dart';
 import '../../../../utils/order_formatters.dart';
-import '../../../../widgets/shopping_fee_breakdown.dart';
 import '../../../orders/application/customer_order_providers.dart';
 import '../../../shopping/presentation/screens/shopping_add_item_screen.dart';
 import '../../application/customer_order_tracking_provider.dart';
@@ -132,17 +131,6 @@ class _TrackShoppingOrderItemsCardState
             _pricingRow('Subtotal barang', pricing.subtotal),
             _pricingRow('Ongkir', pricing.deliveryFee),
             _pricingRow('Biaya layanan', pricing.serviceFee),
-            ShoppingFeeBreakdown(
-              items: pricing.feeBreakdown
-                  .map(
-                    (item) => ShoppingFeeBreakdownItem(
-                      label: item.label,
-                      description: item.description,
-                      amount: item.amount,
-                    ),
-                  )
-                  .toList(growable: false),
-            ),
             const SizedBox(height: 4),
             _pricingRow('Total', pricing.totalPrice, isTotal: true),
           ],

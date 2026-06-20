@@ -94,7 +94,6 @@ void main() {
             unitPrice: 12000,
             subtotal: 12000,
             isAvailable: true,
-            isHeavy: false,
           ),
         ],
       ),
@@ -121,7 +120,6 @@ void main() {
         unitPrice: 0,
         subtotal: 0,
         isAvailable: false,
-        isHeavy: false,
       );
 
       await _pumpShoppingItemsCard(
@@ -171,7 +169,6 @@ void main() {
         unitPrice: 0,
         subtotal: 0,
         isAvailable: true,
-        isHeavy: false,
       );
 
       await _pumpShoppingItemsCard(
@@ -215,7 +212,6 @@ void main() {
       unitPrice: 0,
       subtotal: 0,
       isAvailable: true,
-      isHeavy: false,
     );
 
     await _pumpShoppingItemsCard(

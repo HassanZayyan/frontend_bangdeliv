@@ -31,7 +31,3 @@ bool serviceTypeSupportsOrderProofs(String code) {
   return normalized == ServiceTypeCodes.courier ||
       normalized == ServiceTypeCodes.shopping;
 }
-
-bool serviceTypeSupportsCarefulCarry(String code) {
-  return normalizeServiceTypeCode(code) == ServiceTypeCodes.courier;
-}

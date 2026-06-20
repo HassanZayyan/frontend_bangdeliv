@@ -63,7 +63,6 @@ class CustomerOrderSummaryModel {
   final String? deliveryFeeChangeNote;
   final double? manualDeliveryFee;
   final String? manualDeliveryFeeReason;
-  final bool carefulCarryRequired;
   final String? paymentStatus;
   final String? paymentMethod;
 
@@ -88,7 +87,6 @@ class CustomerOrderSummaryModel {
     this.deliveryFeeChangeNote,
     this.manualDeliveryFee,
     this.manualDeliveryFeeReason,
-    this.carefulCarryRequired = false,
     required this.paymentStatus,
     required this.paymentMethod,
   });
@@ -128,7 +126,6 @@ class CustomerOrderSummaryModel {
     String? deliveryFeeChangeNote,
     double? manualDeliveryFee,
     String? manualDeliveryFeeReason,
-    bool? carefulCarryRequired,
     String? paymentStatus,
     String? paymentMethod,
   }) {
@@ -155,7 +152,6 @@ class CustomerOrderSummaryModel {
       manualDeliveryFee: manualDeliveryFee ?? this.manualDeliveryFee,
       manualDeliveryFeeReason:
           manualDeliveryFeeReason ?? this.manualDeliveryFeeReason,
-      carefulCarryRequired: carefulCarryRequired ?? this.carefulCarryRequired,
       paymentStatus: paymentStatus ?? this.paymentStatus,
       paymentMethod: paymentMethod ?? this.paymentMethod,
     );
@@ -199,9 +195,6 @@ class CustomerOrderSummaryModel {
       ]),
       manualDeliveryFee: null,
       manualDeliveryFeeReason: null,
-      carefulCarryRequired: _asBool(
-        json['careful_carry_required'] ?? json['carefulCarryRequired'],
-      ),
       paymentStatus: json['payment_status']?.toString(),
       paymentMethod: json['payment_method']?.toString(),
     );
@@ -539,7 +532,6 @@ class CustomerOrderDetailModel {
   final String? deliveryFeeChangeNote;
   final double? manualDeliveryFee;
   final String? manualDeliveryFeeReason;
-  final bool carefulCarryRequired;
   final List<OrderStatusSnapshot> timeline;
   final List<CustomerShoppingItemModel> shoppingItems;
   final List<CustomerShoppingStopModel> shoppingStops;
@@ -577,7 +569,6 @@ class CustomerOrderDetailModel {
     this.deliveryFeeChangeNote,
     this.manualDeliveryFee,
     this.manualDeliveryFeeReason,
-    this.carefulCarryRequired = false,
     required this.timeline,
     this.shoppingItems = const <CustomerShoppingItemModel>[],
     this.shoppingStops = const <CustomerShoppingStopModel>[],
@@ -697,7 +688,6 @@ class CustomerOrderDetailModel {
     String? deliveryFeeChangeNote,
     double? manualDeliveryFee,
     String? manualDeliveryFeeReason,
-    bool? carefulCarryRequired,
     List<OrderStatusSnapshot>? timeline,
     List<CustomerShoppingItemModel>? shoppingItems,
     List<CustomerShoppingStopModel>? shoppingStops,
@@ -740,7 +730,6 @@ class CustomerOrderDetailModel {
       manualDeliveryFee: manualDeliveryFee ?? this.manualDeliveryFee,
       manualDeliveryFeeReason:
           manualDeliveryFeeReason ?? this.manualDeliveryFeeReason,
-      carefulCarryRequired: carefulCarryRequired ?? this.carefulCarryRequired,
       timeline: timeline ?? this.timeline,
       shoppingItems: shoppingItems ?? this.shoppingItems,
       shoppingStops: shoppingStops ?? this.shoppingStops,
@@ -973,9 +962,6 @@ class CustomerOrderDetailModel {
       ]),
       manualDeliveryFee: null,
       manualDeliveryFeeReason: null,
-      carefulCarryRequired: CustomerOrderSummaryModel._asBool(
-        json['careful_carry_required'] ?? json['carefulCarryRequired'],
-      ),
       timeline: timeline,
       shoppingItems: shoppingItems,
       shoppingStops: rawStops.isEmpty
@@ -1173,7 +1159,6 @@ class CustomerShoppingItemModel {
   final double unitPrice;
   final double subtotal;
   final bool isAvailable;
-  final bool isHeavy;
   final String? notes;
   final String? priceStatus;
 
@@ -1187,7 +1172,6 @@ class CustomerShoppingItemModel {
     required this.unitPrice,
     required this.subtotal,
     required this.isAvailable,
-    required this.isHeavy,
     this.notes,
     this.priceStatus,
   });
@@ -1215,7 +1199,6 @@ class CustomerShoppingItemModel {
       unitPrice: CustomerOrderSummaryModel._asDouble(json['unit_price']),
       subtotal: CustomerOrderSummaryModel._asDouble(json['subtotal']),
       isAvailable: json['is_available'] != false,
-      isHeavy: json['is_heavy'] == true,
       notes: json['notes']?.toString(),
       priceStatus: json['price_status']?.toString(),
     );
@@ -1377,56 +1360,28 @@ class CustomerShoppingPricingModel {
   final double deliveryFee;
   final double serviceFee;
   final double totalPrice;
-  final double itemSurcharge;
-  final double overweightSurcharge;
   final double cancellationPenalty;
   final int failedAttemptCount;
   final int failedAttemptThreshold;
   final bool canCancelWithFee;
-  final List<CustomerShoppingFeeBreakdownModel> feeBreakdown;
 
   const CustomerShoppingPricingModel({
     required this.subtotal,
     required this.deliveryFee,
     required this.serviceFee,
     required this.totalPrice,
-    required this.itemSurcharge,
-    required this.overweightSurcharge,
     required this.cancellationPenalty,
     this.failedAttemptCount = 0,
     this.failedAttemptThreshold = 3,
     this.canCancelWithFee = false,
-    this.feeBreakdown = const <CustomerShoppingFeeBreakdownModel>[],
   });
 
   factory CustomerShoppingPricingModel.fromJson(
     Map<String, dynamic> orderJson,
     Map<String, dynamic> shoppingJson,
   ) {
-    final itemSurcharge = CustomerOrderSummaryModel._asDouble(
-      shoppingJson['item_surcharge'],
-    );
-    final overweightSurcharge = CustomerOrderSummaryModel._asDouble(
-      shoppingJson['overweight_surcharge'],
-    );
     final cancellationPenalty = CustomerOrderSummaryModel._asDouble(
       shoppingJson['cancellation_penalty'],
-    );
-    final rawSnapshot = shoppingJson['pricing_snapshot'] is Map<String, dynamic>
-        ? shoppingJson['pricing_snapshot'] as Map<String, dynamic>
-        : const <String, dynamic>{};
-    final feeBreakdown = _parseFeeBreakdown(
-      shoppingJson['fee_breakdown'] ?? rawSnapshot['fee_breakdown'],
-      itemSurcharge: itemSurcharge,
-      overweightSurcharge: overweightSurcharge,
-      cancellationPenalty: cancellationPenalty,
-    );
-    final rawServiceFee = CustomerOrderSummaryModel._asDouble(
-      orderJson['service_fee'],
-    );
-    final feeBreakdownTotal = feeBreakdown.fold<double>(
-      0,
-      (total, row) => total + row.amount,
     );
 
     return CustomerShoppingPricingModel(
@@ -1434,10 +1389,8 @@ class CustomerShoppingPricingModel {
       deliveryFee: CustomerOrderSummaryModel._asDouble(
         orderJson['delivery_fee'],
       ),
-      serviceFee: rawServiceFee > 0 ? rawServiceFee : feeBreakdownTotal,
+      serviceFee: CustomerOrderSummaryModel._asDouble(orderJson['service_fee']),
       totalPrice: CustomerOrderSummaryModel._asDouble(orderJson['total_price']),
-      itemSurcharge: itemSurcharge,
-      overweightSurcharge: overweightSurcharge,
       cancellationPenalty: cancellationPenalty,
       failedAttemptCount: CustomerOrderSummaryModel._asInt(
         shoppingJson['failed_attempt_count'],
@@ -1452,86 +1405,6 @@ class CustomerShoppingPricingModel {
               shoppingJson['failed_attempt_threshold'],
             ),
       canCancelWithFee: shoppingJson['can_cancel_with_fee'] == true,
-      feeBreakdown: feeBreakdown,
     );
-  }
-
-  static List<CustomerShoppingFeeBreakdownModel> _parseFeeBreakdown(
-    dynamic raw, {
-    required double itemSurcharge,
-    required double overweightSurcharge,
-    required double cancellationPenalty,
-  }) {
-    if (raw is List) {
-      final parsed = raw
-          .whereType<Map<String, dynamic>>()
-          .map(CustomerShoppingFeeBreakdownModel.fromJson)
-          .where((row) => row.amount > 0)
-          .toList(growable: false);
-      if (parsed.isNotEmpty) {
-        return parsed;
-      }
-    }
-
-    return CustomerShoppingFeeBreakdownModel.fallback(
-      itemSurcharge: itemSurcharge,
-      overweightSurcharge: overweightSurcharge,
-      cancellationPenalty: cancellationPenalty,
-    );
-  }
-}
-
-class CustomerShoppingFeeBreakdownModel {
-  final String code;
-  final String label;
-  final String description;
-  final double amount;
-
-  const CustomerShoppingFeeBreakdownModel({
-    required this.code,
-    required this.label,
-    required this.description,
-    required this.amount,
-  });
-
-  factory CustomerShoppingFeeBreakdownModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
-    return CustomerShoppingFeeBreakdownModel(
-      code: (json['code'] ?? '').toString(),
-      label: (json['label'] ?? 'Biaya layanan').toString(),
-      description: (json['description'] ?? '').toString(),
-      amount: CustomerOrderSummaryModel._asDouble(json['amount']),
-    );
-  }
-
-  static List<CustomerShoppingFeeBreakdownModel> fallback({
-    required double itemSurcharge,
-    required double overweightSurcharge,
-    required double cancellationPenalty,
-  }) {
-    return [
-      if (itemSurcharge > 0)
-        CustomerShoppingFeeBreakdownModel(
-          code: 'ITEM_BLOCK_SURCHARGE',
-          label: 'Biaya banyak item',
-          description: 'Tambahan saat jumlah item melewati batas gratis',
-          amount: itemSurcharge,
-        ),
-      if (overweightSurcharge > 0)
-        CustomerShoppingFeeBreakdownModel(
-          code: 'OVERWEIGHT_FLAT_SURCHARGE',
-          label: 'Item berat',
-          description: 'Dikenakan sekali per order',
-          amount: overweightSurcharge,
-        ),
-      if (cancellationPenalty > 0)
-        CustomerShoppingFeeBreakdownModel(
-          code: 'CANCELLATION_PENALTY_AFTER_FAILED_ATTEMPTS',
-          label: 'Penalty merchant gagal',
-          description: '50% ongkir setelah batas percobaan gagal',
-          amount: cancellationPenalty,
-        ),
-    ];
   }
 }

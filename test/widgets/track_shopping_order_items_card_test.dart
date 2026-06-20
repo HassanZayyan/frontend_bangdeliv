@@ -194,7 +194,6 @@ CustomerOrderDetailModel _shoppingDetail({
     unitPrice: 0,
     subtotal: 0,
     isAvailable: false,
-    isHeavy: false,
   );
   const availableItem = CustomerShoppingItemModel(
     id: 13,
@@ -205,7 +204,6 @@ CustomerOrderDetailModel _shoppingDetail({
     unitPrice: 0,
     subtotal: 0,
     isAvailable: true,
-    isHeavy: false,
   );
   final stopItems = includeAvailableItem
       ? const [availableItem, unavailableItem]
@@ -272,8 +270,6 @@ CustomerOrderDetailModel _shoppingDetail({
       deliveryFee: 9000,
       serviceFee: 0,
       totalPrice: 9000,
-      itemSurcharge: 0,
-      overweightSurcharge: 0,
       cancellationPenalty: 0,
     ),
     shoppingCapabilities: const ShoppingOrderCapabilitiesModel(

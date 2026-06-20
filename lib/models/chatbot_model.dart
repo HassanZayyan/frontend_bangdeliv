@@ -1,5 +1,3 @@
-import '../utils/order_formatters.dart';
-
 enum ChatbotIntent {
   pesanMakanan,
   shoppingOrder,
@@ -41,7 +39,6 @@ class ChatbotShoppingItem {
   final double unitPrice;
   final double subtotal;
   final bool isAvailable;
-  final bool isHeavy;
   final String? notes;
 
   const ChatbotShoppingItem({
@@ -53,7 +50,6 @@ class ChatbotShoppingItem {
     required this.unitPrice,
     required this.subtotal,
     required this.isAvailable,
-    required this.isHeavy,
     this.notes,
   });
 
@@ -67,7 +63,6 @@ class ChatbotShoppingItem {
       unitPrice: _asDouble(json['unit_price']),
       subtotal: _asDouble(json['subtotal'] ?? json['line_total']),
       isAvailable: json['is_available'] != false,
-      isHeavy: json['is_heavy'] == true,
       notes: json['notes']?.toString(),
     );
   }
@@ -495,126 +490,6 @@ class ChatbotResult {
       (match) => '${match.group(1) ?? ''}Estimasi ongkir sementara:',
     );
   }
-}
-
-class ChatbotSessionSummary {
-  final String sessionId;
-  final String serviceType;
-  final String lastMessage;
-  final DateTime? lastMessageAt;
-  final int messageCount;
-
-  const ChatbotSessionSummary({
-    required this.sessionId,
-    required this.serviceType,
-    required this.lastMessage,
-    required this.lastMessageAt,
-    required this.messageCount,
-  });
-
-  factory ChatbotSessionSummary.fromJson(Map<String, dynamic> json) {
-    return ChatbotSessionSummary(
-      sessionId: (json['session_id']?.toString() ?? '').trim(),
-      serviceType: (json['service_type']?.toString() ?? 'nitip').trim(),
-      lastMessage: (json['last_message']?.toString() ?? '').trim(),
-      lastMessageAt: _parseIsoDateTime(json['last_message_at']),
-      messageCount: int.tryParse(json['message_count']?.toString() ?? '') ?? 0,
-    );
-  }
-}
-
-class ChatbotHistoryMessage {
-  final int id;
-  final String role;
-  final String message;
-  final String? modelUsed;
-  final String? intent;
-  final int? orderId;
-  final String serviceType;
-  final Map<String, dynamic>? aiResponse;
-  final DateTime? createdAt;
-
-  const ChatbotHistoryMessage({
-    required this.id,
-    required this.role,
-    required this.message,
-    required this.modelUsed,
-    required this.intent,
-    required this.orderId,
-    required this.serviceType,
-    required this.aiResponse,
-    required this.createdAt,
-  });
-
-  bool get isUser => role.toLowerCase() == 'user';
-
-  factory ChatbotHistoryMessage.fromJson(Map<String, dynamic> json) {
-    return ChatbotHistoryMessage(
-      id: int.tryParse(json['id']?.toString() ?? '') ?? 0,
-      role: (json['role']?.toString() ?? '').trim(),
-      message: json['message']?.toString() ?? '',
-      modelUsed: json['model_used']?.toString(),
-      intent: json['intent']?.toString(),
-      orderId: int.tryParse(json['order_id']?.toString() ?? ''),
-      serviceType: (json['service_type']?.toString() ?? 'nitip').trim(),
-      aiResponse: (json['ai_response'] is Map<String, dynamic>)
-          ? json['ai_response'] as Map<String, dynamic>
-          : null,
-      createdAt: _parseIsoDateTime(json['created_at']),
-    );
-  }
-}
-
-class ChatbotHistoryPage {
-  final String sessionId;
-  final List<ChatbotHistoryMessage> messages;
-  final bool hasMore;
-  final int? nextBeforeId;
-
-  const ChatbotHistoryPage({
-    required this.sessionId,
-    required this.messages,
-    required this.hasMore,
-    required this.nextBeforeId,
-  });
-
-  factory ChatbotHistoryPage.fromApiJson(Map<String, dynamic> json) {
-    final data = (json['data'] is Map<String, dynamic>)
-        ? json['data'] as Map<String, dynamic>
-        : <String, dynamic>{};
-    final rawMessages = (data['messages'] is List<dynamic>)
-        ? data['messages'] as List<dynamic>
-        : const <dynamic>[];
-    final pagination = (data['pagination'] is Map<String, dynamic>)
-        ? data['pagination'] as Map<String, dynamic>
-        : <String, dynamic>{};
-
-    return ChatbotHistoryPage(
-      sessionId: (json['session_id']?.toString() ?? '').trim(),
-      messages: rawMessages
-          .whereType<Map<String, dynamic>>()
-          .map(ChatbotHistoryMessage.fromJson)
-          .where((message) => message.id > 0)
-          .toList(growable: false),
-      hasMore: pagination['has_more'] == true,
-      nextBeforeId: int.tryParse(
-        pagination['next_before_id']?.toString() ?? '',
-      ),
-    );
-  }
-}
-
-DateTime? _parseIsoDateTime(dynamic raw) {
-  if (raw == null) {
-    return null;
-  }
-
-  final value = raw.toString().trim();
-  if (value.isEmpty) {
-    return null;
-  }
-
-  return parseBackendDateTime(value);
 }
 
 double _asDouble(dynamic value) {
