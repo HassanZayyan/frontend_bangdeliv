@@ -20,7 +20,24 @@ void main() {
       expect(source, contains('qris-preview-thumbnail'));
       expect(source, contains('showBangNetworkImagePreview'));
       expect(source, isNot(contains('LaunchMode.externalApplication')));
-      expect(source, contains('isTransfer || isCancelledWithFee'));
+      expect(source, contains('isTransfer && !hasTransferProof'));
+      expect(source, isNot(contains('isTransfer || isCancelledWithFee')));
+    },
+  );
+
+  test(
+    'customer payment card renders only through visibility presenter rule',
+    () {
+      final source = File(_trackOrderSourcePath).readAsStringSync();
+
+      expect(source, contains('List<Widget> _paymentCardSection('));
+      expect(
+        source,
+        contains(
+          'TrackOrderPresenter.shouldShowCustomerPaymentCard(order, detail)',
+        ),
+      );
+      expect(source, contains('!hasTransferProof'));
     },
   );
 

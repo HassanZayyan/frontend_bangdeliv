@@ -1,5 +1,6 @@
 import '../../../models/customer_order_model.dart';
 import '../../../utils/order_status.dart';
+import '../../../utils/order_ui_helpers.dart';
 import '../../../utils/service_type.dart';
 
 class TrackRouteArgs {
@@ -114,6 +115,36 @@ class TrackOrderPresenter {
     }
 
     return 'COD';
+  }
+
+  static bool shouldShowCustomerPaymentCard(
+    CustomerOrderSummaryModel order,
+    CustomerOrderDetailModel detail,
+  ) {
+    if (normalizedPaymentMethod(order, detail) != 'TRANSFER') {
+      return false;
+    }
+
+    final detailStatus = (detail.paymentStatus ?? '').trim();
+    final paymentStatus = detailStatus.isNotEmpty
+        ? detail.paymentStatus
+        : order.paymentStatus;
+    if (isPaymentPaid(paymentStatus)) {
+      return false;
+    }
+
+    final statusCode = normalizeOrderStatusCode(order.statusCode);
+    switch (normalizeServiceTypeCode(order.serviceTypeCode)) {
+      case ServiceTypeCodes.ride:
+        return statusCode == OrderStatusCodes.delivered;
+      case ServiceTypeCodes.courier:
+        return statusCode == OrderStatusCodes.arrivedPickup;
+      case ServiceTypeCodes.shopping:
+        return statusCode == OrderStatusCodes.delivered ||
+            statusCode == OrderStatusCodes.cancelledWithFee;
+      default:
+        return false;
+    }
   }
 
   static String? driverEtaMessage(CustomerOrderDetailModel detail) {
