@@ -66,6 +66,102 @@ void main() {
     );
   });
 
+  test(
+    'customer payment card appears only at driver-blocking QRIS statuses',
+    () {
+      final cases =
+          <
+            ({
+              String serviceTypeCode,
+              String statusCode,
+              String paymentMethod,
+              String paymentStatus,
+              bool expected,
+            })
+          >[
+            (
+              serviceTypeCode: 'RIDE',
+              statusCode: 'DRIVER_ASSIGNED',
+              paymentMethod: 'TRANSFER',
+              paymentStatus: 'UNPAID',
+              expected: false,
+            ),
+            (
+              serviceTypeCode: 'RIDE',
+              statusCode: 'DELIVERED',
+              paymentMethod: 'TRANSFER',
+              paymentStatus: 'UNPAID',
+              expected: true,
+            ),
+            (
+              serviceTypeCode: 'COURIER',
+              statusCode: 'ARRIVED_PICKUP',
+              paymentMethod: 'TRANSFER',
+              paymentStatus: 'UNPAID',
+              expected: true,
+            ),
+            (
+              serviceTypeCode: 'COURIER',
+              statusCode: 'PICKED_UP',
+              paymentMethod: 'TRANSFER',
+              paymentStatus: 'UNPAID',
+              expected: false,
+            ),
+            (
+              serviceTypeCode: 'SHOPPING',
+              statusCode: 'DELIVERED',
+              paymentMethod: 'TRANSFER',
+              paymentStatus: 'UNPAID',
+              expected: true,
+            ),
+            (
+              serviceTypeCode: 'SHOPPING',
+              statusCode: 'CANCELLED_WITH_FEE',
+              paymentMethod: 'TRANSFER',
+              paymentStatus: 'UNPAID',
+              expected: true,
+            ),
+            (
+              serviceTypeCode: 'COURIER',
+              statusCode: 'ARRIVED_PICKUP',
+              paymentMethod: 'COD',
+              paymentStatus: 'UNPAID',
+              expected: false,
+            ),
+            (
+              serviceTypeCode: 'SHOPPING',
+              statusCode: 'DELIVERED',
+              paymentMethod: 'TRANSFER',
+              paymentStatus: 'paid',
+              expected: false,
+            ),
+          ];
+
+      for (final testCase in cases) {
+        final summary = _summary(
+          serviceTypeCode: testCase.serviceTypeCode,
+          statusCode: testCase.statusCode,
+          paymentMethod: testCase.paymentMethod,
+        );
+
+        expect(
+          TrackOrderPresenter.shouldShowCustomerPaymentCard(
+            summary,
+            _detail(
+              summary,
+              paymentMethod: testCase.paymentMethod,
+              paymentStatus: testCase.paymentStatus,
+            ),
+          ),
+          testCase.expected,
+          reason:
+              '${testCase.serviceTypeCode} ${testCase.statusCode} '
+              '${testCase.paymentMethod} ${testCase.paymentStatus}',
+        );
+      }
+    },
+  );
+
   test('driverEtaMessage describes pickup and dropoff targets', () {
     final summary = _summary();
 
@@ -173,11 +269,12 @@ CustomerOrderSummaryModel _summary({
 CustomerOrderDetailModel _detail(
   CustomerOrderSummaryModel summary, {
   String? paymentMethod = 'COD',
+  String? paymentStatus = 'UNPAID',
   DriverEtaModel? driverEta,
 }) {
   return CustomerOrderDetailModel(
     summary: summary,
-    paymentStatus: 'UNPAID',
+    paymentStatus: paymentStatus,
     paymentMethod: paymentMethod,
     driverName: null,
     driverVehicleType: null,

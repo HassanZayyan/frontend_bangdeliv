@@ -493,14 +493,13 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                                 _buildProofsCard(context, detail.proofs),
                                 const SizedBox(height: 12),
                               ],
-                              _buildPaymentCard(
+                              ..._paymentCardSection(
                                 context,
                                 ref,
                                 order,
                                 detail,
                                 onRefresh,
                               ),
-                              const SizedBox(height: 12),
                               _buildTimelineCard(
                                 detail.timeline,
                                 isRide: isRide,
@@ -589,8 +588,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                 _buildProofsCard(context, detail.proofs),
                 const SizedBox(height: 12),
               ],
-              _buildPaymentCard(context, ref, order, detail, onRefresh),
-              const SizedBox(height: 12),
+              ..._paymentCardSection(context, ref, order, detail, onRefresh),
               _buildCard(
                 title: 'Info Tracking',
                 child: Text(
@@ -658,7 +656,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                 _buildProofsCard(context, detail.proofs),
                 const SizedBox(height: 12),
               ],
-              _buildPaymentCard(context, ref, order, detail, onRefresh),
+              ..._paymentCardSection(context, ref, order, detail, onRefresh),
             ],
           ),
         ),
@@ -1594,10 +1592,8 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     final isCancelledWithFee =
         normalizeOrderStatusCode(order.statusCode) ==
         OrderStatusCodes.cancelledWithFee;
-    final hasPendingTransferProof = detail.proofs.any(
-      (proof) =>
-          proof.type == 'payment_transfer' &&
-          (proof.status ?? '').trim().toLowerCase() == 'pending',
+    final hasTransferProof = detail.proofs.any(
+      (proof) => proof.type == 'payment_transfer',
     );
     final paymentMessage = _paymentActionMessage(
       order: order,
@@ -1605,7 +1601,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
       isTransfer: isTransfer,
       isCourier: isCourier,
       isCancelledWithFee: isCancelledWithFee,
-      hasPendingTransferProof: hasPendingTransferProof,
+      hasTransferProof: hasTransferProof,
     );
 
     return KeyedSubtree(
@@ -1650,7 +1646,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              if (isTransfer || isCancelledWithFee) ...[
+              if (isTransfer && !hasTransferProof) ...[
                 _buildQrisPaymentPanel(context, ref),
                 const SizedBox(height: 12),
                 SizedBox(
@@ -1672,6 +1668,23 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
         ),
       ),
     );
+  }
+
+  List<Widget> _paymentCardSection(
+    BuildContext context,
+    WidgetRef ref,
+    CustomerOrderSummaryModel order,
+    CustomerOrderDetailModel detail,
+    Future<void> Function()? onRefresh,
+  ) {
+    if (!TrackOrderPresenter.shouldShowCustomerPaymentCard(order, detail)) {
+      return const <Widget>[];
+    }
+
+    return <Widget>[
+      _buildPaymentCard(context, ref, order, detail, onRefresh),
+      const SizedBox(height: 12),
+    ];
   }
 
   Widget _buildQrisPaymentPanel(BuildContext context, WidgetRef ref) {
@@ -1794,7 +1807,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     required bool isTransfer,
     required bool isCourier,
     required bool isCancelledWithFee,
-    required bool hasPendingTransferProof,
+    required bool hasTransferProof,
   }) {
     if (isCancelledWithFee) {
       if (isPaid) {
@@ -1807,7 +1820,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
       if (isPaid) {
         return 'Pembayaran QRIS sudah diverifikasi.';
       }
-      return hasPendingTransferProof
+      return hasTransferProof
           ? 'Bukti QRIS menunggu verifikasi driver/admin.'
           : 'Scan QRIS BangDeliv lalu upload bukti pembayaran agar driver/admin bisa memverifikasi.';
     }
