@@ -162,7 +162,8 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     final appBarTitle = TrackOrderPresenter.appBarTitle(
       forceHistoryTitle: forceHistoryTitle,
       isTerminalStatus:
-          trackingAsync.asData?.value.detail.summary.isTerminalStatus ?? false,
+          trackingAsync.asData?.value.detail.summary.isResolvedForCustomer ??
+          false,
     );
 
     return Scaffold(

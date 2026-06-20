@@ -404,6 +404,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ref.invalidate(customerOrderDetailProvider);
       ref.invalidate(customerSortedOrdersProvider);
       ref.invalidate(customerCompletedOrdersProvider);
+      ref.invalidate(customerHistoryOrdersProvider);
       ref.invalidate(customerActivityOrdersProvider);
       ref.invalidate(customerOngoingOrdersProvider);
       ref.invalidate(customerCancelledOrdersProvider);

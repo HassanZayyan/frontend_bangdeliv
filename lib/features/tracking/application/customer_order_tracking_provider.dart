@@ -491,7 +491,7 @@ class CustomerOrderTrackingNotifier
   }
 
   void _syncAutoRefresh(CustomerOrderDetailModel detail) {
-    if (detail.summary.isTerminalStatus) {
+    if (detail.summary.isResolvedForCustomer) {
       _autoRefreshTimer?.cancel();
       _autoRefreshTimer = null;
       _releaseRetainedOrder();

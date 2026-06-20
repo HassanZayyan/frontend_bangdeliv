@@ -16,8 +16,7 @@ final customerOrdersProvider =
 
 final customerOrdersAutoRefreshProvider = Provider.autoDispose<void>((ref) {
   final orders = ref.watch(customerOrdersProvider).asData?.value;
-  final hasActiveOrder =
-      orders?.any((order) => !order.isTerminalStatus) ?? false;
+  final hasActiveOrder = orders?.any((order) => order.canTrack) ?? false;
   if (!hasActiveOrder) {
     return;
   }
@@ -235,7 +234,7 @@ class CustomerOrdersNotifier
 
   void _syncRealtimeSubscriptions(List<CustomerOrderSummaryModel> orders) {
     final activeOrderIds = orders
-        .where((order) => !order.isTerminalStatus)
+        .where((order) => order.canTrack)
         .map((order) => order.id)
         .where((id) => id > 0)
         .toSet();
@@ -303,30 +302,37 @@ final customerSortedOrdersProvider = Provider<List<CustomerOrderSummaryModel>>((
 
 final customerCompletedOrdersProvider =
     Provider<List<CustomerOrderSummaryModel>>((ref) {
-      final orders = ref.watch(customerSortedOrdersProvider);
+      final orders = ref.watch(customerHistoryOrdersProvider);
       return orders.where((order) => order.isCompleted).toList(growable: false);
     });
+
+final customerHistoryOrdersProvider = Provider<List<CustomerOrderSummaryModel>>(
+  (ref) {
+    final orders = ref.watch(customerSortedOrdersProvider);
+    return orders
+        .where((order) => order.isResolvedForCustomer)
+        .toList(growable: false);
+  },
+);
 
 final customerActivityOrdersProvider =
     Provider<List<CustomerOrderSummaryModel>>((ref) {
       final orders = ref.watch(customerSortedOrdersProvider);
       return orders
-          .where((order) => !order.isCompleted)
+          .where((order) => !order.isResolvedForCustomer)
           .toList(growable: false);
     });
 
 final customerOngoingOrdersProvider = Provider<List<CustomerOrderSummaryModel>>(
   (ref) {
     final orders = ref.watch(customerActivityOrdersProvider);
-    return orders
-        .where((order) => !order.isTerminalStatus)
-        .toList(growable: false);
+    return orders.where((order) => order.canTrack).toList(growable: false);
   },
 );
 
 final customerCancelledOrdersProvider =
     Provider<List<CustomerOrderSummaryModel>>((ref) {
-      final orders = ref.watch(customerActivityOrdersProvider);
+      final orders = ref.watch(customerHistoryOrdersProvider);
       return orders.where((order) => order.isCancelled).toList(growable: false);
     });
 
