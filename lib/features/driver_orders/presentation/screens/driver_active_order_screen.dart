@@ -6,15 +6,17 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
 import '../../../../core/widgets/bang_async_state.dart';
+import '../../../../models/driver_order_model.dart';
 import '../../../../services/driver_order_service.dart';
+import '../../../../utils/order_status.dart';
 import '../../../../utils/service_type.dart';
 import '../../../../widgets/driver_transfer_payment_card.dart';
 import '../../../../widgets/order_chat_badge_icon.dart';
+import '../../../navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
 import '../../../orders/application/order_chat_unread_provider.dart';
 import '../../application/driver_location_reporter_provider.dart';
 import '../../application/driver_order_providers.dart';
 import '../widgets/driver_active_order_action_widgets.dart';
-import '../widgets/driver_active_order_fee_widgets.dart';
 import '../widgets/driver_active_order_map_widgets.dart';
 import '../widgets/driver_active_order_meta_widgets.dart';
 import '../widgets/driver_active_order_proof_widgets.dart';
@@ -68,6 +70,11 @@ class DriverActiveOrderScreen extends ConsumerWidget {
           ),
         ],
       ),
+      bottomNavigationBar: detailState.maybeWhen(
+        data: (order) =>
+            _buildStickyActionBar(context, ref, order, isProcessing),
+        orElse: () => null,
+      ),
       body: detailState.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stackTrace) {
@@ -87,21 +94,69 @@ class DriverActiveOrderScreen extends ConsumerWidget {
               ? null
               : LatLng(latestPosition.latitude, latestPosition.longitude);
 
+          final hasStickyActionBar = order.availableActions.isNotEmpty ||
+              (normalizeServiceTypeCode(order.serviceTypeCode) ==
+                      ServiceTypeCodes.shopping &&
+                  order.shoppingStops.any((stop) => stop.isActive) &&
+                  order.shoppingPricing?.canCancelWithFee != true &&
+                  (normalizeOrderStatusCode(order.statusCode) ==
+                          OrderStatusCodes.driverAssigned ||
+                      normalizeOrderStatusCode(order.statusCode) ==
+                          OrderStatusCodes.arrivedMerchant));
+
+          final bottomPadding = hasStickyActionBar
+              ? 16.0
+              : BangFloatingBottomNavBar.scrollClearance;
+
           return RefreshIndicator(
             onRefresh: () async {
               ref.invalidate(driverOrderDetailProvider(orderId));
               await ref.read(driverOrderDetailProvider(orderId).future);
             },
             child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: ClampingScrollPhysics(),
+              ),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                12,
+                16,
+                bottomPadding,
+              ),
               children: [
                 DriverActiveOrderMapCard(
                   order: order,
                   driverPosition: driverPosition,
                 ),
                 const SizedBox(height: 12),
-                DriverOrderMetaCard(order: order),
+                DriverOrderCustomerCard(order: order),
+                const SizedBox(height: 12),
+                DriverOrderRouteCard(order: order),
+                const SizedBox(height: 12),
+                if (normalizeServiceTypeCode(order.serviceTypeCode) ==
+                    ServiceTypeCodes.courier) ...[
+                  DriverOrderPackageCard(order: order),
+                  const SizedBox(height: 12),
+                ],
+                DriverOrderPricingCard(
+                  order: order,
+                  isProcessing: isProcessing,
+                  onEditDeliveryFee:
+                      ({
+                        required amount,
+                        required reason,
+                        required carefulCarryRequired,
+                      }) {
+                        return ref
+                            .read(driverOrdersProvider.notifier)
+                            .updateDeliveryFeeOverride(
+                              orderId: order.id,
+                              amount: amount,
+                              reason: reason,
+                              carefulCarryRequired: carefulCarryRequired,
+                            );
+                      },
+                ),
                 const SizedBox(height: 12),
                 if (normalizeServiceTypeCode(order.serviceTypeCode) ==
                     ServiceTypeCodes.courier) ...[
@@ -128,26 +183,6 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 12),
                 ],
-                DriverManualDeliveryFeeCard(
-                  order: order,
-                  isProcessing: isProcessing,
-                  onSave:
-                      ({
-                        required amount,
-                        required reason,
-                        required carefulCarryRequired,
-                      }) {
-                        return ref
-                            .read(driverOrdersProvider.notifier)
-                            .updateDeliveryFeeOverride(
-                              orderId: order.id,
-                              amount: amount,
-                              reason: reason,
-                              carefulCarryRequired: carefulCarryRequired,
-                            );
-                      },
-                ),
-                const SizedBox(height: 12),
                 if (order.shoppingItems.isNotEmpty) ...[
                   DriverShoppingItemsCard(
                     order: order,
@@ -234,89 +269,94 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                 ],
                 DriverOrderTimelineCard(timeline: order.statusTimeline),
                 const SizedBox(height: 12),
-                DriverOrderActionCard(
-                  order: order,
-                  isProcessing: isProcessing,
-                  onReportPickupFailed:
-                      ({
-                        required pickupLocationId,
-                        required reason,
-                        required storeClosedPhoto,
-                      }) async {
-                        final error = await ref
-                            .read(driverOrdersProvider.notifier)
-                            .recordShoppingPickupFailed(
-                              orderId: order.id,
-                              pickupLocationId: pickupLocationId,
-                              reason: reason,
-                              storeClosedPhoto: storeClosedPhoto,
-                            );
-
-                        if (!context.mounted) {
-                          return;
-                        }
-
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              error ?? 'Merchant tutup berhasil dicatat.',
-                            ),
-                            backgroundColor: error == null
-                                ? null
-                                : AppColors.error,
-                          ),
-                        );
-                        if (error == null) {
-                          ref.invalidate(driverOrderDetailProvider(order.id));
-                        }
-                      },
-                  onTapAction: (action) async {
-                    final notifier = ref.read(driverOrdersProvider.notifier);
-
-                    String? error;
-                    if (action.isCodCollection) {
-                      error = await notifier.collectCod(
-                        orderId: order.id,
-                        amount: order.totalPrice,
-                        note:
-                            normalizeServiceTypeCode(order.serviceTypeCode) ==
-                                ServiceTypeCodes.courier
-                            ? 'Pembayaran courier dicatat saat pickup dari app driver.'
-                            : 'Pembayaran COD dicatat dari app driver.',
-                      );
-                    } else {
-                      error = await notifier.transitionOrderStatus(
-                        orderId: order.id,
-                        actionCode: action.actionCode,
-                        targetStatusCode: action.targetStatusCode,
-                      );
-                    }
-
-                    if (!context.mounted) {
-                      return;
-                    }
-
-                    if (error == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('${action.label} berhasil.')),
-                      );
-                      ref.invalidate(driverOrderDetailProvider(order.id));
-                      return;
-                    }
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(error),
-                        backgroundColor: AppColors.error,
-                      ),
-                    );
-                  },
-                ),
               ],
             ),
           );
         },
       ),
+    );
+  }
+
+  Widget _buildStickyActionBar(
+    BuildContext context,
+    WidgetRef ref,
+    DriverOrderModel order,
+    bool isProcessing,
+  ) {
+    return DriverOrderStickyActionBar(
+      order: order,
+      isProcessing: isProcessing,
+      onReportPickupFailed:
+          ({
+            required pickupLocationId,
+            required reason,
+            required storeClosedPhoto,
+          }) async {
+            final error = await ref
+                .read(driverOrdersProvider.notifier)
+                .recordShoppingPickupFailed(
+                  orderId: order.id,
+                  pickupLocationId: pickupLocationId,
+                  reason: reason,
+                  storeClosedPhoto: storeClosedPhoto,
+                );
+
+            if (!context.mounted) {
+              return;
+            }
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(error ?? 'Merchant tutup berhasil dicatat.'),
+                backgroundColor: error == null ? null : AppColors.error,
+              ),
+            );
+            if (error == null) {
+              ref.invalidate(driverOrderDetailProvider(order.id));
+            }
+          },
+      onTapAction: (action) async {
+        final notifier = ref.read(driverOrdersProvider.notifier);
+
+        String? error;
+        if (action.isCodCollection) {
+          error = await notifier.collectCod(
+            orderId: order.id,
+            amount: order.totalPrice,
+            note:
+                normalizeServiceTypeCode(order.serviceTypeCode) ==
+                    ServiceTypeCodes.courier
+                ? 'Pembayaran courier dicatat saat pickup dari app driver.'
+                : 'Pembayaran COD dicatat dari app driver.',
+          );
+        } else {
+          error = await notifier.transitionOrderStatus(
+            orderId: order.id,
+            actionCode: action.actionCode,
+            targetStatusCode: action.targetStatusCode,
+          );
+        }
+
+        if (!context.mounted) {
+          return;
+        }
+
+        if (error == null) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('${action.label} berhasil.')));
+          ref.invalidate(driverOrderDetailProvider(order.id));
+          if (action.targetStatusCode != null &&
+              !isDriverRunningOrderStatus(action.targetStatusCode!)) {
+            context.go(AppRoutes.driverOrders);
+          }
+          return;
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error), backgroundColor: AppColors.error),
+        );
+      },
     );
   }
 

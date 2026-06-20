@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
+import '../../../../config/app_text_scaling.dart';
 import '../../../../models/customer_order_model.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../orders/application/customer_order_providers.dart';
@@ -142,6 +143,8 @@ class TrackOrderScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(
           appBarTitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         backgroundColor: AppColors.white,
@@ -214,9 +217,9 @@ class TrackOrderScreen extends ConsumerWidget {
                   ),
                 ],
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.map_outlined,
-                size: 80,
+                size: AppTextScaling.adaptive(context, normal: 80, large: 68),
                 color: AppColors.textSecondary,
               ),
             ),
@@ -364,36 +367,38 @@ class TrackOrderScreen extends ConsumerWidget {
                             padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
                             children: [
                               _buildActiveTrackingCard(
+                                context: context,
                                 order: order,
                                 isRide: isRide,
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 8),
                               if (driverName.isNotEmpty) ...[
                                 _buildDriverCard(
                                   driverName,
                                   orderId: order.id,
+                                  avatarUrl: detail.driverAvatarUrl,
                                   vehicleLabel: driverVehicleLabel,
                                   vehiclePlate: driverVehiclePlate,
                                   onChat: () => context.push(
                                     AppRoutes.orderChatPath(order.id),
                                   ),
                                 ),
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 8),
                               ],
                               _buildRouteCard(detail),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 8),
                               _buildOrderDetailsCard(order, detail),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 8),
                               if (detail.isShoppingOrder) ...[
                                 TrackShoppingOrderItemsCard(
                                   detail: detail,
                                   onChanged: onRefresh,
                                 ),
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 8),
                               ],
                               if (detail.proofs.isNotEmpty) ...[
                                 _buildProofsCard(context, detail.proofs),
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 8),
                               ],
                               _buildPaymentCard(
                                 context,
@@ -402,7 +407,7 @@ class TrackOrderScreen extends ConsumerWidget {
                                 detail,
                                 onRefresh,
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 8),
                               _buildTimelineCard(
                                 detail.timeline,
                                 isRide: isRide,
@@ -458,6 +463,7 @@ class TrackOrderScreen extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
             children: [
               _buildActiveTrackingCard(
+                context: context,
                 order: order,
                 isRide:
                     normalizeServiceTypeCode(order.serviceTypeCode) ==
@@ -468,6 +474,7 @@ class TrackOrderScreen extends ConsumerWidget {
                 _buildDriverCard(
                   driverName,
                   orderId: order.id,
+                  avatarUrl: detail.driverAvatarUrl,
                   vehicleLabel: driverVehicleLabel,
                   vehiclePlate: driverVehiclePlate,
                   onChat: () => context.push(AppRoutes.orderChatPath(order.id)),
@@ -490,18 +497,20 @@ class TrackOrderScreen extends ConsumerWidget {
                 const SizedBox(height: 12),
               ],
               _buildPaymentCard(context, ref, order, detail, onRefresh),
-              const SizedBox(height: 12),
-              _buildCard(
-                title: 'Info Tracking',
-                child: Text(
-                  infoMessage,
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12.5,
-                    height: 1.4,
+              if (!order.isTerminalStatus) ...[
+                const SizedBox(height: 12),
+                _buildCard(
+                  title: 'Info Tracking',
+                  child: Text(
+                    infoMessage,
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12.5,
+                      height: 1.4,
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
           ),
         ),
@@ -746,7 +755,7 @@ class TrackOrderScreen extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(8, 14, 8, 14),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -789,10 +798,16 @@ class TrackOrderScreen extends ConsumerWidget {
   // ---------------------------------------------------------------------------
 
   Widget _buildActiveTrackingCard({
+    required BuildContext context,
     required CustomerOrderSummaryModel order,
     bool isRide = false,
   }) {
     final statusTitle = _detailStatusTitle(order);
+    final statusTitleFontSize = AppTextScaling.adaptive(
+      context,
+      normal: 18,
+      large: 16.5,
+    );
     final showProgress =
         !order.isTerminalStatus &&
         !isTerminalOrderStatus(normalizeOrderStatusCode(order.statusCode));
@@ -802,7 +817,7 @@ class TrackOrderScreen extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -834,10 +849,9 @@ class TrackOrderScreen extends ConsumerWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: AppColors.primaryDark,
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                height: 1.05,
-              ),
+                fontWeight: FontWeight.w800,
+                height: 1.12,
+              ).copyWith(fontSize: statusTitleFontSize),
             ),
           ],
           if (showProgress) ...[
@@ -899,6 +913,7 @@ class TrackOrderScreen extends ConsumerWidget {
   Widget _buildDriverCard(
     String driverName, {
     required int orderId,
+    String? avatarUrl,
     String? vehicleLabel,
     String? vehiclePlate,
     VoidCallback? onChat,
@@ -912,7 +927,7 @@ class TrackOrderScreen extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -925,42 +940,39 @@ class TrackOrderScreen extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.08),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppColors.primary.withValues(alpha: 0.18),
-              ),
-            ),
-            child: Center(
-              child: Text(
-                _driverInitials(driverName),
-                style: GoogleFonts.nunitoSans(
-                  color: AppColors.primaryDark,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 17,
-                ),
-              ),
-            ),
-          ),
+          _buildDriverAvatar(driverName, avatarUrl),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  driverName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.nunitoSans(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                    height: 1.15,
-                  ),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        driverName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.nunitoSans(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                          height: 1.15,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '(driver)',
+                      maxLines: 1,
+                      style: GoogleFonts.nunitoSans(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w400,
+                        fontSize: 12.5,
+                        height: 1.2,
+                      ),
+                    ),
+                  ],
                 ),
                 if (vehicleSubtitle != null) ...[
                   const SizedBox(height: 4),
@@ -998,6 +1010,51 @@ class TrackOrderScreen extends ConsumerWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildDriverAvatar(String driverName, String? avatarUrl) {
+    final normalizedAvatarUrl = avatarUrl?.trim() ?? '';
+
+    return Semantics(
+      image: true,
+      label: 'Avatar driver $driverName',
+      child: Container(
+        width: 48,
+        height: 48,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceAlt,
+          shape: BoxShape.circle,
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Center(
+              child: Text(
+                _driverInitials(driverName),
+                maxLines: 1,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.nunitoSans(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14.5,
+                  height: 1,
+                ),
+              ),
+            ),
+            if (normalizedAvatarUrl.isNotEmpty)
+              Image.network(
+                normalizedAvatarUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return const SizedBox.shrink();
+                },
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -1042,19 +1099,6 @@ class TrackOrderScreen extends ConsumerWidget {
   ) {
     final deliveryFeeNotice = _deliveryFeeNotice(order, detail);
     final serviceCode = normalizeServiceTypeCode(order.serviceTypeCode);
-    final isShopping = serviceCode == ServiceTypeCodes.shopping;
-    final normalizedPaymentMethod = TrackOrderPresenter.normalizedPaymentMethod(
-      order,
-      detail,
-    );
-    final paymentMethod = paymentMethodLabel(normalizedPaymentMethod);
-    final paymentStatus = paymentStatusLabel(detail.paymentStatus);
-    final isPaid = isPaymentPaid(detail.paymentStatus);
-    final summaryPaymentMessage = _paymentMessage(
-      order,
-      detail,
-      isPaid: isPaid,
-    );
     final rows = <TrackInfoRow>[
       TrackInfoRow('No. Order', order.orderNumber),
       TrackInfoRow('Layanan', order.serviceTypeLabel),
@@ -1064,7 +1108,6 @@ class TrackOrderScreen extends ConsumerWidget {
         TrackInfoRow('Barang', order.itemsSummary.trim()),
       if ((detail.deliveryDistanceText ?? '').trim().isNotEmpty)
         TrackInfoRow('Jarak', detail.deliveryDistanceText!.trim()),
-      TrackInfoRow('Pembayaran', '$paymentMethod - $paymentStatus'),
     ];
 
     return _buildCard(
@@ -1076,28 +1119,6 @@ class TrackOrderScreen extends ConsumerWidget {
             final row = rows[index];
             return _summaryRow(row);
           }),
-          if (!isShopping) ...[
-            const Divider(height: 18, thickness: 1, color: AppColors.border),
-            _summaryRow(
-              TrackInfoRow(
-                'Total',
-                formatCurrency(order.totalAmount),
-                emphasized: true,
-              ),
-            ),
-            if (summaryPaymentMessage.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                summaryPaymentMessage,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12,
-                  height: 1.4,
-                ),
-              ),
-            ],
-          ],
           if (deliveryFeeNotice != null) ...[
             const SizedBox(height: 12),
             TrackDeliveryFeeNotice(text: deliveryFeeNotice),
@@ -1109,7 +1130,7 @@ class TrackOrderScreen extends ConsumerWidget {
 
   Widget _summaryRow(TrackInfoRow row) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1164,42 +1185,6 @@ class TrackOrderScreen extends ConsumerWidget {
     }
 
     return 'Ongkir diperbarui driver menjadi ${formatCurrency(deliveryFee)}. Alasan: $reason.';
-  }
-
-  String _paymentMessage(
-    CustomerOrderSummaryModel order,
-    CustomerOrderDetailModel detail, {
-    required bool isPaid,
-  }) {
-    final isCourier =
-        normalizeServiceTypeCode(order.serviceTypeCode) ==
-        ServiceTypeCodes.courier;
-    final isCancelledWithFee =
-        normalizeOrderStatusCode(order.statusCode) ==
-        OrderStatusCodes.cancelledWithFee;
-    final isTransfer =
-        TrackOrderPresenter.normalizedPaymentMethod(order, detail) ==
-        'TRANSFER';
-
-    if (isCancelledWithFee) {
-      return isPaid
-          ? 'Penalty merchant gagal sudah tercatat.'
-          : 'Bayar penalty merchant gagal sesuai nominal.';
-    }
-
-    if (isTransfer) {
-      return '';
-    }
-
-    if (isCourier) {
-      return isPaid
-          ? 'Pembayaran pickup sudah tercatat.'
-          : 'Bayar tunai ke driver saat menyerahkan barang di titik ambil.';
-    }
-
-    return isPaid
-        ? 'Pembayaran tunai sudah tercatat.'
-        : 'Bayar tunai ke driver saat pesanan sampai.';
   }
 
   Widget _buildProofsCard(
@@ -1325,7 +1310,6 @@ class TrackOrderScreen extends ConsumerWidget {
     Future<void> Function()? onRefresh,
   ) {
     final isPaid = isPaymentPaid(detail.paymentStatus);
-    final statusColor = isPaid ? AppColors.success : AppColors.primary;
     final normalizedPaymentMethod = TrackOrderPresenter.normalizedPaymentMethod(
       order,
       detail,
@@ -1342,6 +1326,14 @@ class TrackOrderScreen extends ConsumerWidget {
           proof.type == 'payment_transfer' &&
           (proof.status ?? '').trim().toLowerCase() == 'pending',
     );
+    final paymentStatusText = hasPendingTransferProof && !isPaid
+        ? 'Menunggu verifikasi'
+        : paymentStatusLabel(detail.paymentStatus);
+    final paymentStatusColor = _paymentStatusColor(
+      detail.paymentStatus,
+      isPaid: isPaid,
+      hasPendingTransferProof: hasPendingTransferProof,
+    );
     final paymentMessage = _paymentActionMessage(
       order: order,
       isPaid: isPaid,
@@ -1353,25 +1345,33 @@ class TrackOrderScreen extends ConsumerWidget {
 
     return _buildCard(
       title: 'Pembayaran',
-      icon: Icons.payments_outlined,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _paymentChip(
-                paymentMethodLabel(normalizedPaymentMethod),
-                statusColor,
+              Expanded(
+                child: _paymentMethodSummary(
+                  paymentMethodLabel(normalizedPaymentMethod),
+                ),
               ),
-              _paymentChip(
-                paymentStatusLabel(detail.paymentStatus),
-                statusColor,
+              const SizedBox(width: 10),
+              _paymentStatusPill(
+                label: paymentStatusText,
+                color: paymentStatusColor,
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
+          _summaryRow(
+            TrackInfoRow(
+              'Total',
+              formatCurrency(order.totalAmount),
+              emphasized: true,
+            ),
+          ),
+          const SizedBox(height: 10),
           Text(
             paymentMessage,
             style: const TextStyle(
@@ -1382,16 +1382,8 @@ class TrackOrderScreen extends ConsumerWidget {
             ),
           ),
           if (!isPaid) ...[
-            const SizedBox(height: 6),
-            Text(
-              'Nominal: ${formatCurrency(order.totalAmount)}',
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12.5,
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (isTransfer || isCancelledWithFee)
+            const SizedBox(height: 4),
+            if ((isTransfer || isCancelledWithFee) && !hasPendingTransferProof)
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
@@ -1401,6 +1393,10 @@ class TrackOrderScreen extends ConsumerWidget {
                     order.id,
                     onRefresh,
                   ),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: paymentStatusColor),
+                    foregroundColor: paymentStatusColor,
+                  ),
                   icon: const Icon(Icons.upload_file_outlined),
                   label: const Text('Upload Bukti Transfer'),
                 ),
@@ -1409,6 +1405,85 @@ class TrackOrderScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Widget _paymentMethodSummary(String methodLabel) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Metode',
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 12.5,
+            fontWeight: FontWeight.w500,
+            height: 1.2,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          methodLabel,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 13.2,
+            fontWeight: FontWeight.w700,
+            height: 1.2,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _paymentStatusPill({required String label, required Color color}) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 150),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.11),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withValues(alpha: 0.18)),
+        ),
+        child: Text(
+          label,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: color,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w800,
+            height: 1.1,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _paymentStatusColor(
+    String? rawStatus, {
+    required bool isPaid,
+    required bool hasPendingTransferProof,
+  }) {
+    if (isPaid) {
+      return AppColors.success;
+    }
+
+    final normalizedStatus = (rawStatus ?? '').trim().toLowerCase();
+    if (normalizedStatus.contains('fail') ||
+        normalizedStatus.contains('reject') ||
+        normalizedStatus.contains('declin') ||
+        normalizedStatus.contains('cancel')) {
+      return AppColors.error;
+    }
+
+    if (hasPendingTransferProof) {
+      return AppColors.warning;
+    }
+
+    return AppColors.primary;
   }
 
   Widget _buildTrackingInfoBanner(String message) {
@@ -1508,24 +1583,6 @@ class TrackOrderScreen extends ConsumerWidget {
         context,
       ).showSnackBar(SnackBar(content: Text(error.toString())));
     }
-  }
-
-  Widget _paymentChip(String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
   }
 
   // ---------------------------------------------------------------------------
@@ -1766,10 +1823,10 @@ class TrackOrderScreen extends ConsumerWidget {
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -1800,7 +1857,7 @@ class TrackOrderScreen extends ConsumerWidget {
               ),
             ],
           ),
-          const Divider(height: 18, color: AppColors.border),
+          const Divider(height: 14, color: AppColors.border),
           child,
         ],
       ),

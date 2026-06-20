@@ -64,7 +64,6 @@ class AuthService {
     required String vehicleBrand,
     required String vehicleModel,
     required String vehiclePlate,
-    required String licenseNumber,
   }) async {
     final uri = Uri.parse('${AppEnv.apiBaseUrl}/user/upgrade-to-driver');
 
@@ -78,7 +77,6 @@ class AuthService {
               'vehicle_brand': vehicleBrand.trim(),
               'vehicle_model': vehicleModel.trim(),
               'vehicle_plate': vehiclePlate,
-              'license_number': licenseNumber,
             }),
           )
           .timeout(const Duration(seconds: 20));

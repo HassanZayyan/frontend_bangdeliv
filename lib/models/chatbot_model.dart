@@ -346,7 +346,7 @@ class ChatbotResult {
   String toAssistantText() {
     final backendMessage = assistantText?.trim() ?? '';
     if (backendMessage.isNotEmpty) {
-      return _normalizeDeliveryFeeLabel(backendMessage);
+      return normalizeAssistantCopy(backendMessage, serviceType: serviceType);
     }
 
     if (intent == ChatbotIntent.courierOrder) {
@@ -445,7 +445,89 @@ class ChatbotResult {
     return buffer.toString().trimRight();
   }
 
-  String _normalizeDeliveryFeeLabel(String text) {
+  static String normalizeAssistantCopy(String text, {String? serviceType}) {
+    var normalized = _normalizeDeliveryFeeLabel(text.trim());
+
+    normalized = normalized.replaceAll(
+      RegExp(
+        r'Lokasi tujuan belum terbaca\.\s*Tulis contoh:\s*"antar ke Stasiun Tawang"\s*atau\s*"tujuan ke Jalan Sudirman No 10"\.',
+        caseSensitive: false,
+      ),
+      'Lokasi tujuan belum terbaca.',
+    );
+    normalized = normalized.replaceAll(
+      RegExp(
+        r'Contoh:\s*antar ke Stasiun Tawang,\s*tujuan ke Jalan Sudirman No 10,\s*atau saya mau ke Polines\.',
+        caseSensitive: false,
+      ),
+      'Contoh: Antar ke Ramayana Salatiga, atau Saya mau ke Alun-Alun Salatiga.',
+    );
+    normalized = normalized.replaceAll(
+      RegExp(
+        r'(^|\n)\s*Silakan klik tombol "Atur Titik Jemput & Tujuan" di bawah untuk memilih tujuan baru\.\s*',
+        caseSensitive: false,
+      ),
+      '\n',
+    );
+    normalized = normalized.replaceAll(
+      RegExp(
+        r'(^|\n)\s*Setelah itu,\s*klik tombol "Atur Titik Jemput & Tujuan" di bawah untuk memilih tujuan baru\.\s*',
+        caseSensitive: false,
+      ),
+      '\n',
+    );
+
+    normalized = normalized.replaceAll(
+      RegExp(
+        r'(^|\n)\s*Pilih metode pembayaran dulu:\s*COD atau Transfer\.\s*',
+        caseSensitive: false,
+      ),
+      '\n',
+    );
+    normalized = normalized.replaceAll(
+      RegExp(r'\s+Pilih metode pembayaran\.\s*', caseSensitive: false),
+      ' ',
+    );
+    normalized = normalized.replaceAll(
+      RegExp(
+        r'\s*Ketik "Konfirmasi" untuk lanjut atau "Ubah Tujuan" untuk ganti tujuan\.\s*',
+        caseSensitive: false,
+      ),
+      ' ',
+    );
+    normalized = normalized.replaceAll(
+      RegExp(
+        r'\s*Ketik "Konfirmasi" untuk lanjut atau "Ubah Tujuan"\.\s*',
+        caseSensitive: false,
+      ),
+      ' ',
+    );
+    normalized = normalized.replaceAll(
+      RegExp(r'\s*Ketik "Konfirmasi" untuk lanjut\.\s*', caseSensitive: false),
+      ' ',
+    );
+    normalized = normalized.replaceAll(
+      RegExp(
+        r'\s*Ketik "Konfirmasi" untuk membuat order\.\s*',
+        caseSensitive: false,
+      ),
+      ' ',
+    );
+    normalized = normalized.replaceAll(
+      RegExp(
+        r'\s*Ketik "Konfirmasi" kalau sudah oke\.\s*',
+        caseSensitive: false,
+      ),
+      ' ',
+    );
+
+    return normalized
+        .replaceAll(RegExp(r'[ \t]+\n'), '\n')
+        .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+        .trim();
+  }
+
+  static String _normalizeDeliveryFeeLabel(String text) {
     return text.replaceAllMapped(
       RegExp(r'(^|\n)\s*Ongkir\s*:', caseSensitive: false),
       (match) => '${match.group(1) ?? ''}Estimasi ongkir sementara:',

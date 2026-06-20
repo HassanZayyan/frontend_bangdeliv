@@ -10,13 +10,13 @@ class ShoppingDraftItemsSection extends StatelessWidget {
   const ShoppingDraftItemsSection({
     super.key,
     required this.items,
-    required this.onEdit,
-    required this.onRemove,
+    required this.onDecrement,
+    required this.onIncrement,
   });
 
   final List<ShoppingItemDraft> items;
-  final ValueChanged<ShoppingItemDraft> onEdit;
-  final ValueChanged<ShoppingItemDraft> onRemove;
+  final ValueChanged<ShoppingItemDraft> onDecrement;
+  final ValueChanged<ShoppingItemDraft> onIncrement;
 
   @override
   Widget build(BuildContext context) {
@@ -45,8 +45,8 @@ class ShoppingDraftItemsSection extends StatelessWidget {
               child: _DraftMerchantGroup(
                 merchant: merchantsById[entry.key]!,
                 items: entry.value,
-                onEdit: onEdit,
-                onRemove: onRemove,
+                onDecrement: onDecrement,
+                onIncrement: onIncrement,
               ),
             ),
           ),
@@ -59,14 +59,14 @@ class _DraftMerchantGroup extends StatelessWidget {
   const _DraftMerchantGroup({
     required this.merchant,
     required this.items,
-    required this.onEdit,
-    required this.onRemove,
+    required this.onDecrement,
+    required this.onIncrement,
   });
 
   final ShoppingMerchantOption merchant;
   final List<ShoppingItemDraft> items;
-  final ValueChanged<ShoppingItemDraft> onEdit;
-  final ValueChanged<ShoppingItemDraft> onRemove;
+  final ValueChanged<ShoppingItemDraft> onDecrement;
+  final ValueChanged<ShoppingItemDraft> onIncrement;
 
   @override
   Widget build(BuildContext context) {
@@ -103,8 +103,8 @@ class _DraftMerchantGroup extends StatelessWidget {
           ...items.map(
             (item) => _DraftItemTile(
               item: item,
-              onEdit: item.isFromMenu ? null : () => onEdit(item),
-              onRemove: () => onRemove(item),
+              onDecrement: () => onDecrement(item),
+              onIncrement: () => onIncrement(item),
             ),
           ),
         ],
@@ -116,39 +116,34 @@ class _DraftMerchantGroup extends StatelessWidget {
 class _DraftItemTile extends StatelessWidget {
   const _DraftItemTile({
     required this.item,
-    required this.onEdit,
-    required this.onRemove,
+    required this.onDecrement,
+    required this.onIncrement,
   });
 
   final ShoppingItemDraft item;
-  final VoidCallback? onEdit;
-  final VoidCallback onRemove;
+  final VoidCallback onDecrement;
+  final VoidCallback onIncrement;
 
   @override
   Widget build(BuildContext context) {
     final notes = (item.notes ?? '').trim();
     final unitPrice = item.unitPrice ?? 0;
+    final hasMenuPrice = item.isFromMenu && unitPrice > 0;
+    final priceLabel = hasMenuPrice
+        ? formatCurrency(unitPrice * item.quantity)
+        : 'Harga menunggu nota';
+    final priceColor = hasMenuPrice
+        ? AppColors.textSecondary
+        : AppColors.textSecondary.withValues(alpha: 0.9);
 
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          SizedBox(
-            width: 34,
-            child: Text(
-              '${item.quantity}x',
-              textAlign: TextAlign.left,
-              style: const TextStyle(
-                color: AppColors.primary,
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
           Expanded(
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
@@ -164,11 +159,24 @@ class _DraftItemTile extends StatelessWidget {
                 if (item.isFromMenu && unitPrice > 0) ...[
                   const SizedBox(height: 2),
                   Text(
-                    'Harga menu: ${formatCurrency(unitPrice)}',
+                    priceLabel,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
+                    style: TextStyle(
+                      color: priceColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+                if (!item.isFromMenu) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    priceLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: priceColor,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -191,30 +199,75 @@ class _DraftItemTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 6),
-          if (onEdit != null)
-            SizedBox(
-              width: 32,
-              height: 32,
-              child: IconButton(
-                tooltip: 'Edit item',
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                onPressed: onEdit,
-                icon: const Icon(Icons.edit_outlined, size: 17),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _QuantityActionButton(
+                icon: Icons.remove_rounded,
+                tooltip: 'Kurangi item',
+                onPressed: onDecrement,
               ),
-            ),
-          SizedBox(
-            width: 32,
-            height: 32,
-            child: IconButton(
-              tooltip: 'Hapus item',
-              visualDensity: VisualDensity.compact,
-              padding: EdgeInsets.zero,
-              onPressed: onRemove,
-              icon: const Icon(Icons.delete_outline, size: 17),
-            ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Text(
+                  '${item.quantity}',
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              _QuantityActionButton(
+                icon: Icons.add_rounded,
+                tooltip: 'Tambah item',
+                onPressed: onIncrement,
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _QuantityActionButton extends StatelessWidget {
+  const _QuantityActionButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 28,
+      height: 28,
+      child: Material(
+        color: AppColors.white,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onPressed,
+          child: Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.primary, width: 1.5),
+            ),
+            child: Tooltip(
+              message: tooltip,
+              child: Icon(
+                icon,
+                color: AppColors.primary,
+                size: 15,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

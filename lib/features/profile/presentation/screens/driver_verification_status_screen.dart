@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
+import '../../../../config/app_text_scaling.dart';
 import '../../../../core/widgets/bang_async_state.dart';
 import '../../../../models/driver_verification_model.dart';
 import '../../../auth/application/auth_session_provider.dart';
@@ -21,6 +22,8 @@ class DriverVerificationStatusScreen extends ConsumerStatefulWidget {
 class _DriverVerificationStatusScreenState
     extends ConsumerState<DriverVerificationStatusScreen> {
   static const List<String> _orderedDocumentTypes = ['ktp', 'sim', 'selfie'];
+  static const double _pickerIconSize = 20;
+  static const TextStyle _pickerLabelStyle = TextStyle(fontSize: 14);
 
   final ImagePicker _imagePicker = ImagePicker();
   DriverVerificationStatusModel? _status;
@@ -73,15 +76,17 @@ class _DriverVerificationStatusScreenState
     final registrationStatus = status.driver.registrationStatus
         .trim()
         .toLowerCase();
+    final isActive = registrationStatus == 'active';
     final canUpload = _canUpload(registrationStatus);
 
     return _withProfileBackHandling(
       Scaffold(
+        backgroundColor: AppColors.background,
         appBar: _buildAppBar(),
         body: RefreshIndicator(
           onRefresh: _loadStatus,
           child: ListView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
             children: [
               _StatusCard(
                 title: _titleFor(registrationStatus),
@@ -91,18 +96,28 @@ class _DriverVerificationStatusScreenState
               const SizedBox(height: 16),
               const Text(
                 'Dokumen Verifikasi',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: 16,
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
-                canUpload
-                    ? 'Pilih dokumen dari kamera atau galeri. Anda bisa unggah minimal satu dokumen setiap pengajuan.'
+                isActive
+                    ? 'Dokumen Anda sudah selesai diverifikasi admin.'
+                    : canUpload
+                    ? 'Unggah KTP, SIM, dan selfie untuk proses review admin.'
                     : 'Upload dokumen dinonaktifkan untuk status akun driver saat ini.',
-                style: const TextStyle(color: AppColors.textSecondary),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12.5,
+                  height: 1.35,
+                ),
               ),
               const SizedBox(height: 12),
               ..._orderedDocumentTypes.map((documentType) {
@@ -115,6 +130,7 @@ class _DriverVerificationStatusScreenState
                     documentType: documentType,
                     document: document,
                     selectedFile: selectedFile,
+                    isAccountActive: isActive,
                     enabled: canUpload && !_isSubmitting,
                     onPickPressed: () => _openPickerSheet(documentType),
                   ),
@@ -135,68 +151,36 @@ class _DriverVerificationStatusScreenState
                     ),
                   ),
                 ),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: (!_isSubmitting && canUpload)
-                      ? _submitDocuments
-                      : null,
-                  icon: _isSubmitting
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.white,
-                          ),
-                        )
-                      : const Icon(Icons.upload_file_outlined),
-                  label: Text(
-                    _isSubmitting ? 'Mengunggah...' : 'Kirim Dokumen',
+              if (canUpload) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isSubmitting ? null : _submitDocuments,
+                    child: _isSubmitting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.white,
+                            ),
+                          )
+                        : const Text('Kirim Dokumen'),
                   ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _isLoading ? null : _loadStatus,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Refresh Status'),
-                ),
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: registrationStatus == 'active'
-                    ? ElevatedButton.icon(
-                        onPressed: _isLoading ? null : _backToDriverProfile,
-                        icon: const Icon(Icons.person_outline),
-                        label: const Text('Buka Profil Driver'),
-                      )
-                    : OutlinedButton.icon(
-                        onPressed: _isLoading ? null : _backToDriverProfile,
-                        icon: const Icon(Icons.person_outline),
-                        label: const Text('Kembali ke Profil Driver'),
-                      ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: Text(
-                  'Anda tidak perlu menunggu di halaman ini. Gunakan tombol refresh untuk cek status secara berkala.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.textSecondary,
+                const SizedBox(height: 10),
+              ],
+              if (!isActive) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _isLoading ? null : _loadStatus,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Refresh Status'),
                   ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Jika dokumen ditolak, unggah ulang dari halaman ini sampai status aktif.',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
-              ),
+                const SizedBox(height: 10),
+              ],
             ],
           ),
         ),
@@ -212,30 +196,38 @@ class _DriverVerificationStatusScreenState
           return;
         }
 
-        _backToDriverProfile();
+        _backFromStatus();
       },
       child: child,
     );
   }
 
-  void _backToDriverProfile() {
+  void _backFromStatus() {
     final navigator = Navigator.of(context);
     if (navigator.canPop()) {
       navigator.pop();
       return;
     }
 
-    context.go(AppRoutes.driverProfile);
+    final session = ref.read(authSessionProvider);
+    final isDriverActive =
+        session.driverAccessState == DriverAccessState.active;
+
+    context.go(isDriverActive ? AppRoutes.driverProfile : AppRoutes.profile);
   }
 
   AppBar _buildAppBar() {
     return AppBar(
-      title: const Text('Status Verifikasi Driver'),
+      title: const Text(
+        'Status Verifikasi Driver',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
       automaticallyImplyLeading: false,
       leading: IconButton(
-        onPressed: _backToDriverProfile,
+        onPressed: _backFromStatus,
         icon: const Icon(Icons.arrow_back),
-        tooltip: 'Kembali ke Profil Driver',
+        tooltip: 'Kembali',
       ),
     );
   }
@@ -278,24 +270,46 @@ class _DriverVerificationStatusScreenState
   Future<void> _openPickerSheet(String documentType) async {
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      clipBehavior: Clip.antiAlias,
       builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.camera_alt_outlined),
-                  title: const Text('Ambil dari Kamera'),
-                  onTap: () => Navigator.of(context).pop(ImageSource.camera),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.photo_library_outlined),
-                  title: const Text('Pilih dari Galeri'),
-                  onTap: () => Navigator.of(context).pop(ImageSource.gallery),
-                ),
-              ],
+        return Material(
+          color: AppColors.white,
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    tileColor: AppColors.white,
+                    leading: const Icon(
+                      Icons.camera_alt_outlined,
+                      size: _pickerIconSize,
+                    ),
+                    title: const Text(
+                      'Ambil dari Kamera',
+                      style: _pickerLabelStyle,
+                    ),
+                    onTap: () => Navigator.of(context).pop(ImageSource.camera),
+                  ),
+                  ListTile(
+                    tileColor: AppColors.white,
+                    leading: const Icon(
+                      Icons.photo_library_outlined,
+                      size: _pickerIconSize,
+                    ),
+                    title: const Text(
+                      'Pilih dari Galeri',
+                      style: _pickerLabelStyle,
+                    ),
+                    onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -450,43 +464,44 @@ class _StatusCard extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: badgeColor.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              registrationStatus.toUpperCase(),
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: badgeColor,
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
           Text(
             title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              fontSize: 19,
+              fontSize: 15,
               fontWeight: FontWeight.w700,
               color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          AppTextScaling.clampForCompactComponent(
+            context: context,
+            maxScaleFactor: AppTextScaling.denseComponentMaxScaleFactor,
+            child: _InlineStatusLabel(
+              label: _statusLabel(registrationStatus),
+              color: badgeColor,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             description,
-            style: const TextStyle(color: AppColors.textSecondary),
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12.5,
+              height: 1.35,
+            ),
           ),
         ],
       ),
@@ -507,12 +522,31 @@ class _StatusCard extends StatelessWidget {
         return Colors.blueGrey.shade600;
     }
   }
+
+  String _statusLabel(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'active':
+      case 'approved':
+        return 'Disetujui';
+      case 'pending':
+      case 'submitted':
+      case 'review':
+        return 'Menunggu Verifikasi';
+      case 'rejected':
+        return 'Perlu Revisi';
+      case 'suspended':
+        return 'Ditangguhkan';
+      default:
+        return 'Status Tidak Dikenal';
+    }
+  }
 }
 
 class _DocumentCard extends StatelessWidget {
   final String documentType;
   final DriverVerificationDocumentModel? document;
   final XFile? selectedFile;
+  final bool isAccountActive;
   final bool enabled;
   final VoidCallback onPickPressed;
 
@@ -520,6 +554,7 @@ class _DocumentCard extends StatelessWidget {
     required this.documentType,
     required this.document,
     required this.selectedFile,
+    required this.isAccountActive,
     required this.enabled,
     required this.onPickPressed,
   });
@@ -530,98 +565,106 @@ class _DocumentCard extends StatelessWidget {
     final verificationStatus = (document?.verificationStatus ?? 'pending')
         .trim()
         .toLowerCase();
-    final statusColor = _statusColor(verificationStatus);
+    final isUploaded = document?.isUploaded == true;
+    final statusColor = isUploaded
+        ? _statusColor(verificationStatus)
+        : AppColors.textSecondary;
+
+    if (isAccountActive) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                docName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Icon(
+              Icons.check_circle_outline_rounded,
+              size: 20,
+              color: AppColors.success,
+            ),
+          ],
+        ),
+      );
+    }
 
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.insert_drive_file_outlined,
-                  color: AppColors.primary,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  docName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  verificationStatus.toUpperCase(),
-                  style: TextStyle(
-                    color: statusColor,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
           Text(
-            document?.isUploaded == true
-                ? 'Dokumen sudah pernah diunggah.'
-                : 'Dokumen belum diunggah.',
-            style: const TextStyle(color: AppColors.textSecondary),
+            docName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: AppTextScaling.clampForCompactComponent(
+              context: context,
+              maxScaleFactor: AppTextScaling.denseComponentMaxScaleFactor,
+              child: _InlineStatusLabel(
+                label: _documentStatusLabel(
+                  verificationStatus,
+                  isUploaded: isUploaded,
+                ),
+                color: statusColor,
+              ),
+            ),
           ),
           if ((document?.rejectionReason ?? '').trim().isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: 6),
+              padding: const EdgeInsets.only(top: 10),
               child: Text(
                 'Alasan ditolak: ${document!.rejectionReason}',
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: Colors.red.shade700,
                   fontWeight: FontWeight.w600,
                 ),
               ),
             ),
-          if (selectedFile != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                'Dipilih: ${selectedFile!.name}',
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
+          _DocumentFileInfo(
+            isUploaded: isUploaded,
+            selectedFileName: selectedFile?.name,
+          ),
+          const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: enabled ? onPickPressed : null,
-              icon: const Icon(Icons.add_a_photo_outlined),
-              label: const Text('Pilih Kamera / Galeri'),
+              icon: const Icon(Icons.upload_file_outlined, size: 18),
+              label: Text(
+                selectedFile == null ? 'Pilih Dokumen' : 'Ganti Dokumen',
+              ),
             ),
           ),
         ],
@@ -636,9 +679,27 @@ class _DocumentCard extends StatelessWidget {
       case 'sim':
         return 'SIM';
       case 'selfie':
-        return 'Selfie dengan SIM';
+        return 'Selfie';
       default:
         return type;
+    }
+  }
+
+  String _documentStatusLabel(String status, {required bool isUploaded}) {
+    if (!isUploaded) {
+      return 'Belum diunggah';
+    }
+
+    switch (status.trim().toLowerCase()) {
+      case 'approved':
+        return 'Disetujui';
+      case 'rejected':
+        return 'Perlu Revisi';
+      case 'pending':
+      case 'submitted':
+      case 'review':
+      default:
+        return 'Menunggu';
     }
   }
 
@@ -651,5 +712,106 @@ class _DocumentCard extends StatelessWidget {
       default:
         return Colors.amber.shade800;
     }
+  }
+}
+
+class _InlineStatusLabel extends StatelessWidget {
+  const _InlineStatusLabel({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _DocumentFileInfo extends StatelessWidget {
+  const _DocumentFileInfo({
+    required this.isUploaded,
+    required this.selectedFileName,
+  });
+
+  final bool isUploaded;
+  final String? selectedFileName;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasSelectedFile =
+        selectedFileName != null && selectedFileName!.isNotEmpty;
+    final label = hasSelectedFile
+        ? 'File baru'
+        : isUploaded
+        ? 'File tersimpan'
+        : 'Belum ada file dipilih';
+    final value = hasSelectedFile ? selectedFileName! : null;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.insert_drive_file_outlined,
+            size: 18,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (value != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

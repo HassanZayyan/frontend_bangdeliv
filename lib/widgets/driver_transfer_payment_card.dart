@@ -41,16 +41,8 @@ class DriverTransferPaymentCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 16,
-            spreadRadius: 2,
-            offset: const Offset(0, 4),
-          ),
-        ],
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -58,15 +50,12 @@ class DriverTransferPaymentCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 4,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(999),
-                ),
+              const Icon(
+                Icons.receipt_long_outlined,
+                size: 20,
+                color: AppColors.textSecondary,
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -103,15 +92,15 @@ class DriverTransferPaymentCard extends StatelessWidget {
                 order.paymentMethod.trim().isEmpty
                     ? 'TRANSFER'
                     : order.paymentMethod.toUpperCase(),
-                foreground: AppColors.primaryDark,
-                background: AppColors.primary.withValues(alpha: 0.08),
-                borderColor: AppColors.primary.withValues(alpha: 0.16),
+                foreground: AppColors.textPrimary,
+                background: AppColors.surfaceAlt,
+                borderColor: AppColors.border,
               ),
               _chip(
                 paymentStatusLabel(order.paymentStatus),
                 foreground: _statusColor(),
-                background: _statusColor().withValues(alpha: 0.08),
-                borderColor: _statusColor().withValues(alpha: 0.14),
+                background: AppColors.surfaceAlt,
+                borderColor: AppColors.border,
               ),
               _chip(
                 formatRupiah(order.totalPrice),
@@ -389,9 +378,9 @@ class _WaitingProofState extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.05),
+        color: AppColors.surfaceAlt,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.12)),
+        border: Border.all(color: AppColors.border),
       ),
       child: const Text(
         'Menunggu bukti transfer dari customer.',

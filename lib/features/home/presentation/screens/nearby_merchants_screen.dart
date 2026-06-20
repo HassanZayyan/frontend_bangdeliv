@@ -4,10 +4,16 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
+import '../../../../config/app_text_scaling.dart';
 import '../../../../models/home_data_model.dart';
 import '../../../../models/merchant_model.dart';
+import '../../../../models/user_profile_model.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../../auth/application/auth_session_provider.dart';
+import '../../../navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
 import '../../../../widgets/bang_ui.dart';
+import 'merchant_detail_screen.dart';
+import '../widgets/nearby_merchant_card.dart';
 
 class NearbyMerchantsScreen extends ConsumerStatefulWidget {
   const NearbyMerchantsScreen({super.key});
@@ -17,20 +23,55 @@ class NearbyMerchantsScreen extends ConsumerStatefulWidget {
       _NearbyMerchantsScreenState();
 }
 
-class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen> {
-  late final TextEditingController _searchController;
+class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen>
+    with WidgetsBindingObserver {
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   late Future<HomeDataModel> _future;
   String _query = '';
+  bool _wasKeyboardVisible = false;
 
   @override
   void initState() {
     super.initState();
-    _searchController = TextEditingController();
     _future = _fetch();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    if (!mounted) {
+      return;
+    }
+
+    final isKeyboardVisible = View.of(context).viewInsets.bottom > 0;
+    final didKeyboardClose = _wasKeyboardVisible && !isKeyboardVisible;
+    _wasKeyboardVisible = isKeyboardVisible;
+
+    if (didKeyboardClose) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || MediaQuery.viewInsetsOf(context).bottom > 0) {
+          return;
+        }
+
+        if (_searchFocusNode.hasFocus) {
+          _searchFocusNode.unfocus();
+        }
+      });
+    }
   }
 
   Future<HomeDataModel> _fetch() {
-    return ref.read(homeApiServiceProvider).fetchHomeData(search: _query);
+    final activeAddress = _activeAddress(ref.read(authSessionProvider).profile);
+
+    return ref
+        .read(homeApiServiceProvider)
+        .fetchHomeData(
+          search: _query,
+          latitude: _usableCoordinate(activeAddress?.latitude),
+          longitude: _usableCoordinate(activeAddress?.longitude),
+        );
   }
 
   Future<void> _refresh() async {
@@ -41,100 +82,167 @@ class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen> {
   }
 
   void _submitSearch(String value) {
+    _searchFocusNode.unfocus();
     setState(() {
       _query = value.trim();
       _future = _fetch();
     });
   }
 
+  void _goHome() {
+    context.go(AppRoutes.home);
+  }
+
+  Future<void> _openAddressPicker() async {
+    final changed = await context.push<bool>(AppRoutes.addressPicker);
+    if (!mounted) {
+      return;
+    }
+
+    if (changed == true) {
+      await ref.read(authSessionProvider.notifier).refreshSession();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _future = _fetch();
+      });
+    }
+  }
+
+  SavedAddressModel? _activeAddress(UserProfileModel? profile) {
+    final addresses = profile?.addresses ?? const <SavedAddressModel>[];
+    if (addresses.isEmpty) {
+      return null;
+    }
+
+    return addresses.firstWhere(
+      (address) => address.isDefault,
+      orElse: () => addresses.first,
+    );
+  }
+
+  double? _usableCoordinate(double? value) {
+    if (value == null || value == 0) {
+      return null;
+    }
+
+    return value;
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _searchFocusNode.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Toko & Resto Terdekat'),
-        backgroundColor: AppColors.white,
-        elevation: 0,
-        leading: IconButton(
-          tooltip: 'Kembali',
-          onPressed: () =>
-              context.canPop() ? context.pop() : context.go(AppRoutes.home),
-          icon: const Icon(
-            Icons.arrow_back_rounded,
-            color: AppColors.textPrimary,
+    return PopScope<void>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          return;
+        }
+
+        _goHome();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: const Text(
+            'Toko & Resto Terdekat',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          backgroundColor: AppColors.white,
+          elevation: 0,
+          leading: IconButton(
+            tooltip: 'Kembali',
+            onPressed: _goHome,
+            icon: const Icon(
+              Icons.arrow_back_rounded,
+              color: AppColors.textPrimary,
+            ),
           ),
         ),
-      ),
-      body: SafeArea(
-        top: false,
-        bottom: false,
-        child: FutureBuilder<HomeDataModel>(
-          future: _future,
-          builder: (context, snapshot) {
-            final isLoading =
-                snapshot.connectionState == ConnectionState.waiting;
-            final data = snapshot.data;
-            final merchants = data?.nearbyMerchants ?? const <MerchantModel>[];
+        body: SafeArea(
+          top: false,
+          bottom: false,
+          child: FutureBuilder<HomeDataModel>(
+            future: _future,
+            builder: (context, snapshot) {
+              final isLoading =
+                  snapshot.connectionState == ConnectionState.waiting;
+              final data = snapshot.data;
+              final merchants =
+                  data?.nearbyMerchants ?? const <MerchantModel>[];
 
-            return RefreshIndicator(
-              color: AppColors.primary,
-              onRefresh: _refresh,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 116),
-                children: [
-                  BangSearchField(
-                    controller: _searchController,
-                    hintText: 'Cari resto, minimarket, atau warung...',
-                    onSubmitted: _submitSearch,
+              return RefreshIndicator(
+                color: AppColors.primary,
+                onRefresh: _refresh,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: ClampingScrollPhysics(),
                   ),
-                  const SizedBox(height: 18),
-                  _buildLocationInfo(merchants.length),
-                  const SizedBox(height: 14),
-                  if (snapshot.hasError)
-                    BangErrorState(
-                      title: 'Gagal memuat toko/resto',
-                      message: snapshot.error.toString(),
-                      onRetry: _refresh,
-                    )
-                  else if (isLoading)
-                    const Column(
-                      children: [
-                        BangLoadingSkeleton(height: 96),
-                        SizedBox(height: 12),
-                        BangLoadingSkeleton(height: 96),
-                        SizedBox(height: 12),
-                        BangLoadingSkeleton(height: 96),
-                      ],
-                    )
-                  else if (merchants.isEmpty)
-                    const BangEmptyState(
-                      message: 'Belum ada toko/resto terdekat.',
-                      icon: Icons.storefront_outlined,
-                    )
-                  else
-                    ...merchants.map(
-                      (merchant) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _MerchantListCard(
-                          merchant: merchant,
-                          onTap: () => context.push(
-                            AppRoutes.merchantDetailPath(merchant.id),
-                            extra: merchant,
-                          ),
-                        ),
-                      ),
+                  padding: const EdgeInsets.fromLTRB(
+                    20,
+                    20,
+                    20,
+                    BangFloatingBottomNavBar.scrollClearance,
+                  ),
+                  children: [
+                    BangSearchField(
+                      controller: _searchController,
+                      focusNode: _searchFocusNode,
+                      hintText: 'Cari resto, minimarket, atau warung...',
+                      onSubmitted: _submitSearch,
                     ),
-                ],
-              ),
-            );
-          },
+                    const SizedBox(height: 18),
+                    _buildLocationInfo(merchants.length),
+                    const SizedBox(height: 14),
+                    if (snapshot.hasError)
+                      BangErrorState(
+                        title: 'Gagal memuat toko/resto',
+                        message: snapshot.error.toString(),
+                        onRetry: _refresh,
+                      )
+                    else if (isLoading)
+                      _buildMerchantGrid(
+                        itemCount: 6,
+                        itemBuilder: (context, index) =>
+                            const BangLoadingSkeleton(height: double.infinity),
+                      )
+                    else if (merchants.isEmpty)
+                      const BangEmptyState(
+                        message: 'Belum ada toko/resto terdekat.',
+                        icon: Icons.storefront_outlined,
+                      )
+                    else
+                      _buildMerchantGrid(
+                        itemCount: merchants.length,
+                        itemBuilder: (context, index) {
+                          final merchant = merchants[index];
+
+                          return NearbyMerchantCard(
+                            merchant: merchant,
+                            onTap: () => context.push(
+                              AppRoutes.nearbyMerchantDetailPath(merchant.id),
+                              extra: MerchantDetailArgs(
+                                merchant: merchant,
+                                returnPath: AppRoutes.nearbyMerchants,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -145,6 +253,7 @@ class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Icon(Icons.location_on_rounded, color: AppColors.primary),
             const SizedBox(width: 8),
@@ -153,73 +262,69 @@ class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen> {
                 'Toko/resto diurutkan berdasarkan lokasi terdekat',
                 style: TextStyle(
                   color: AppColors.textPrimary,
-                  fontSize: 13.5,
+                  fontSize: 12.5,
                   fontWeight: FontWeight.w600,
+                  height: 1.35,
                 ),
               ),
             ),
             TextButton(
-              onPressed: () => context.push(AppRoutes.addresses),
-              child: const Text('Ubah Lokasi'),
+              onPressed: _openAddressPicker,
+              style: TextButton.styleFrom(
+                minimumSize: const Size(0, 30),
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: AppTextScaling.clampForCompactComponent(
+                context: context,
+                maxScaleFactor: AppTextScaling.denseComponentMaxScaleFactor,
+                child: const Text(
+                  'Ubah Lokasi',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+              ),
             ),
           ],
         ),
-        Text(
-          '$count toko/resto ditemukan',
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        const SizedBox(height: 6),
+        Padding(
+          padding: const EdgeInsets.only(left: 32),
+          child: Text(
+            '$count toko/resto ditemukan',
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              height: 1.25,
+            ),
+          ),
         ),
       ],
     );
   }
-}
 
-class _MerchantListCard extends StatelessWidget {
-  const _MerchantListCard({required this.merchant, required this.onTap});
+  Widget _buildMerchantGrid({
+    required int itemCount,
+    required IndexedWidgetBuilder itemBuilder,
+  }) {
+    final cardMainAxisExtent = AppTextScaling.adaptive(
+      context,
+      normal: 182,
+      large: 194,
+    );
 
-  final MerchantModel merchant;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return BangCard(
-      padding: const EdgeInsets.all(12),
-      onTap: onTap,
-      child: Row(
-        children: [
-          Container(
-            width: 96,
-            height: 80,
-            decoration: BoxDecoration(
-              color: AppColors.surfaceAlt,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              merchant.name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
-                height: 1.2,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Transform.translate(
-            offset: const Offset(0, 1.5),
-            child: Icon(
-              Icons.keyboard_arrow_right_rounded,
-              size: 21,
-              color: AppColors.textSecondary.withValues(alpha: 0.72),
-            ),
-          ),
-        ],
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: itemCount,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        mainAxisExtent: cardMainAxisExtent,
       ),
+      itemBuilder: itemBuilder,
     );
   }
 }

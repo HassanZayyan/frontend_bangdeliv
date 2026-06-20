@@ -7,6 +7,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../config/app_colors.dart';
+import '../../../../config/app_text_scaling.dart';
 import '../../../../models/route_location_picker_result.dart';
 import '../../../../services/google_maps_lookup_service.dart';
 
@@ -43,6 +44,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
   late LatLng _cameraTarget;
   late double _initialZoom;
   late String _activeTarget;
+  String? _pendingMapSelectionTarget;
   _RoutePoint? _pickupPoint;
   _RoutePoint? _destinationPoint;
   bool _isDestinationMapVisible = false;
@@ -155,6 +157,8 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
       appBar: AppBar(
         title: Text(
           widget.args.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
         ),
         centerTitle: true,
@@ -218,7 +222,11 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                             Icons.location_on,
                             color: AppColors.primary,
                           ),
-                          title: Text(prediction.description),
+                          title: Text(
+                            prediction.description,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                           onTap: () async {
                             controller.closeView(prediction.description);
                             await _goToPlace(
@@ -256,6 +264,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                           onMapCreated: (controller) {
                             _mapController = controller;
                           },
+                          onCameraMoveStarted: _handleMapCameraMoveStarted,
                           onCameraMove: (position) {
                             _cameraTarget = position.target;
                           },
@@ -322,9 +331,15 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 180),
             child: showMapPanel
-                ? SizedBox(
+                ? ConstrainedBox(
                     key: const ValueKey('route_picker_address_visible'),
-                    height: 54,
+                    constraints: BoxConstraints(
+                      minHeight: AppTextScaling.adaptive(
+                        context,
+                        normal: 54,
+                        large: 64,
+                      ),
+                    ),
                     child: Container(
                       alignment: Alignment.topLeft,
                       child: AnimatedSwitcher(
@@ -359,8 +374,14 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
           Row(
             children: [
               Expanded(
-                child: SizedBox(
-                  height: 50,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: AppTextScaling.adaptive(
+                      context,
+                      normal: 50,
+                      large: 54,
+                    ),
+                  ),
                   child: OutlinedButton.icon(
                     onPressed: _handleLocationButtonPressed,
                     style: OutlinedButton.styleFrom(
@@ -384,6 +405,8 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                           ),
                     label: Text(
                       _isDestinationMapEntryMode ? 'Pilih Peta' : 'Lokasi Saya',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: actionButtonTextStyle,
                     ),
                   ),
@@ -391,8 +414,14 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: SizedBox(
-                  height: 50,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: AppTextScaling.adaptive(
+                      context,
+                      normal: 50,
+                      large: 54,
+                    ),
+                  ),
                   child: ElevatedButton(
                     onPressed:
                         (_canConfirmRoute ||
@@ -417,6 +446,8 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                     ),
                     child: Text(
                       'Simpan',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
                       style: actionButtonTextStyle,
                     ),
@@ -483,6 +514,14 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
 
   bool get _isDestinationMapEntryMode =>
       _activeTarget == _destinationTarget && !_shouldShowMap;
+
+  void _handleMapCameraMoveStarted() {
+    if (!_isMapSelectionActive) {
+      return;
+    }
+
+    _pendingMapSelectionTarget ??= _activeTarget;
+  }
 
   void _selectTarget(String target) {
     if (target != _pickupTarget && target != _destinationTarget) {
@@ -620,14 +659,13 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
 
     final requestId = ++_mapAddressRequestId;
     final target = _cameraTarget;
+    final saveTarget = _pendingMapSelectionTarget ?? _activeTarget;
 
     final address = await _mapsLookup.reverseGeocode(target);
     if (!mounted || requestId != _mapAddressRequestId) return;
 
-    if (_activePoint != null) {
-      _cameraTarget = target;
-      _saveActivePoint('map_pin', address: address);
-    }
+    _cameraTarget = target;
+    _saveActivePoint('map_pin', target: saveTarget, address: address);
 
     setState(() {
       _mapCenterAddress = address;
@@ -774,7 +812,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
       if (!mounted) return;
 
       _cameraTarget = manualTarget;
-      _saveActivePoint('map_pin', address: address);
+      _saveActivePoint('map_pin', target: _destinationTarget, address: address);
       setState(() => _statusHint = null);
     } finally {
       if (mounted) {
@@ -783,10 +821,15 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     }
   }
 
-  void _saveActivePoint(String source, {String? address}) {
+  void _saveActivePoint(
+    String source, {
+    String? target,
+    String? address,
+  }) {
     final cleanedAddress = _mapsLookup.cleanAddress(address);
+    final saveTarget = target ?? _activeTarget;
     final point = _RoutePoint(
-      target: _activeTarget,
+      target: saveTarget,
       latitude: _cameraTarget.latitude,
       longitude: _cameraTarget.longitude,
       address: cleanedAddress,
@@ -794,7 +837,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     );
 
     setState(() {
-      if (_activeTarget == _pickupTarget) {
+      if (saveTarget == _pickupTarget) {
         _pickupPoint = point;
         _pickupChanged = true;
       } else {
@@ -802,6 +845,10 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
         _mapCenterAddress = null;
       }
     });
+
+    if (_pendingMapSelectionTarget == saveTarget) {
+      _pendingMapSelectionTarget = null;
+    }
   }
 
   void _confirmRoute() {
@@ -1020,43 +1067,47 @@ class _PointCard extends StatelessWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(14),
       onTap: onTap,
-      child: Container(
-        height: 88,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isActive ? color.withValues(alpha: 0.08) : AppColors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isActive ? color : AppColors.border,
-            width: isActive ? 1.4 : 1,
-          ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minHeight: AppTextScaling.adaptive(context, normal: 88, large: 96),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: labelStyle,
-                ),
-                if (isActive) ...[
-                  const SizedBox(width: 6),
-                  Icon(Icons.check_circle, size: 14, color: color),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: isActive ? color.withValues(alpha: 0.08) : AppColors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isActive ? color : AppColors.border,
+              width: isActive ? 1.4 : 1,
+            ),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: labelStyle,
+                  ),
+                  if (isActive) ...[
+                    const SizedBox(width: 6),
+                    Icon(Icons.check_circle, size: 14, color: color),
+                  ],
                 ],
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              isChosen ? 'Sudah dipilih' : 'Belum dipilih',
-              textAlign: TextAlign.center,
-              style: statusStyle,
-            ),
-          ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                isChosen ? 'Sudah dipilih' : 'Belum dipilih',
+                textAlign: TextAlign.center,
+                style: statusStyle,
+              ),
+            ],
+          ),
         ),
       ),
     );

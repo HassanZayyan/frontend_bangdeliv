@@ -12,18 +12,14 @@ class AppContentBackground extends StatelessWidget {
     return DecoratedBox(
       decoration: const BoxDecoration(
         color: AppColors.background,
-        image: DecorationImage(
-          image: AssetImage('assets/images/background.png'),
-          fit: BoxFit.cover,
-          alignment: Alignment.topCenter,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [AppColors.white, AppColors.background],
+          stops: [0, 0.42],
         ),
       ),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: AppColors.white.withValues(alpha: 0.62),
-        ),
-        child: child,
-      ),
+      child: child,
     );
   }
 }

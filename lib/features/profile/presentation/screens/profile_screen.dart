@@ -2,16 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
+import '../../../../config/app_text_scaling.dart';
 import '../../../../models/user_profile_model.dart';
 import '../../../auth/application/auth_session_provider.dart';
 import '../../../../services/auth_service.dart';
 import '../../../../utils/order_formatters.dart';
-import '../../../../widgets/app_content_background.dart';
 import '../../../../widgets/bang_ui.dart';
 import '../../../../widgets/profile_avatar.dart';
+import '../../../navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
+
+const String _supportWhatsAppNumber = '6288221164320';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -59,10 +63,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.white,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         bottom: false,
-        child: AppContentBackground(
+        child: ColoredBox(
+          color: AppColors.background,
           child: FutureBuilder<UserProfileModel>(
             future: _profileFuture,
             builder: (context, snapshot) {
@@ -91,8 +96,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 color: AppColors.primary,
                 onRefresh: _reloadProfile,
                 child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: ClampingScrollPhysics(),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(
+                    20,
+                    14,
+                    20,
+                    BangFloatingBottomNavBar.scrollClearance,
+                  ),
                   children: [
                     _buildProfileHero(context, profile),
                     const SizedBox(height: 20),
@@ -133,6 +145,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _buildProfileHero(BuildContext context, UserProfileModel profile) {
+    final nameFontSize = AppTextScaling.adaptive(
+      context,
+      normal: 16.5,
+      large: 15.4,
+    );
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -160,7 +178,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.displayMedium
                           ?.copyWith(
-                            fontSize: 16.5,
+                            fontSize: nameFontSize,
                             fontWeight: FontWeight.w800,
                           ),
                     ),
@@ -236,6 +254,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               title: 'Upgrade jadi Driver',
               onTap: () => context.push(AppRoutes.registerDriver),
             ),
+          ] else if (_shouldShowDriverVerificationStatus(profile)) ...[
+            _divider(),
+            _buildMenuTile(
+              icon: Icons.assignment_outlined,
+              title: 'Verifikasi Driver',
+              trailingText: _driverRegistrationStatusLabel(profile),
+              highlightTrailing: _shouldHighlightDriverStatus(profile),
+              onTap: () => context.push(AppRoutes.driverVerificationStatus),
+            ),
           ],
         ],
       ),
@@ -268,43 +295,174 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Widget _buildHelpCard() {
     return BangCard(
-      child: Row(
-        children: [
-          const SizedBox.square(
-            dimension: 28,
-            child: Icon(
-              Icons.support_agent,
-              color: AppColors.primary,
-              size: 21,
+      padding: EdgeInsets.zero,
+      onTap: _showContactSupportSheet,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        child: Row(
+          children: [
+            const SizedBox.square(
+              dimension: 28,
+              child: Icon(
+                Icons.support_agent,
+                color: AppColors.primary,
+                size: 21,
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          const Expanded(
+            const SizedBox(width: 16),
+            const Expanded(
+              child: Text(
+                'Butuh bantuan?',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: AppColors.textSecondary,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showContactSupportSheet() async {
+    final shouldOpen = await showModalBottomSheet<bool>(
+      context: context,
+      useRootNavigator: true,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Butuh bantuan?',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w800,
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Butuh bantuan?',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Admin siap membantu.',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 13,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    IconButton(
+                      onPressed: () => sheetContext.pop(false),
+                      icon: const Icon(Icons.close_rounded),
+                      color: AppColors.textSecondary,
+                      tooltip: 'Tutup',
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
                 ),
-                SizedBox(height: 3),
-                Text(
-                  'Kami siap membantu Anda.',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 11.5,
+                const SizedBox(height: 18),
+                Material(
+                  color: AppColors.surfaceAlt,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    side: const BorderSide(color: AppColors.border),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => sheetContext.pop(true),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 13,
+                      ),
+                      child: Row(
+                        children: [
+                          Image.asset(
+                            'assets/images/WhatsApp.webp',
+                            width: 24,
+                            height: 24,
+                            fit: BoxFit.contain,
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Text(
+                              'WhatsApp Admin',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            color: AppColors.textSecondary,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          TextButton(onPressed: () {}, child: const Text('Hubungi Kami')),
-        ],
-      ),
+        );
+      },
     );
+
+    if (shouldOpen == true) {
+      await _openSupportWhatsApp();
+    }
+  }
+
+  Future<void> _openSupportWhatsApp() async {
+    final message = Uri.encodeComponent('Halo BangDeliv, saya butuh bantuan.');
+    final uri = Uri.parse(
+      'https://wa.me/$_supportWhatsAppNumber?text=$message',
+    );
+
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (opened || !mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('WhatsApp tidak dapat dibuka di perangkat ini.'),
+        ),
+      );
   }
 
   Widget _buildMenuTile({
@@ -333,26 +491,31 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 style: const TextStyle(
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.w600,
-                  fontSize: 15,
+                  fontSize: 14,
                 ),
               ),
             ),
             if (trailingText != null) ...[
               const SizedBox(width: 12),
-              Flexible(
-                child: Text(
-                  trailingText,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.right,
-                  style: TextStyle(
-                    color: highlightTrailing
-                        ? AppColors.primary
-                        : AppColors.textSecondary,
-                    fontSize: 12.5,
-                    fontWeight: highlightTrailing
-                        ? FontWeight.w700
-                        : FontWeight.w600,
+              SizedBox(
+                width: AppTextScaling.adaptive(context, normal: 82, large: 96),
+                child: AppTextScaling.clampForCompactComponent(
+                  context: context,
+                  maxScaleFactor: AppTextScaling.denseComponentMaxScaleFactor,
+                  child: Text(
+                    trailingText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      color: highlightTrailing
+                          ? AppColors.primary
+                          : AppColors.textSecondary,
+                      fontSize: 12.5,
+                      fontWeight: highlightTrailing
+                          ? FontWeight.w700
+                          : FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
@@ -437,7 +600,40 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   bool _shouldShowDriverRegistration(UserProfileModel profile) {
-    return profile.role.trim().toLowerCase() == 'customer';
+    return profile.role.trim().toLowerCase() == 'customer' &&
+        profile.driverProfile == null;
+  }
+
+  bool _shouldShowDriverVerificationStatus(UserProfileModel profile) {
+    return profile.driverProfile != null;
+  }
+
+  bool _shouldHighlightDriverStatus(UserProfileModel profile) {
+    final status = _normalizedDriverRegistrationStatus(profile);
+    return status == 'pending' || status == 'submitted' || status == 'review';
+  }
+
+  String _driverRegistrationStatusLabel(UserProfileModel profile) {
+    switch (_normalizedDriverRegistrationStatus(profile)) {
+      case 'active':
+      case 'approved':
+        return 'Aktif';
+      case 'rejected':
+        return 'Ditolak';
+      case 'suspended':
+        return 'Suspend';
+      case 'pending':
+      case 'submitted':
+      case 'review':
+      default:
+        return 'Menunggu';
+    }
+  }
+
+  String _normalizedDriverRegistrationStatus(UserProfileModel profile) {
+    return (profile.driverProfile?.registrationStatus ?? '')
+        .trim()
+        .toLowerCase();
   }
 }
 
@@ -478,6 +674,8 @@ class _StatItem extends StatelessWidget {
           Text(
             label,
             textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: AppColors.textSecondary,
               fontSize: 11.5,

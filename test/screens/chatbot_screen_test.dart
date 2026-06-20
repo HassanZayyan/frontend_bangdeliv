@@ -30,7 +30,8 @@ void main() {
 
     await _sendMessage(tester, 'antar ke polines');
 
-    expect(find.textContaining('Ketik "Konfirmasi"'), findsOneWidget);
+    expect(find.textContaining('Draft siap.'), findsOneWidget);
+    expect(find.textContaining('Ketik "Konfirmasi"'), findsNothing);
     expect(fakeService.callCount, 1);
     expect(fakeService.lastServiceType, 'antar_jemput');
   });
@@ -77,6 +78,30 @@ void main() {
     expect(find.text('Pilih Titik Tujuan'), findsNothing);
   });
 
+  testWidgets('ride reset destination shows focused destination action', (
+    WidgetTester tester,
+  ) async {
+    await _pumpChatbot(
+      tester,
+      serviceType: 'antar_jemput',
+      chatbotApiService: _FakeChatbotApiService(),
+    );
+
+    await _sendMessage(tester, 'reset tujuan button');
+
+    expect(
+      find.textContaining('tujuan sebelumnya sudah saya reset'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('klik tombol'), findsNothing);
+    expect(find.text('Tujuan baru'), findsOneWidget);
+    expect(
+      find.widgetWithText(OutlinedButton, 'Pilih Tujuan Baru'),
+      findsOneWidget,
+    );
+    expect(find.text('Atur Titik Jemput & Tujuan'), findsNothing);
+  });
+
   testWidgets('nitip welcome shows Bang Deliv merchant guidance and example', (
     WidgetTester tester,
   ) async {
@@ -108,7 +133,7 @@ void main() {
     expect(input.onSubmitted, isNull);
   });
 
-  testWidgets('chatbot app bar menu keeps history and restart actions', (
+  testWidgets('chatbot app bar menu only shows restart action', (
     WidgetTester tester,
   ) async {
     await _pumpChatbot(
@@ -120,17 +145,10 @@ void main() {
     await tester.tap(find.byIcon(Icons.more_vert));
     await _pumpChatbotFrame(tester);
 
-    expect(find.text('Riwayat Sesi'), findsOneWidget);
+    expect(find.text('Riwayat Sesi'), findsNothing);
+    expect(find.text('Mulai ulang pesanan?'), findsNothing);
+    expect(find.text('Mulai Ulang'), findsNothing);
     expect(find.text('Mulai Ulang Pesanan'), findsOneWidget);
-
-    await tester.tap(find.text('Riwayat Sesi'));
-    await _pumpChatbotFrame(tester);
-
-    expect(find.text('Pilih Sesi Chat'), findsOneWidget);
-    expect(
-      find.text('Belum ada sesi tersimpan untuk layanan ini.'),
-      findsOneWidget,
-    );
   });
 
   testWidgets('restart menu confirms and starts a fresh chatbot session', (
@@ -150,12 +168,10 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await _pumpChatbotFrame(tester);
+
+    expect(find.text('Mulai ulang pesanan?'), findsNothing);
+
     await tester.tap(find.text('Mulai Ulang Pesanan'));
-    await _pumpChatbotFrame(tester);
-
-    expect(find.text('Mulai ulang pesanan?'), findsOneWidget);
-
-    await tester.tap(find.text('Mulai Ulang'));
     await _pumpChatbotFrame(tester);
 
     final newSessionId = prefs.getString('chatbot_session_id_antar_jemput');
@@ -989,6 +1005,45 @@ class _FakeChatbotApiService extends ChatbotApiService {
             'next_actions': ['CONFIRM_DRAFT'],
           },
           'order': {'created': false, 'delivery_fee': 8000},
+        },
+      });
+    }
+
+    if (serviceType == 'antar_jemput' && normalized == 'reset tujuan button') {
+      return ChatbotResult.fromApiJson({
+        'status': 'success',
+        'model_used': 'deterministic-command',
+        'service_context': {'service_type': serviceType},
+        'data': {
+          'intent': 'ride_order',
+          'assistant_text':
+              'Baik jakix, tujuan sebelumnya sudah saya reset.\n'
+              '\n'
+              'Jemput:\n'
+              'MFHC+X7C, Sraten Satu, Gedangan, Kec. Tuntang, Kabupaten Semarang, Jawa Tengah 50773, Indonesia',
+          'validation': {
+            'is_valid_order': false,
+            'rejection_reasons': [],
+            'missing_fields': ['destination_address'],
+            'next_actions': ['OPEN_ROUTE_PICKER'],
+          },
+          'action_payloads': {
+            'OPEN_ROUTE_PICKER': {
+              'label': 'Pilih Tujuan Baru',
+              'points': {
+                'pickup': {
+                  'target': 'pickup',
+                  'label': 'Titik Jemput',
+                  'address': 'MFHC+X7C, Sraten Satu, Gedangan',
+                },
+                'destination': {
+                  'target': 'destination',
+                  'label': 'Titik Tujuan',
+                },
+              },
+            },
+          },
+          'order': {'created': false},
         },
       });
     }

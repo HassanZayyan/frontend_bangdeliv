@@ -3,6 +3,7 @@ import '../../../../config/app_routes.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../services/auth_service.dart';
+import '../../../../widgets/bang_ui.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -11,47 +12,136 @@ class RegisterScreen extends StatefulWidget {
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends State<RegisterScreen>
+    with WidgetsBindingObserver {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _waController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _isPasswordVisible = false;
+  final _nameFocusNode = FocusNode();
+  final _waFocusNode = FocusNode();
+  final _emailFocusNode = FocusNode();
+  final _passwordFocusNode = FocusNode();
   bool _isSubmitting = false;
+  bool _isPasswordVisible = false;
+  bool _wasKeyboardVisible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _nameFocusNode.addListener(_handleFieldFocusChanged);
+    _waFocusNode.addListener(_handleFieldFocusChanged);
+    _emailFocusNode.addListener(_handleFieldFocusChanged);
+    _passwordFocusNode.addListener(_handleFieldFocusChanged);
+  }
+
+  void _handleFieldFocusChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    if (!mounted) {
+      return;
+    }
+
+    final isKeyboardVisible = View.of(context).viewInsets.bottom > 0;
+    final didKeyboardClose = _wasKeyboardVisible && !isKeyboardVisible;
+    _wasKeyboardVisible = isKeyboardVisible;
+
+    if (didKeyboardClose) {
+      _unfocusWhenKeyboardClosed();
+    }
+  }
+
+  void _syncKeyboardVisibility(bool isKeyboardOpen) {
+    _wasKeyboardVisible = isKeyboardOpen;
+  }
+
+  double _headerHeight(BuildContext context, bool isKeyboardOpen) {
+    if (isKeyboardOpen) {
+      return 0;
+    }
+
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    return screenHeight < 760 ? 108 : 132;
+  }
+
+  bool get _hasFocusedField =>
+      _nameFocusNode.hasFocus ||
+      _waFocusNode.hasFocus ||
+      _emailFocusNode.hasFocus ||
+      _passwordFocusNode.hasFocus;
+
+  void _unfocusWhenKeyboardClosed() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || MediaQuery.viewInsetsOf(context).bottom > 0) {
+        return;
+      }
+
+      if (_hasFocusedField) {
+        FocusScope.of(context).unfocus();
+      }
+    });
+  }
+
+  void _handleBackNavigation() {
+    if (_hasFocusedField || MediaQuery.viewInsetsOf(context).bottom > 0) {
+      FocusScope.of(context).unfocus();
+      _unfocusWhenKeyboardClosed();
+      return;
+    }
+
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+
+    context.go(AppRoutes.login);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.primary,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            // Top Header (Orange)
-            Expanded(flex: 2, child: centerHeader()),
+    final isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final isCompact = MediaQuery.sizeOf(context).height < 860;
+    _syncKeyboardVisibility(isKeyboardOpen);
 
-            // Bottom Card (White)
-            Expanded(
-              flex: 6,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 32,
-                ),
-                decoration: const BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(30),
-                    topRight: Radius.circular(30),
-                  ),
-                ),
-                child: SingleChildScrollView(child: bottomForm(context)),
-              ),
+    return PopScope<void>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          return;
+        }
+
+        _handleBackNavigation();
+      },
+      child: AuthKeyboardSafeScaffold(
+        topBarHeight: 56,
+        topBar: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: _handleBackNavigation,
             ),
-          ],
+          ),
         ),
+        header: centerHeader(),
+        headerHeightBuilder: _headerHeight,
+        cardPaddingBuilder: (context, isKeyboardOpen) {
+          return EdgeInsets.symmetric(
+            horizontal: isCompact ? 20 : 24,
+            vertical: isKeyboardOpen ? 16 : (isCompact ? 20 : 28),
+          );
+        },
+        child: bottomForm(context, isCompact: isCompact),
       ),
     );
   }
@@ -62,24 +152,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
       children: [
         const SizedBox(height: 16),
         Text(
-          'Daftar Baru',
-          style: Theme.of(context).textTheme.displayMedium?.copyWith(
+          'Mulai dengan BangDeliv',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
             color: AppColors.white,
-            fontWeight: FontWeight.bold,
+            fontSize: 24,
+            fontWeight: FontWeight.w800,
+            height: 1.15,
           ),
         ),
         const SizedBox(height: 8),
         Text(
-          'Bergabung dan nikmati kemudahannya',
+          'Satu akun untuk pesan, belanja, dan perjalanan.',
+          textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: AppColors.white.withValues(alpha: 0.8),
+            color: AppColors.white.withValues(alpha: 0.86),
+            fontSize: 13,
+            height: 1.35,
           ),
         ),
       ],
     );
   }
 
-  Widget bottomForm(BuildContext context) {
+  Widget bottomForm(BuildContext context, {required bool isCompact}) {
     return Form(
       key: _formKey,
       child: Column(
@@ -87,12 +183,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
         children: [
           Text(
             'Buat Akun Anda',
-            style: Theme.of(context).textTheme.displayMedium,
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontSize: 18),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: isCompact ? 16 : 24),
 
           TextFormField(
             controller: _nameController,
+            focusNode: _nameFocusNode,
             keyboardType: TextInputType.name,
             textInputAction: TextInputAction.next,
             style: const TextStyle(
@@ -100,13 +199,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               fontSize: 14,
               fontWeight: FontWeight.w400,
             ),
-            decoration: const InputDecoration(
-              hintText: 'Nama Lengkap',
-              prefixIcon: Icon(
-                Icons.person_outline,
-                color: AppColors.textSecondary,
-              ),
-            ),
+            decoration: _fieldDecoration('Nama Lengkap', _nameFocusNode),
             validator: (value) {
               final name = value?.trim() ?? '';
               if (name.isEmpty) {
@@ -119,6 +212,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
           TextFormField(
             controller: _waController,
+            focusNode: _waFocusNode,
             keyboardType: TextInputType.phone,
             textInputAction: TextInputAction.next,
             style: const TextStyle(
@@ -126,13 +220,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               fontSize: 14,
               fontWeight: FontWeight.w400,
             ),
-            decoration: const InputDecoration(
-              hintText: 'Nomor WhatsApp',
-              prefixIcon: Icon(
-                Icons.phone_android,
-                color: AppColors.textSecondary,
-              ),
-            ),
+            decoration: _fieldDecoration('Nomor WhatsApp', _waFocusNode),
             validator: (value) {
               final phone = value?.trim() ?? '';
               if (phone.isEmpty) {
@@ -148,6 +236,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
           TextFormField(
             controller: _emailController,
+            focusNode: _emailFocusNode,
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.next,
             style: const TextStyle(
@@ -155,13 +244,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               fontSize: 14,
               fontWeight: FontWeight.w400,
             ),
-            decoration: const InputDecoration(
-              hintText: 'Email',
-              prefixIcon: Icon(
-                Icons.email_outlined,
-                color: AppColors.textSecondary,
-              ),
-            ),
+            decoration: _fieldDecoration('Email', _emailFocusNode),
             validator: (value) {
               final email = value?.trim() ?? '';
               if (email.isEmpty) {
@@ -177,6 +260,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
           TextFormField(
             controller: _passwordController,
+            focusNode: _passwordFocusNode,
             obscureText: !_isPasswordVisible,
             textInputAction: TextInputAction.done,
             onFieldSubmitted: (_) => _handleRegister(),
@@ -185,12 +269,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
               fontSize: 14,
               fontWeight: FontWeight.w400,
             ),
-            decoration: InputDecoration(
-              hintText: 'Password',
-              prefixIcon: const Icon(
-                Icons.lock_outline,
-                color: AppColors.textSecondary,
-              ),
+            decoration: _fieldDecoration(
+              'Password',
+              _passwordFocusNode,
               suffixIcon: IconButton(
                 iconSize: 20,
                 icon: Icon(
@@ -218,44 +299,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
           const SizedBox(height: 32),
 
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _isSubmitting ? null : _handleRegister,
-              child: _isSubmitting
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.white,
-                      ),
-                    )
-                  : const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('Daftar'),
-                        SizedBox(width: 8),
-                        Icon(Icons.arrow_forward_rounded, size: 18),
-                      ],
-                    ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          Row(
-            children: [
-              const Expanded(child: Divider(color: AppColors.border)),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  'atau',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ),
-              const Expanded(child: Divider(color: AppColors.border)),
-            ],
+          BangPrimaryButton(
+            label: 'Daftar',
+            isLoading: _isSubmitting,
+            onPressed: _handleRegister,
           ),
 
           const SizedBox(height: 24),
@@ -272,11 +319,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   onTap: () {
                     context.pop();
                   },
-                  child: const Text(
+                  child: Text(
                     'Masuk Sekarang',
-                    style: TextStyle(
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppColors.primary,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -295,6 +342,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   bool _isValidEmail(String email) {
     return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
+  }
+
+  InputDecoration _fieldDecoration(
+    String label,
+    FocusNode focusNode, {
+    Widget? suffixIcon,
+  }) {
+    return InputDecoration(
+      hintText: label,
+      labelText: focusNode.hasFocus ? label : null,
+      floatingLabelBehavior: FloatingLabelBehavior.always,
+      suffixIcon: suffixIcon,
+    );
   }
 
   Future<void> _handleRegister() async {
@@ -346,6 +406,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _nameFocusNode
+      ..removeListener(_handleFieldFocusChanged)
+      ..dispose();
+    _waFocusNode
+      ..removeListener(_handleFieldFocusChanged)
+      ..dispose();
+    _emailFocusNode
+      ..removeListener(_handleFieldFocusChanged)
+      ..dispose();
+    _passwordFocusNode
+      ..removeListener(_handleFieldFocusChanged)
+      ..dispose();
     _nameController.dispose();
     _waController.dispose();
     _emailController.dispose();

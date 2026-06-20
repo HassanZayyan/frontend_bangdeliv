@@ -9,6 +9,7 @@ import '../../../../utils/order_formatters.dart' show formatTime;
 import '../../../../utils/order_status.dart';
 import '../../../../utils/order_ui_helpers.dart';
 import '../../../../utils/service_type.dart';
+import '../../../navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
 import 'driver_active_order_widget_helpers.dart';
 
 class DriverOrderTimelineCard extends StatelessWidget {
@@ -26,7 +27,8 @@ class DriverOrderTimelineCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -35,15 +37,12 @@ class DriverOrderTimelineCard extends StatelessWidget {
             offset: const Offset(0, 4),
           ),
         ],
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.history_rounded, size: 20, color: AppColors.primary),
-              const SizedBox(width: 8),
               const Text(
                 'Riwayat Status',
                 style: TextStyle(
@@ -81,12 +80,17 @@ class DriverOrderTimelineCard extends StatelessWidget {
                           height: 14,
                           decoration: BoxDecoration(
                             color: isLast
-                                ? AppColors.white
+                                ? AppColors.primary
                                 : AppColors.textSecondary.withValues(
                                     alpha: 0.2,
                                   ),
                             border: isLast
-                                ? Border.all(color: AppColors.primary, width: 4)
+                                ? Border.all(
+                                    color: AppColors.primary.withValues(
+                                      alpha: 0.18,
+                                    ),
+                                    width: 3,
+                                  )
                                 : null,
                             shape: BoxShape.circle,
                           ),
@@ -124,22 +128,12 @@ class DriverOrderTimelineCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.access_time,
-                                size: 12,
-                                color: AppColors.textSecondary,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                timeText,
-                                style: const TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
+                          Text(
+                            timeText,
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                            ),
                           ),
                         ],
                       ),
@@ -175,6 +169,155 @@ class DriverOrderActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 16,
+            spreadRadius: 2,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.touch_app_rounded,
+                size: 20,
+                color: AppColors.textSecondary,
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Aksi Driver',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _DriverOrderActionControls(
+            order: order,
+            isProcessing: isProcessing,
+            onReportPickupFailed: onReportPickupFailed,
+            onTapAction: onTapAction,
+            showEmptyState: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class DriverOrderStickyActionBar extends StatelessWidget {
+  final DriverOrderModel order;
+  final bool isProcessing;
+  final Future<void> Function({
+    required int pickupLocationId,
+    required String reason,
+    required XFile storeClosedPhoto,
+  })?
+  onReportPickupFailed;
+  final Future<void> Function(DriverOrderActionModel action) onTapAction;
+
+  const DriverOrderStickyActionBar({
+    super.key,
+    required this.order,
+    required this.isProcessing,
+    required this.onReportPickupFailed,
+    required this.onTapAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_hasVisibleContent()) {
+      return const SizedBox.shrink();
+    }
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        border: const Border(top: BorderSide(color: AppColors.border)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, -6),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            16,
+            10,
+            16,
+            BangFloatingBottomNavBar.scrollClearance - 42,
+          ),
+          child: _DriverOrderActionControls(
+            order: order,
+            isProcessing: isProcessing,
+            onReportPickupFailed: onReportPickupFailed,
+            onTapAction: onTapAction,
+            showEmptyState: false,
+          ),
+        ),
+      ),
+    );
+  }
+
+  bool _hasVisibleContent() {
+    if (order.availableActions.isNotEmpty) {
+      return true;
+    }
+
+    if (onReportPickupFailed == null ||
+        normalizeServiceTypeCode(order.serviceTypeCode) !=
+            ServiceTypeCodes.shopping ||
+        order.shoppingStops.where((stop) => stop.isActive).isEmpty ||
+        order.shoppingPricing?.canCancelWithFee == true) {
+      return false;
+    }
+
+    final status = normalizeOrderStatusCode(order.statusCode);
+    return status == OrderStatusCodes.driverAssigned ||
+        status == OrderStatusCodes.arrivedMerchant;
+  }
+}
+
+class _DriverOrderActionControls extends StatelessWidget {
+  final DriverOrderModel order;
+  final bool isProcessing;
+  final Future<void> Function({
+    required int pickupLocationId,
+    required String reason,
+    required XFile storeClosedPhoto,
+  })?
+  onReportPickupFailed;
+  final Future<void> Function(DriverOrderActionModel action) onTapAction;
+  final bool showEmptyState;
+
+  const _DriverOrderActionControls({
+    required this.order,
+    required this.isProcessing,
+    required this.onReportPickupFailed,
+    required this.onTapAction,
+    required this.showEmptyState,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     final actions = order.availableActions;
     final hasCodCollection = actions.any((action) => action.isCodCollection);
     final isCancelledWithFee =
@@ -191,103 +334,73 @@ class DriverOrderActionCard extends StatelessWidget {
     final pricing = order.shoppingPricing;
     final canReportPickupFailed = _canReportPickupFailed();
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 16,
-            spreadRadius: 2,
-            offset: const Offset(0, 4),
-          ),
-        ],
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.touch_app_rounded, size: 20, color: AppColors.primary),
-              const SizedBox(width: 8),
-              const Text(
-                'Aksi Driver',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (canReportPickupFailed) ...[
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: isProcessing || onReportPickupFailed == null
-                    ? null
-                    : () async {
-                        final report = await _showFailedPickupDialog(context);
-                        if (report == null) {
-                          return;
-                        }
-                        await onReportPickupFailed?.call(
-                          pickupLocationId: report.pickupLocationId,
-                          reason: report.reason,
-                          storeClosedPhoto: report.storeClosedPhoto,
-                        );
-                      },
-                icon: const Icon(Icons.storefront_outlined, size: 18),
-                label: const Text('Merchant Tutup / Gagal Pickup'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.error,
-                  side: const BorderSide(color: AppColors.error),
-                ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (canReportPickupFailed) ...[
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: isProcessing || onReportPickupFailed == null
+                  ? null
+                  : () async {
+                      final report = await _showFailedPickupDialog(context);
+                      if (report == null) {
+                        return;
+                      }
+                      await onReportPickupFailed?.call(
+                        pickupLocationId: report.pickupLocationId,
+                        reason: report.reason,
+                        storeClosedPhoto: report.storeClosedPhoto,
+                      );
+                    },
+              icon: const Icon(Icons.storefront_outlined, size: 18),
+              label: const Text('Merchant Tutup / Gagal Pickup'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.error,
+                side: const BorderSide(color: AppColors.error),
               ),
             ),
-            if (pricing != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 6, bottom: 10),
-                child: Text(
-                  'Percobaan gagal ${pricing.failedAttemptCount}/${pricing.failedAttemptThreshold}. Fee cancel aktif setelah batas tercapai.',
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              )
-            else
-              const SizedBox(height: 10),
-          ],
-          if (hasCodCollection) ...[
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.primary.withValues(alpha: 0.16),
-                ),
-              ),
+          ),
+          if (pricing != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6, bottom: 10),
               child: Text(
-                codMessage,
+                'Percobaan gagal ${pricing.failedAttemptCount}/${pricing.failedAttemptThreshold}. Fee cancel aktif setelah batas tercapai.',
                 style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                  height: 1.4,
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-            ),
+            )
+          else
             const SizedBox(height: 10),
-          ],
-          if (actions.isEmpty)
+        ],
+        if (hasCodCollection) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceAlt,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+            ),
+            child: Text(
+              codMessage,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                height: 1.4,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
+        if (actions.isEmpty)
+          if (showEmptyState)
             Text(
               isWaitingCancellationFeePayment
                   ? 'Menunggu pembayaran biaya pembatalan dari customer. Verifikasi transfer dulu, lalu selesaikan order.'
@@ -298,53 +411,53 @@ class DriverOrderActionCard extends StatelessWidget {
               ),
             )
           else
-            ...actions.map(
-              (action) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: AppColors.white,
-                      elevation: 4,
-                      shadowColor: AppColors.primary.withValues(alpha: 0.4),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      textStyle: GoogleFonts.nunitoSans(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                      ),
+            const SizedBox.shrink()
+        else
+          ...actions.map(
+            (action) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    onPressed: isProcessing || action.blocked
-                        ? null
-                        : () async {
-                            await onTapAction(action);
-                          },
-                    child: isProcessing
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.white,
-                            ),
-                          )
-                        : Text(action.label),
+                    textStyle: GoogleFonts.nunitoSans(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
                   ),
+                  onPressed: isProcessing || action.blocked
+                      ? null
+                      : () async {
+                          await onTapAction(action);
+                        },
+                  child: isProcessing
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.white,
+                          ),
+                        )
+                      : Text(action.label),
                 ),
               ),
             ),
-          if (actions.any((action) => action.blocked))
-            Text(
-              actions.firstWhere((action) => action.blocked).blockedReason ??
-                  'Aksi masih terkunci.',
-              style: const TextStyle(color: AppColors.error, fontSize: 12),
-            ),
-        ],
-      ),
+          ),
+        if (actions.any((action) => action.blocked))
+          Text(
+            actions.firstWhere((action) => action.blocked).blockedReason ??
+                'Aksi masih terkunci.',
+            style: const TextStyle(color: AppColors.error, fontSize: 12),
+          ),
+      ],
     );
   }
 

@@ -7,6 +7,7 @@ import '../../../../config/app_routes.dart';
 import '../../../auth/application/auth_session_provider.dart';
 import '../../../driver_orders/application/driver_location_reporter_provider.dart';
 import '../../../driver_orders/application/driver_order_providers.dart';
+import '../widgets/bang_floating_bottom_nav_bar.dart';
 
 class DriverMainLayout extends ConsumerStatefulWidget {
   final Widget child;
@@ -43,7 +44,12 @@ class _DriverMainLayoutState extends ConsumerState<DriverMainLayout> {
         context.go(AppRoutes.driverHome);
         break;
       case 1:
-        context.go(AppRoutes.driverOrders);
+        final activeOrder = ref.read(driverActiveOrderProvider);
+        if (activeOrder == null) {
+          context.go(AppRoutes.driverOrders);
+        } else {
+          context.go(AppRoutes.driverOrderActivePath(activeOrder.id));
+        }
         break;
       case 2:
         context.go(AppRoutes.driverHistory);
@@ -68,88 +74,35 @@ class _DriverMainLayoutState extends ConsumerState<DriverMainLayout> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: widget.child,
-      bottomNavigationBar: isActiveDriver
-          ? BottomNavigationBar(
-              type: BottomNavigationBarType.fixed,
-              backgroundColor: AppColors.white,
-              selectedItemColor: AppColors.primary,
-              unselectedItemColor: AppColors.textSecondary,
-              currentIndex: _calculateSelectedIndex(context),
-              onTap: (index) => _onItemTapped(index, context),
-              items: [
-                const BottomNavigationBarItem(
-                  icon: Icon(Icons.home_filled),
-                  label: 'Beranda',
-                ),
-                BottomNavigationBarItem(
-                  icon: _NavIconWithBadge(
-                    icon: Icons.assignment_rounded,
-                    count: incomingOrderCount,
+      body: isActiveDriver
+          ? BangFloatingBottomNavHost(
+              navigationBar: BangFloatingBottomNavBar(
+                currentIndex: _calculateSelectedIndex(context),
+                onTap: (index) => _onItemTapped(index, context),
+                items: [
+                  const BangFloatingNavItem(
+                    icon: Icons.home_filled,
+                    label: 'Beranda',
                   ),
-                  label: 'Orderan',
-                ),
-                const BottomNavigationBarItem(
-                  icon: Icon(Icons.history),
-                  label: 'Riwayat',
-                ),
-                const BottomNavigationBarItem(
-                  icon: Icon(Icons.person),
-                  label: 'Profil',
-                ),
-              ],
+                  BangFloatingNavItem(
+                    icon: Icons.assignment_rounded,
+                    label: 'Orderan',
+                    badgeCount: incomingOrderCount,
+                  ),
+                  const BangFloatingNavItem(
+                    icon: Icons.history,
+                    label: 'Riwayat',
+                  ),
+                  const BangFloatingNavItem(
+                    icon: Icons.person_outline,
+                    activeIcon: Icons.person,
+                    label: 'Profil',
+                  ),
+                ],
+              ),
+              child: widget.child,
             )
-          : null,
-    );
-  }
-}
-
-class _NavIconWithBadge extends StatelessWidget {
-  const _NavIconWithBadge({required this.icon, required this.count});
-
-  final IconData icon;
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    if (count <= 0) {
-      return Icon(icon);
-    }
-
-    final label = count > 99 ? '99+' : count.toString();
-
-    return SizedBox(
-      width: 32,
-      height: 28,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Align(alignment: Alignment.center, child: Icon(icon)),
-          Positioned(
-            top: -2,
-            right: 0,
-            child: Container(
-              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              decoration: BoxDecoration(
-                color: AppColors.error,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: AppColors.white, width: 1.5),
-              ),
-              child: Text(
-                label,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppColors.white,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w800,
-                  height: 1.25,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+          : widget.child,
     );
   }
 }
