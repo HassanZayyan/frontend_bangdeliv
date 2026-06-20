@@ -439,9 +439,9 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.05),
+        color: AppColors.surfaceAlt,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.14)),
+        border: Border.all(color: AppColors.border),
       ),
       child: CheckboxListTile(
         value: isHeavy,

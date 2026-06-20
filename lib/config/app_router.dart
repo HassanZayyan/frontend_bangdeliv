@@ -16,7 +16,6 @@ import '../features/profile/presentation/screens/driver_verification_status_scre
 import '../features/orders/presentation/screens/activity_screen.dart';
 import '../features/home/presentation/screens/home_screen.dart';
 import '../features/chatbot/presentation/screens/chatbot_screen.dart';
-import '../features/orders/presentation/screens/order_history_screen.dart';
 import '../features/orders/presentation/screens/order_chat_screen.dart';
 import '../features/shopping/presentation/screens/shopping_add_item_screen.dart';
 import '../features/tracking/presentation/screens/track_order_screen.dart';
@@ -204,11 +203,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final merchantId = state.pathParameters['merchantId'] ?? '';
           final extra = state.extra;
-          final initialMerchant = extra is MerchantModel ? extra : null;
+          final detailArgs = extra is MerchantDetailArgs ? extra : null;
+          final initialMerchant =
+              detailArgs?.merchant ?? (extra is MerchantModel ? extra : null);
 
           return MerchantDetailScreen(
             merchantId: merchantId,
             initialMerchant: initialMerchant,
+            returnPath: detailArgs?.returnPath,
           );
         },
       ),
@@ -321,6 +323,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppRoutes.nearbyMerchants,
             builder: (context, state) => const NearbyMerchantsScreen(),
+            routes: [
+              GoRoute(
+                path: AppRoutes.nearbyMerchantDetail,
+                builder: (context, state) {
+                  final merchantId = state.pathParameters['merchantId'] ?? '';
+                  final extra = state.extra;
+                  final detailArgs = extra is MerchantDetailArgs ? extra : null;
+                  final initialMerchant =
+                      detailArgs?.merchant ??
+                      (extra is MerchantModel ? extra : null);
+
+                  return MerchantDetailScreen(
+                    merchantId: merchantId,
+                    initialMerchant: initialMerchant,
+                    returnPath:
+                        detailArgs?.returnPath ?? AppRoutes.nearbyMerchants,
+                  );
+                },
+              ),
+            ],
           ),
           GoRoute(
             path: AppRoutes.activity,
@@ -328,7 +350,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: AppRoutes.history,
-            builder: (context, state) => const OrderHistoryScreen(),
+            redirect: (context, state) => AppRoutes.activity,
           ),
           GoRoute(
             path: AppRoutes.profile,
@@ -425,6 +447,10 @@ String? _resolveRedirect({
       return null;
     }
 
+    if (_postLoginHomeRoutes.contains(location)) {
+      return AppRoutes.login;
+    }
+
     return _buildLoginRouteWithReturnTo(fullLocation);
   }
 
@@ -453,6 +479,14 @@ String? _resolveRedirect({
         return AppRoutes.driverHome;
       }
 
+      return null;
+    }
+
+    if (location == AppRoutes.registerDriver) {
+      return AppRoutes.driverVerificationStatus;
+    }
+
+    if (!_isDriverRoute(location)) {
       return null;
     }
 
@@ -493,7 +527,7 @@ String _defaultRouteFor(AuthSessionState session) {
     case SessionUserRole.driver:
       return session.driverAccessState == DriverAccessState.active
           ? AppRoutes.driverHome
-          : AppRoutes.driverVerificationStatus;
+          : AppRoutes.home;
     case SessionUserRole.admin:
       return AppRoutes.profile;
     case SessionUserRole.guest:
@@ -525,6 +559,12 @@ const Set<String> _customerOnlyRoutes = {
   AppRoutes.addressPicker,
   AppRoutes.addAddress,
   AppRoutes.registerDriver,
+};
+
+const Set<String> _postLoginHomeRoutes = {
+  AppRoutes.activity,
+  AppRoutes.history,
+  AppRoutes.profile,
 };
 
 const Set<String> _driverNonActiveAllowedRoutes = {

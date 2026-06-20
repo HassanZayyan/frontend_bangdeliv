@@ -42,7 +42,6 @@ class DriverVerificationDriverModel {
   final String vehicleBrand;
   final String vehicleModel;
   final String vehiclePlate;
-  final String licenseNumber;
   final String registrationStatus;
   final String status;
   final DateTime? submittedAt;
@@ -57,7 +56,6 @@ class DriverVerificationDriverModel {
     required this.vehicleBrand,
     required this.vehicleModel,
     required this.vehiclePlate,
-    required this.licenseNumber,
     required this.registrationStatus,
     required this.status,
     required this.submittedAt,
@@ -74,7 +72,6 @@ class DriverVerificationDriverModel {
       vehicleBrand: (json['vehicle_brand'] ?? '').toString(),
       vehicleModel: (json['vehicle_model'] ?? '').toString(),
       vehiclePlate: (json['vehicle_plate'] ?? '').toString(),
-      licenseNumber: (json['license_number'] ?? '').toString(),
       registrationStatus: (json['registration_status'] ?? '').toString(),
       status: (json['status'] ?? '').toString(),
       submittedAt: _parseDateTime(json['submitted_at']),
@@ -127,7 +124,7 @@ class DriverVerificationDocumentModel {
       case 'sim':
         return 'SIM';
       case 'selfie':
-        return 'Selfie dengan SIM';
+        return 'Selfie';
       default:
         return documentType;
     }

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
+import '../../../../config/app_text_scaling.dart';
 import '../../../../models/user_profile_model.dart';
 import '../../../auth/application/auth_session_provider.dart';
 import '../../../../services/auth_service.dart';
@@ -41,6 +42,8 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
       appBar: AppBar(
         title: Text(
           widget.selectionMode ? 'Pilih Alamat' : 'Alamat Saya',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         backgroundColor: AppColors.white,
@@ -98,7 +101,10 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
                     const Text(
                       'Belum ada alamat tersimpan untuk akun ini.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: AppColors.textSecondary),
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12.5,
+                      ),
                     ),
                   ],
                 ),
@@ -127,14 +133,26 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
         child: SizedBox(
           width: double.infinity,
-          height: 52,
-          child: ElevatedButton.icon(
-            onPressed: _openAddAddress,
-            icon: const Icon(Icons.add_rounded, size: 20),
-            label: const Text('Tambah Alamat Baru'),
-            style: ElevatedButton.styleFrom(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: AppTextScaling.adaptive(
+                context,
+                normal: 52,
+                large: 56,
+              ),
+            ),
+            child: ElevatedButton.icon(
+              onPressed: _openAddAddress,
+              icon: const Icon(Icons.add_rounded, size: 20),
+              label: const Text(
+                'Tambah Alamat Baru',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              style: ElevatedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ),
@@ -228,14 +246,14 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
 
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: widget.selectionMode ? () => _selectAddress(address) : null,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(color: AppColors.border),
           ),
           child: _buildAddressCardContent(address, isSelecting: isSelecting),
@@ -248,57 +266,75 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
     SavedAddressModel address, {
     required bool isSelecting,
   }) {
+    if (widget.selectionMode) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSelectionIndicator(address, isSelecting: isSelecting),
+          const SizedBox(width: 12),
+          Expanded(child: _buildAddressSummary(address)),
+          const SizedBox(width: 8),
+          _buildEditTextButton(address),
+        ],
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: _buildAddressSummary(address, addressMaxLines: 2)),
+        const SizedBox(width: 8),
+        _buildEditTextButton(address),
+      ],
+    );
+  }
+
+  Widget _buildSelectionIndicator(
+    SavedAddressModel address, {
+    required bool isSelecting,
+  }) {
+    return SizedBox.square(
+      dimension: 28,
+      child: Center(
+        child: isSelecting
+            ? const SizedBox.square(
+                dimension: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : _AddressChoiceDot(isSelected: address.isDefault),
+      ),
+    );
+  }
+
+  Widget _buildAddressSummary(
+    SavedAddressModel address, {
+    int addressMaxLines = 3,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Expanded(
-              child: Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      address.label.isEmpty ? 'Alamat' : address.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                  if (address.isDefault) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 1,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.white,
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: AppColors.primary, width: 1),
-                      ),
-                      child: const Text(
-                        'Utama',
-                        style: TextStyle(
-                          color: AppColors.primary,
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w600,
-                          height: 1,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
+            Flexible(
+              child: Text(
+                address.label.isEmpty ? 'Alamat' : address.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                  height: 1.2,
+                ),
               ),
             ),
-            _buildAddressTrailing(address, isSelecting: isSelecting),
+            if (address.isDefault) ...[
+              const SizedBox(width: 8),
+              _DefaultAddressBadge(),
+            ],
           ],
         ),
-        const SizedBox(height: 1),
+        const SizedBox(height: 6),
         Row(
           crossAxisAlignment: CrossAxisAlignment.baseline,
           textBaseline: TextBaseline.alphabetic,
@@ -310,7 +346,9 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  height: 1.2,
                 ),
               ),
             ),
@@ -320,17 +358,21 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
                 '|',
                 style: TextStyle(
                   color: AppColors.textSecondary,
-                  fontSize: 12,
+                  fontSize: 11.5,
                   height: 1.2,
                 ),
               ),
             ),
-            Text(
-              address.phone,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 11.5,
-                height: 1.2,
+            Flexible(
+              child: Text(
+                address.phone,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 11.5,
+                  height: 1.2,
+                ),
               ),
             ),
           ],
@@ -338,7 +380,7 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
         const SizedBox(height: 6),
         Text(
           address.displayAddress,
-          maxLines: 2,
+          maxLines: addressMaxLines,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
             color: AppColors.textSecondary,
@@ -350,38 +392,86 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
     );
   }
 
-  Widget _buildAddressTrailing(
-    SavedAddressModel address, {
-    required bool isSelecting,
-  }) {
-    if (widget.selectionMode) {
-      return SizedBox.square(
-        dimension: 32,
-        child: isSelecting
-            ? const Padding(
-                padding: EdgeInsets.all(7),
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : Icon(
-                address.isDefault
-                    ? Icons.check_circle_rounded
-                    : Icons.radio_button_unchecked_rounded,
-                color: address.isDefault
-                    ? AppColors.primary
-                    : AppColors.textSecondary,
-                size: 20,
-              ),
-      );
-    }
+  Widget _buildEditTextButton(SavedAddressModel address) {
+    return TextButton(
+      onPressed: () => _openEditAddress(address),
+      style: TextButton.styleFrom(
+        minimumSize: const Size(0, 32),
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        foregroundColor: AppColors.primary,
+      ),
+      child: const Text(
+        'Ubah',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w600,
+          height: 1,
+        ),
+      ),
+    );
+  }
+}
 
-    return Tooltip(
-      message: 'Edit alamat',
-      child: InkResponse(
-        onTap: () => _openEditAddress(address),
-        radius: 20,
-        child: const SizedBox.square(
-          dimension: 32,
-          child: Icon(Icons.edit_outlined, color: AppColors.primary, size: 20),
+class _AddressChoiceDot extends StatelessWidget {
+  const _AddressChoiceDot({required this.isSelected});
+
+  final bool isSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: isSelected ? AppColors.primary : AppColors.textSecondary,
+          width: isSelected ? 2.2 : 1.5,
+        ),
+      ),
+      child: isSelected
+          ? Center(
+              child: Container(
+                width: 9,
+                height: 9,
+                decoration: const BoxDecoration(
+                  color: AppColors.primary,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            )
+          : null,
+    );
+  }
+}
+
+class _DefaultAddressBadge extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return AppTextScaling.clampForCompactComponent(
+      context: context,
+      maxScaleFactor: AppTextScaling.denseComponentMaxScaleFactor,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: AppColors.primary, width: 1),
+        ),
+        child: const Text(
+          'Utama',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: AppColors.primary,
+            fontSize: 9.5,
+            fontWeight: FontWeight.w600,
+            height: 1,
+          ),
         ),
       ),
     );

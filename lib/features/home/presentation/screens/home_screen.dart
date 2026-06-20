@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
+import '../../../../config/app_text_scaling.dart';
 import '../../../../models/home_data_model.dart';
 import '../../../../models/merchant_model.dart';
 import '../../../../models/customer_order_model.dart';
@@ -17,15 +18,20 @@ import '../../../../utils/order_ui_helpers.dart';
 import '../../../../widgets/app_content_background.dart';
 import '../../../../widgets/bang_ui.dart';
 import '../../../../widgets/service_visual_icon.dart';
+import '../../../navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
+import '../widgets/nearby_merchant_card.dart';
 
 typedef _HomeDataRequest = ({double? latitude, double? longitude});
+
+const int _homeNearbyMerchantLimit = 6;
+const double _homeHorizontalPadding = 20;
 
 final _homeScreenDataProvider = FutureProvider.autoDispose
     .family<HomeDataModel, _HomeDataRequest>((ref, request) async {
       final service = ref.watch(homeApiServiceProvider);
 
       return service.fetchHomeData(
-        limitMerchants: 5,
+        limitMerchants: _homeNearbyMerchantLimit,
         latitude: request.latitude,
         longitude: request.longitude,
       );
@@ -65,8 +71,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   backgroundColor: AppColors.white,
                   onRefresh: () => _refreshHomeData(homeRequest),
                   child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    physics: const AlwaysScrollableScrollPhysics(
+                      parent: ClampingScrollPhysics(),
+                    ),
                     child: homeDataAsync.when(
                       loading: () => _buildLoadingContent(context),
                       error: (error, stackTrace) =>
@@ -170,7 +177,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                           style: Theme.of(context)
                                               .textTheme
                                               .titleMedium
-                                              ?.copyWith(fontSize: 15),
+                                              ?.copyWith(fontSize: 14.25),
                                         ),
                                       ),
                                       const SizedBox(width: 4),
@@ -189,7 +196,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                       color: AppColors.textSecondary,
-                                      fontSize: 12,
+                                      fontSize: 11.5,
+                                      height: 1.2,
                                     ),
                                   ),
                                 ],
@@ -226,27 +234,91 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     context.push(AppRoutes.merchantDetailPath(merchant.id), extra: merchant);
   }
 
+  Widget _buildServiceSection(BuildContext context) {
+    final textScale = _layoutTextScale(context);
+    final topPadding = _lerp(18, 20, textScale);
+    final bottomPadding = _lerp(18, 22, textScale);
+
+    return ClipRect(
+      child: DecoratedBox(
+        decoration: const BoxDecoration(color: AppColors.background),
+        child: Stack(
+          children: [
+            const Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  image: DecorationImage(
+                    image: AssetImage('assets/images/background.png'),
+                    fit: BoxFit.cover,
+                    alignment: Alignment(0, -0.80),
+                  ),
+                ),
+              ),
+            ),
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      AppColors.white.withValues(alpha: 0.38),
+                      AppColors.white.withValues(alpha: 0.72),
+                      AppColors.background,
+                    ],
+                    stops: const [0, 0.58, 1],
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(0, topPadding, 0, bottomPadding),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _HomeSectionHeader(title: 'Layanan BangDeliv'),
+                  const SizedBox(height: 12),
+                  _buildServiceCards(context),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildServiceCards(BuildContext context) {
+    final textScale = _layoutTextScale(context);
+    final serviceTileHeight = _lerp(94, 124, textScale);
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: [
-          _buildServiceTile(
-            context: context,
-            title: 'Antar Jemput',
-            serviceType: 'antar_jemput',
-          ),
-          _buildServiceTile(
-            context: context,
-            title: 'Kurir',
-            serviceType: 'kurir',
-          ),
-          _buildServiceTile(
-            context: context,
-            title: 'Nitip',
-            serviceType: 'nitip',
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(horizontal: _homeHorizontalPadding),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: serviceTileHeight),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildServiceTile(
+              context: context,
+              title: 'Antar Jemput',
+              serviceType: 'antar_jemput',
+              height: serviceTileHeight,
+            ),
+            _buildServiceTile(
+              context: context,
+              title: 'Kurir',
+              serviceType: 'kurir',
+              height: serviceTileHeight,
+            ),
+            _buildServiceTile(
+              context: context,
+              title: 'Nitip',
+              serviceType: 'nitip',
+              height: serviceTileHeight,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -255,8 +327,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     required BuildContext context,
     required String title,
     required String serviceType,
+    required double height,
   }) {
     void handleTap() => _openServiceChat(context, serviceType);
+    final textScale = _layoutTextScale(context);
+    final iconHeight = _lerp(58, 54, textScale);
+    final frameSize = _lerp(50, 47, textScale);
+    final iconWidth = _lerp(68, 62, textScale);
+    final titleFontSize = _lerp(12, 11.25, textScale);
 
     return Expanded(
       child: Semantics(
@@ -271,12 +349,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               onTap: handleTap,
               borderRadius: BorderRadius.circular(18),
               child: SizedBox(
-                height: 100,
+                height: height,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    ServiceVisualIcon(serviceCode: serviceType),
-                    const SizedBox(height: 8),
+                    ServiceVisualIcon(
+                      serviceCode: serviceType,
+                      height: iconHeight,
+                      frameSize: frameSize,
+                      iconWidth: iconWidth,
+                      iconHeight: iconHeight - 6,
+                    ),
+                    SizedBox(height: _lerp(7, 6, textScale)),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: Text(
@@ -284,11 +368,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         textAlign: TextAlign.center,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textPrimary,
                           fontWeight: FontWeight.w800,
-                          fontSize: 12.5,
-                          height: 1.08,
+                          fontSize: titleFontSize,
+                          height: 1.05,
                         ),
                       ),
                     ),
@@ -306,22 +390,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const BangSectionHeader(title: 'Layanan BangDeliv'),
-        const SizedBox(height: 12),
-        _buildServiceCards(context),
-        const SizedBox(height: 20),
+        _buildServiceSection(context),
+        const SizedBox(height: 16),
         const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20),
+          padding: EdgeInsets.symmetric(horizontal: _homeHorizontalPadding),
           child: BangLoadingSkeleton(height: 164),
         ),
         const SizedBox(height: 24),
-        const BangSectionHeader(title: 'Toko & Resto Terdekat'),
+        const _HomeSectionHeader(title: 'Toko & Resto Terdekat'),
         const SizedBox(height: 12),
         const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20),
+          padding: EdgeInsets.symmetric(horizontal: _homeHorizontalPadding),
           child: BangLoadingSkeleton(height: 96),
         ),
-        const SizedBox(height: 84),
+        const SizedBox(height: BangFloatingBottomNavBar.scrollClearance),
       ],
     );
   }
@@ -330,19 +412,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const BangSectionHeader(title: 'Layanan BangDeliv'),
-        const SizedBox(height: 12),
-        _buildServiceCards(context),
-        const SizedBox(height: 24),
+        _buildServiceSection(context),
+        const SizedBox(height: 20),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(
+            horizontal: _homeHorizontalPadding,
+          ),
           child: BangErrorState(
             title: 'Gagal memuat data beranda',
             message: message,
             onRetry: () => ref.invalidate(_homeScreenDataProvider(request)),
           ),
         ),
-        const SizedBox(height: 84),
+        const SizedBox(height: BangFloatingBottomNavBar.scrollClearance),
       ],
     );
   }
@@ -355,22 +437,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const BangSectionHeader(title: 'Layanan BangDeliv'),
-        const SizedBox(height: 12),
-        _buildServiceCards(context),
+        _buildServiceSection(context),
         if (activeOrder != null) ...[
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           _buildActiveOrderCard(context, activeOrder),
+          const SizedBox(height: 24),
+        ] else ...[
+          const SizedBox(height: 12),
         ],
-        const SizedBox(height: 24),
-        BangSectionHeader(
+        _HomeSectionHeader(
           title: 'Toko & Resto Terdekat',
           actionLabel: 'Lihat semua',
           onAction: () => context.push(AppRoutes.nearbyMerchants),
         ),
         const SizedBox(height: 12),
         _buildNearbyMerchants(data),
-        const SizedBox(height: 48),
+        const SizedBox(height: BangFloatingBottomNavBar.scrollClearance),
       ],
     );
   }
@@ -380,11 +462,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     CustomerOrderSummaryModel order,
   ) {
     final statusColor = orderStatusColor(order.statusCode);
+    final openTracking = order.canTrack
+        ? () => context.push(AppRoutes.track, extra: order.id)
+        : null;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: _homeHorizontalPadding),
       child: BangCard(
         padding: const EdgeInsets.all(16),
+        onTap: openTracking,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -443,9 +529,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   width: 86,
                   height: 34,
                   child: OutlinedButton(
-                    onPressed: order.canTrack
-                        ? () => context.push(AppRoutes.track, extra: order.id)
-                        : null,
+                    onPressed: openTracking,
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.primary,
                       side: const BorderSide(color: AppColors.primary),
@@ -487,84 +571,121 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       return _buildEmptySection('Belum ada toko/resto terdekat.');
     }
 
-    final merchants = data.nearbyMerchants.take(5).toList(growable: false);
+    final merchants = data.nearbyMerchants
+        .take(_homeNearbyMerchantLimit)
+        .toList(growable: false);
+    final textScale = _layoutTextScale(context);
+    final cardMainAxisExtent = _lerp(182, 194, textScale);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        children: [
-          for (final merchant in merchants) ...[
-            _buildNearbyMerchantCard(
-              merchant: merchant,
-              onTap: () => _openMerchantDetail(context, merchant),
-            ),
-            if (merchant != merchants.last) const SizedBox(height: 10),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNearbyMerchantCard({
-    required MerchantModel merchant,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: AppColors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: AppColors.border),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.border),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  merchant.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w800,
-                    height: 1.18,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Transform.translate(
-                offset: const Offset(0, 1.5),
-                child: Icon(
-                  Icons.keyboard_arrow_right_rounded,
-                  size: 20,
-                  color: AppColors.textSecondary.withValues(alpha: 0.72),
-                ),
-              ),
-            ],
-          ),
+      padding: const EdgeInsets.symmetric(horizontal: _homeHorizontalPadding),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: merchants.length,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          mainAxisExtent: cardMainAxisExtent,
         ),
+        itemBuilder: (context, index) {
+          final merchant = merchants[index];
+
+          return NearbyMerchantCard(
+            merchant: merchant,
+            onTap: () => _openMerchantDetail(context, merchant),
+          );
+        },
       ),
     );
   }
 
   Widget _buildEmptySection(String message) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: _homeHorizontalPadding),
       child: BangEmptyState(message: message),
+    );
+  }
+
+  double _layoutTextScale(BuildContext context) {
+    return MediaQuery.textScalerOf(
+      context,
+    ).scale(1).clamp(1.0, AppTextScaling.maxScaleFactor);
+  }
+
+  double _lerp(double normal, double large, double textScale) {
+    final t = ((textScale - 1) / (AppTextScaling.maxScaleFactor - 1)).clamp(
+      0.0,
+      1.0,
+    );
+    return normal + ((large - normal) * t);
+  }
+}
+
+class _HomeSectionHeader extends StatelessWidget {
+  const _HomeSectionHeader({
+    required this.title,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final String title;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final canShowAction = actionLabel != null && onAction != null;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: _homeHorizontalPadding),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                height: 1.08,
+              ),
+            ),
+          ),
+          if (canShowAction) ...[
+            const SizedBox(width: 10),
+            TextButton(
+              onPressed: onAction,
+              style: TextButton.styleFrom(
+                minimumSize: const Size(0, 34),
+                padding: const EdgeInsets.only(left: 4, right: 0),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                alignment: Alignment.centerRight,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    actionLabel!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w500,
+                      height: 1,
+                    ),
+                  ),
+                  const SizedBox(width: 1),
+                  const Icon(Icons.chevron_right_rounded, size: 14),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

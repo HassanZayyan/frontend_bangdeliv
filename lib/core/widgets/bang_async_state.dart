@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../config/app_colors.dart';
+import '../../config/app_text_scaling.dart';
 
 class BangLoadingState extends StatelessWidget {
   const BangLoadingState({super.key, this.message});
@@ -10,6 +11,11 @@ class BangLoadingState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = message?.trim();
+    final messageFontSize = AppTextScaling.adaptive(
+      context,
+      normal: 13,
+      large: 12.5,
+    );
 
     return Center(
       child: Padding(
@@ -23,9 +29,10 @@ class BangLoadingState extends StatelessWidget {
               Text(
                 text,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
-                  fontSize: 13,
+                  fontSize: messageFontSize,
+                  height: 1.35,
                 ),
               ),
             ],
@@ -52,6 +59,13 @@ class BangEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final illustrationSize = AppTextScaling.adaptive(
+      context,
+      normal: 100,
+      large: 86,
+    );
+    final iconSize = AppTextScaling.adaptive(context, normal: 56, large: 48);
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -60,6 +74,10 @@ class BangEmptyState extends StatelessWidget {
           children: [
             Container(
               padding: const EdgeInsets.all(22),
+              constraints: BoxConstraints.tightFor(
+                width: illustrationSize,
+                height: illustrationSize,
+              ),
               decoration: BoxDecoration(
                 color: AppColors.white,
                 shape: BoxShape.circle,
@@ -71,12 +89,14 @@ class BangEmptyState extends StatelessWidget {
                   ),
                 ],
               ),
-              child: Icon(icon, size: 56, color: AppColors.textSecondary),
+              child: Icon(icon, size: iconSize, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 24),
             Text(
               title,
               textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -87,6 +107,8 @@ class BangEmptyState extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
+              maxLines: 5,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontSize: 13,
                 color: AppColors.textSecondary,
@@ -115,6 +137,12 @@ class BangErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final messageFontSize = AppTextScaling.adaptive(
+      context,
+      normal: 13,
+      large: 12.5,
+    );
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -130,9 +158,11 @@ class BangErrorState extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              maxLines: 5,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
                 color: AppColors.textSecondary,
-                fontSize: 13,
+                fontSize: messageFontSize,
                 height: 1.45,
               ),
             ),

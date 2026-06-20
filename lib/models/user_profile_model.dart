@@ -75,7 +75,6 @@ class DriverProfileModel {
   final String vehicleBrand;
   final String vehicleModel;
   final String vehiclePlate;
-  final String licenseNumber;
   final int totalDeliveries;
 
   const DriverProfileModel({
@@ -85,7 +84,6 @@ class DriverProfileModel {
     required this.vehicleBrand,
     required this.vehicleModel,
     required this.vehiclePlate,
-    required this.licenseNumber,
     required this.totalDeliveries,
   });
 
@@ -97,7 +95,6 @@ class DriverProfileModel {
       vehicleBrand: (json['vehicle_brand'] ?? '').toString(),
       vehicleModel: (json['vehicle_model'] ?? '').toString(),
       vehiclePlate: (json['vehicle_plate'] ?? '').toString(),
-      licenseNumber: (json['license_number'] ?? '').toString(),
       totalDeliveries: _asInt(json['total_deliveries']),
     );
   }

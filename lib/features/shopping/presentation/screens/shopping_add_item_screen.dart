@@ -470,49 +470,61 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
     return didReplace ? drafts : [...drafts, draft];
   }
 
-  void _removeDraftItem(ShoppingItemDraft item) {
+  void _decrementDraftItem(ShoppingItemDraft item) {
     setState(() {
-      _draftItems = _draftItems
-          .where((draft) => draft.id != item.id)
-          .toList(growable: false);
-      if (_editingDraftItem?.id == item.id) {
-        _editingDraftItem = null;
-        _manualItemController.clear();
-        _noteController.clear();
-        _quantity = 1;
+      final nextQuantity = item.quantity - 1;
+      if (nextQuantity <= 0) {
+        _draftItems = _draftItems
+            .where((draft) => draft.id != item.id)
+            .toList(growable: false);
+        if (_editingDraftItem?.id == item.id) {
+          _editingDraftItem = null;
+          _manualItemController.clear();
+          _noteController.clear();
+          _quantity = 1;
+        }
+      } else {
+        _draftItems = _draftItems
+            .map(
+              (draft) => draft.id == item.id
+                  ? ShoppingItemDraft(
+                      id: draft.id,
+                      merchant: draft.merchant,
+                      menuId: draft.menuId,
+                      name: draft.name,
+                      quantity: nextQuantity,
+                      notes: draft.notes,
+                      unitPrice: draft.unitPrice,
+                      isFromMenu: draft.isFromMenu,
+                    )
+                  : draft,
+            )
+            .toList(growable: false);
       }
       _errorText = null;
     });
   }
-
-  void _editDraftItem(ShoppingItemDraft item) {
-    if (item.isFromMenu) {
-      return;
-    }
-
-    final merchantExists = _merchants.any(
-      (merchant) => merchant.id == item.merchant.id,
-    );
-
+  
+  void _incrementDraftItem(ShoppingItemDraft item) {
     setState(() {
-      if (!merchantExists) {
-        _merchants = [item.merchant, ..._merchants];
-      }
-      _editingDraftItem = item;
-      _selectedMerchant = item.merchant;
-      _manualItemController.text = item.name;
-      _noteController.text = item.notes ?? '';
-      _menus = const <ShoppingMenuOption>[];
-      _menuErrorText = null;
-      _quantity = item.quantity;
+      _draftItems = _draftItems
+          .map(
+            (draft) => draft.id == item.id
+                ? ShoppingItemDraft(
+                    id: draft.id,
+                    merchant: draft.merchant,
+                    menuId: draft.menuId,
+                    name: draft.name,
+                    quantity: draft.quantity + 1,
+                    notes: draft.notes,
+                    unitPrice: draft.unitPrice,
+                    isFromMenu: draft.isFromMenu,
+                  )
+                : draft,
+          )
+          .toList(growable: false);
       _errorText = null;
     });
-
-    if (isRestaurantMerchantType(item.merchant.merchantType)) {
-      unawaited(_loadMerchantMenus(item.merchant));
-    }
-
-    _scrollToItemSection();
   }
 
   Future<void> _submitDrafts() async {
@@ -618,6 +630,8 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
         foregroundColor: AppColors.textPrimary,
         title: const Text(
           'Tambah Item',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
       ),
@@ -635,7 +649,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
                     child: SingleChildScrollView(
                       keyboardDismissBehavior:
                           ScrollViewKeyboardDismissBehavior.onDrag,
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 56),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -658,8 +672,8 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
                           ShoppingDraftItemsSection(
                             key: _draftItemsSectionKey,
                             items: _draftItems,
-                            onEdit: _editDraftItem,
-                            onRemove: _removeDraftItem,
+                            onDecrement: _decrementDraftItem,
+                            onIncrement: _incrementDraftItem,
                           ),
                           if ((_errorText ?? '').isNotEmpty) ...[
                             const SizedBox(height: 14),
@@ -679,6 +693,19 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
                       0,
                       (total, item) => total + item.quantity,
                     ),
+                    totalAmount: _draftItems.fold<double>(
+                      0,
+                      (total, item) =>
+                          item.isFromMenu && (item.unitPrice ?? 0) > 0
+                          ? total + ((item.unitPrice ?? 0) * item.quantity)
+                          : total,
+                    ),
+                    hasPendingPriceItems: _draftItems.any(
+                      (item) => !item.isFromMenu || (item.unitPrice ?? 0) <= 0,
+                    ),
+                    pendingPriceItemCount: _draftItems.where(
+                      (item) => !item.isFromMenu || (item.unitPrice ?? 0) <= 0,
+                    ).length,
                     isSubmitting: _isSubmitting,
                     onSubmit: _submitDrafts,
                   ),

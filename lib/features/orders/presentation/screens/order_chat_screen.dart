@@ -400,15 +400,32 @@ class _ChatDriverTitle extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: Text(
-            driverName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w700,
-              fontSize: 17,
-            ),
+          child: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  driverName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 17,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Text(
+                '(driver)',
+                maxLines: 1,
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w400,
+                  fontSize: 12.5,
+                  height: 1.2,
+                ),
+              ),
+            ],
           ),
         ),
       ],

@@ -1,18 +1,26 @@
 import 'package:flutter/material.dart';
 
 import '../../../../config/app_colors.dart';
+import '../../../../config/app_text_scaling.dart';
+import '../../../../utils/order_formatters.dart';
 
 class ShoppingSubmitBar extends StatelessWidget {
   const ShoppingSubmitBar({
     super.key,
     required this.itemCount,
     required this.totalQuantity,
+    required this.totalAmount,
+    required this.hasPendingPriceItems,
+    required this.pendingPriceItemCount,
     required this.isSubmitting,
     required this.onSubmit,
   });
 
   final int itemCount;
   final int totalQuantity;
+  final double totalAmount;
+  final bool hasPendingPriceItems;
+  final int pendingPriceItemCount;
   final bool isSubmitting;
   final VoidCallback onSubmit;
 
@@ -22,6 +30,12 @@ class ShoppingSubmitBar extends StatelessWidget {
     final title = itemCount == 0
         ? 'Belum ada item'
         : '$itemCount item ditambahkan';
+    final totalLabel = canSubmit ? formatCurrency(totalAmount) : 'Rp 0';
+    final detailText = !canSubmit
+      ? 'Tambahkan item dulu untuk menyimpan'
+      : hasPendingPriceItems
+      ? '$pendingPriceItemCount menunggu nota'
+      : 'Semua harga final';
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
@@ -48,9 +62,18 @@ class ShoppingSubmitBar extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  canSubmit
-                      ? '$totalQuantity barang, harga dikonfirmasi driver'
-                      : 'Tambahkan item dulu untuk menyimpan',
+                  totalLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  detailText,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -63,8 +86,14 @@ class ShoppingSubmitBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          SizedBox(
-            height: 44,
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: AppTextScaling.adaptive(
+                context,
+                normal: 44,
+                large: 50,
+              ),
+            ),
             child: ElevatedButton(
               onPressed: isSubmitting || !canSubmit ? null : onSubmit,
               style: ElevatedButton.styleFrom(
@@ -82,7 +111,11 @@ class ShoppingSubmitBar extends StatelessWidget {
                         color: AppColors.white,
                       ),
                     )
-                  : const Text('Simpan Item'),
+                  : const Text(
+                      'Simpan Item',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
             ),
           ),
         ],

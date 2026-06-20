@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../config/app_colors.dart';
+import '../../../../config/app_text_scaling.dart';
 import '../../../../core/widgets/bang_async_state.dart';
 import '../../../../models/driver_order_model.dart';
+import '../../../navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
 import '../../application/driver_order_providers.dart';
 import '../../../../utils/order_formatters.dart';
 
@@ -76,8 +78,7 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
                       child: _SummaryCard(
                         title: 'Order Selesai',
                         value: completedCount.toString(),
-                        icon: Icons.check_circle_outline,
-                        color: AppColors.success,
+                        icon: Icons.task_alt_rounded,
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -86,7 +87,6 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
                         title: 'Pendapatan',
                         value: formatCurrency(totalIncome),
                         icon: Icons.payments_outlined,
-                        color: AppColors.primaryDark,
                       ),
                     ),
                   ],
@@ -102,8 +102,15 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
                               .refresh(showLoading: false);
                         },
                         child: ListView.separated(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                          physics: const AlwaysScrollableScrollPhysics(
+                            parent: ClampingScrollPhysics(),
+                          ),
+                          padding: const EdgeInsets.fromLTRB(
+                            16,
+                            0,
+                            16,
+                            BangFloatingBottomNavBar.scrollClearance,
+                          ),
                           itemCount: filteredOrders.length,
                           separatorBuilder: (context, index) =>
                               const SizedBox(height: 10),
@@ -186,43 +193,65 @@ class _SummaryCard extends StatelessWidget {
   final String title;
   final String value;
   final IconData icon;
-  final Color color;
 
   const _SummaryCard({
     required this.title,
     required this.value,
     required this.icon,
-    required this.color,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.black.withValues(alpha: 0.025),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12,
-            ),
+          Row(
+            children: [
+              Icon(icon, color: AppColors.textSecondary, size: 18),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    height: 1.2,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 10),
           Text(
             value,
-            style: const TextStyle(
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
               color: AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
+              fontSize: AppTextScaling.adaptive(
+                context,
+                normal: 16,
+                large: 14.5,
+              ),
+              fontWeight: FontWeight.w800,
+              height: 1.1,
             ),
           ),
         ],
@@ -240,7 +269,6 @@ class _HistoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCompleted = order.status == 'Selesai';
-    final statusColor = isCompleted ? AppColors.success : AppColors.error;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -248,6 +276,13 @@ class _HistoryCard extends StatelessWidget {
         color: AppColors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.black.withValues(alpha: 0.025),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -262,23 +297,9 @@ class _HistoryCard extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  order.status,
-                  style: TextStyle(
-                    color: statusColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+              _statusPill(
+                order.status,
+                foreground: isCompleted ? AppColors.success : AppColors.error,
               ),
             ],
           ),
@@ -315,6 +336,25 @@ class _HistoryCard extends StatelessWidget {
 
   String _formatDate(DateTime date) {
     return formatDateTime(date);
+  }
+
+  Widget _statusPill(String text, {required Color foreground}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: foreground,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
   }
 }
 

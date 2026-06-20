@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../../config/app_colors.dart';
+import '../../../../config/app_text_scaling.dart';
 import '../../../../models/address_location_picker_result.dart';
 import '../../../../services/google_maps_lookup_service.dart';
 
@@ -116,6 +117,8 @@ class _AddressLocationPickerScreenState
       appBar: AppBar(
         title: const Text(
           'Pilih Titik Alamat',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
         ),
         backgroundColor: AppColors.white,
@@ -179,8 +182,14 @@ class _AddressLocationPickerScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(
-                    height: 54,
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: AppTextScaling.adaptive(
+                        context,
+                        normal: 54,
+                        large: 64,
+                      ),
+                    ),
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 180),
                       child: Text(
@@ -193,7 +202,11 @@ class _AddressLocationPickerScreenState
                               ? AppColors.textSecondary
                               : AppColors.textPrimary,
                           fontWeight: FontWeight.w500,
-                          fontSize: 12.5,
+                          fontSize: AppTextScaling.adaptive(
+                            context,
+                            normal: 12.5,
+                            large: 12,
+                          ),
                           height: 1.35,
                         ),
                       ),
@@ -203,19 +216,35 @@ class _AddressLocationPickerScreenState
                   Row(
                     children: [
                       Expanded(
-                        child: SizedBox(
-                          height: 50,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: AppTextScaling.adaptive(
+                              context,
+                              normal: 50,
+                              large: 54,
+                            ),
+                          ),
                           child: OutlinedButton.icon(
                             onPressed: _isResolvingCurrentLocation
                                 ? null
                                 : _moveToCurrentLocation,
-                            style: OutlinedButton.styleFrom(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              side: const BorderSide(color: AppColors.border),
-                              foregroundColor: AppColors.textPrimary,
-                            ),
+                            style:
+                                OutlinedButton.styleFrom(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  side: BorderSide(
+                                    color: AppColors.primary.withValues(
+                                      alpha: 0.7,
+                                    ),
+                                    width: 1.2,
+                                  ),
+                                  foregroundColor: AppColors.textPrimary,
+                                ).copyWith(
+                                  overlayColor: WidgetStatePropertyAll(
+                                    AppColors.primary.withValues(alpha: 0.08),
+                                  ),
+                                ),
                             icon: _isResolvingCurrentLocation
                                 ? const SizedBox(
                                     width: 16,
@@ -225,14 +254,24 @@ class _AddressLocationPickerScreenState
                                     ),
                                   )
                                 : const Icon(Icons.my_location, size: 18),
-                            label: const Text('Lokasi Saya'),
+                            label: const Text(
+                              'Lokasi Saya',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: SizedBox(
-                          height: 50,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: AppTextScaling.adaptive(
+                              context,
+                              normal: 50,
+                              large: 54,
+                            ),
+                          ),
                           child: ElevatedButton(
                             onPressed: _confirmSelection,
                             style: ElevatedButton.styleFrom(
@@ -312,7 +351,11 @@ class _AddressLocationPickerScreenState
                   Icons.location_on,
                   color: AppColors.primary,
                 ),
-                title: Text(prediction.description),
+                title: Text(
+                  prediction.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 onTap: () {
                   controller.closeView(prediction.description);
                   _goToPlace(prediction.placeId);

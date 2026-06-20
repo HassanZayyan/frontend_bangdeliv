@@ -821,7 +821,10 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     }
 
     return ChatbotConversationMessage(
-      text: entry.message,
+      text: ChatbotResult.normalizeAssistantCopy(
+        entry.message,
+        serviceType: effectiveServiceType,
+      ),
       timestamp: _labelFromDateTime(entry.createdAt),
       isUser: false,
       meta: metaParts.join(' • '),
@@ -1148,20 +1151,36 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       );
     }
 
-    if (nextActions.contains('RESET_DESTINATION')) {
+    final shouldUseCourierRouteEditPicker =
+        serviceType == 'kurir' &&
+        nextActions.contains('RESET_DESTINATION') &&
+        nextActions.contains('CHANGE_PICKUP');
+
+    if (shouldUseCourierRouteEditPicker) {
+      add(_courierRouteEditHintFromPayload(actionPayloads));
+    }
+
+    if (!shouldUseCourierRouteEditPicker &&
+        nextActions.contains('RESET_DESTINATION')) {
       add(
         _presetMessageHintFromPayload(
           actionPayloads,
           'RESET_DESTINATION',
-          fallbackLabel: 'Ubah Tujuan',
+          fallbackLabel: serviceType == 'antar_jemput'
+              ? 'Ubah Titik Jemput/Tujuan'
+              : 'Ubah Lokasi Tujuan',
           fallbackMessage: 'Ubah Tujuan',
+          labelOverride: serviceType == 'antar_jemput'
+              ? 'Ubah Titik Jemput/Tujuan'
+              : 'Ubah Lokasi Tujuan',
         ),
       );
     }
 
     // Optional — shown on completed draft so user can swap pickup without
     // being forced to; backend sends this when pickup is already set.
-    if (nextActions.contains('CHANGE_PICKUP')) {
+    if (!shouldUseCourierRouteEditPicker &&
+        nextActions.contains('CHANGE_PICKUP')) {
       add(
         _mapPickerHintFromPayload(
           actionPayloads,
@@ -1198,6 +1217,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     String actionKey, {
     required String fallbackLabel,
     required String fallbackMessage,
+    String? labelOverride,
   }) {
     final payload = actionPayloads?[actionKey];
     final payloadMap = payload is Map<String, dynamic>
@@ -1213,8 +1233,55 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
 
     return ChatbotMessageActionHint(
       type: ChatbotMessageActionType.sendPresetMessage,
-      label: label,
+      label: labelOverride ?? label,
       presetMessage: message,
+    );
+  }
+
+  ChatbotMessageActionHint _courierRouteEditHintFromPayload(
+    Map<String, dynamic>? actionPayloads,
+  ) {
+    ChatbotRoutePointHint pointFrom(
+      String actionKey, {
+      required String fallbackTarget,
+      required String fallbackLabel,
+    }) {
+      final payload = actionPayloads?[actionKey];
+      final payloadMap = payload is Map<String, dynamic>
+          ? payload
+          : <String, dynamic>{};
+      final target = (payloadMap['target']?.toString().trim() ?? '').isEmpty
+          ? fallbackTarget
+          : payloadMap['target'].toString().trim();
+
+      return ChatbotRoutePointHint(
+        target: target,
+        label: fallbackLabel,
+        initialLatitude: _toDouble(payloadMap['initial_latitude']),
+        initialLongitude: _toDouble(payloadMap['initial_longitude']),
+        address: (payloadMap['address']?.toString().trim() ?? '').isEmpty
+            ? (payloadMap['formatted_address']?.toString().trim() ?? '').isEmpty
+                  ? null
+                  : payloadMap['formatted_address']?.toString().trim()
+            : payloadMap['address']?.toString().trim(),
+      );
+    }
+
+    return ChatbotMessageActionHint(
+      type: ChatbotMessageActionType.openRoutePicker,
+      label: 'Ubah Titik Ambil & Tujuan',
+      routePoints: <ChatbotRoutePointHint>[
+        pointFrom(
+          'CHANGE_PICKUP',
+          fallbackTarget: 'pickup',
+          fallbackLabel: 'Titik Ambil',
+        ),
+        pointFrom(
+          'RESET_DESTINATION',
+          fallbackTarget: 'dropoff',
+          fallbackLabel: 'Titik Tujuan',
+        ),
+      ],
     );
   }
 

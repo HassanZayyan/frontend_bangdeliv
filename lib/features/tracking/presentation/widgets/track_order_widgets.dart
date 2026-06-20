@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
+import '../../../../config/app_text_scaling.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../models/customer_order_model.dart';
 import '../../../../utils/order_formatters.dart';
@@ -45,10 +46,10 @@ class _TrackShoppingOrderItemsCardState
         .toList(growable: false);
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -96,7 +97,7 @@ class _TrackShoppingOrderItemsCardState
                 ),
             ],
           ),
-          const Divider(height: 18, color: AppColors.border),
+          const Divider(height: 14, color: AppColors.border),
           if (failedStops.isNotEmpty) ...[
             ...failedStops.map((stop) => _failedStopNotice(context, ref, stop)),
             const SizedBox(height: 4),
@@ -116,7 +117,7 @@ class _TrackShoppingOrderItemsCardState
               ),
             ),
           if (pricing != null) ...[
-            const Divider(height: 18, color: AppColors.border),
+            const Divider(height: 14, color: AppColors.border),
             _pricingRow('Subtotal barang', pricing.subtotal),
             _pricingRow('Ongkir', pricing.deliveryFee),
             _pricingRow('Service fee', pricing.serviceFee),
@@ -236,7 +237,7 @@ class _TrackShoppingOrderItemsCardState
     final sequenceNo = stop.sequenceNo <= 0 ? 1 : stop.sequenceNo;
 
     return Padding(
-      padding: EdgeInsets.only(top: showDivider ? 12 : 8),
+      padding: EdgeInsets.only(top: showDivider ? 10 : 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -246,7 +247,7 @@ class _TrackShoppingOrderItemsCardState
               thickness: 1,
               color: AppColors.border.withValues(alpha: 0.75),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
           ],
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -261,6 +262,8 @@ class _TrackShoppingOrderItemsCardState
                   children: [
                     Text(
                       stop.merchant.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.w800,
@@ -272,6 +275,8 @@ class _TrackShoppingOrderItemsCardState
                       const SizedBox(height: 3),
                       Text(
                         address,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 11.5,
@@ -284,13 +289,18 @@ class _TrackShoppingOrderItemsCardState
               ),
               const SizedBox(width: 8),
               if (stop.isFailed || stop.isSkipped)
-                _stopStatusChip(stop.isFailed ? 'Gagal' : 'Dilewati'),
+                Flexible(
+                  child: _stopStatusChip(
+                    context,
+                    stop.isFailed ? 'Gagal' : 'Dilewati',
+                  ),
+                ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           ...visibleItems.map((item) => _itemRow(context, ref, item)),
           if (showToggle) ...[
-            const SizedBox(height: 2),
+            const SizedBox(height: 0),
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton(
@@ -322,7 +332,7 @@ class _TrackShoppingOrderItemsCardState
             ),
           ],
           if (hasPendingPrice) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             const Text(
               'Harga barang mengikuti struk dari merchant.',
               style: TextStyle(
@@ -376,19 +386,25 @@ class _TrackShoppingOrderItemsCardState
     return address;
   }
 
-  Widget _stopStatusChip(String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: AppColors.error.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: AppColors.error,
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
+  Widget _stopStatusChip(BuildContext context, String label) {
+    return AppTextScaling.clampForCompactComponent(
+      context: context,
+      maxScaleFactor: AppTextScaling.denseComponentMaxScaleFactor,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: AppColors.error.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: AppColors.error,
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+          ),
         ),
       ),
     );
@@ -405,15 +421,17 @@ class _TrackShoppingOrderItemsCardState
     final priceText = !item.isAvailable
         ? 'Tidak tersedia'
         : item.isPricePending
-        ? ''
+      ? 'Harga menunggu nota'
         : item.subtotal > 0
         ? formatCurrency(item.subtotal)
         : 'Termasuk total struk';
-    final statusColor = !item.isAvailable || item.isPricePending
-        ? AppColors.error
-        : item.subtotal > 0
-        ? AppColors.primaryDark
-        : AppColors.textSecondary;
+    final statusColor = !item.isAvailable
+      ? AppColors.error
+      : item.isPricePending
+      ? AppColors.textSecondary
+      : item.subtotal > 0
+      ? AppColors.primaryDark
+      : AppColors.textSecondary;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -426,6 +444,8 @@ class _TrackShoppingOrderItemsCardState
               children: [
                 Text(
                   '${item.quantity <= 0 ? 1 : item.quantity}x ${item.name}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 13.8,
@@ -439,6 +459,8 @@ class _TrackShoppingOrderItemsCardState
                 if ((item.notes ?? '').trim().isNotEmpty)
                   Text(
                     item.notes!.trim(),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 11.5,
@@ -457,6 +479,8 @@ class _TrackShoppingOrderItemsCardState
                       height: 1.25,
                       fontWeight: item.subtotal > 0
                           ? FontWeight.w800
+                          : item.isPricePending
+                          ? FontWeight.w500
                           : FontWeight.w700,
                     ),
                   ),
@@ -498,6 +522,8 @@ class _TrackShoppingOrderItemsCardState
           Expanded(
             child: Text(
               label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: isTotal
                     ? AppColors.textPrimary
@@ -507,12 +533,18 @@ class _TrackShoppingOrderItemsCardState
               ),
             ),
           ),
-          Text(
-            formatCurrency(value),
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: isTotal ? FontWeight.w800 : FontWeight.w700,
-              fontSize: isTotal ? 14.5 : 12.8,
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              formatCurrency(value),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontWeight: isTotal ? FontWeight.w800 : FontWeight.w700,
+                fontSize: isTotal ? 14.5 : 12.8,
+              ),
             ),
           ),
         ],
@@ -623,6 +655,12 @@ class TrackWaitingDriverHeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final titleFontSize = AppTextScaling.adaptive(
+      context,
+      normal: 17,
+      large: 15.5,
+    );
+
     return LayoutBuilder(
       builder: (context, constraints) {
         return Container(
@@ -667,14 +705,15 @@ class TrackWaitingDriverHeroCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Menunggu Driver',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: AppColors.primaryDark,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w800,
                           height: 1.15,
-                        ),
+                        ).copyWith(fontSize: titleFontSize),
                       ),
                       const SizedBox(height: 10),
                       const Text(

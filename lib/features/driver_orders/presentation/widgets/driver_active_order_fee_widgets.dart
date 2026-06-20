@@ -2,155 +2,55 @@ import 'package:flutter/material.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../models/driver_order_model.dart';
-import '../../../../utils/currency_formatter.dart';
 import '../../../../utils/service_type.dart';
 import 'driver_active_order_widget_helpers.dart';
 
-class DriverManualDeliveryFeeCard extends StatelessWidget {
-  const DriverManualDeliveryFeeCard({
-    super.key,
-    required this.order,
-    required this.isProcessing,
-    required this.onSave,
-  });
-
-  final DriverOrderModel order;
-  final bool isProcessing;
-  final Future<String?> Function({
+Future<void> showDriverManualDeliveryFeeEditDialog(
+  BuildContext context, {
+  required DriverOrderModel order,
+  required Future<String?> Function({
     required double amount,
     required String reason,
     required bool carefulCarryRequired,
   })
-  onSave;
+  onSave,
+}) async {
+  final supportsCarefulCarry = serviceTypeSupportsCarefulCarry(
+    order.serviceTypeCode,
+  );
 
-  @override
-  Widget build(BuildContext context) {
-    final supportsCarefulCarry = serviceTypeSupportsCarefulCarry(
-      order.serviceTypeCode,
-    );
-    final deliveryFeeSource = (order.deliveryFeeSource ?? '')
-        .trim()
-        .toLowerCase();
-    final deliveryFeeSourceLabel = deliveryFeeSource == 'driver_manual'
-        ? 'manual driver'
-        : deliveryFeeSource;
+  final result = await showDialog<_ManualDeliveryFeeInput>(
+    context: context,
+    builder: (context) => _ManualDeliveryFeeDialog(
+      initialAmount: order.deliveryFee,
+      initialReason: '',
+      initialCarefulCarryRequired:
+          supportsCarefulCarry && order.carefulCarryRequired,
+      supportsCarefulCarry: supportsCarefulCarry,
+      systemDeliveryFee: order.deliveryFee,
+    ),
+  );
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.edit_road_outlined, color: AppColors.primary),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text(
-                  'Ongkir Driver',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              TextButton.icon(
-                onPressed: isProcessing ? null : () => _openDialog(context),
-                icon: const Icon(Icons.edit, size: 16),
-                label: const Text('Edit'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _summaryChip(
-                'Jarak',
-                order.deliveryDistanceLabel.isEmpty
-                    ? '-'
-                    : order.deliveryDistanceLabel,
-              ),
-              _summaryChip(
-                'Ongkir final',
-                order.deliveryFee == null
-                    ? '-'
-                    : formatRupiah(order.deliveryFee!),
-              ),
-              if (deliveryFeeSourceLabel.isNotEmpty)
-                _summaryChip('Sumber', deliveryFeeSourceLabel),
-              if (supportsCarefulCarry && order.carefulCarryRequired)
-                _summaryChip('Perlu 2 orang', 'aktif'),
-            ],
-          ),
-        ],
-      ),
-    );
+  if (result == null) {
+    return;
   }
 
-  Widget _summaryChip(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Text(
-        '$label: $value',
-        style: const TextStyle(
-          color: AppColors.textPrimary,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
+  final error = await onSave(
+    amount: result.amount,
+    reason: result.reason,
+    carefulCarryRequired: result.carefulCarryRequired,
+  );
+
+  if (!context.mounted) {
+    return;
   }
 
-  Future<void> _openDialog(BuildContext context) async {
-    final supportsCarefulCarry = serviceTypeSupportsCarefulCarry(
-      order.serviceTypeCode,
-    );
-
-    final result = await showDialog<_ManualDeliveryFeeInput>(
-      context: context,
-      builder: (context) => _ManualDeliveryFeeDialog(
-        initialAmount: order.deliveryFee,
-        initialReason: '',
-        initialCarefulCarryRequired:
-            supportsCarefulCarry && order.carefulCarryRequired,
-        supportsCarefulCarry: supportsCarefulCarry,
-        systemDeliveryFee: order.deliveryFee,
-      ),
-    );
-
-    if (result == null) {
-      return;
-    }
-
-    final error = await onSave(
-      amount: result.amount,
-      reason: result.reason,
-      carefulCarryRequired: result.carefulCarryRequired,
-    );
-
-    if (!context.mounted) {
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error ?? 'Ongkir manual berhasil disimpan.'),
-        backgroundColor: error == null ? null : AppColors.error,
-      ),
-    );
-  }
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(error ?? 'Ongkir manual berhasil disimpan.'),
+      backgroundColor: error == null ? null : AppColors.error,
+    ),
+  );
 }
 
 class _ManualDeliveryFeeDialog extends StatefulWidget {
