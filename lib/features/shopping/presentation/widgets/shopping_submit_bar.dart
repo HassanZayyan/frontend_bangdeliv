@@ -2,25 +2,18 @@ import 'package:flutter/material.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_text_scaling.dart';
-import '../../../../utils/order_formatters.dart';
 
 class ShoppingSubmitBar extends StatelessWidget {
   const ShoppingSubmitBar({
     super.key,
     required this.itemCount,
     required this.totalQuantity,
-    required this.totalAmount,
-    required this.hasPendingPriceItems,
-    required this.pendingPriceItemCount,
     required this.isSubmitting,
     required this.onSubmit,
   });
 
   final int itemCount;
   final int totalQuantity;
-  final double totalAmount;
-  final bool hasPendingPriceItems;
-  final int pendingPriceItemCount;
   final bool isSubmitting;
   final VoidCallback onSubmit;
 
@@ -30,12 +23,10 @@ class ShoppingSubmitBar extends StatelessWidget {
     final title = itemCount == 0
         ? 'Belum ada item'
         : '$itemCount item ditambahkan';
-    final totalLabel = canSubmit ? formatCurrency(totalAmount) : 'Rp 0';
+    final quantityLabel = canSubmit ? '$totalQuantity total qty' : '-';
     final detailText = !canSubmit
-      ? 'Tambahkan item dulu untuk menyimpan'
-      : hasPendingPriceItems
-      ? '$pendingPriceItemCount menunggu nota'
-      : 'Semua harga final';
+        ? 'Tambahkan item dulu untuk menyimpan'
+        : 'Harga akhir diinput driver';
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
@@ -62,7 +53,7 @@ class ShoppingSubmitBar extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  totalLabel,
+                  quantityLabel,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(

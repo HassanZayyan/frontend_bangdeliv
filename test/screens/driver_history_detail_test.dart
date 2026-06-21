@@ -48,8 +48,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('BDR-HIST-42'), findsOneWidget);
+    expect(find.text('Pendapatan Bersih'), findsOneWidget);
+    expect(find.text('Rp 13.500'), findsAtLeastNWidgets(1));
+    expect(find.text('Bruto Rp 15.000 - Admin 10% Rp 1.500'), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('driver-history-order-42')));
+    await tester.tap(find.text('BDR-HIST-42'));
     await tester.pumpAndSettle();
 
     expect(find.text('history-detail:42'), findsOneWidget);
@@ -77,9 +80,10 @@ void main() {
 
     expect(find.text('Detail Pesanan'), findsOneWidget);
     expect(find.text('Order ID: BDR-HIST-42'), findsOneWidget);
-    expect(find.text('Jemput'), findsOneWidget);
-    expect(find.text('Tujuan'), findsOneWidget);
-    expect(find.text('Jarak'), findsOneWidget);
+    expect(find.text('Pendapatan Bruto'), findsOneWidget);
+    expect(find.text('Pendapatan Bersih'), findsOneWidget);
+    expect(find.text('Biaya Admin 10%'), findsOneWidget);
+    expect(find.text('Total Pembayaran'), findsOneWidget);
     expect(
       find.text('Koordinat map belum tersedia untuk order ini.'),
       findsNothing,
@@ -179,7 +183,12 @@ class _FakeDriverHistoryService extends DriverOrderService {
         orderNumber: 'BDR-HIST-42',
         customerName: 'Mhn Zayyan',
         date: DateTime.now().toUtc(),
-        fee: 9000,
+        fee: 15000,
+        driverIncome: 15000,
+        driverIncomeGross: 15000,
+        driverAdminFeePercent: 10,
+        driverAdminFee: 1500,
+        driverIncomeNet: 13500,
         status: 'Selesai',
       ),
     ];
@@ -194,9 +203,13 @@ class _FakeDriverHistoryService extends DriverOrderService {
       pickupAddress: 'baskoro raya, Bejalen',
       dropoffAddress: 'Erha Skin Setiabudi',
       etaMinutes: 0,
-      fee: 9000,
+      fee: 15000,
+      driverIncomeGross: 15000,
+      driverAdminFeePercent: 10,
+      driverAdminFee: 1500,
+      driverIncomeNet: 13500,
       deliveryDistanceText: '2.27 km',
-      totalPrice: 9000,
+      totalPrice: 15000,
       itemCount: 1,
       statusCode: OrderStatusCodes.completed,
       statusDisplayName: 'Selesai',

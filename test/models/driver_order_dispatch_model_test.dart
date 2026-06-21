@@ -30,6 +30,28 @@ void main() {
     expect(order.dispatch?.locationFresh, isTrue);
   });
 
+  test('DriverOrderModel parses driver admin fee breakdown', () {
+    final order = DriverOrderModel.fromJson(const <String, dynamic>{
+      'id': '10',
+      'customer_name': 'Customer',
+      'pickup_address': 'Pickup',
+      'dropoff_address': 'Dropoff',
+      'eta_minutes': 0,
+      'fee': 15000,
+      'driver_income_gross': 15000,
+      'driver_admin_fee_percent': 10,
+      'driver_admin_fee': 1500,
+      'driver_income_net': 13500,
+      'item_count': 1,
+    });
+
+    expect(order.fee, 15000);
+    expect(order.driverIncomeGross, 15000);
+    expect(order.driverAdminFeePercent, 10);
+    expect(order.driverAdminFee, 1500);
+    expect(order.driverIncomeNet, 13500);
+  });
+
   test('DriverDispatchPresenter falls back to unknown distance', () {
     final viewData = DriverDispatchPresenter.present(null);
 

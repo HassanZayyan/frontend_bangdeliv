@@ -183,6 +183,7 @@ class _FakeCustomerOrderRepository implements CustomerOrderRepository {
   Future<List<ShoppingMerchantOption>> searchShoppingMerchants(
     String query, {
     String? merchantType,
+    int perPage = 20,
   }) => throw UnimplementedError();
 
   @override

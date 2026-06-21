@@ -218,8 +218,7 @@ class DriverOrderRouteCard extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 8),
               child: _routeStop(
                 icon: Icons.radio_button_checked,
-                iconColor:
-                    stop.isFailed ? AppColors.error : AppColors.primary,
+                iconColor: stop.isFailed ? AppColors.error : AppColors.primary,
                 title: 'Merchant $sequence',
                 value: [
                   stop.merchant.name,
@@ -339,33 +338,37 @@ class DriverOrderPackageCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const SizedBox(
-            width: 58,
-            child: Text(
-              'Barang',
-              maxLines: 1,
-              softWrap: false,
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
+                width: 58,
+                child: Text(
+                  'Barang',
+                  maxLines: 1,
+                  softWrap: false,
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
-            ),
-          ),
-          const Text(
-            ':',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              packageDetails.description,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700),
-            ),
-          ),
+              const Text(
+                ':',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  packageDetails.description,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
             ],
           ),
         ],
@@ -385,12 +388,14 @@ class DriverOrderPricingCard extends StatelessWidget {
     required String reason,
   })?
   onEditDeliveryFee;
+  final bool showDriverAdminFeeBreakdown;
 
   const DriverOrderPricingCard({
     super.key,
     required this.order,
     this.isProcessing = false,
     this.onEditDeliveryFee,
+    this.showDriverAdminFeeBreakdown = false,
   });
 
   @override
@@ -403,6 +408,10 @@ class DriverOrderPricingCard extends StatelessWidget {
     final deliveryFeeSourceLabel = deliveryFeeSource == 'driver_manual'
         ? 'manual driver'
         : deliveryFeeSource;
+    final showAdminFee =
+        showDriverAdminFeeBreakdown &&
+        order.driverAdminFee > 0 &&
+        order.driverIncomeGross > order.driverIncomeNet;
 
     return _buildDriverCard(
       child: Column(
@@ -425,10 +434,10 @@ class DriverOrderPricingCard extends StatelessWidget {
                   onPressed: isProcessing
                       ? null
                       : () => showDriverManualDeliveryFeeEditDialog(
-                            context,
-                            order: order,
-                            onSave: onEditDeliveryFee!,
-                          ),
+                          context,
+                          order: order,
+                          onSave: onEditDeliveryFee!,
+                        ),
                   icon: const Icon(Icons.edit, size: 16),
                   label: const Text('Edit'),
                   style: TextButton.styleFrom(
@@ -439,8 +448,28 @@ class DriverOrderPricingCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          if (fee != total) ...[
+          if (showDriverAdminFeeBreakdown && order.driverIncomeGross > 0) ...[
+            _pricingLine(
+              'Pendapatan Bruto',
+              _formatCurrency(order.driverIncomeGross.round()),
+            ),
+            const SizedBox(height: 8),
+          ] else if (fee != total) ...[
             _pricingLine('Fee Driver', _formatCurrency(fee)),
+            const SizedBox(height: 8),
+          ],
+          if (showAdminFee) ...[
+            _pricingLine(
+              'Biaya Admin ${_formatPercent(order.driverAdminFeePercent)}',
+              _formatCurrency(order.driverAdminFee.round()),
+            ),
+            const SizedBox(height: 8),
+            _pricingLine(
+              'Pendapatan Bersih',
+              _formatCurrency(order.driverIncomeNet.round()),
+              valueColor: AppColors.primaryDark,
+              valueSize: 15,
+            ),
             const SizedBox(height: 8),
           ],
           if (order.deliveryFee != null && order.deliveryFee! > 0) ...[
@@ -526,5 +555,10 @@ class DriverOrderPricingCard extends StatelessWidget {
 
   String _formatCurrency(int amount) {
     return formatRupiah(amount);
+  }
+
+  String _formatPercent(double percent) {
+    final fixed = percent.toStringAsFixed(2);
+    return '${fixed.replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '')}%';
   }
 }

@@ -220,11 +220,12 @@ class CustomerOrderApiService {
   Future<List<ShoppingMerchantOption>> searchShoppingMerchants(
     String query, {
     String? merchantType,
+    int perPage = 20,
   }) async {
     final response = await _apiClient.get(
       '/v1/restaurants',
       queryParams: <String, dynamic>{
-        'per_page': 20,
+        'per_page': perPage,
         'sort': 'name',
         if ((merchantType ?? '').trim().isNotEmpty)
           'merchant_type': merchantType!.trim(),

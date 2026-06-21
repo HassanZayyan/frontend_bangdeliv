@@ -56,7 +56,7 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
               .length;
           final totalIncome = filteredOrders
               .where((order) => order.status == 'Selesai')
-              .fold<int>(0, (total, order) => total + order.fee);
+              .fold<int>(0, (total, order) => total + order.netIncomeRounded);
 
           return Column(
             children: [
@@ -86,7 +86,7 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: _SummaryCard(
-                        title: 'Pendapatan',
+                        title: 'Pendapatan Bersih',
                         value: formatCurrency(totalIncome),
                         icon: Icons.payments_outlined,
                       ),
@@ -349,7 +349,9 @@ class _HistoryCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                isCompleted ? formatter(order.fee) : 'Tidak ada pendapatan',
+                isCompleted
+                    ? formatter(order.netIncomeRounded)
+                    : 'Tidak ada pendapatan',
                 style: TextStyle(
                   color: isCompleted
                       ? AppColors.primaryDark
@@ -357,6 +359,19 @@ class _HistoryCard extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+              if (isCompleted && order.hasAdminFeeBreakdown) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Bruto ${formatter(order.driverIncomeGross.round())} - Admin ${_formatPercent(order.driverAdminFeePercent)} ${formatter(order.driverAdminFee.round())}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -385,6 +400,11 @@ class _HistoryCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _formatPercent(double percent) {
+    final fixed = percent.toStringAsFixed(2);
+    return '${fixed.replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '')}%';
   }
 }
 

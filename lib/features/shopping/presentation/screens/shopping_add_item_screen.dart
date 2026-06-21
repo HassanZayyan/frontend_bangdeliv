@@ -322,7 +322,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       _errorText = null;
     });
 
-    if (merchant.id > 0 && isRestaurantMerchantType(merchant.merchantType)) {
+    if (merchant.id > 0) {
       unawaited(_loadMerchantMenus(merchant));
     }
 
@@ -613,7 +613,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
         id: editingItem?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
         merchant: merchant,
         merchantPlace: null,
-        menuId: menu.id,
+        menuId: null,
         name: menu.name,
         quantity: _quantity,
         notes: notes,
@@ -782,7 +782,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
             (item) => ShoppingItemDraftPayload(
               merchantId: _merchantIdForPayload(item),
               merchantPlace: item.merchantPlace,
-              menuId: item.menuId,
+              menuId: null,
               itemSource: item.itemSource,
               name: item.name,
               quantity: item.quantity,
@@ -921,19 +921,6 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
                       0,
                       (total, item) => total + item.quantity,
                     ),
-                    totalAmount: _draftItems.fold<double>(
-                      0,
-                      (total, item) =>
-                          item.isFromMenu && (item.unitPrice ?? 0) > 0
-                          ? total + ((item.unitPrice ?? 0) * item.quantity)
-                          : total,
-                    ),
-                    hasPendingPriceItems: _draftItems.any(
-                      (item) => !item.isFromMenu || (item.unitPrice ?? 0) <= 0,
-                    ),
-                    pendingPriceItemCount: _draftItems.where(
-                      (item) => !item.isFromMenu || (item.unitPrice ?? 0) <= 0,
-                    ).length,
                     isSubmitting: _isSubmitting,
                     onSubmit: _submitDrafts,
                   ),
@@ -953,8 +940,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       menus: _menus,
       isLoadingMenus: _isLoadingMenus,
       menuErrorText: _menuErrorText,
-      showMenus:
-          merchant.id > 0 && isRestaurantMerchantType(merchant.merchantType),
+      showMenus: merchant.id > 0,
       onDecrement: () => _setQuantity(_quantity - 1),
       onIncrement: () => _setQuantity(_quantity + 1),
       onAdd: _addDraftItem,

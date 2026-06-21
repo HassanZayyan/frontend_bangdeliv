@@ -143,13 +143,12 @@ class _DraftItemTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final notes = (item.notes ?? '').trim();
     final unitPrice = item.unitPrice ?? 0;
-    final hasMenuPrice = item.isFromMenu && unitPrice > 0;
-    final priceLabel = hasMenuPrice
-        ? formatCurrency(unitPrice * item.quantity)
-        : 'Harga menunggu nota';
-    final priceColor = hasMenuPrice
-        ? AppColors.textSecondary
-        : AppColors.textSecondary.withValues(alpha: 0.9);
+    final hasReferencePrice = item.isFromMenu && unitPrice > 0;
+    final priceLabel = item.isFromMenu
+        ? hasReferencePrice
+              ? 'Referensi ${formatCurrency(unitPrice)}'
+              : 'Harga belum tersedia'
+        : 'Harga menunggu input driver';
 
     return Padding(
       padding: const EdgeInsets.only(top: 8),
@@ -171,14 +170,14 @@ class _DraftItemTile extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                if (item.isFromMenu && unitPrice > 0) ...[
+                if (item.isFromMenu) ...[
                   const SizedBox(height: 2),
                   Text(
                     priceLabel,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: priceColor,
+                      color: AppColors.textSecondary.withValues(alpha: 0.9),
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -191,7 +190,7 @@ class _DraftItemTile extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: priceColor,
+                      color: AppColors.textSecondary.withValues(alpha: 0.9),
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -275,11 +274,7 @@ class _QuantityActionButton extends StatelessWidget {
             ),
             child: Tooltip(
               message: tooltip,
-              child: Icon(
-                icon,
-                color: AppColors.primary,
-                size: 15,
-              ),
+              child: Icon(icon, color: AppColors.primary, size: 15),
             ),
           ),
         ),

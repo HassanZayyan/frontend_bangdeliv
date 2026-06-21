@@ -199,12 +199,59 @@ bool isRestaurantMerchantType(String? type) {
   return normalized == 'restaurant' || normalized == 'resto';
 }
 
+bool isAllowedShoppingMerchantPlace({
+  required String name,
+  required List<String> types,
+}) {
+  final normalizedTypes = types.map((type) => type.toLowerCase()).toSet();
+  final normalizedName = name.toLowerCase();
+
+  final hasBlockedType = normalizedTypes.any(
+    (type) => {
+      'atm',
+      'bank',
+      'finance',
+      'gym',
+      'health',
+      'hospital',
+      'insurance_agency',
+      'school',
+      'spa',
+    }.contains(type),
+  );
+  if (hasBlockedType) {
+    return false;
+  }
+
+  final hasFoodOrMarketType = normalizedTypes.any(
+    (type) =>
+        type == 'restaurant' ||
+        type == 'food' ||
+        type == 'meal_takeaway' ||
+        type == 'cafe' ||
+        type == 'convenience_store' ||
+        type == 'supermarket' ||
+        type == 'grocery_or_supermarket',
+  );
+  if (hasFoodOrMarketType) {
+    return true;
+  }
+
+  return _hasShoppingMerchantNameKeyword(normalizedName);
+}
+
 String shoppingMerchantTypeFromPlace({
   required String name,
   required List<String> types,
 }) {
   final normalizedTypes = types.map((type) => type.toLowerCase()).toSet();
   final normalizedName = name.toLowerCase();
+
+  if (normalizedName.startsWith('warung ') ||
+      normalizedName == 'warung' ||
+      normalizedName.contains(' warung ')) {
+    return 'warung';
+  }
 
   if (normalizedTypes.any(
         (type) =>
@@ -214,7 +261,9 @@ String shoppingMerchantTypeFromPlace({
       ) ||
       normalizedName.contains('alfamart') ||
       normalizedName.contains('indomaret') ||
-      normalizedName.contains('minimarket')) {
+      normalizedName.contains('minimarket') ||
+      normalizedName.contains('supermarket') ||
+      normalizedName.contains('hypermart')) {
     return 'convenience_store';
   }
 
@@ -245,4 +294,30 @@ String shoppingMerchantTypeFromPlace({
   }
 
   return 'other';
+}
+
+bool _hasShoppingMerchantNameKeyword(String normalizedName) {
+  return normalizedName.contains('warung') ||
+      normalizedName.contains('resto') ||
+      normalizedName.contains('restoran') ||
+      normalizedName.contains('rumah makan') ||
+      normalizedName.contains('kedai') ||
+      normalizedName.contains('cafe') ||
+      normalizedName.contains('kafe') ||
+      normalizedName.contains('coffee') ||
+      normalizedName.contains('coffeshop') ||
+      normalizedName.contains('coffee shop') ||
+      normalizedName.contains('kopi') ||
+      normalizedName.contains('minimarket') ||
+      normalizedName.contains('supermarket') ||
+      normalizedName.contains('hypermart') ||
+      normalizedName.contains('alfamart') ||
+      normalizedName.contains('indomaret') ||
+      normalizedName.contains('bakso') ||
+      normalizedName.contains('mie') ||
+      normalizedName.contains('ayam') ||
+      normalizedName.contains('seblak') ||
+      normalizedName.contains('martabak') ||
+      normalizedName.contains('nasgor') ||
+      normalizedName.contains('nasi goreng');
 }

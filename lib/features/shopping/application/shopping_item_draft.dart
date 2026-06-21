@@ -23,7 +23,7 @@ class ShoppingItemDraft {
   final double? unitPrice;
   final bool isFromMenu;
 
-  String get itemSource => isFromMenu ? 'MENU_DB' : 'MANUAL';
+  String get itemSource => 'MANUAL';
 
   bool get isExternalMerchant => merchant.id <= 0 && merchantPlace != null;
 }

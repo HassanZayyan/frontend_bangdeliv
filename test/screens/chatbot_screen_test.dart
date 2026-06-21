@@ -267,6 +267,49 @@ void main() {
     expect(find.widgetWithText(OutlinedButton, 'QRIS'), findsNothing);
   });
 
+  for (final entry
+      in const <String, ({String draftMessage, String confirmLabel})>{
+        'antar_jemput': (
+          draftMessage: 'draft transport payment',
+          confirmLabel: 'Konfirmasi',
+        ),
+        'kurir': (
+          draftMessage: 'draft transport payment',
+          confirmLabel: 'Konfirmasi',
+        ),
+        'nitip': (
+          draftMessage: 'draft nitip payment',
+          confirmLabel: 'Konfirmasi Nitip',
+        ),
+      }.entries) {
+    testWidgets('${entry.key} QRIS button advances to confirmation', (
+      WidgetTester tester,
+    ) async {
+      final fakeService = _FakeChatbotApiService();
+      await _pumpChatbot(
+        tester,
+        serviceType: entry.key,
+        chatbotApiService: fakeService,
+      );
+
+      await _sendMessage(tester, entry.value.draftMessage);
+
+      expect(find.widgetWithText(OutlinedButton, 'COD'), findsOneWidget);
+      expect(find.widgetWithText(OutlinedButton, 'QRIS'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(OutlinedButton, 'QRIS'));
+      await _pumpChatbotFrame(tester);
+
+      expect(fakeService.lastMessage, 'QRIS');
+      expect(
+        find.widgetWithText(OutlinedButton, entry.value.confirmLabel),
+        findsOneWidget,
+      );
+      expect(find.widgetWithText(OutlinedButton, 'COD'), findsNothing);
+      expect(find.widgetWithText(OutlinedButton, 'QRIS'), findsNothing);
+    });
+  }
+
   testWidgets('nitip missing merchant shows merchant map picker action', (
     WidgetTester tester,
   ) async {
@@ -873,6 +916,7 @@ class _FakeChatbotApiService extends ChatbotApiService {
   String? lastPatchTarget;
   String? lastMerchantMode;
   String? lastClearedSessionId;
+  String? lastMessage;
   List<String> lastRouteTargets = const <String>[];
   List<String?> lastRouteAddresses = const <String?>[];
 
@@ -891,6 +935,7 @@ class _FakeChatbotApiService extends ChatbotApiService {
     callCount += 1;
     lastServiceType = serviceType;
     lastSessionId = sessionId;
+    lastMessage = message;
 
     final normalized = message.trim().toLowerCase();
     if (normalized == 'trigger error') {
@@ -1074,6 +1119,108 @@ class _FakeChatbotApiService extends ChatbotApiService {
             'SET_PAYMENT_TRANSFER': {'label': 'QRIS', 'message': 'QRIS'},
           },
           'order': {'created': false, 'payment_method': 'COD'},
+        },
+      });
+    }
+
+    if (serviceType == 'nitip' && normalized == 'qris') {
+      return ChatbotResult.fromApiJson({
+        'status': 'success',
+        'session_id': sessionId,
+        'service_context': {'service_type': serviceType},
+        'model_used': 'deterministic-payment',
+        'data': {
+          'intent': 'shopping_order',
+          'assistant_text':
+              'Baik, metode pembayaran QRIS sudah dipilih. Ketik "Konfirmasi" kalau sudah oke.',
+          'shopping': {
+            'ready_to_confirm': true,
+            'payment_method': 'TRANSFER',
+            'merchant': {'name': 'Alfamart BangDeliv Point'},
+            'delivery': {'address': 'FISIP UNDIP'},
+            'items': [
+              {'name': 'kopi', 'quantity': 1, 'unit_price': 0},
+            ],
+          },
+          'validation': {
+            'is_valid_order': true,
+            'rejection_reasons': [],
+            'missing_fields': [],
+            'next_actions': ['SET_PAYMENT_COD', 'SET_PAYMENT_TRANSFER'],
+          },
+          'action_payloads': {
+            'SET_PAYMENT_COD': {'label': 'COD', 'message': 'COD'},
+            'SET_PAYMENT_TRANSFER': {'label': 'QRIS', 'message': 'QRIS'},
+          },
+          'order': {'created': false, 'payment_method': 'TRANSFER'},
+        },
+      });
+    }
+
+    if ((serviceType == 'antar_jemput' || serviceType == 'kurir') &&
+        normalized == 'draft transport payment') {
+      final draftKey = serviceType == 'antar_jemput' ? 'ride' : 'courier';
+      return ChatbotResult.fromApiJson({
+        'status': 'success',
+        'session_id': sessionId,
+        'service_context': {'service_type': serviceType},
+        'model_used': 'gemini-3.1-flash-lite',
+        'data': {
+          'intent': serviceType == 'antar_jemput'
+              ? 'ride_order'
+              : 'courier_order',
+          'assistant_text':
+              'Draft siap. Pilih metode pembayaran sebelum konfirmasi.',
+          draftKey: {'ready_to_confirm': true, 'payment_method': null},
+          'validation': {
+            'is_valid_order': true,
+            'rejection_reasons': [],
+            'missing_fields': [],
+            'next_actions': ['SET_PAYMENT_COD', 'SET_PAYMENT_TRANSFER'],
+          },
+          'action_payloads': {
+            'SET_PAYMENT_COD': {'label': 'COD', 'message': 'COD'},
+            'SET_PAYMENT_TRANSFER': {'label': 'QRIS', 'message': 'QRIS'},
+          },
+          'order': {'created': false, 'payment_method': null},
+        },
+      });
+    }
+
+    if ((serviceType == 'antar_jemput' || serviceType == 'kurir') &&
+        normalized == 'qris') {
+      final draftKey = serviceType == 'antar_jemput' ? 'ride' : 'courier';
+      return ChatbotResult.fromApiJson({
+        'status': 'success',
+        'session_id': sessionId,
+        'service_context': {'service_type': serviceType},
+        'model_used': 'deterministic-payment',
+        'data': {
+          'intent': serviceType == 'antar_jemput'
+              ? 'ride_order'
+              : 'courier_order',
+          'assistant_text':
+              'Baik, metode pembayaran QRIS sudah dipilih. Ketuk Konfirmasi kalau sudah oke.',
+          draftKey: {'ready_to_confirm': true, 'payment_method': 'TRANSFER'},
+          'validation': {
+            'is_valid_order': true,
+            'rejection_reasons': [],
+            'missing_fields': [],
+            'next_actions': [
+              'SET_PAYMENT_COD',
+              'SET_PAYMENT_TRANSFER',
+              'RESET_DESTINATION',
+            ],
+          },
+          'action_payloads': {
+            'SET_PAYMENT_COD': {'label': 'COD', 'message': 'COD'},
+            'SET_PAYMENT_TRANSFER': {'label': 'QRIS', 'message': 'QRIS'},
+            'RESET_DESTINATION': {
+              'label': 'Ubah Tujuan',
+              'message': 'Ubah Tujuan',
+            },
+          },
+          'order': {'created': false, 'payment_method': 'TRANSFER'},
         },
       });
     }
