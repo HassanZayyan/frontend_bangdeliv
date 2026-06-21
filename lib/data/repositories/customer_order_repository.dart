@@ -60,6 +60,7 @@ abstract class CustomerOrderRepository {
   Future<List<ShoppingMerchantOption>> searchShoppingMerchants(
     String query, {
     String? merchantType,
+    int perPage = 20,
   });
 
   Future<List<ShoppingMenuOption>> searchMerchantMenus(
@@ -182,8 +183,13 @@ class ApiCustomerOrderRepository implements CustomerOrderRepository {
   Future<List<ShoppingMerchantOption>> searchShoppingMerchants(
     String query, {
     String? merchantType,
+    int perPage = 20,
   }) {
-    return _service.searchShoppingMerchants(query, merchantType: merchantType);
+    return _service.searchShoppingMerchants(
+      query,
+      merchantType: merchantType,
+      perPage: perPage,
+    );
   }
 
   @override

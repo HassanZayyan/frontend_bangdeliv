@@ -10,11 +10,13 @@ class GoogleMapsPrediction {
     required this.description,
     required this.placeId,
     this.name,
+    this.types = const <String>[],
   });
 
   final String description;
   final String? placeId;
   final String? name;
+  final List<String> types;
 }
 
 class GoogleMapsResolvedPlace {
@@ -55,6 +57,7 @@ class GoogleMapsLookupService {
     String query, {
     GoogleMapsLookupScope scope = GoogleMapsLookupScope.indonesia,
     String? sessionToken,
+    bool establishmentOnly = false,
   }) async {
     final normalizedQuery = query.trim();
     final apiKey = _apiKey;
@@ -67,6 +70,7 @@ class GoogleMapsLookupService {
       'key': apiKey,
       'components': 'country:id',
       'language': 'id',
+      if (establishmentOnly) 'types': 'establishment',
       if ((sessionToken ?? '').trim().isNotEmpty)
         'sessiontoken': sessionToken!.trim(),
     };
@@ -286,11 +290,19 @@ class GoogleMapsLookupService {
     final name = structuredFormatting is Map<String, dynamic>
         ? cleanAddress(structuredFormatting['main_text'])
         : null;
+    final rawTypes = json['types'];
+    final types = rawTypes is List
+        ? rawTypes
+              .map((type) => type.toString().trim())
+              .where((type) => type.isNotEmpty)
+              .toList(growable: false)
+        : const <String>[];
 
     return GoogleMapsPrediction(
       description: (json['description'] ?? '').toString(),
       placeId: json['place_id']?.toString(),
       name: name,
+      types: types,
     );
   }
 

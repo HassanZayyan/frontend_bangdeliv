@@ -157,7 +157,7 @@ class ShoppingManualItemSection extends StatelessWidget {
   }
 }
 
-class _MenuQuickPickSection extends StatelessWidget {
+class _MenuQuickPickSection extends StatefulWidget {
   const _MenuQuickPickSection({
     required this.menus,
     required this.isLoading,
@@ -171,15 +171,28 @@ class _MenuQuickPickSection extends StatelessWidget {
   final ValueChanged<ShoppingMenuOption> onAdd;
 
   @override
+  State<_MenuQuickPickSection> createState() => _MenuQuickPickSectionState();
+}
+
+class _MenuQuickPickSectionState extends State<_MenuQuickPickSection> {
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (isLoading) {
+    if (widget.isLoading) {
       return const ShoppingInlineInfoPanel(
         icon: Icons.restaurant_menu_outlined,
-        text: 'Memuat menu resto...',
+        text: 'Memuat menu...',
       );
     }
 
-    if ((errorText ?? '').trim().isNotEmpty) {
+    if ((widget.errorText ?? '').trim().isNotEmpty) {
       return ShoppingInlineInfoPanel(
         icon: Icons.error_outline,
         text: 'Menu belum bisa dimuat. Item manual tetap bisa ditambahkan.',
@@ -187,14 +200,19 @@ class _MenuQuickPickSection extends StatelessWidget {
       );
     }
 
-    if (menus.isEmpty) {
+    if (widget.menus.isEmpty) {
       return const ShoppingInlineInfoPanel(
         icon: Icons.restaurant_menu_outlined,
-        text: 'Menu resto belum tersedia. Gunakan input manual.',
+        text: 'Menu belum tersedia. Gunakan input manual.',
       );
     }
 
-    final visibleMenus = menus.take(8).toList(growable: false);
+    final query = _searchController.text.trim().toLowerCase();
+    final visibleMenus = query.isEmpty
+        ? widget.menus
+        : widget.menus
+              .where((menu) => menu.name.toLowerCase().contains(query))
+              .toList(growable: false);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -210,15 +228,44 @@ class _MenuQuickPickSection extends StatelessWidget {
             border: Border.all(color: AppColors.border),
           ),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              for (var index = 0; index < visibleMenus.length; index++) ...[
-                _MenuQuickPickTile(
-                  menu: visibleMenus[index],
-                  onAdd: () => onAdd(visibleMenus[index]),
+              TextField(
+                controller: _searchController,
+                textInputAction: TextInputAction.search,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
                 ),
-                if (index < visibleMenus.length - 1)
-                  const Divider(height: 10, color: AppColors.divider),
-              ],
+                decoration: const InputDecoration(
+                  hintText: 'Cari menu',
+                  prefixIcon: Icon(Icons.search_rounded, size: 18),
+                  isDense: true,
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 8),
+              if (visibleMenus.isEmpty)
+                const ShoppingEmptyPanel(text: 'Menu tidak ditemukan.')
+              else
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 300),
+                  child: ListView.separated(
+                    primary: false,
+                    shrinkWrap: true,
+                    itemCount: visibleMenus.length,
+                    separatorBuilder: (_, _) =>
+                        const Divider(height: 10, color: AppColors.divider),
+                    itemBuilder: (context, index) {
+                      final menu = visibleMenus[index];
+                      return _MenuQuickPickTile(
+                        menu: menu,
+                        onAdd: () => widget.onAdd(menu),
+                      );
+                    },
+                  ),
+                ),
             ],
           ),
         ),
@@ -256,19 +303,22 @@ class _MenuQuickPickTile extends StatelessWidget {
                   ),
                 ),
               ),
-              if (menu.price > 0) ...[
-                const SizedBox(width: 8),
-                Text(
-                  formatCurrency(menu.price),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  menu.price > 0
+                      ? formatCurrency(menu.price)
+                      : 'Harga belum tersedia',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
                   style: const TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-              ],
+              ),
               const SizedBox(width: 8),
               const Icon(Icons.add_rounded, color: AppColors.primary, size: 18),
             ],

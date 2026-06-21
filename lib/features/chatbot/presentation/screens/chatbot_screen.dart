@@ -1056,11 +1056,15 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   bool _isPaymentActionHint(ChatbotMessageActionHint actionHint) {
     final label = actionHint.label.trim().toLowerCase();
     final message = (actionHint.presetMessage ?? '').trim().toLowerCase();
+    const paymentKeywords = <String>{
+      'cod',
+      'cash',
+      'tunai',
+      'transfer',
+      'qris',
+    };
     return actionHint.type == ChatbotMessageActionType.sendPresetMessage &&
-        (label == 'cod' ||
-            label == 'transfer' ||
-            message == 'cod' ||
-            message == 'transfer');
+        (paymentKeywords.contains(label) || paymentKeywords.contains(message));
   }
 
   bool _isRouteEditActionHint(ChatbotMessageActionHint actionHint) {

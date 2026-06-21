@@ -733,10 +733,8 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     final effectiveNextActions = _sanitizePaymentActionsForResolvedDraft(
       nextActions: nextActions,
       serviceType: serviceType,
-      readyToConfirm:
-          result.shopping?.readyToConfirm == true ||
-          result.validation?.isValidOrder == true,
-      paymentMethod: result.shopping?.paymentMethod,
+      readyToConfirm: result.draftReadyToConfirm,
+      paymentMethod: result.draftPaymentMethod,
     );
 
     return _resolveActionHints(
@@ -753,7 +751,12 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     required String? paymentMethod,
   }) {
     final normalizedPayment = (paymentMethod ?? '').trim().toUpperCase();
-    if (serviceType != 'nitip' ||
+    final normalizedServiceType = serviceType.trim().toLowerCase();
+    final supportsPaymentConfirmation =
+        normalizedServiceType == 'nitip' ||
+        normalizedServiceType == 'antar_jemput' ||
+        normalizedServiceType == 'kurir';
+    if (!supportsPaymentConfirmation ||
         !readyToConfirm ||
         (normalizedPayment != 'COD' && normalizedPayment != 'TRANSFER')) {
       return nextActions;

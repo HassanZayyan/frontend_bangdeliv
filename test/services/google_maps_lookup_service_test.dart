@@ -27,7 +27,11 @@ void main() {
             jsonEncode({
               'status': 'OK',
               'predictions': [
-                {'description': 'Jl. Diponegoro, Salatiga', 'place_id': 'abc'},
+                {
+                  'description': 'Jl. Diponegoro, Salatiga',
+                  'place_id': 'abc',
+                  'types': ['route', 'geocode'],
+                },
               ],
             }),
             200,
@@ -41,6 +45,7 @@ void main() {
       );
 
       expect(predictions, hasLength(1));
+      expect(predictions.single.types, ['route', 'geocode']);
       expect(requestedUrl.path, '/maps/api/place/autocomplete/json');
       expect(requestedUrl.queryParameters['components'], 'country:id');
       expect(requestedUrl.queryParameters['language'], 'id');
@@ -49,6 +54,39 @@ void main() {
       expect(requestedUrl.queryParameters['strictbounds'], 'true');
     },
   );
+
+  test('searchPlaces can restrict predictions to establishments', () async {
+    late Uri requestedUrl;
+    final service = GoogleMapsLookupService(
+      apiKey: 'test-key',
+      client: MockClient((request) async {
+        requestedUrl = request.url;
+        return http.Response(
+          jsonEncode({
+            'status': 'OK',
+            'predictions': [
+              {
+                'description': 'Kopi Contoh, Salatiga',
+                'place_id': 'place-1',
+                'structured_formatting': {'main_text': 'Kopi Contoh'},
+                'types': ['cafe', 'food', 'establishment'],
+              },
+            ],
+          }),
+          200,
+        );
+      }),
+    );
+
+    final predictions = await service.searchPlaces(
+      'kopi',
+      establishmentOnly: true,
+    );
+
+    expect(predictions.single.name, 'Kopi Contoh');
+    expect(predictions.single.types, ['cafe', 'food', 'establishment']);
+    expect(requestedUrl.queryParameters['types'], 'establishment');
+  });
 
   test(
     'geocodeQuery can scope address lookup with service-area bounds',

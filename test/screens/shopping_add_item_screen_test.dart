@@ -177,7 +177,7 @@ void main() {
   );
 
   testWidgets(
-    'restaurant merchant queues menu catalog draft as menu database item',
+    'restaurant merchant queues menu catalog draft as manual pending-price item',
     (tester) async {
       final service = _FakeCustomerOrderApiService(
         merchants: const [
@@ -207,22 +207,63 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Daftar Item'), findsOneWidget);
-      expect(find.text('Rp 18.000'), findsWidgets);
+      expect(find.text('Referensi Rp 18.000'), findsOneWidget);
 
       await _tapSubmitDrafts(tester);
 
       expect(service.addCalls, 1);
       expect(service.lastItems, hasLength(1));
       expect(service.lastItems.first.merchantId, 10);
-      expect(service.lastItems.first.menuId, 99);
-      expect(service.lastItems.first.itemSource, 'MENU_DB');
+      expect(service.lastItems.first.menuId, isNull);
+      expect(service.lastItems.first.itemSource, 'MANUAL');
       expect(service.lastItems.first.name, 'Soto Ayam');
       expect(service.lastItems.first.unitPrice, 18000);
-      expect(service.lastItems.first.toJson(), containsPair('menu_id', 99));
+      expect(service.lastItems.first.toJson(), isNot(contains('menu_id')));
       expect(
         service.lastItems.first.toJson(),
         containsPair('menu_name', 'Soto Ayam'),
       );
+    },
+  );
+
+  testWidgets(
+    'official warung merchant loads menu list and keeps zero price pending',
+    (tester) async {
+      final service = _FakeCustomerOrderApiService(
+        merchants: const [
+          ShoppingMerchantOption(
+            id: 11,
+            name: 'Warung Bunda Dhia',
+            slug: 'warung-bunda-dhia',
+            merchantType: 'warung',
+            address: 'Lokasi BangDeliv',
+          ),
+        ],
+        menus: const [ShoppingMenuOption(id: 88, name: 'Lotek', price: 0)],
+      );
+
+      await _pumpScreen(tester, service);
+
+      await tester.tap(find.text('Warung Bunda Dhia'));
+      await tester.pumpAndSettle();
+
+      expect(service.menuSearchCalls, 1);
+      expect(find.text('Lotek'), findsOneWidget);
+      expect(find.text('Harga belum tersedia'), findsOneWidget);
+
+      await tester.tap(find.text('Lotek'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Daftar Item'), findsOneWidget);
+      expect(find.text('Harga belum tersedia'), findsWidgets);
+
+      await _tapSubmitDrafts(tester);
+
+      expect(service.addCalls, 1);
+      expect(service.lastItems.single.merchantId, 11);
+      expect(service.lastItems.single.menuId, isNull);
+      expect(service.lastItems.single.itemSource, 'MANUAL');
+      expect(service.lastItems.single.toJson(), isNot(contains('menu_id')));
     },
   );
 
@@ -249,6 +290,7 @@ void main() {
     expect(find.text('Item'), findsOneWidget);
     expect(find.text('Harga dikonfirmasi driver dari nota.'), findsOneWidget);
     expect(find.text('Item berat'), findsNothing);
+    expect(service.menuSearchCalls, 1);
 
     await tester.enterText(find.byType(TextField).at(1), 'Telur 1 kg');
     await tester.pumpAndSettle();
@@ -403,6 +445,7 @@ class _FakeCustomerOrderApiService extends CustomerOrderApiService {
   Future<List<ShoppingMerchantOption>> searchShoppingMerchants(
     String query, {
     String? merchantType,
+    int perPage = 20,
   }) async {
     return merchants;
   }

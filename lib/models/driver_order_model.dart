@@ -24,6 +24,10 @@ class DriverOrderModel {
   final double? dropoffLongitude;
   final int etaMinutes;
   final int fee;
+  final double driverIncomeGross;
+  final double driverAdminFeePercent;
+  final double driverAdminFee;
+  final double driverIncomeNet;
   final double? deliveryDistanceKm;
   final String? deliveryDistanceText;
   final double? deliveryFee;
@@ -67,6 +71,10 @@ class DriverOrderModel {
     this.dropoffLongitude,
     required this.etaMinutes,
     required this.fee,
+    this.driverIncomeGross = 0,
+    this.driverAdminFeePercent = 0,
+    this.driverAdminFee = 0,
+    this.driverIncomeNet = 0,
     this.deliveryDistanceKm,
     this.deliveryDistanceText,
     this.deliveryFee,
@@ -145,6 +153,10 @@ class DriverOrderModel {
       dropoffLongitude: dropoffLongitude,
       etaMinutes: etaMinutes,
       fee: fee,
+      driverIncomeGross: driverIncomeGross,
+      driverAdminFeePercent: driverAdminFeePercent,
+      driverAdminFee: driverAdminFee,
+      driverIncomeNet: driverIncomeNet,
       deliveryDistanceKm: deliveryDistanceKm,
       deliveryDistanceText: deliveryDistanceText,
       deliveryFee: deliveryFee,
@@ -227,6 +239,25 @@ class DriverOrderModel {
             ?.toString()
             .trim();
 
+    final fee = _asInt(json['fee'], fallback: 0);
+    final driverIncomeGross = _asDouble(
+      json['driver_income_gross'] ??
+          json['driverIncomeGross'] ??
+          json['driver_income'] ??
+          json['driverIncome'] ??
+          fee,
+    );
+    final driverAdminFee = _asDouble(
+      json['driver_admin_fee'] ?? json['driverAdminFee'],
+    );
+    final driverIncomeNetRaw =
+        json['driver_income_net'] ?? json['driverIncomeNet'];
+    final driverIncomeNet = driverIncomeNetRaw == null
+        ? (driverIncomeGross - driverAdminFee)
+              .clamp(0, double.infinity)
+              .toDouble()
+        : _asDouble(driverIncomeNetRaw);
+
     return DriverOrderModel(
       id: (json['id'] ?? '').toString(),
       orderNumber: (json['order_number'] ?? json['orderNumber'] ?? '')
@@ -268,7 +299,13 @@ class DriverOrderModel {
         json['eta_minutes'] ?? json['etaMinutes'],
         fallback: 0,
       ),
-      fee: _asInt(json['fee'], fallback: 0),
+      fee: fee,
+      driverIncomeGross: driverIncomeGross,
+      driverAdminFeePercent: _asDouble(
+        json['driver_admin_fee_percent'] ?? json['driverAdminFeePercent'],
+      ),
+      driverAdminFee: driverAdminFee,
+      driverIncomeNet: driverIncomeNet,
       deliveryDistanceKm: deliveryDistanceKm,
       deliveryDistanceText:
           deliveryDistanceText == null || deliveryDistanceText.isEmpty
@@ -822,6 +859,10 @@ class DriverHistoryOrderModel {
   final double deliveryFee;
   final double serviceFee;
   final double driverIncome;
+  final double driverIncomeGross;
+  final double driverAdminFeePercent;
+  final double driverAdminFee;
+  final double driverIncomeNet;
   final double totalPrice;
   final String status;
 
@@ -835,6 +876,10 @@ class DriverHistoryOrderModel {
     this.deliveryFee = 0,
     this.serviceFee = 0,
     this.driverIncome = 0,
+    this.driverIncomeGross = 0,
+    this.driverAdminFeePercent = 0,
+    this.driverAdminFee = 0,
+    this.driverIncomeNet = 0,
     this.totalPrice = 0,
     required this.status,
   });
@@ -844,6 +889,23 @@ class DriverHistoryOrderModel {
     return explicit.isNotEmpty ? explicit : id;
   }
 
+  double get effectiveDriverIncomeNet {
+    if (driverIncomeNet > 0 || driverAdminFee > 0) {
+      return driverIncomeNet;
+    }
+
+    if (driverIncome > 0) {
+      return driverIncome;
+    }
+
+    return fee.toDouble();
+  }
+
+  int get netIncomeRounded => effectiveDriverIncomeNet.round();
+
+  bool get hasAdminFeeBreakdown =>
+      driverAdminFee > 0 && driverIncomeGross > driverIncomeNet;
+
   factory DriverHistoryOrderModel.fromJson(Map<String, dynamic> json) {
     final rawDate = (json['date'] ?? json['created_at'] ?? '').toString();
     final rawId = (json['id'] ?? '').toString();
@@ -852,6 +914,19 @@ class DriverHistoryOrderModel {
     final driverIncome = DriverOrderModel._asDouble(
       json['driver_income'] ?? json['driverIncome'] ?? json['fee'],
     );
+    final driverIncomeGross = DriverOrderModel._asDouble(
+      json['driver_income_gross'] ?? json['driverIncomeGross'] ?? driverIncome,
+    );
+    final driverAdminFee = DriverOrderModel._asDouble(
+      json['driver_admin_fee'] ?? json['driverAdminFee'],
+    );
+    final driverIncomeNetRaw =
+        json['driver_income_net'] ?? json['driverIncomeNet'];
+    final driverIncomeNet = driverIncomeNetRaw == null
+        ? (driverIncomeGross - driverAdminFee)
+              .clamp(0, double.infinity)
+              .toDouble()
+        : DriverOrderModel._asDouble(driverIncomeNetRaw);
 
     return DriverHistoryOrderModel(
       id: rawId,
@@ -873,6 +948,12 @@ class DriverHistoryOrderModel {
         json['service_fee'] ?? json['serviceFee'],
       ),
       driverIncome: driverIncome,
+      driverIncomeGross: driverIncomeGross,
+      driverAdminFeePercent: DriverOrderModel._asDouble(
+        json['driver_admin_fee_percent'] ?? json['driverAdminFeePercent'],
+      ),
+      driverAdminFee: driverAdminFee,
+      driverIncomeNet: driverIncomeNet,
       totalPrice: DriverOrderModel._asDouble(
         json['total_price'] ?? json['totalPrice'],
       ),

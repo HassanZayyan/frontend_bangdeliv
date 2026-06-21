@@ -91,6 +91,11 @@ class DriverOrderHistoryDetailScreen extends ConsumerWidget {
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
                 children: [
                   DriverOrderMetaCard(order: order),
+                  const SizedBox(height: 12),
+                  DriverOrderPricingCard(
+                    order: order,
+                    showDriverAdminFeeBreakdown: true,
+                  ),
                   if (order.shoppingItems.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     _HistoryShoppingItemsCard(items: order.shoppingItems),

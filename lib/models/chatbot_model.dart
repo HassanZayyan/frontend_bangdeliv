@@ -149,6 +149,23 @@ class ChatbotShoppingDraft {
   }
 }
 
+class ChatbotTransportDraft {
+  final bool readyToConfirm;
+  final String? paymentMethod;
+
+  const ChatbotTransportDraft({
+    required this.readyToConfirm,
+    required this.paymentMethod,
+  });
+
+  factory ChatbotTransportDraft.fromJson(Map<String, dynamic> json) {
+    return ChatbotTransportDraft(
+      readyToConfirm: json['ready_to_confirm'] == true,
+      paymentMethod: json['payment_method']?.toString(),
+    );
+  }
+}
+
 class ChatbotPricing {
   final double subtotal;
   final double deliveryFee;
@@ -203,6 +220,8 @@ class ChatbotResult {
   final Map<String, dynamic>? actionPayloads;
   final String? assistantText;
   final ChatbotShoppingDraft? shopping;
+  final ChatbotTransportDraft? ride;
+  final ChatbotTransportDraft? courier;
   final ChatbotPricing? pricing;
   final bool isOrderCreated;
   final int? createdOrderId;
@@ -220,6 +239,8 @@ class ChatbotResult {
     required this.actionPayloads,
     required this.assistantText,
     required this.shopping,
+    required this.ride,
+    required this.courier,
     required this.pricing,
     required this.isOrderCreated,
     required this.createdOrderId,
@@ -244,6 +265,12 @@ class ChatbotResult {
 
     final shoppingRaw = (data['shopping'] is Map<String, dynamic>)
         ? data['shopping'] as Map<String, dynamic>
+        : null;
+    final rideRaw = (data['ride'] is Map<String, dynamic>)
+        ? data['ride'] as Map<String, dynamic>
+        : null;
+    final courierRaw = (data['courier'] is Map<String, dynamic>)
+        ? data['courier'] as Map<String, dynamic>
         : null;
 
     final rawItems = (data['items'] is List<dynamic>)
@@ -302,6 +329,10 @@ class ChatbotResult {
       shopping: shoppingRaw == null
           ? null
           : ChatbotShoppingDraft.fromJson(shoppingRaw),
+      ride: rideRaw == null ? null : ChatbotTransportDraft.fromJson(rideRaw),
+      courier: courierRaw == null
+          ? null
+          : ChatbotTransportDraft.fromJson(courierRaw),
       pricing: (data['pricing'] is Map<String, dynamic>)
           ? ChatbotPricing.fromJson(data['pricing'] as Map<String, dynamic>)
           : null,
@@ -310,6 +341,19 @@ class ChatbotResult {
       createdOrderNumber: orderRaw['order_number']?.toString(),
       createdOrderStatus: orderRaw['status']?.toString(),
     );
+  }
+
+  bool get draftReadyToConfirm {
+    return shopping?.readyToConfirm == true ||
+        ride?.readyToConfirm == true ||
+        courier?.readyToConfirm == true ||
+        validation?.isValidOrder == true;
+  }
+
+  String? get draftPaymentMethod {
+    return shopping?.paymentMethod ??
+        ride?.paymentMethod ??
+        courier?.paymentMethod;
   }
 
   static ChatbotValidation _parseValidation(Map<String, dynamic> json) {
