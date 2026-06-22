@@ -62,6 +62,14 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     'Ditugaskan',
     'Naik',
     'Perjalanan',
+    'Tiba',
+  ];
+
+  static const _kStepLabelsRideCompleted = [
+    'Menunggu',
+    'Ditugaskan',
+    'Naik',
+    'Perjalanan',
     'Selesai',
   ];
 
@@ -716,8 +724,12 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     bool isRide = false,
     bool embedded = false,
   }) {
-    final stepLabels = isRide ? _kStepLabelsRide : _kStepLabelsDefault;
     final normalized = normalizeOrderStatusCode(statusCode);
+    final stepLabels = isRide
+        ? normalized == OrderStatusCodes.completed
+              ? _kStepLabelsRideCompleted
+              : _kStepLabelsRide
+        : _kStepLabelsDefault;
     if (isTerminalStatus || isTerminalOrderStatus(normalized)) {
       return const SizedBox.shrink();
     }
@@ -1143,17 +1155,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
   }
 
   String _detailStatusTitle(CustomerOrderSummaryModel order) {
-    final normalizedCode = normalizeOrderStatusCode(order.statusCode);
-    final label = order.statusLabel.trim();
-    final normalizedLabel = label.toUpperCase();
-
-    if (normalizedCode == OrderStatusCodes.completed ||
-        normalizedCode == OrderStatusCodes.delivered ||
-        normalizedLabel == 'SELESAI') {
-      return 'Pesanan selesai';
-    }
-
-    return label;
+    return TrackOrderPresenter.detailStatusTitle(order);
   }
 
   String _driverInitials(String driverName) {
@@ -1259,6 +1261,8 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
       child: BangAmountNegotiationCard(
         label: 'Revisi ongkir',
         amount: amount,
+        previousAmount: negotiation?.oldDeliveryFee,
+        reason: negotiation?.note,
         icon: Icons.edit_road_outlined,
         onApprove: () => _respondDeliveryFeeOverride(
           context,
@@ -1408,11 +1412,12 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
         (detail.deliveryFeeChangeNote ?? order.deliveryFeeChangeNote ?? '')
             .trim();
 
+    final amountText = formatCurrency(deliveryFee);
     if (reason.isEmpty) {
-      return 'Ongkir diperbarui driver menjadi ${formatCurrency(deliveryFee)}.';
+      return 'Ongkir diperbarui driver menjadi $amountText.';
     }
 
-    return 'Ongkir diperbarui driver menjadi ${formatCurrency(deliveryFee)}. Alasan: $reason.';
+    return 'Ongkir diperbarui driver menjadi $amountText.\nAlasan: $reason.';
   }
 
   String _paymentMessage(

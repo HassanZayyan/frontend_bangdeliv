@@ -104,6 +104,23 @@ class TrackOrderPresenter {
     return 'Peta tracking akan muncul otomatis setelah driver mulai menuju titik jemput.';
   }
 
+  static String detailStatusTitle(CustomerOrderSummaryModel order) {
+    final normalizedCode = normalizeOrderStatusCode(order.statusCode);
+    final label = order.statusLabel.trim();
+    final normalizedLabel = label.toUpperCase();
+
+    if (normalizedCode == OrderStatusCodes.completed ||
+        normalizedLabel == 'SELESAI') {
+      return 'Pesanan selesai';
+    }
+
+    if (label.isNotEmpty) {
+      return label;
+    }
+
+    return orderStatusLabel(normalizedCode);
+  }
+
   static String normalizedPaymentMethod(
     CustomerOrderSummaryModel order,
     CustomerOrderDetailModel detail,

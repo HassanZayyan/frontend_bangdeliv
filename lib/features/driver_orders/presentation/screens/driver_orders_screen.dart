@@ -372,10 +372,7 @@ class _OrderCard extends StatelessWidget {
                   _CourierPackageSection(packageDetails: packageDetails),
                 ],
                 const SizedBox(height: 14),
-                _OrderRouteSection(
-                  pickupAddress: order.pickupAddress,
-                  dropoffAddress: order.dropoffAddress,
-                ),
+                _OrderRouteSection(order: order),
               ],
             ),
           ),
@@ -585,13 +582,9 @@ class _StatusPill extends StatelessWidget {
 }
 
 class _OrderRouteSection extends StatefulWidget {
-  final String pickupAddress;
-  final String dropoffAddress;
+  final DriverOrderModel order;
 
-  const _OrderRouteSection({
-    required this.pickupAddress,
-    required this.dropoffAddress,
-  });
+  const _OrderRouteSection({required this.order});
 
   @override
   State<_OrderRouteSection> createState() => _OrderRouteSectionState();
@@ -602,13 +595,93 @@ class _OrderRouteSectionState extends State<_OrderRouteSection> {
 
   static const int _collapsedMaxLines = 2;
 
-  bool get _needsExpansion {
-    return widget.pickupAddress.length > 80 ||
-        widget.dropoffAddress.length > 80;
+  List<_IncomingRouteStop> get _routeStops {
+    if (normalizeServiceTypeCode(widget.order.serviceTypeCode) ==
+            ServiceTypeCodes.shopping &&
+        widget.order.shoppingStops.isNotEmpty) {
+      final stops =
+          List<DriverShoppingStopModel>.from(widget.order.shoppingStops)
+            ..sort((left, right) {
+              final leftSequence = left.sequenceNo <= 0 ? 999 : left.sequenceNo;
+              final rightSequence = right.sequenceNo <= 0
+                  ? 999
+                  : right.sequenceNo;
+              final sequenceCompare = leftSequence.compareTo(rightSequence);
+              if (sequenceCompare != 0) {
+                return sequenceCompare;
+              }
+              return left.pickupLocationId.compareTo(right.pickupLocationId);
+            });
+
+      return [
+        for (var index = 0; index < stops.length; index++)
+          _IncomingRouteStop(
+            icon: Icons.radio_button_checked,
+            iconColor: AppColors.primary,
+            label: 'Merchant ${index + 1}',
+            value: _merchantStopText(stops[index]),
+          ),
+        _IncomingRouteStop(
+          icon: Icons.location_on_rounded,
+          iconColor: const Color(0xFF2563EB),
+          label: 'Antar',
+          value: widget.order.dropoffAddress,
+        ),
+      ];
+    }
+
+    return [
+      _IncomingRouteStop(
+        icon: Icons.radio_button_checked,
+        iconColor: AppColors.primary,
+        label: 'Jemput',
+        value: widget.order.pickupAddress,
+      ),
+      _IncomingRouteStop(
+        icon: Icons.location_on_rounded,
+        iconColor: const Color(0xFF2563EB),
+        label: 'Antar',
+        value: widget.order.dropoffAddress,
+      ),
+    ];
+  }
+
+  bool get _canExpand => _routeStops.any((stop) {
+    final value = stop.value.trim();
+    return value.isNotEmpty && value != '-';
+  });
+
+  String _merchantStopText(DriverShoppingStopModel stop) {
+    final address = (stop.merchant.address ?? '').trim();
+    final itemSummary = _shoppingItemSummary(stop.items);
+    return [
+      stop.merchant.name.trim().isEmpty ? '-' : stop.merchant.name.trim(),
+      if (address.isNotEmpty) address,
+      if (itemSummary.isNotEmpty) itemSummary,
+    ].join('\n');
+  }
+
+  String _shoppingItemSummary(List<DriverShoppingItemModel> items) {
+    if (items.isEmpty) {
+      return '';
+    }
+
+    return items
+        .map((item) {
+          final name = item.name.trim();
+          if (name.isEmpty || name == '-') {
+            return '';
+          }
+          return '${item.quantity}x $name';
+        })
+        .where((text) => text.isNotEmpty)
+        .join(', ');
   }
 
   @override
   Widget build(BuildContext context) {
+    final routeStops = _routeStops;
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -619,40 +692,11 @@ class _OrderRouteSectionState extends State<_OrderRouteSection> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _routeStop(
-            icon: Icons.radio_button_checked,
-            iconColor: AppColors.primary,
-            label: 'Jemput',
-            address: widget.pickupAddress,
-          ),
-          Padding(
-            padding: const EdgeInsets.only(left: 11),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: List.generate(
-                  5,
-                  (index) => Container(
-                    width: 2,
-                    height: 4,
-                    margin: const EdgeInsets.symmetric(vertical: 1.5),
-                    decoration: BoxDecoration(
-                      color: AppColors.textSecondary.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(1),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          _routeStop(
-            icon: Icons.location_on_rounded,
-            iconColor: const Color(0xFF2563EB),
-            label: 'Antar',
-            address: widget.dropoffAddress,
-          ),
-          if (_needsExpansion) ...[
+          for (var index = 0; index < routeStops.length; index++) ...[
+            _routeStop(stop: routeStops[index]),
+            if (index < routeStops.length - 1) _routeConnector(),
+          ],
+          if (_canExpand) ...[
             const SizedBox(height: 6),
             SizedBox(
               width: double.infinity,
@@ -683,12 +727,31 @@ class _OrderRouteSectionState extends State<_OrderRouteSection> {
     );
   }
 
-  Widget _routeStop({
-    required IconData icon,
-    required Color iconColor,
-    required String label,
-    required String address,
-  }) {
+  Widget _routeConnector() {
+    return Padding(
+      padding: const EdgeInsets.only(left: 11),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: List.generate(
+            5,
+            (index) => Container(
+              width: 2,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 1.5),
+              decoration: BoxDecoration(
+                color: AppColors.textSecondary.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _routeStop({required _IncomingRouteStop stop}) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -696,7 +759,7 @@ class _OrderRouteSectionState extends State<_OrderRouteSection> {
           width: 22,
           height: 22,
           alignment: Alignment.center,
-          child: Icon(icon, size: 16, color: iconColor),
+          child: Icon(stop.icon, size: 16, color: stop.iconColor),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -704,7 +767,7 @@ class _OrderRouteSectionState extends State<_OrderRouteSection> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                label,
+                stop.label,
                 style: const TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 11,
@@ -714,7 +777,7 @@ class _OrderRouteSectionState extends State<_OrderRouteSection> {
               ),
               const SizedBox(height: 2),
               Text(
-                address,
+                stop.value,
                 style: const TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 13,
@@ -730,6 +793,20 @@ class _OrderRouteSectionState extends State<_OrderRouteSection> {
       ],
     );
   }
+}
+
+class _IncomingRouteStop {
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final String value;
+
+  const _IncomingRouteStop({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.value,
+  });
 }
 
 class _CourierPackageSection extends StatelessWidget {

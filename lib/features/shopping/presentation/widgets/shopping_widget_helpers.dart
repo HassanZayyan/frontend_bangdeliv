@@ -190,7 +190,7 @@ String shoppingMerchantTypeLabel(String? type) {
     'resto' => 'Resto',
     'warung' => 'Warung',
     'convenience_store' => 'Minimarket',
-    _ => 'Toko',
+    _ => 'Tempat',
   };
 }
 
@@ -204,7 +204,10 @@ bool isAllowedShoppingMerchantPlace({
   required List<String> types,
 }) {
   final normalizedTypes = types.map((type) => type.toLowerCase()).toSet();
-  final normalizedName = name.toLowerCase();
+  final normalizedName = name.trim().toLowerCase();
+  if (normalizedName.isEmpty) {
+    return false;
+  }
 
   final hasBlockedType = normalizedTypes.any(
     (type) => {
@@ -223,17 +226,10 @@ bool isAllowedShoppingMerchantPlace({
     return false;
   }
 
-  final hasFoodOrMarketType = normalizedTypes.any(
-    (type) =>
-        type == 'restaurant' ||
-        type == 'food' ||
-        type == 'meal_takeaway' ||
-        type == 'cafe' ||
-        type == 'convenience_store' ||
-        type == 'supermarket' ||
-        type == 'grocery_or_supermarket',
-  );
-  if (hasFoodOrMarketType) {
+  final isPlace =
+      normalizedTypes.contains('establishment') ||
+      normalizedTypes.contains('point_of_interest');
+  if (isPlace) {
     return true;
   }
 

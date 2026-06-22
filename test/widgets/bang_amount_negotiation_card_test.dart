@@ -74,4 +74,29 @@ void main() {
 
     expect(result, 15000);
   });
+
+  testWidgets('delivery fee revision card shows previous amount and reason', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: BangAmountNegotiationCard(
+            label: 'Revisi ongkir',
+            amount: 12000,
+            previousAmount: 5000,
+            reason: 'BBM naik.',
+            onApprove: () {},
+            onCounter: () {},
+            onCancel: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Revisi ongkir'), findsOneWidget);
+    expect(find.text('Rp 12.000'), findsOneWidget);
+    expect(find.text('Ongkir sebelumnya Rp 5.000'), findsOneWidget);
+    expect(find.text('Alasan driver: BBM naik.'), findsOneWidget);
+  });
 }

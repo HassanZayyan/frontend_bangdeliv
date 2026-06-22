@@ -32,6 +32,7 @@ import '../models/user_profile_model.dart';
 import '../models/route_location_picker_result.dart';
 import '../models/food_model.dart';
 import '../models/merchant_model.dart';
+import '../models/chatbot_launch_args.dart';
 import '../models/customer_order_model.dart';
 import '../features/auth/application/auth_session_provider.dart';
 import '../features/driver_orders/application/driver_order_providers.dart';
@@ -136,7 +137,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       _rootRoute(
         path: AppRoutes.chatbot,
-        builder: (context, state) => const ChatbotScreen(),
+        builder: (context, state) {
+          final extra = state.extra;
+          return ChatbotScreen(
+            launchArgs: extra is ChatbotLaunchArgs ? extra : null,
+          );
+        },
       ),
       _rootRoute(
         path: AppRoutes.track,

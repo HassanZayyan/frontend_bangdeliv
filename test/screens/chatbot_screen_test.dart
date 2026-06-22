@@ -7,8 +7,10 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:frontend_bangdeliv/models/chatbot_model.dart';
+import 'package:frontend_bangdeliv/models/chatbot_launch_args.dart';
 import 'package:frontend_bangdeliv/models/user_profile_model.dart';
 import 'package:frontend_bangdeliv/core/di/app_providers.dart';
+import 'package:frontend_bangdeliv/data/repositories/customer_order_repository.dart';
 import 'package:frontend_bangdeliv/features/auth/application/auth_session_provider.dart';
 import 'package:frontend_bangdeliv/features/chatbot/application/chatbot_conversation_provider.dart';
 import 'package:frontend_bangdeliv/features/chatbot/presentation/screens/chatbot_screen.dart';
@@ -325,6 +327,155 @@ void main() {
       find.widgetWithText(OutlinedButton, 'Pilih Merchant di Map'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('nitip launch args select merchant and show menu selector', (
+    WidgetTester tester,
+  ) async {
+    final fakeService = _FakeChatbotApiService();
+
+    await _pumpChatbot(
+      tester,
+      serviceType: 'nitip',
+      chatbotApiService: fakeService,
+      launchArgs: const ChatbotLaunchArgs(
+        serviceType: 'nitip',
+        merchantId: 42,
+        merchantName: 'Bakso Balungan',
+        menuSuggestions: <ChatbotMenuSuggestion>[
+          ChatbotMenuSuggestion(
+            name: 'Bakso Urat',
+            presetMessage: 'Bakso Urat 1',
+            priceLabel: 'Rp 12.000',
+          ),
+        ],
+      ),
+    );
+
+    expect(fakeService.patchMerchantCallCount, 1);
+    expect(fakeService.lastMerchantId, 42);
+    expect(find.textContaining('Draft Nitip belum lengkap'), findsNothing);
+    expect(
+      find.textContaining('Merchant Nitip berhasil dipilih'),
+      findsNothing,
+    );
+    expect(find.text('Pilih menu'), findsOneWidget);
+    expect(find.text('Bakso Balungan'), findsOneWidget);
+    expect(find.text('Bakso Urat'), findsOneWidget);
+    expect(find.text('Rp 12.000'), findsOneWidget);
+    expect(
+      find.widgetWithText(OutlinedButton, 'Bakso Urat - Rp 12.000'),
+      findsNothing,
+    );
+
+    final disabledConfirm = tester.widget<ElevatedButton>(
+      find.widgetWithText(ElevatedButton, 'Konfirmasi'),
+    );
+    expect(disabledConfirm.onPressed, isNull);
+
+    await tester.tap(find.byTooltip('Tambah Bakso Urat'));
+    await _pumpChatbotFrame(tester);
+
+    final enabledConfirm = tester.widget<ElevatedButton>(
+      find.widgetWithText(ElevatedButton, 'Konfirmasi'),
+    );
+    expect(enabledConfirm.onPressed, isNotNull);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Konfirmasi'));
+    await _pumpChatbotFrame(tester);
+
+    expect(fakeService.lastMessage, 'Bakso Urat 1');
+    expect(find.text('Pilih menu'), findsNothing);
+  });
+
+  testWidgets('nitip official merchant picker fetches menu selector', (
+    WidgetTester tester,
+  ) async {
+    final fakeService = _FakeChatbotApiService();
+    final fakeRepository = _FakeCustomerOrderRepository(
+      menusByMerchantId: const <int, List<ShoppingMenuOption>>{
+        42: <ShoppingMenuOption>[
+          ShoppingMenuOption(id: 9, name: 'Dimsum Ayam', price: 15000),
+          ShoppingMenuOption(id: 10, name: 'Es Teh', price: 3000),
+        ],
+      },
+    );
+
+    await _pumpChatbot(
+      tester,
+      serviceType: 'nitip',
+      chatbotApiService: fakeService,
+      customerOrderRepository: fakeRepository,
+      merchantPickerResult: const ShoppingMerchantPickerResult(
+        merchantId: 42,
+        place: ShoppingMerchantPlacePayload(
+          placeId: 'official-42',
+          name: 'Dimsum Dan Seblak Wolu',
+          address: 'Lokasi BangDeliv',
+          latitude: -7.3178,
+          longitude: 110.463,
+          types: <String>['restaurant'],
+        ),
+      ),
+    );
+
+    await _sendMessage(tester, 'beli sembako');
+
+    await tester.tap(
+      find.widgetWithText(OutlinedButton, 'Pilih Merchant di Map'),
+    );
+    await _pumpChatbotFrame(tester);
+    await tester.tap(find.text('Pilih Kedai Kedua'));
+    await _pumpChatbotFrame(tester);
+
+    expect(fakeService.patchMerchantCallCount, 1);
+    expect(fakeService.lastMerchantId, 42);
+    expect(fakeRepository.searchMenuCallCount, 1);
+    expect(fakeRepository.lastMerchantId, 42);
+    expect(find.textContaining('Draft Nitip belum lengkap'), findsOneWidget);
+    expect(
+      find.textContaining('Merchant Nitip berhasil dipilih'),
+      findsNothing,
+    );
+    expect(find.text('Pilih menu'), findsOneWidget);
+    expect(find.text('Dimsum Dan Seblak Wolu'), findsOneWidget);
+    expect(find.text('Dimsum Ayam'), findsOneWidget);
+    expect(find.text('Rp15.000'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Tambah Dimsum Ayam'));
+    await tester.tap(find.byTooltip('Tambah Dimsum Ayam'));
+    await tester.tap(find.byTooltip('Tambah Es Teh'));
+    await _pumpChatbotFrame(tester);
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Konfirmasi'));
+    await _pumpChatbotFrame(tester);
+
+    expect(fakeService.lastMessage, 'Dimsum Ayam 2\nEs Teh 1');
+  });
+
+  testWidgets('nitip external merchant picker keeps manual item flow', (
+    WidgetTester tester,
+  ) async {
+    final fakeRepository = _FakeCustomerOrderRepository();
+
+    await _pumpChatbot(
+      tester,
+      serviceType: 'nitip',
+      chatbotApiService: _FakeChatbotApiService(),
+      customerOrderRepository: fakeRepository,
+    );
+
+    await _sendMessage(tester, 'beli sembako');
+
+    await tester.tap(
+      find.widgetWithText(OutlinedButton, 'Pilih Merchant di Map'),
+    );
+    await _pumpChatbotFrame(tester);
+    await tester.tap(find.text('Pilih Kedai Kedua'));
+    await _pumpChatbotFrame(tester);
+
+    expect(fakeRepository.searchMenuCallCount, 0);
+    expect(find.text('Pilih menu'), findsNothing);
+    expect(find.textContaining('Draft Nitip belum lengkap'), findsNWidgets(2));
   });
 
   testWidgets(
@@ -731,6 +882,9 @@ Future<GoRouter> _pumpChatbot(
   required ChatbotApiService chatbotApiService,
   AuthSessionState? authSession,
   AuthSessionState? refreshedAuthSession,
+  ChatbotLaunchArgs? launchArgs,
+  CustomerOrderRepository? customerOrderRepository,
+  ShoppingMerchantPickerResult? merchantPickerResult,
 }) async {
   SharedPreferences.setMockInitialValues(<String, Object>{});
 
@@ -740,7 +894,7 @@ Future<GoRouter> _pumpChatbot(
       GoRoute(
         path: '/chatbot',
         builder: (BuildContext context, GoRouterState state) {
-          return const ChatbotScreen();
+          return ChatbotScreen(launchArgs: launchArgs);
         },
       ),
       GoRoute(
@@ -768,20 +922,23 @@ Future<GoRouter> _pumpChatbot(
       GoRoute(
         path: '/chatbot/shopping/merchant-map-picker',
         builder: (BuildContext context, GoRouterState state) {
+          final result =
+              merchantPickerResult ??
+              const ShoppingMerchantPickerResult(
+                place: ShoppingMerchantPlacePayload(
+                  placeId: 'google-place-kedai-kedua',
+                  name: 'Kedai Kedua',
+                  address: 'Jl. Kedai Kedua',
+                  latitude: -7.05,
+                  longitude: 110.43,
+                  types: <String>['restaurant'],
+                ),
+              );
           return Scaffold(
             body: Center(
               child: ElevatedButton(
                 onPressed: () {
-                  context.pop(
-                    const ShoppingMerchantPlacePayload(
-                      placeId: 'google-place-kedai-kedua',
-                      name: 'Kedai Kedua',
-                      address: 'Jl. Kedai Kedua',
-                      latitude: -7.05,
-                      longitude: 110.43,
-                      types: <String>['restaurant'],
-                    ),
-                  );
+                  context.pop(result);
                 },
                 child: const Text('Pilih Kedai Kedua'),
               ),
@@ -809,6 +966,10 @@ Future<GoRouter> _pumpChatbot(
           ),
         ),
         chatbotApiServiceProvider.overrideWithValue(chatbotApiService),
+        if (customerOrderRepository != null)
+          customerOrderRepositoryProvider.overrideWithValue(
+            customerOrderRepository,
+          ),
       ],
       child: MaterialApp.router(routerConfig: router),
     ),
@@ -877,6 +1038,32 @@ AuthSessionState _buildAuthenticatedSessionWithoutAddress() {
   return AuthSessionState.fromProfile(profile);
 }
 
+class _FakeCustomerOrderRepository implements CustomerOrderRepository {
+  _FakeCustomerOrderRepository({
+    this.menusByMerchantId = const <int, List<ShoppingMenuOption>>{},
+  });
+
+  final Map<int, List<ShoppingMenuOption>> menusByMerchantId;
+  int searchMenuCallCount = 0;
+  int? lastMerchantId;
+  String? lastMenuQuery;
+
+  @override
+  Future<List<ShoppingMenuOption>> searchMerchantMenus(
+    int merchantId,
+    String query,
+  ) async {
+    searchMenuCallCount += 1;
+    lastMerchantId = merchantId;
+    lastMenuQuery = query;
+
+    return menusByMerchantId[merchantId] ?? const <ShoppingMenuOption>[];
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 class _FakeAuthSessionNotifier extends AuthSessionNotifier {
   _FakeAuthSessionNotifier(this._session, {AuthSessionState? refreshedSession})
     : _refreshedSession = refreshedSession;
@@ -915,6 +1102,7 @@ class _FakeChatbotApiService extends ChatbotApiService {
   String? lastSessionId;
   String? lastPatchTarget;
   String? lastMerchantMode;
+  int? lastMerchantId;
   String? lastClearedSessionId;
   String? lastMessage;
   List<String> lastRouteTargets = const <String>[];
@@ -1476,6 +1664,7 @@ class _FakeChatbotApiService extends ChatbotApiService {
     patchMerchantCallCount += 1;
     lastServiceType = serviceType;
     lastMerchantMode = mode;
+    lastMerchantId = merchantId;
 
     return ChatbotResult.fromApiJson({
       'status': 'success',
@@ -1486,7 +1675,7 @@ class _FakeChatbotApiService extends ChatbotApiService {
         'intent': 'shopping_order',
         'assistant_text': mode == 'add'
             ? 'Draft Nitip belum lengkap. Lengkapi: items.\n\nMerchant\nKedai Kedua\n\nTulis item dan jumlah untuk merchant ini.\nContoh:\n- susu 1\n- roti tawar 2\n- air mineral 1'
-            : 'Merchant Nitip berhasil dipilih.',
+            : 'Draft Nitip belum lengkap. Lengkapi: items.\n\nMerchant\nKedai Kedua\n\nTulis item dan jumlah untuk merchant ini.\nContoh:\n- susu 1\n- roti tawar 2\n- air mineral 1',
         'validation': {
           'is_valid_order': false,
           'rejection_reasons': [],

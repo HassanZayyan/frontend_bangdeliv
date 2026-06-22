@@ -25,10 +25,7 @@ Future<void> showDriverManualDeliveryFeeEditDialog(
     return;
   }
 
-  final error = await onSave(
-    amount: result.amount,
-    reason: result.reason,
-  );
+  final error = await onSave(amount: result.amount, reason: result.reason);
 
   if (!context.mounted) {
     return;
@@ -59,6 +56,8 @@ class _ManualDeliveryFeeDialog extends StatefulWidget {
 class _ManualDeliveryFeeDialogState extends State<_ManualDeliveryFeeDialog> {
   late final TextEditingController _amountController;
   late final TextEditingController _reasonController;
+  String? _amountErrorText;
+  String? _reasonErrorText;
 
   @override
   void initState() {
@@ -123,7 +122,13 @@ class _ManualDeliveryFeeDialogState extends State<_ManualDeliveryFeeDialog> {
                       decoration: driverDialogInputDecoration(
                         labelText: 'Ongkir dasar manual',
                         prefixText: 'Rp ',
+                        errorText: _amountErrorText,
                       ),
+                      onChanged: (_) {
+                        if (_amountErrorText != null) {
+                          setState(() => _amountErrorText = null);
+                        }
+                      },
                     ),
                     const SizedBox(height: 10),
                     TextField(
@@ -138,7 +143,13 @@ class _ManualDeliveryFeeDialogState extends State<_ManualDeliveryFeeDialog> {
                       decoration: driverDialogInputDecoration(
                         labelText: 'Alasan edit',
                         hintText: 'Contoh: rute sistem kurang akurat',
+                        errorText: _reasonErrorText,
                       ),
+                      onChanged: (_) {
+                        if (_reasonErrorText != null) {
+                          setState(() => _reasonErrorText = null);
+                        }
+                      },
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -173,22 +184,28 @@ class _ManualDeliveryFeeDialogState extends State<_ManualDeliveryFeeDialog> {
   void _submit() {
     final amount = parseDriverCurrencyInput(_amountController.text);
     final reason = _reasonController.text.trim();
-    if (amount <= 0 || reason.isEmpty) {
+
+    final amountError = amount <= 0 ? 'Nominal ongkir wajib diisi.' : null;
+    final reasonError = reason.isEmpty
+        ? 'Alasan edit ongkir wajib diisi.'
+        : null;
+    if (amountError != null || reasonError != null) {
+      setState(() {
+        _amountErrorText = amountError;
+        _reasonErrorText = reasonError;
+      });
       return;
     }
 
     FocusManager.instance.primaryFocus?.unfocus();
-    Navigator.of(context).pop(
-      _ManualDeliveryFeeInput(amount: amount, reason: reason),
-    );
+    Navigator.of(
+      context,
+    ).pop(_ManualDeliveryFeeInput(amount: amount, reason: reason));
   }
 }
 
 class _ManualDeliveryFeeInput {
-  const _ManualDeliveryFeeInput({
-    required this.amount,
-    required this.reason,
-  });
+  const _ManualDeliveryFeeInput({required this.amount, required this.reason});
 
   final double amount;
   final String reason;

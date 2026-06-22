@@ -1,6 +1,7 @@
 import '../models/category_model.dart';
 import '../models/food_model.dart';
 import '../models/home_data_model.dart';
+import '../models/merchant_detail_model.dart';
 import '../models/merchant_model.dart';
 import 'api_client.dart';
 import 'api_exception.dart';
@@ -9,6 +10,40 @@ class HomeApiService {
   HomeApiService(this._apiClient);
 
   final ApiClient _apiClient;
+
+  Future<MerchantDetailModel> fetchMerchantDetail(String merchantId) async {
+    final normalizedId = merchantId.trim();
+    if (normalizedId.isEmpty) {
+      throw const ApiException('Merchant tidak valid.');
+    }
+
+    final detailResponse = await _apiClient.get(
+      '/v1/restaurants/$normalizedId',
+    );
+    final detailData = (detailResponse['data'] is Map<String, dynamic>)
+        ? detailResponse['data'] as Map<String, dynamic>
+        : <String, dynamic>{};
+    final merchant = MerchantModel.fromApiJson(detailData);
+
+    final menusResponse = await _apiClient.get(
+      '/v1/restaurants/$normalizedId/menus',
+      queryParams: const <String, dynamic>{'only_available': '1'},
+    );
+    final menusData = (menusResponse['data'] is Map<String, dynamic>)
+        ? menusResponse['data'] as Map<String, dynamic>
+        : <String, dynamic>{};
+    final restaurantData = (menusData['restaurant'] is Map<String, dynamic>)
+        ? menusData['restaurant'] as Map<String, dynamic>
+        : <String, dynamic>{};
+    final restaurantName = restaurantData['name']?.toString() ?? merchant.name;
+    final menus = _extractList(menusData['menus'])
+        .map(
+          (menu) => FoodModel.fromApiJson(menu, restaurantName: restaurantName),
+        )
+        .toList(growable: false);
+
+    return MerchantDetailModel(merchant: merchant, menus: menus);
+  }
 
   Future<HomeDataModel> fetchHomeData({
     String search = '',
