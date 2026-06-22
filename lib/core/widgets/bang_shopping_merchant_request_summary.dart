@@ -168,9 +168,9 @@ class BangShoppingMerchantRequestSummary extends StatelessWidget {
   String _requestLabel(String? rawKind) {
     final kind = (rawKind ?? '').trim().toUpperCase();
     if (kind == 'EDIT_UNAVAILABLE') {
-      return 'Edit merchant';
+      return 'Edit tempat';
     }
 
-    return 'Tambah merchant';
+    return 'Tambah tempat';
   }
 }

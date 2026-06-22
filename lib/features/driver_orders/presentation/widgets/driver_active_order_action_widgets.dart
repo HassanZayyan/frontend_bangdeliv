@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../models/driver_order_model.dart';
@@ -10,7 +9,6 @@ import '../../../../utils/order_status.dart';
 import '../../../../utils/order_ui_helpers.dart';
 import '../../../../utils/service_type.dart';
 import '../../../navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
-import 'driver_active_order_widget_helpers.dart';
 
 class DriverOrderTimelineCard extends StatelessWidget {
   final List<DriverOrderTimelineItemModel> timeline;
@@ -151,19 +149,12 @@ class DriverOrderTimelineCard extends StatelessWidget {
 class DriverOrderActionCard extends StatelessWidget {
   final DriverOrderModel order;
   final bool isProcessing;
-  final Future<void> Function({
-    required int pickupLocationId,
-    required String reason,
-    required XFile storeClosedPhoto,
-  })?
-  onReportPickupFailed;
   final Future<void> Function(DriverOrderActionModel action) onTapAction;
 
   const DriverOrderActionCard({
     super.key,
     required this.order,
     required this.isProcessing,
-    required this.onReportPickupFailed,
     required this.onTapAction,
   });
 
@@ -209,7 +200,6 @@ class DriverOrderActionCard extends StatelessWidget {
           _DriverOrderActionControls(
             order: order,
             isProcessing: isProcessing,
-            onReportPickupFailed: onReportPickupFailed,
             onTapAction: onTapAction,
             showEmptyState: true,
           ),
@@ -222,19 +212,12 @@ class DriverOrderActionCard extends StatelessWidget {
 class DriverOrderStickyActionBar extends StatelessWidget {
   final DriverOrderModel order;
   final bool isProcessing;
-  final Future<void> Function({
-    required int pickupLocationId,
-    required String reason,
-    required XFile storeClosedPhoto,
-  })?
-  onReportPickupFailed;
   final Future<void> Function(DriverOrderActionModel action) onTapAction;
 
   const DriverOrderStickyActionBar({
     super.key,
     required this.order,
     required this.isProcessing,
-    required this.onReportPickupFailed,
     required this.onTapAction,
   });
 
@@ -268,7 +251,6 @@ class DriverOrderStickyActionBar extends StatelessWidget {
           child: _DriverOrderActionControls(
             order: order,
             isProcessing: isProcessing,
-            onReportPickupFailed: onReportPickupFailed,
             onTapAction: onTapAction,
             showEmptyState: false,
           ),
@@ -282,36 +264,19 @@ class DriverOrderStickyActionBar extends StatelessWidget {
       return true;
     }
 
-    if (onReportPickupFailed == null ||
-        normalizeServiceTypeCode(order.serviceTypeCode) !=
-            ServiceTypeCodes.shopping ||
-        order.shoppingStops.where((stop) => stop.isActive).isEmpty ||
-        order.shoppingPricing?.canCancelWithFee == true) {
-      return false;
-    }
-
-    final status = normalizeOrderStatusCode(order.statusCode);
-    return status == OrderStatusCodes.driverAssigned ||
-        status == OrderStatusCodes.arrivedMerchant;
+    return _shouldShowShoppingClosureFeeHint(order);
   }
 }
 
 class _DriverOrderActionControls extends StatelessWidget {
   final DriverOrderModel order;
   final bool isProcessing;
-  final Future<void> Function({
-    required int pickupLocationId,
-    required String reason,
-    required XFile storeClosedPhoto,
-  })?
-  onReportPickupFailed;
   final Future<void> Function(DriverOrderActionModel action) onTapAction;
   final bool showEmptyState;
 
   const _DriverOrderActionControls({
     required this.order,
     required this.isProcessing,
-    required this.onReportPickupFailed,
     required this.onTapAction,
     required this.showEmptyState,
   });
@@ -332,51 +297,25 @@ class _DriverOrderActionControls extends StatelessWidget {
         ? 'Cek barang lebih dulu, lalu tagih ${formatRupiah(order.totalPrice)} saat pickup sebelum menekan Paket Diambil.'
         : 'Tagih COD sebesar ${formatRupiah(order.totalPrice)} sebelum menyelesaikan order.';
     final pricing = order.shoppingPricing;
-    final canReportPickupFailed = _canReportPickupFailed();
+    final showShoppingClosureFeeHint = _shouldShowShoppingClosureFeeHint(order);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (canReportPickupFailed) ...[
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: isProcessing || onReportPickupFailed == null
-                  ? null
-                  : () async {
-                      final report = await _showFailedPickupDialog(context);
-                      if (report == null) {
-                        return;
-                      }
-                      await onReportPickupFailed?.call(
-                        pickupLocationId: report.pickupLocationId,
-                        reason: report.reason,
-                        storeClosedPhoto: report.storeClosedPhoto,
-                      );
-                    },
-              icon: const Icon(Icons.storefront_outlined, size: 18),
-              label: const Text('Merchant Tutup / Gagal Pickup'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.error,
-                side: const BorderSide(color: AppColors.error),
+        if (showShoppingClosureFeeHint && pricing != null) ...[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Text(
+              _shoppingClosureFeeHint(pricing),
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                height: 1.35,
               ),
             ),
           ),
-          if (pricing != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 6, bottom: 10),
-              child: Text(
-                'Percobaan gagal ${pricing.failedAttemptCount}/${pricing.failedAttemptThreshold}. Fee cancel aktif setelah batas tercapai.',
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            )
-          else
-            const SizedBox(height: 10),
         ],
         if (hasCodCollection) ...[
           Container(
@@ -385,7 +324,9 @@ class _DriverOrderActionControls extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.surfaceAlt,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+              border: Border.all(
+                color: AppColors.border.withValues(alpha: 0.5),
+              ),
             ),
             child: Text(
               codMessage,
@@ -460,214 +401,27 @@ class _DriverOrderActionControls extends StatelessWidget {
       ],
     );
   }
-
-  bool _canReportPickupFailed() {
-    if (onReportPickupFailed == null ||
-        normalizeServiceTypeCode(order.serviceTypeCode) !=
-            ServiceTypeCodes.shopping ||
-        order.shoppingStops.where((stop) => stop.isActive).isEmpty ||
-        order.shoppingPricing?.canCancelWithFee == true) {
-      return false;
-    }
-
-    final status = normalizeOrderStatusCode(order.statusCode);
-    return status == OrderStatusCodes.driverAssigned ||
-        status == OrderStatusCodes.arrivedMerchant;
-  }
-
-  Future<_FailedPickupReport?> _showFailedPickupDialog(BuildContext context) {
-    return showDialog<_FailedPickupReport>(
-      context: context,
-      builder: (context) => _FailedPickupDialog(
-        stops: order.shoppingStops
-            .where((stop) => stop.isActive)
-            .toList(growable: false),
-      ),
-    );
-  }
 }
 
-class _FailedPickupReport {
-  const _FailedPickupReport({
-    required this.pickupLocationId,
-    required this.reason,
-    required this.storeClosedPhoto,
-  });
+bool _shouldShowShoppingClosureFeeHint(DriverOrderModel order) {
+  if (normalizeServiceTypeCode(order.serviceTypeCode) !=
+          ServiceTypeCodes.shopping ||
+      order.shoppingStops.where((stop) => stop.isActive).isEmpty ||
+      order.shoppingPricing == null) {
+    return false;
+  }
 
-  final int pickupLocationId;
-  final String reason;
-  final XFile storeClosedPhoto;
+  final status = normalizeOrderStatusCode(order.statusCode);
+  return status == OrderStatusCodes.driverAssigned ||
+      status == OrderStatusCodes.arrivedMerchant;
 }
 
-class _FailedPickupDialog extends StatefulWidget {
-  const _FailedPickupDialog({required this.stops});
-
-  final List<DriverShoppingStopModel> stops;
-
-  @override
-  State<_FailedPickupDialog> createState() => _FailedPickupDialogState();
-}
-
-class _FailedPickupDialogState extends State<_FailedPickupDialog> {
-  final TextEditingController _reasonController = TextEditingController(
-    text: 'Merchant tutup saat driver tiba.',
-  );
-  late int _selectedPickupLocationId;
-  XFile? _storeClosedPhoto;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedPickupLocationId = widget.stops.first.pickupLocationId;
+String _shoppingClosureFeeHint(DriverShoppingPricingModel pricing) {
+  final attempts =
+      '${pricing.failedAttemptCount}/${pricing.failedAttemptThreshold}';
+  if (pricing.canCancelWithFee) {
+    return 'Tempat tutup/order batal $attempts. Tagihan customer 50% ongkir sudah aktif.';
   }
 
-  @override
-  void dispose() {
-    _reasonController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final viewInsets = MediaQuery.viewInsetsOf(context);
-
-    return SafeArea(
-      child: AnimatedPadding(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          bottom: viewInsets.bottom + 16,
-        ),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Material(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(20),
-              clipBehavior: Clip.antiAlias,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Merchant Tutup',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    DropdownButtonFormField<int>(
-                      initialValue: _selectedPickupLocationId,
-                      isExpanded: true,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w400,
-                      ),
-                      decoration: driverDialogInputDecoration(
-                        labelText: 'Merchant',
-                      ),
-                      items: widget.stops
-                          .map(
-                            (stop) => DropdownMenuItem<int>(
-                              value: stop.pickupLocationId,
-                              child: Text(
-                                '${stop.sequenceNo <= 0 ? 1 : stop.sequenceNo}. ${stop.merchant.name}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          )
-                          .toList(growable: false),
-                      onChanged: (value) {
-                        if (value == null) {
-                          return;
-                        }
-                        setState(() => _selectedPickupLocationId = value);
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _reasonController,
-                      minLines: 2,
-                      maxLines: 4,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w400,
-                      ),
-                      decoration: driverDialogInputDecoration(
-                        labelText: 'Alasan',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: () async {
-                        final photo = await pickDriverOrderImage(context);
-                        if (photo == null || !mounted) {
-                          return;
-                        }
-                        setState(() => _storeClosedPhoto = photo);
-                      },
-                      icon: const Icon(Icons.photo_camera_outlined, size: 18),
-                      label: Text(
-                        _storeClosedPhoto == null
-                            ? 'Upload Foto Toko Tutup'
-                            : 'Foto Toko Siap',
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('Batal'),
-                        ),
-                        const SizedBox(width: 8),
-                        FilledButton(
-                          onPressed: () {
-                            final reason = _reasonController.text.trim();
-                            if (reason.isEmpty) {
-                              return;
-                            }
-                            final photo = _storeClosedPhoto;
-                            if (photo == null) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Foto toko tutup wajib diupload.',
-                                  ),
-                                  backgroundColor: AppColors.error,
-                                ),
-                              );
-                              return;
-                            }
-                            Navigator.of(context).pop(
-                              _FailedPickupReport(
-                                pickupLocationId: _selectedPickupLocationId,
-                                reason: reason,
-                                storeClosedPhoto: photo,
-                              ),
-                            );
-                          },
-                          child: const Text('Catat'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  return 'Tempat tutup/order batal $attempts. Tagihan customer 50% ongkir aktif setelah batas tercapai.';
 }

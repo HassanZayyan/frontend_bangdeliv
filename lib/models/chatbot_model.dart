@@ -468,11 +468,11 @@ class ChatbotResult {
         return buffer.toString().trimRight();
       }
 
-      return 'Tulis merchant dan item yang ingin dibeli, lalu pilih titik antar.';
+      return 'Tulis tempat dan item yang ingin dibeli, lalu pilih titik antar.';
     }
 
     if (intent == ChatbotIntent.outOfDomain) {
-      return 'Aku fokus bantu Nitip. Tulis merchant dan item yang ingin dibeli, ya.';
+      return 'Aku fokus bantu Nitip. Tulis tempat dan item yang ingin dibeli, ya.';
     }
 
     if (validation != null && !validation!.isValidOrder) {

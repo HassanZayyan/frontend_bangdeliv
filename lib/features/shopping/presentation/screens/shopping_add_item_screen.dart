@@ -200,7 +200,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
         }
       }
       if (stop == null) {
-        setState(() => _errorText = 'Merchant yang ingin diedit tidak valid.');
+        setState(() => _errorText = 'Tempat yang ingin diedit tidak valid.');
         return;
       }
       final merchant = ShoppingMerchantOption(
@@ -305,7 +305,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
         _isExistingActiveMerchant(merchant)) {
       setState(
         () => _errorText =
-            'Merchant ini sudah ada di order. Gunakan edit jika item tidak tersedia.',
+            'Tempat ini sudah ada di order. Gunakan edit jika item tidak tersedia.',
       );
       return;
     }

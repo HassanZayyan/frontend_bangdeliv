@@ -469,7 +469,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     } catch (_) {
       state = state.copyWith(
         isApplyingAction: false,
-        errorMessage: 'Gagal memperbarui merchant Nitip.',
+        errorMessage: 'Gagal memperbarui tempat Nitip.',
       );
       return false;
     }
@@ -488,7 +488,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
 
     final normalizedMerchant = (merchantName ?? '').trim();
     final merchantLabel = normalizedMerchant.isEmpty
-        ? 'merchant ini'
+        ? 'tempat ini'
         : normalizedMerchant;
     final actionHints = suggestions
         .where((item) => item.name.trim().isNotEmpty)
@@ -879,7 +879,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         _merchantPickerHintFromPayload(
           actionPayloads,
           actionKey: 'OPEN_MERCHANT_PICKER',
-          fallbackLabel: 'Pilih Merchant di Map',
+          fallbackLabel: 'Pilih Tempat di Map',
           fallbackMode: 'select',
         ),
       );
@@ -890,7 +890,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         _merchantPickerHintFromPayload(
           actionPayloads,
           actionKey: 'OPEN_ADD_MERCHANT_PICKER',
-          fallbackLabel: 'Tambah Merchant',
+          fallbackLabel: 'Tambah Tempat',
           fallbackMode: 'add',
         ),
       );
@@ -1334,7 +1334,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       return const <ChatbotMessageActionHint>[
         ChatbotMessageActionHint(
           type: ChatbotMessageActionType.openMerchantPicker,
-          label: 'Pilih Merchant di Map',
+          label: 'Pilih Tempat di Map',
         ),
         ChatbotMessageActionHint(
           type: ChatbotMessageActionType.openMapPicker,

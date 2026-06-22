@@ -54,13 +54,27 @@ void main() {
       widgetsSource.indexOf(
         'class DriverOrderActionCard extends StatelessWidget',
       ),
-      widgetsSource.indexOf('class _FailedPickupReport'),
+      widgetsSource.indexOf('bool _shouldShowShoppingClosureFeeHint'),
     );
 
     expect(actionCard, contains('isWaitingCancellationFeePayment'));
     expect(
       actionCard,
       contains('Menunggu pembayaran biaya pembatalan dari customer.'),
+    );
+    expect(actionCard, isNot(contains('onReportPickupFailed')));
+    expect(actionCard, isNot(contains('Merchant Tutup / Gagal Pickup')));
+  });
+
+  test('shopping closure fee hint replaces legacy failed pickup action', () {
+    final widgetsSource = File(actionWidgetsPath).readAsStringSync();
+
+    expect(widgetsSource, isNot(contains('Merchant Tutup / Gagal Pickup')));
+    expect(widgetsSource, isNot(contains('class _FailedPickupDialog')));
+    expect(widgetsSource, contains('Tempat tutup/order batal'));
+    expect(
+      widgetsSource,
+      contains('Tagihan customer 50% ongkir aktif setelah batas tercapai.'),
     );
   });
 }

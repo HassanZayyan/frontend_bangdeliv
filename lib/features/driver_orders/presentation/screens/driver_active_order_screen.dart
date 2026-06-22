@@ -467,35 +467,6 @@ class DriverActiveOrderScreen extends ConsumerWidget {
     return DriverOrderStickyActionBar(
       order: order,
       isProcessing: isProcessing,
-      onReportPickupFailed:
-          ({
-            required pickupLocationId,
-            required reason,
-            required storeClosedPhoto,
-          }) async {
-            final error = await ref
-                .read(driverOrdersProvider.notifier)
-                .recordShoppingPickupFailed(
-                  orderId: order.id,
-                  pickupLocationId: pickupLocationId,
-                  reason: reason,
-                  storeClosedPhoto: storeClosedPhoto,
-                );
-
-            if (!context.mounted) {
-              return;
-            }
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(error ?? 'Merchant tutup berhasil dicatat.'),
-                backgroundColor: error == null ? null : AppColors.error,
-              ),
-            );
-            if (error == null) {
-              ref.invalidate(driverOrderDetailProvider(order.id));
-            }
-          },
       onTapAction: (action) async {
         final notifier = ref.read(driverOrdersProvider.notifier);
 

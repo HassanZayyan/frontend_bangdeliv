@@ -96,9 +96,9 @@ void main() {
       ),
     );
 
-    expect(find.text('Merchant 1'), findsOneWidget);
-    expect(find.text('Merchant 2'), findsOneWidget);
-    expect(find.text('Merchant 3'), findsOneWidget);
+    expect(find.text('Tempat 1'), findsOneWidget);
+    expect(find.text('Tempat 2'), findsOneWidget);
+    expect(find.text('Tempat 3'), findsOneWidget);
     expect(find.textContaining('Kopi Nako Semarang Candi'), findsOneWidget);
     expect(find.textContaining('Oriana Coffee'), findsOneWidget);
     expect(find.textContaining('Araya Catering'), findsOneWidget);
@@ -132,9 +132,9 @@ void main() {
       ),
     );
 
-    expect(find.text('Merchant 1'), findsOneWidget);
-    expect(find.text('Merchant 2'), findsOneWidget);
-    expect(find.text('Merchant 3'), findsNothing);
+    expect(find.text('Tempat 1'), findsOneWidget);
+    expect(find.text('Tempat 2'), findsOneWidget);
+    expect(find.text('Tempat 3'), findsNothing);
     expect(find.textContaining('Merchant Pertama'), findsOneWidget);
     expect(find.textContaining('Merchant Kedua'), findsOneWidget);
   });
@@ -152,7 +152,7 @@ void main() {
     );
 
     expect(find.text('Jemput'), findsOneWidget);
-    expect(find.text('Merchant 1'), findsNothing);
+    expect(find.text('Tempat 1'), findsNothing);
     expect(find.textContaining('Fallback merchant address'), findsOneWidget);
   });
 
