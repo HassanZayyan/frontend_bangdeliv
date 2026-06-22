@@ -48,6 +48,10 @@ class AppRoutes {
     return '/merchant/$merchantId';
   }
 
+  static String addressesForOrder() {
+    return '$addresses?source=order';
+  }
+
   static String nearbyMerchantDetailPath(String merchantId) {
     return '/merchants/nearby/$merchantId';
   }

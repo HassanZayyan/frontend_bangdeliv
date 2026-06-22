@@ -170,14 +170,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                                                 color: AppColors.primaryLight,
                                                 width: 1.5,
                                               ),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: AppColors.black
-                                                      .withValues(alpha: 0.14),
-                                                  blurRadius: 8,
-                                                  offset: const Offset(0, 2),
-                                                ),
-                                              ],
                                             ),
                                             child: const Icon(
                                               Icons.camera_alt,
@@ -442,8 +434,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           ? null
           : FileImage(File(selectedAvatar.path)),
       size: 84,
-      borderColor: AppColors.primaryLight,
-      borderWidth: 3,
     );
   }
 

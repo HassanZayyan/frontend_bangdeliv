@@ -10,6 +10,7 @@ class HomeApiService {
   HomeApiService(this._apiClient);
 
   final ApiClient _apiClient;
+  static const int _restaurantPageSize = 50;
 
   Future<MerchantDetailModel> fetchMerchantDetail(String merchantId) async {
     final normalizedId = merchantId.trim();
@@ -106,6 +107,43 @@ class HomeApiService {
     }
   }
 
+  Future<List<MerchantModel>> fetchNearbyMerchants({
+    String search = '',
+    double? latitude,
+    double? longitude,
+  }) async {
+    final hasLocation = latitude != null && longitude != null;
+    final merchants = <MerchantModel>[];
+    var page = 1;
+    var lastPage = 1;
+
+    do {
+      final response = await _apiClient.get(
+        '/v1/restaurants',
+        queryParams: <String, dynamic>{
+          'page': page,
+          'per_page': _restaurantPageSize,
+          'sort': hasLocation ? 'nearest' : 'name',
+          if (search.trim().isNotEmpty) 'search': search.trim(),
+          if (hasLocation) ...{'latitude': latitude, 'longitude': longitude},
+        },
+      );
+
+      final merchantItems = _extractList(response['data']);
+      merchants.addAll(
+        merchantItems.map((item) => MerchantModel.fromApiJson(item)),
+      );
+
+      final meta = (response['meta'] is Map<String, dynamic>)
+          ? response['meta'] as Map<String, dynamic>
+          : <String, dynamic>{};
+      lastPage = _positiveInt(meta['last_page']) ?? page;
+      page += 1;
+    } while (page <= lastPage);
+
+    return merchants;
+  }
+
   Future<HomeDataModel> _fetchFromLegacyEndpoints({
     String search = '',
     int? limitMerchants,
@@ -187,5 +225,14 @@ class HomeApiService {
     }
 
     return value.whereType<Map<String, dynamic>>().toList(growable: false);
+  }
+
+  int? _positiveInt(dynamic value) {
+    final parsed = value is int ? value : int.tryParse(value?.toString() ?? '');
+    if (parsed == null || parsed < 1) {
+      return null;
+    }
+
+    return parsed;
   }
 }

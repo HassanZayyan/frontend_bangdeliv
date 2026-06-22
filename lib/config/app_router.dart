@@ -249,7 +249,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       _rootRoute(
         path: AppRoutes.addresses,
-        builder: (context, state) => const SavedAddressesScreen(),
+        builder: (context, state) => SavedAddressesScreen(
+          orderEntry: state.uri.queryParameters['source'] == 'order',
+        ),
       ),
       _rootRoute(
         path: AppRoutes.addressPicker,
@@ -350,6 +352,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const NearbyMerchantsScreen(),
             routes: [
               GoRoute(
+                parentNavigatorKey: _rootNavigatorKey,
                 path: AppRoutes.nearbyMerchantDetail,
                 builder: (context, state) {
                   final merchantId = state.pathParameters['merchantId'] ?? '';

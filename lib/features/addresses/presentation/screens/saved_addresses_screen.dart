@@ -10,9 +10,14 @@ import '../../../auth/application/auth_session_provider.dart';
 import '../../../../services/auth_service.dart';
 
 class SavedAddressesScreen extends ConsumerStatefulWidget {
-  const SavedAddressesScreen({super.key, this.selectionMode = false});
+  const SavedAddressesScreen({
+    super.key,
+    this.selectionMode = false,
+    this.orderEntry = false,
+  });
 
   final bool selectionMode;
+  final bool? orderEntry;
 
   @override
   ConsumerState<SavedAddressesScreen> createState() =>
@@ -22,6 +27,8 @@ class SavedAddressesScreen extends ConsumerStatefulWidget {
 class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
   late Future<List<SavedAddressModel>> _addressesFuture;
   int? _selectingAddressId;
+
+  bool get _isOrderEntry => widget.orderEntry == true;
 
   @override
   void initState() {
@@ -92,24 +99,7 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
 
           final addresses = snapshot.data ?? [];
           if (addresses.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'Belum ada alamat tersimpan untuk akun ini.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
+            return _buildEmptyAddressState();
           }
 
           return ListView.separated(
@@ -144,8 +134,8 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
             child: ElevatedButton.icon(
               onPressed: _openAddAddress,
               icon: const Icon(Icons.add_rounded, size: 20),
-              label: const Text(
-                'Tambah Alamat Baru',
+              label: Text(
+                _isOrderEntry ? 'Tambah Alamat' : 'Tambah Alamat Baru',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -167,6 +157,58 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
       await ref.read(authSessionProvider.notifier).refreshSession();
       _reloadAddresses();
     }
+  }
+
+  Widget _buildEmptyAddressState() {
+    if (!_isOrderEntry) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Text(
+            'Belum ada alamat tersimpan untuk akun ini.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
+          ),
+        ),
+      );
+    }
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(28, 20, 28, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(
+              Icons.add_location_alt_outlined,
+              color: AppColors.primary,
+              size: 42,
+            ),
+            SizedBox(height: 12),
+            Text(
+              'Tambahkan alamat dulu',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                height: 1.25,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Alamat diperlukan agar BangDeliv bisa menyesuaikan layanan, rute, dan lokasi penjemputan.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12.5,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _openEditAddress(SavedAddressModel address) async {

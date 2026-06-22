@@ -5,6 +5,7 @@ class MerchantModel {
   final String name;
   final String distance;
   final String imageUrl;
+  final List<String> galleryImageUrls;
   final String merchantType;
   final String address;
   final String phone;
@@ -16,6 +17,7 @@ class MerchantModel {
     required this.name,
     required this.distance,
     required this.imageUrl,
+    this.galleryImageUrls = const <String>[],
     this.merchantType = '',
     this.address = '',
     this.phone = '',
@@ -24,11 +26,16 @@ class MerchantModel {
   });
 
   factory MerchantModel.fromApiJson(Map<String, dynamic> json) {
+    final imageUrl = AppEnv.resolveBackendAssetUrl(
+      json['banner_image']?.toString(),
+    );
+
     return MerchantModel(
       id: (json['id'] ?? '').toString(),
       name: json['name']?.toString() ?? '-',
       distance: _distanceLabel(json['distance_km']),
-      imageUrl: AppEnv.resolveBackendAssetUrl(json['banner_image']?.toString()),
+      imageUrl: imageUrl,
+      galleryImageUrls: _galleryImageUrls(json['gallery_images'], imageUrl),
       merchantType: json['merchant_type']?.toString() ?? '',
       address: json['address']?.toString() ?? '',
       phone: json['phone']?.toString() ?? '',
@@ -68,5 +75,27 @@ class MerchantModel {
     }
 
     return double.tryParse(value.toString());
+  }
+
+  static List<String> _galleryImageUrls(
+    dynamic value,
+    String fallbackImageUrl,
+  ) {
+    final urls = <String>[];
+
+    if (value is List<dynamic>) {
+      for (final item in value) {
+        final url = AppEnv.resolveBackendAssetUrl(item?.toString());
+        if (url.isNotEmpty && !urls.contains(url)) {
+          urls.add(url);
+        }
+      }
+    }
+
+    if (urls.isEmpty && fallbackImageUrl.isNotEmpty) {
+      urls.add(fallbackImageUrl);
+    }
+
+    return urls;
   }
 }
