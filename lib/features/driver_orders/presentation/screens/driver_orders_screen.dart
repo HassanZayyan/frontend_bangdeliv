@@ -13,6 +13,7 @@ import '../widgets/driver_distance_badge.dart';
 import '../../../../utils/courier_package_formatter.dart';
 import '../../../../utils/order_formatters.dart';
 import '../../../../utils/service_type.dart';
+import '../../../../widgets/bang_ui.dart' show BangIllustrationEmptyState;
 
 class DriverOrdersScreen extends ConsumerWidget {
   const DriverOrdersScreen({super.key});
@@ -103,19 +104,23 @@ class _IncomingOrdersList extends ConsumerWidget {
       final normalizedStatus = availabilityStatus.trim().toLowerCase();
       final isBusy = normalizedStatus == 'busy';
 
+      if (canReceiveIncomingOrders) {
+        return const BangIllustrationEmptyState(
+          title: 'Belum ada orderan masuk',
+          subtitle: 'Order baru akan tampil di sini saat driver sedang aktif.',
+          titleFontSize: 17,
+          titleFontWeight: FontWeight.w800,
+          titleColor: AppColors.textPrimary,
+        );
+      }
+
       return _EmptyOrderState(
-        icon: canReceiveIncomingOrders
-            ? Icons.inbox_outlined
-            : (isBusy ? Icons.delivery_dining : Icons.power_settings_new),
-        title: canReceiveIncomingOrders
-            ? 'Belum ada orderan masuk'
-            : (isBusy ? 'Sedang menjalankan order' : 'Status kerja offline'),
-        subtitle: canReceiveIncomingOrders
-            ? 'Order baru akan tampil di sini saat driver sedang aktif.'
-            : (isBusy
-                  ? 'Selesaikan order berjalan sebelum menerima order baru.'
-                  : 'Aktifkan status kerja untuk menerima order masuk.'),
-        action: canReceiveIncomingOrders || isBusy
+        icon: isBusy ? Icons.delivery_dining : Icons.power_settings_new,
+        title: isBusy ? 'Sedang menjalankan order' : 'Status kerja offline',
+        subtitle: isBusy
+            ? 'Selesaikan order berjalan sebelum menerima order baru.'
+            : 'Aktifkan status kerja untuk menerima order masuk.',
+        action: isBusy
             ? null
             : FilledButton.icon(
                 onPressed: () => context.go(AppRoutes.driverHome),

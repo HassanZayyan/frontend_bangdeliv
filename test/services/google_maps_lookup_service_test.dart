@@ -16,7 +16,7 @@ void main() {
   });
 
   test(
-    'searchPlaces can scope address search to Salatiga service area',
+    'searchPlaces can scope address search to Bang Deliv service area',
     () async {
       late Uri requestedUrl;
       final service = GoogleMapsLookupService(
@@ -41,7 +41,7 @@ void main() {
 
       final predictions = await service.searchPlaces(
         'Diponegoro',
-        scope: GoogleMapsLookupScope.salatigaServiceAreaAddress,
+        scope: GoogleMapsLookupScope.bangDelivServiceAreaAddress,
       );
 
       expect(predictions, hasLength(1));
@@ -49,8 +49,11 @@ void main() {
       expect(requestedUrl.path, '/maps/api/place/autocomplete/json');
       expect(requestedUrl.queryParameters['components'], 'country:id');
       expect(requestedUrl.queryParameters['language'], 'id');
-      expect(requestedUrl.queryParameters['location'], '-7.3305,110.5084');
-      expect(requestedUrl.queryParameters['radius'], '45000');
+      expect(
+        requestedUrl.queryParameters['location'],
+        '-7.319916770351389,110.46393594806243',
+      );
+      expect(requestedUrl.queryParameters['radius'], '50000');
       expect(requestedUrl.queryParameters['strictbounds'], 'true');
     },
   );
@@ -115,14 +118,14 @@ void main() {
 
       final resolved = await service.geocodeQuery(
         'Patimura',
-        scope: GoogleMapsLookupScope.salatigaServiceAreaAddress,
+        scope: GoogleMapsLookupScope.bangDelivServiceAreaAddress,
       );
 
       expect(resolved?.address, 'Jl. Patimura, Salatiga');
       expect(requestedUrl.path, '/maps/api/geocode/json');
       expect(
         requestedUrl.queryParameters['bounds'],
-        '-7.6500,110.1000|-7.0500,110.8500',
+        '-7.7700,110.0100|-6.8700,110.9200',
       );
       expect(requestedUrl.queryParameters['components'], 'country:ID');
     },

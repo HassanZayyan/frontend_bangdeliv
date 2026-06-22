@@ -5,7 +5,7 @@ void main() {
   test('QRIS asset URL uses backend public image path', () {
     expect(
       PaymentAssets.qrisUrl,
-      endsWith('/images/payments/qris-bangdeliv-dummy.jpeg'),
+      endsWith('/images/payments/qris-bangdeliv'),
     );
     expect(PaymentAssets.qrisUrl, isNot(contains('/api/images/')));
   });

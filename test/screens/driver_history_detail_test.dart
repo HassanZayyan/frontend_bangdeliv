@@ -3,15 +3,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:frontend_bangdeliv/config/app_colors.dart';
 import 'package:frontend_bangdeliv/config/app_routes.dart';
 import 'package:frontend_bangdeliv/core/di/app_providers.dart';
 import 'package:frontend_bangdeliv/features/auth/application/auth_session_provider.dart';
+import 'package:frontend_bangdeliv/features/navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
 import 'package:frontend_bangdeliv/features/driver_orders/presentation/screens/driver_history_screen.dart';
 import 'package:frontend_bangdeliv/features/driver_orders/presentation/screens/driver_order_history_detail_screen.dart';
 import 'package:frontend_bangdeliv/models/driver_order_model.dart';
 import 'package:frontend_bangdeliv/models/user_profile_model.dart';
 import 'package:frontend_bangdeliv/services/driver_order_service.dart';
+import 'package:frontend_bangdeliv/utils/order_formatters.dart';
 import 'package:frontend_bangdeliv/utils/order_status.dart';
+
+final _driverHistoryDate = DateTime.now().toUtc();
 
 void main() {
   testWidgets('driver history card opens history detail route', (tester) async {
@@ -50,7 +55,16 @@ void main() {
     expect(find.text('BDR-HIST-42'), findsOneWidget);
     expect(find.text('Pendapatan Bersih'), findsOneWidget);
     expect(find.text('Rp 13.500'), findsAtLeastNWidgets(1));
+    expect(find.text(formatDateMonthTime(_driverHistoryDate)), findsOneWidget);
     expect(find.text('Bruto Rp 15.000 - Admin 10% Rp 1.500'), findsOneWidget);
+    expect(find.byIcon(Icons.chevron_right_rounded), findsNothing);
+
+    final orderNumberText = tester.widget<Text>(find.text('BDR-HIST-42'));
+    expect(orderNumberText.style?.fontSize, 11.5);
+
+    final statusText = tester.widget<Text>(find.text('Selesai'));
+    expect(statusText.style?.color, AppColors.success);
+    expect(statusText.style?.fontSize, 12.5);
 
     await tester.tap(find.text('BDR-HIST-42'));
     await tester.pumpAndSettle();
@@ -84,10 +98,32 @@ void main() {
     expect(find.text('Pendapatan Bersih'), findsOneWidget);
     expect(find.text('Biaya Admin 10%'), findsOneWidget);
     expect(find.text('Total Pembayaran'), findsOneWidget);
+    expect(find.text('Item Belanja'), findsOneWidget);
+    expect(find.text('Bukti Foto'), findsOneWidget);
     expect(
       find.text('Koordinat map belum tersedia untuk order ini.'),
       findsNothing,
     );
+    expect(find.byIcon(Icons.shopping_bag_outlined), findsNothing);
+    expect(find.byIcon(Icons.photo_library_outlined), findsNothing);
+
+    final itemTitle = tester.widget<Text>(find.text('Item Belanja'));
+    expect(itemTitle.style?.fontSize, 16);
+    expect(itemTitle.style?.fontWeight, FontWeight.w800);
+
+    final shoppingItemText = tester.widget<Text>(find.text('ramen mala'));
+    expect(shoppingItemText.style?.fontSize, 14);
+    expect(shoppingItemText.style?.fontWeight, FontWeight.w700);
+    expect(find.text('  ramen mala'), findsNothing);
+
+    final proofTitle = tester.widget<Text>(find.text('Bukti Foto'));
+    expect(proofTitle.style?.fontSize, 16);
+    expect(proofTitle.style?.fontWeight, FontWeight.w800);
+
+    final detailList = tester.widget<ListView>(find.byType(ListView));
+    final detailPadding = detailList.padding as EdgeInsets;
+    expect(detailPadding.bottom, BangFloatingBottomNavBar.scrollClearance - 42);
+
     await tester.scrollUntilVisible(
       find.text('Riwayat Status'),
       280,
@@ -182,7 +218,7 @@ class _FakeDriverHistoryService extends DriverOrderService {
         orderId: 42,
         orderNumber: 'BDR-HIST-42',
         customerName: 'Mhn Zayyan',
-        date: DateTime.now().toUtc(),
+        date: _driverHistoryDate,
         fee: 15000,
         driverIncome: 15000,
         driverIncomeGross: 15000,
@@ -219,12 +255,22 @@ class _FakeDriverHistoryService extends DriverOrderService {
         DriverShoppingItemModel(
           id: 1,
           itemSource: 'MANUAL',
-          name: 'ramen mala',
+          name: '  ramen mala',
           quantity: 1,
           unitPrice: 12000,
           subtotal: 12000,
           isAvailable: true,
           notes: 'less ice',
+        ),
+      ],
+      proofs: [
+        DriverOrderProofModel(
+          id: 1,
+          type: 'receipt',
+          label: 'Foto struk',
+          photoUrl: 'https://example.com/receipt.jpg',
+          status: 'approved',
+          createdAt: DateTime.now().toUtc(),
         ),
       ],
       statusTimeline: [

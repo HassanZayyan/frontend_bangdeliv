@@ -8,6 +8,7 @@ import '../../../../core/widgets/bang_async_state.dart';
 import '../../../../models/driver_order_model.dart';
 import '../../../../services/driver_order_service.dart';
 import '../../../../widgets/order_chat_badge_icon.dart';
+import '../../../navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
 import '../../../orders/application/order_chat_unread_provider.dart';
 import '../../application/driver_order_providers.dart';
 import '../widgets/driver_active_order_action_widgets.dart';
@@ -88,7 +89,12 @@ class DriverOrderHistoryDetailScreen extends ConsumerWidget {
               },
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                padding: const EdgeInsets.fromLTRB(
+                  16,
+                  12,
+                  16,
+                  BangFloatingBottomNavBar.scrollClearance - 42,
+                ),
                 children: [
                   DriverOrderMetaCard(order: order),
                   const SizedBox(height: 12),
@@ -145,45 +151,64 @@ class _HistoryShoppingItemsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return _HistoryCardShell(
       title: 'Item Belanja',
-      icon: Icons.shopping_bag_outlined,
       child: Column(
-        children: items
-            .map(
-              (item) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.name,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${item.quantity} item',
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                      ),
-                    ),
-                    if ((item.notes ?? '').trim().isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        item.notes!.trim(),
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ],
+        children: [
+          for (var index = 0; index < items.length; index++)
+            _shoppingItemLine(items[index], isLast: index == items.length - 1),
+        ],
+      ),
+    );
+  }
+
+  Widget _shoppingItemLine(
+    DriverShoppingItemModel item, {
+    required bool isLast,
+  }) {
+    final itemName = item.name.trim().isEmpty ? '-' : item.name.trim();
+    final note = (item.notes ?? '').trim();
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 10),
+      child: SizedBox(
+        width: double.infinity,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              itemName,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                height: 1.25,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              '${item.quantity} item',
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                height: 1.25,
+              ),
+            ),
+            if (note.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                note,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                  height: 1.25,
                 ),
               ),
-            )
-            .toList(growable: false),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -205,7 +230,6 @@ class _HistoryProofsCard extends StatelessWidget {
 
     return _HistoryCardShell(
       title: 'Bukti Foto',
-      icon: Icons.photo_library_outlined,
       child: Wrap(
         spacing: 10,
         runSpacing: 10,
@@ -287,14 +311,9 @@ class _HistoryProofsCard extends StatelessWidget {
 }
 
 class _HistoryCardShell extends StatelessWidget {
-  const _HistoryCardShell({
-    required this.title,
-    required this.icon,
-    required this.child,
-  });
+  const _HistoryCardShell({required this.title, required this.child});
 
   final String title;
-  final IconData icon;
   final Widget child;
 
   @override
@@ -317,19 +336,13 @@ class _HistoryCardShell extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(icon, color: AppColors.primary, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 15,
-                ),
-              ),
-            ],
+          Text(
+            title,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w800,
+              fontSize: 16,
+            ),
           ),
           const SizedBox(height: 12),
           child,

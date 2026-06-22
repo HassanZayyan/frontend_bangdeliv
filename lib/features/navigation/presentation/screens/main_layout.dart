@@ -90,26 +90,28 @@ class _MainLayoutState extends State<MainLayout> {
 
         _handleSystemBack(location);
       },
-      child: Scaffold(
-        backgroundColor: AppColors.background,
-        body: BangFloatingBottomNavHost(
-          navigationBar: BangFloatingBottomNavBar(
-            currentIndex: _calculateSelectedIndex(context),
-            onTap: (index) => _onItemTapped(index, context),
-            items: const [
-              BangFloatingNavItem(icon: Icons.home_filled, label: 'Beranda'),
-              BangFloatingNavItem(
-                icon: Icons.assignment_rounded,
-                label: 'Aktivitas',
-              ),
-              BangFloatingNavItem(
-                icon: Icons.person_outline,
-                activeIcon: Icons.person,
-                label: 'Profil',
-              ),
-            ],
+      child: BangFloatingBottomNavOverlayTheme(
+        child: Scaffold(
+          backgroundColor: AppColors.background,
+          body: BangFloatingBottomNavHost(
+            navigationBar: BangFloatingBottomNavBar(
+              currentIndex: _calculateSelectedIndex(context),
+              onTap: (index) => _onItemTapped(index, context),
+              items: const [
+                BangFloatingNavItem(icon: Icons.home_filled, label: 'Beranda'),
+                BangFloatingNavItem(
+                  icon: Icons.assignment_rounded,
+                  label: 'Aktivitas',
+                ),
+                BangFloatingNavItem(
+                  icon: Icons.person_outline,
+                  activeIcon: Icons.person,
+                  label: 'Profil',
+                ),
+              ],
+            ),
+            child: widget.child,
           ),
-          child: widget.child,
         ),
       ),
     );

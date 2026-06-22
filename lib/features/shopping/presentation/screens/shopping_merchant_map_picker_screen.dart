@@ -39,7 +39,7 @@ class ShoppingMerchantMapPickerScreen extends ConsumerStatefulWidget {
 
 class _ShoppingMerchantMapPickerScreenState
     extends ConsumerState<ShoppingMerchantMapPickerScreen> {
-  static const _fallbackCenter = LatLng(-7.3305, 110.5084);
+  static const _fallbackCenter = LatLng(-7.319916770351389, 110.46393594806243);
 
   final _searchController = TextEditingController();
   late final GoogleMapsLookupService _mapsLookup;

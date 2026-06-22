@@ -27,9 +27,13 @@ class AddressLocationPickerScreen extends StatefulWidget {
 
 class _AddressLocationPickerScreenState
     extends State<AddressLocationPickerScreen> {
-  static const LatLng _fallbackCenter = LatLng(-7.3294948, 110.5080427);
+  static const LatLng _fallbackCenter = LatLng(
+    -7.319916770351389,
+    110.46393594806243,
+  );
 
   GoogleMapController? _mapController;
+  final SearchController _searchController = SearchController();
   final _mapsLookup = const GoogleMapsLookupService();
   late LatLng _cameraTarget;
   late double _initialZoom;
@@ -39,6 +43,7 @@ class _AddressLocationPickerScreenState
   int _addressRequestId = 0;
   String? _selectedAddress;
   bool _isResolvingAddress = false;
+  bool _skipNextCameraIdleGeocode = false;
 
   @override
   void initState() {
@@ -57,10 +62,16 @@ class _AddressLocationPickerScreenState
 
     if (!hasInitialCoordinate) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
         _moveToCurrentLocation();
       });
     } else {
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
         _resolveSelectedAddress(_cameraTarget);
       });
     }
@@ -79,6 +90,7 @@ class _AddressLocationPickerScreenState
 
   @override
   void dispose() {
+    _searchController.dispose();
     _mapController?.dispose();
     super.dispose();
   }
@@ -98,7 +110,7 @@ class _AddressLocationPickerScreenState
 
   GoogleMapsLookupScope get _addressSearchScope =>
       widget.restrictAddressSearchToServiceArea
-      ? GoogleMapsLookupScope.salatigaServiceAreaAddress
+      ? GoogleMapsLookupScope.bangDelivServiceAreaAddress
       : GoogleMapsLookupScope.indonesia;
 
   @override
@@ -144,7 +156,8 @@ class _AddressLocationPickerScreenState
                         },
                         onCameraMove: (position) {
                           _cameraTarget = position.target;
-                          if (!_isResolvingCurrentLocation) {
+                          if (!_isResolvingCurrentLocation &&
+                              !_skipNextCameraIdleGeocode) {
                             _selectedSource = 'map_pin';
                           }
                         },
@@ -299,31 +312,64 @@ class _AddressLocationPickerScreenState
 
   Widget _buildSearchBar() {
     return SearchAnchor(
+      searchController: _searchController,
       viewBackgroundColor: AppColors.white,
       viewSurfaceTintColor: AppColors.white,
       builder: (BuildContext context, SearchController controller) {
+        final fieldFontSize = AppTextScaling.adaptive(
+          context,
+          normal: 14,
+          large: 13.25,
+        );
+
         return SearchBar(
           controller: controller,
+          constraints: const BoxConstraints(minHeight: 50),
           padding: const WidgetStatePropertyAll<EdgeInsets>(
-            EdgeInsets.symmetric(horizontal: 16),
+            EdgeInsets.symmetric(horizontal: 14),
           ),
           onTap: controller.openView,
           onChanged: (_) => controller.openView(),
-          leading: const Icon(Icons.search),
+          onSubmitted: (value) async {
+            final query = value.trim();
+            if (query.isEmpty) return;
+            controller.closeView(query);
+            await _goToPlace(fallbackQuery: query);
+            controller.clear();
+            FocusManager.instance.primaryFocus?.unfocus();
+          },
+          leading: const Icon(Icons.search, color: AppColors.textSecondary),
+          textStyle: WidgetStatePropertyAll(
+            TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: fieldFontSize,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
           hintText: 'Cari alamat / lokasi...',
-          hintStyle: const WidgetStatePropertyAll(
-            TextStyle(color: AppColors.textSecondary, fontSize: 16),
+          hintStyle: WidgetStatePropertyAll(
+            TextStyle(
+              color: AppColors.textMuted,
+              fontSize: fieldFontSize,
+              fontWeight: FontWeight.w400,
+            ),
           ),
-          side: const WidgetStatePropertyAll(
-            BorderSide(color: AppColors.border),
-          ),
+          side: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.focused)) {
+              return const BorderSide(color: AppColors.primary, width: 1.5);
+            }
+            return const BorderSide(color: AppColors.border);
+          }),
           shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
-          backgroundColor: WidgetStatePropertyAll(
-            AppColors.white.withValues(alpha: 0.95),
+          backgroundColor: const WidgetStatePropertyAll(AppColors.surface),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+          shadowColor: const WidgetStatePropertyAll(Colors.transparent),
+          overlayColor: WidgetStatePropertyAll(
+            AppColors.primary.withValues(alpha: 0.08),
           ),
-          elevation: const WidgetStatePropertyAll(1),
+          elevation: const WidgetStatePropertyAll(0),
         );
       },
       suggestionsBuilder:
@@ -347,9 +393,15 @@ class _AddressLocationPickerScreenState
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                onTap: () {
+                onTap: () async {
                   controller.closeView(prediction.description);
-                  _goToPlace(prediction.placeId);
+                  await _goToPlace(
+                    placeId: prediction.placeId,
+                    fallbackQuery: prediction.description,
+                    preferredAddress: prediction.description,
+                  );
+                  controller.clear();
+                  FocusManager.instance.primaryFocus?.unfocus();
                 },
               );
             });
@@ -364,6 +416,10 @@ class _AddressLocationPickerScreenState
 
     if (_isResolvingCurrentLocation) {
       setState(() {});
+      return;
+    }
+    if (_skipNextCameraIdleGeocode) {
+      _skipNextCameraIdleGeocode = false;
       return;
     }
 
@@ -491,7 +547,11 @@ class _AddressLocationPickerScreenState
     }
   }
 
-  Future<void> _goToPlace(String? placeId) async {
+  Future<void> _goToPlace({
+    String? placeId,
+    String? fallbackQuery,
+    String? preferredAddress,
+  }) async {
     if (!_mapsLookup.isConfigured) {
       _showMessage('Google Maps API key belum dikonfigurasi.');
       return;
@@ -499,6 +559,7 @@ class _AddressLocationPickerScreenState
 
     final resolved = await _mapsLookup.resolvePlace(
       placeId: placeId,
+      fallbackQuery: fallbackQuery,
       scope: _addressSearchScope,
     );
     if (resolved == null) {
@@ -506,13 +567,22 @@ class _AddressLocationPickerScreenState
       return;
     }
 
+    if (!mounted) {
+      return;
+    }
+
     _cameraTarget = resolved.target;
 
     final controller = _mapController;
     if (controller != null) {
-      await controller.animateCamera(
-        CameraUpdate.newLatLngZoom(resolved.target, 18),
-      );
+      _skipNextCameraIdleGeocode = true;
+      try {
+        await controller.animateCamera(
+          CameraUpdate.newLatLngZoom(resolved.target, 18),
+        );
+      } catch (_) {
+        _mapController = null;
+      }
     }
 
     if (!mounted) return;
@@ -521,7 +591,7 @@ class _AddressLocationPickerScreenState
     });
     await _resolveSelectedAddress(
       resolved.target,
-      preferredAddress: resolved.address,
+      preferredAddress: preferredAddress ?? resolved.address,
     );
   }
 }

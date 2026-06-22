@@ -20,7 +20,10 @@ class RouteLocationPickerScreen extends StatefulWidget {
 }
 
 class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
-  static const LatLng _fallbackCenter = LatLng(-7.3294948, 110.5080427);
+  static const LatLng _fallbackCenter = LatLng(
+    -7.319916770351389,
+    110.46393594806243,
+  );
   static const double _minimumRouteDistanceMeters = 20;
   static const String _routeTooCloseMessage =
       'Titik tujuan terlalu dekat dengan titik jemput. Pilih titik tujuan yang berbeda.';
@@ -167,10 +170,17 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                 viewBackgroundColor: AppColors.white,
                 viewSurfaceTintColor: AppColors.white,
                 builder: (BuildContext context, SearchController controller) {
+                  final fieldFontSize = AppTextScaling.adaptive(
+                    context,
+                    normal: 14,
+                    large: 13.25,
+                  );
+
                   return SearchBar(
                     controller: controller,
+                    constraints: const BoxConstraints(minHeight: 50),
                     padding: const WidgetStatePropertyAll<EdgeInsets>(
-                      EdgeInsets.symmetric(horizontal: 16),
+                      EdgeInsets.symmetric(horizontal: 14),
                     ),
                     onTap: controller.openView,
                     onChanged: (_) => controller.openView(),
@@ -182,23 +192,52 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                       controller.clear();
                       FocusManager.instance.primaryFocus?.unfocus();
                     },
-                    leading: const Icon(Icons.search),
-                    hintText: 'Cari alamat / lokasi...',
-                    hintStyle: const WidgetStatePropertyAll(
-                      TextStyle(color: AppColors.textSecondary, fontSize: 16),
+                    leading: const Icon(
+                      Icons.search,
+                      color: AppColors.textSecondary,
                     ),
-                    side: const WidgetStatePropertyAll(
-                      BorderSide(color: AppColors.border),
-                    ),
-                    shape: WidgetStatePropertyAll(
-                      RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                    textStyle: WidgetStatePropertyAll(
+                      TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: fieldFontSize,
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
-                    backgroundColor: WidgetStatePropertyAll(
-                      AppColors.white.withValues(alpha: 0.95),
+                    hintText: 'Cari alamat / lokasi...',
+                    hintStyle: WidgetStatePropertyAll(
+                      TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: fieldFontSize,
+                        fontWeight: FontWeight.w400,
+                      ),
                     ),
-                    elevation: const WidgetStatePropertyAll(1),
+                    side: WidgetStateProperty.resolveWith((states) {
+                      if (states.contains(WidgetState.focused)) {
+                        return const BorderSide(
+                          color: AppColors.primary,
+                          width: 1.5,
+                        );
+                      }
+                      return const BorderSide(color: AppColors.border);
+                    }),
+                    shape: WidgetStatePropertyAll(
+                      RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    backgroundColor: const WidgetStatePropertyAll(
+                      AppColors.surface,
+                    ),
+                    surfaceTintColor: const WidgetStatePropertyAll(
+                      Colors.transparent,
+                    ),
+                    shadowColor: const WidgetStatePropertyAll(
+                      Colors.transparent,
+                    ),
+                    overlayColor: WidgetStatePropertyAll(
+                      AppColors.primary.withValues(alpha: 0.08),
+                    ),
+                    elevation: const WidgetStatePropertyAll(0),
                   );
                 },
                 suggestionsBuilder:
@@ -784,11 +823,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     }
   }
 
-  void _saveActivePoint(
-    String source, {
-    String? target,
-    String? address,
-  }) {
+  void _saveActivePoint(String source, {String? target, String? address}) {
     final cleanedAddress = _mapsLookup.cleanAddress(address);
     final saveTarget = target ?? _activeTarget;
     final point = _RoutePoint(
