@@ -105,6 +105,22 @@ void main() {
     expect(find.textContaining('baskoro raya'), findsOneWidget);
   });
 
+  testWidgets('empty incoming orders uses activity empty illustration', (
+    tester,
+  ) async {
+    await _pumpDriverOrders(
+      tester,
+      service: _AcceptNavigationDriverOrderService(
+        incomingOrders: const <DriverOrderModel>[],
+      ),
+    );
+
+    expect(find.text('Belum ada orderan masuk'), findsOneWidget);
+    expect(find.byIcon(Icons.description_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.schedule_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.inbox_outlined), findsNothing);
+  });
+
   testWidgets('incoming shopping order shows only available merchant count', (
     tester,
   ) async {

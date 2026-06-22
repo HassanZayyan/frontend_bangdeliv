@@ -308,7 +308,7 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
 
   Widget _buildAddressSummary(
     SavedAddressModel address, {
-    int addressMaxLines = 3,
+    int addressMaxLines = 2,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

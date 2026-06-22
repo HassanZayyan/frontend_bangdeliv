@@ -52,13 +52,12 @@ class DriverShoppingItemChangeRequestCard extends StatelessWidget {
         children: [
           const Row(
             children: [
-              Icon(Icons.pending_actions_outlined, color: AppColors.primary),
-              SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Request Item Customer',
                   style: TextStyle(
                     color: AppColors.textPrimary,
+                    fontSize: 16,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -488,8 +487,9 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
                 child: Text(
                   'Checkout Belanja',
                   style: TextStyle(
-                    fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),

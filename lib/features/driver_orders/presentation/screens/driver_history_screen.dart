@@ -312,23 +312,21 @@ class _HistoryCard extends StatelessWidget {
                     order.displayOrderNumber,
                     style: const TextStyle(
                       color: AppColors.textSecondary,
+                      fontSize: 11.5,
                       fontWeight: FontWeight.w600,
+                      height: 1.2,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const Spacer(),
-                  _statusPill(
+                  _statusLabel(
+                    context,
                     order.status,
                     foreground: isCompleted
                         ? AppColors.success
                         : AppColors.error,
                   ),
-                  if (onTap != null) ...[
-                    const SizedBox(width: 8),
-                    const Icon(
-                      Icons.chevron_right_rounded,
-                      color: AppColors.textSecondary,
-                    ),
-                  ],
                 ],
               ),
               const SizedBox(height: 8),
@@ -380,24 +378,42 @@ class _HistoryCard extends StatelessWidget {
   }
 
   String _formatDate(DateTime date) {
-    return formatDateTime(date);
+    return formatDateMonthTime(date);
   }
 
-  Widget _statusPill(String text, {required Color foreground}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(100),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: foreground,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-        ),
+  Widget _statusLabel(
+    BuildContext context,
+    String text, {
+    required Color foreground,
+  }) {
+    return AppTextScaling.clampForCompactComponent(
+      context: context,
+      maxScaleFactor: AppTextScaling.denseComponentMaxScaleFactor,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              color: foreground,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: foreground,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

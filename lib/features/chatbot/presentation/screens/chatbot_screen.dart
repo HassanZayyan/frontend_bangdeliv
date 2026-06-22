@@ -1041,7 +1041,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                     actionHint: actionHint,
                     actionsEnabled: actionsEnabled,
                     isUser: isUser,
-                    isSecondaryAction: true,
                   ),
               ],
             ),
@@ -1121,7 +1120,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                   actionHint: actionHint,
                   actionsEnabled: actionsEnabled,
                   isUser: isUser,
-                  isSecondaryAction: true,
                 ),
             ],
           ),
@@ -1179,7 +1177,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     required bool actionsEnabled,
     required bool isUser,
     bool isPrimaryChoice = false,
-    bool isSecondaryAction = false,
     bool hasPreviousGroup = false,
   }) {
     if (actions.isEmpty) {
@@ -1202,7 +1199,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                 actionsEnabled: actionsEnabled,
                 isUser: isUser,
                 isPrimaryChoice: isPrimaryChoice,
-                isSecondaryAction: isSecondaryAction,
               ),
           ],
         ),
@@ -1233,7 +1229,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     required bool actionsEnabled,
     required bool isUser,
     bool isPrimaryChoice = false,
-    bool isSecondaryAction = false,
   }) {
     final foregroundColor = isUser ? Colors.white : AppColors.primaryDark;
     final borderColor = isUser
@@ -1243,18 +1238,15 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     return OutlinedButton.icon(
       onPressed: actionsEnabled ? () => _handleActionHint(actionHint) : null,
       icon: Icon(_iconForActionHint(actionHint), size: 16),
-      label: Text(actionHint.label),
+      label: Text(_displayLabelForActionHint(actionHint)),
       style: OutlinedButton.styleFrom(
         foregroundColor: foregroundColor,
-        side: BorderSide(color: borderColor),
+        side: BorderSide(color: borderColor, width: 1.2),
         padding: EdgeInsets.symmetric(
           horizontal: isPrimaryChoice ? 14 : 12,
           vertical: isPrimaryChoice ? 9 : 8,
         ),
-        textStyle: TextStyle(
-          fontSize: isSecondaryAction ? 11.5 : 12,
-          fontWeight: isPrimaryChoice ? FontWeight.w700 : FontWeight.w600,
-        ),
+        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -1262,6 +1254,14 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   IconData _iconForActionHint(ChatbotMessageActionHint actionHint) {
     if (_isPaymentActionHint(actionHint)) {
       return Icons.payments_outlined;
+    }
+
+    if (_isConfirmationActionHint(actionHint)) {
+      return Icons.check_circle_outline_rounded;
+    }
+
+    if (_isRouteEditActionHint(actionHint)) {
+      return Icons.edit_location_alt_outlined;
     }
 
     return switch (actionHint.type) {
@@ -1273,6 +1273,40 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       ChatbotMessageActionType.openTrackOrder => Icons.map_outlined,
       ChatbotMessageActionType.openActivity => Icons.receipt_long_outlined,
     };
+  }
+
+  String _displayLabelForActionHint(ChatbotMessageActionHint actionHint) {
+    if (_isConfirmationActionHint(actionHint)) {
+      return 'Buat Pesanan';
+    }
+
+    final label = actionHint.label.trim();
+    if (label.isEmpty) {
+      return label;
+    }
+
+    return _friendlyLocationActionLabel(label);
+  }
+
+  String _friendlyLocationActionLabel(String label) {
+    var text = label;
+    const replacements = <String, String>{
+      'Titik Jemput/Tujuan': 'Lokasi Jemput/Tujuan',
+      'Titik Jemput & Tujuan': 'Lokasi Jemput/Tujuan',
+      'Titik Ambil & Tujuan': 'Lokasi Ambil/Tujuan',
+      'Titik Ambil/Tujuan': 'Lokasi Ambil/Tujuan',
+      'Titik Jemput': 'Lokasi Jemput',
+      'Titik Ambil': 'Lokasi Ambil',
+      'Titik Tujuan': 'Lokasi Tujuan',
+      'Titik Antar': 'Lokasi Antar',
+      'Titik di Peta': 'Lokasi di Peta',
+    };
+
+    for (final entry in replacements.entries) {
+      text = text.replaceAll(entry.key, entry.value);
+    }
+
+    return text;
   }
 
   bool _hasPaymentActionHints(List<ChatbotMessageActionHint> actionHints) {

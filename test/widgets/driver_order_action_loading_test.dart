@@ -46,6 +46,43 @@ void main() {
     );
     expect(actionButtons, hasLength(2));
     expect(actionButtons.every((button) => button.onPressed == null), isTrue);
+    expect(find.byIcon(Icons.touch_app_rounded), findsNothing);
+
+    final actionTitle = tester.widget<Text>(find.text('Aksi Driver'));
+    expect(actionTitle.style?.fontSize, 16);
+    expect(actionTitle.style?.fontWeight, FontWeight.w800);
+  });
+
+  testWidgets('shopping item request title is text only', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DriverShoppingItemChangeRequestCard(
+            request: const ShoppingItemChangeRequestModel(
+              status: 'PENDING_DRIVER',
+              triggerType: 'CUSTOMER_ITEM_CHANGE_REQUESTED',
+              action: 'ADD',
+              canDriverRespond: true,
+              items: [
+                ShoppingItemChangeRequestItemModel(name: 'Es teh', quantity: 1),
+              ],
+            ),
+            isOrderBusy: false,
+            isApproving: false,
+            isRejecting: false,
+            onRespond: (_) async => null,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byIcon(Icons.pending_actions_outlined), findsNothing);
+
+    final requestTitle = tester.widget<Text>(
+      find.text('Request Item Customer'),
+    );
+    expect(requestTitle.style?.fontSize, 16);
+    expect(requestTitle.style?.fontWeight, FontWeight.w800);
   });
 
   testWidgets('proof checklist only shows spinner for selected proof type', (
@@ -103,6 +140,10 @@ void main() {
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(find.text('Upload Foto Struk Opsional'), findsOneWidget);
+
+    final checkoutTitle = tester.widget<Text>(find.text('Checkout Belanja'));
+    expect(checkoutTitle.style?.fontSize, 16);
+    expect(checkoutTitle.style?.fontWeight, FontWeight.w800);
   });
 
   testWidgets('saved shopping checkout disables checkout action', (

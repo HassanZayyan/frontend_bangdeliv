@@ -120,9 +120,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                     const SizedBox(height: 12),
                     _buildSettingsCard(profile),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 12),
                     _buildHelpCard(),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 12),
                     _buildLogoutButton(),
                     const SizedBox(height: 12),
                     const Center(
@@ -472,68 +472,55 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     bool highlightTrailing = false,
     VoidCallback? onTap,
   }) {
-    return InkWell(
+    return ListTile(
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
-        child: Row(
-          children: [
-            SizedBox.square(
-              dimension: 28,
-              child: Icon(icon, color: AppColors.primary, size: 21),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-            if (trailingText != null) ...[
-              const SizedBox(width: 12),
-              SizedBox(
-                width: AppTextScaling.adaptive(context, normal: 82, large: 96),
-                child: AppTextScaling.clampForCompactComponent(
-                  context: context,
-                  maxScaleFactor: AppTextScaling.denseComponentMaxScaleFactor,
-                  child: Text(
-                    trailingText,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.right,
-                    style: TextStyle(
-                      color: highlightTrailing
-                          ? AppColors.primary
-                          : AppColors.textSecondary,
-                      fontSize: 12.5,
-                      fontWeight: highlightTrailing
-                          ? FontWeight.w700
-                          : FontWeight.w600,
-                    ),
+      leading: Icon(icon, color: AppColors.primary),
+      title: Text(
+        title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: AppColors.textPrimary,
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+        ),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (trailingText != null) ...[
+            SizedBox(
+              width: AppTextScaling.adaptive(context, normal: 82, large: 96),
+              child: AppTextScaling.clampForCompactComponent(
+                context: context,
+                maxScaleFactor: AppTextScaling.denseComponentMaxScaleFactor,
+                child: Text(
+                  trailingText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    color: highlightTrailing
+                        ? AppColors.primary
+                        : AppColors.textSecondary,
+                    fontSize: 12.5,
+                    fontWeight: highlightTrailing
+                        ? FontWeight.w700
+                        : FontWeight.w600,
                   ),
                 ),
               ),
-            ],
-            const SizedBox(width: 8),
-            const Icon(
-              Icons.chevron_right_rounded,
-              size: 20,
-              color: AppColors.textSecondary,
             ),
+            const SizedBox(width: 8),
           ],
-        ),
+          const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+        ],
       ),
     );
   }
 
   Widget _divider() {
-    return const Divider(height: 1, indent: 62, color: AppColors.border);
+    return const Divider(height: 1, indent: 56, color: AppColors.border);
   }
 
   Future<void> _handleLogout() async {

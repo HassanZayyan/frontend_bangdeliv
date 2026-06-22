@@ -72,7 +72,7 @@ class _DriverMainLayoutState extends ConsumerState<DriverMainLayout> {
         ? ref.watch(driverIncomingOrderCountProvider)
         : 0;
 
-    return Scaffold(
+    final scaffold = Scaffold(
       backgroundColor: AppColors.background,
       body: isActiveDriver
           ? BangFloatingBottomNavHost(
@@ -104,5 +104,9 @@ class _DriverMainLayoutState extends ConsumerState<DriverMainLayout> {
             )
           : widget.child,
     );
+
+    return isActiveDriver
+        ? BangFloatingBottomNavOverlayTheme(child: scaffold)
+        : scaffold;
   }
 }

@@ -30,6 +30,18 @@ class BangFloatingBottomNavBar extends StatelessWidget {
   final ValueChanged<int> onTap;
 
   static const double scrollClearance = 120;
+  static const double visualHeight = 60;
+  static const double snackBarGap = 12;
+  static const double _bottomMinimumPadding = 12;
+
+  static double snackBarBottomInset(BuildContext context) {
+    final systemBottomPadding = MediaQuery.paddingOf(context).bottom;
+    final navBottomPadding = systemBottomPadding > _bottomMinimumPadding
+        ? systemBottomPadding
+        : _bottomMinimumPadding;
+
+    return navBottomPadding + visualHeight + snackBarGap;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -89,6 +101,34 @@ class BangFloatingBottomNavBar extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class BangFloatingBottomNavOverlayTheme extends StatelessWidget {
+  const BangFloatingBottomNavOverlayTheme({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final snackBarTheme = theme.snackBarTheme.copyWith(
+      behavior: SnackBarBehavior.floating,
+      insetPadding: EdgeInsets.fromLTRB(
+        16,
+        0,
+        16,
+        BangFloatingBottomNavBar.snackBarBottomInset(context),
+      ),
+      shape:
+          theme.snackBarTheme.shape ??
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    );
+
+    return Theme(
+      data: theme.copyWith(snackBarTheme: snackBarTheme),
+      child: child,
     );
   }
 }

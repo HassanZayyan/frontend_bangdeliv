@@ -358,7 +358,6 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
   String? _locationErrorText;
   double? _selectedLatitude;
   double? _selectedLongitude;
-  String _selectedLocationSource = 'Belum dipilih';
 
   bool _isDefault = false;
   bool _isLoadingProfile = true;
@@ -460,11 +459,9 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
     )) {
       _selectedLatitude = address.latitude;
       _selectedLongitude = address.longitude;
-      _selectedLocationSource = 'Alamat tersimpan';
     } else {
       _selectedLatitude = null;
       _selectedLongitude = null;
-      _selectedLocationSource = 'Belum dipilih';
     }
     _isLoadingProfile = false;
   }
@@ -575,8 +572,13 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
   }
 
   void _unfocusWhenKeyboardClosed() {
+    if (!mounted) {
+      return;
+    }
+
+    final view = View.maybeOf(context);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || MediaQuery.viewInsetsOf(context).bottom > 0) {
+      if (!mounted || (view?.viewInsets.bottom ?? 0) > 0) {
         return;
       }
 
@@ -595,6 +597,10 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
   }
 
   void _handleBackNavigation() {
+    if (!mounted) {
+      return;
+    }
+
     if (_hasFocusedField || MediaQuery.viewInsetsOf(context).bottom > 0) {
       _dismissAddressFormFocus();
       _unfocusWhenKeyboardClosed();
@@ -703,8 +709,6 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildAddressLabelSelector(),
-                              SizedBox(height: fieldSpacing),
                               _buildTextField(
                                 label: 'Nama Penerima',
                                 controller: _recipientController,
@@ -743,9 +747,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
                                 },
                               ),
                               SizedBox(height: fieldSpacing),
-                              _buildSectionTitle('Wilayah Pengantaran'),
-                              const SizedBox(height: 6),
-                              _buildCoverageSelectorCard(),
+                              _buildCoverageSelectorFields(),
                               SizedBox(height: fieldSpacing),
                               _buildTextField(
                                 label: 'Detail Alamat',
@@ -762,11 +764,9 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
                                 },
                               ),
                               SizedBox(height: fieldSpacing),
-                              _buildSectionTitle('Lokasi di Peta'),
-                              const SizedBox(height: 6),
                               _buildLocationPickerCard(),
-                              const SizedBox(height: 12),
-                              _buildDefaultAddressToggle(),
+                              const SizedBox(height: 10),
+                              _buildAddressSettingsSection(),
                               SizedBox(height: isCompact ? 10 : 14),
                               if (_isEditMode)
                                 Row(
@@ -1074,9 +1074,6 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
     setState(() {
       _selectedLatitude = result.latitude;
       _selectedLongitude = result.longitude;
-      _selectedLocationSource = result.source == 'gps'
-          ? 'Lokasi saat ini'
-          : 'Dipilih di peta';
       _locationErrorText = null;
     });
   }
@@ -1106,6 +1103,10 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
         );
       },
     );
+
+    if (!mounted) {
+      return;
+    }
 
     if (shouldDelete != true) {
       return;
@@ -1211,17 +1212,6 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
     );
   }
 
-  Widget _buildSectionTitle(String text) {
-    return Text(
-      text,
-      style: const TextStyle(
-        color: AppColors.textSecondary,
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-      ),
-    );
-  }
-
   Widget _buildDefaultAddressToggle() {
     final isDisabled = _isSubmitting || _isDeleting;
 
@@ -1257,117 +1247,150 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
     );
   }
 
-  Widget _buildCoverageSelectorCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: _coverageErrorText == null
-              ? AppColors.border
-              : AppColors.error,
+  Widget _buildAddressSettingsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildDefaultAddressToggle(),
+        const SizedBox(height: 6),
+        _buildAddressLabelSelector(),
+      ],
+    );
+  }
+
+  Widget _buildOutlinedSection({
+    required String label,
+    required Widget child,
+    required bool hasError,
+  }) {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(
+        color: hasError ? AppColors.error : AppColors.border,
+      ),
+    );
+
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: label,
+        floatingLabelBehavior: FloatingLabelBehavior.always,
+        labelStyle: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 13,
+          color: hasError ? AppColors.error : AppColors.textSecondary,
         ),
+        isDense: true,
+        filled: true,
+        fillColor: AppColors.white,
+        contentPadding: const EdgeInsets.all(14),
+        border: border,
+        enabledBorder: border,
+        focusedBorder: border,
+        errorBorder: border,
+        focusedErrorBorder: border,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildReadOnlyAreaField(label: 'Provinsi', value: _selectedProvince),
-          const SizedBox(height: 10),
-          _buildAreaDropdownField(
-            label: 'Kabupaten/Kota',
-            value: _selectedCityRegency,
-            hintText: 'Pilih kabupaten/kota',
-            items: _cityRegencyOptions,
-            onChanged: (value) {
-              if (_isSubmitting || _isDeleting) {
-                return;
-              }
-              setState(() {
-                _selectedCityRegency = value;
-                _selectedDistrict = null;
-                _selectedSubDistrict = null;
-                _selectedPostalCode = null;
-                _coverageErrorText = null;
-              });
-            },
+      child: child,
+    );
+  }
+
+  Widget _buildCoverageSelectorFields() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildReadOnlyAreaField(label: 'Provinsi', value: _selectedProvince),
+        const SizedBox(height: 10),
+        _buildAreaDropdownField(
+          label: 'Kabupaten/Kota',
+          value: _selectedCityRegency,
+          hintText: 'Pilih kabupaten/kota',
+          items: _cityRegencyOptions,
+          onChanged: (value) {
+            if (_isSubmitting || _isDeleting) {
+              return;
+            }
+            setState(() {
+              _selectedCityRegency = value;
+              _selectedDistrict = null;
+              _selectedSubDistrict = null;
+              _selectedPostalCode = null;
+              _coverageErrorText = null;
+            });
+          },
+        ),
+        const SizedBox(height: 10),
+        _buildAreaDropdownField(
+          label: 'Kecamatan',
+          value: _selectedDistrict,
+          hintText: _selectedCityRegency == null
+              ? 'Pilih kabupaten/kota dulu'
+              : 'Pilih kecamatan',
+          items: _districtOptions,
+          onChanged: _selectedCityRegency == null
+              ? null
+              : (value) {
+                  if (_isSubmitting || _isDeleting) {
+                    return;
+                  }
+                  setState(() {
+                    _selectedDistrict = value;
+                    _selectedSubDistrict = null;
+                    _selectedPostalCode = null;
+                    _coverageErrorText = null;
+                  });
+                },
+        ),
+        const SizedBox(height: 10),
+        _buildAreaDropdownField(
+          label: 'Kelurahan/Desa',
+          value: _selectedSubDistrict,
+          hintText: _selectedDistrict == null
+              ? 'Pilih kecamatan dulu'
+              : 'Pilih kelurahan/desa',
+          items: _subDistrictOptions,
+          onChanged: _selectedDistrict == null
+              ? null
+              : (value) {
+                  if (_isSubmitting || _isDeleting) {
+                    return;
+                  }
+                  setState(() {
+                    _selectedSubDistrict = value;
+                    final postalOptions = _postalCodeOptions;
+                    _selectedPostalCode = postalOptions.isNotEmpty
+                        ? postalOptions.first
+                        : null;
+                    _coverageErrorText = null;
+                  });
+                },
+        ),
+        const SizedBox(height: 10),
+        _buildAreaDropdownField(
+          label: 'Kode Pos',
+          value: _selectedPostalCode,
+          hintText: _selectedSubDistrict == null
+              ? 'Pilih kelurahan/desa dulu'
+              : 'Pilih kode pos',
+          items: _postalCodeOptions,
+          onChanged: _selectedSubDistrict == null
+              ? null
+              : (value) {
+                  if (_isSubmitting || _isDeleting) {
+                    return;
+                  }
+                  setState(() {
+                    _selectedPostalCode = value;
+                    _coverageErrorText = null;
+                  });
+                },
+        ),
+        if (_coverageErrorText != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            _coverageErrorText!,
+            style: const TextStyle(color: AppColors.error, fontSize: 12),
           ),
-          const SizedBox(height: 10),
-          _buildAreaDropdownField(
-            label: 'Kecamatan',
-            value: _selectedDistrict,
-            hintText: _selectedCityRegency == null
-                ? 'Pilih kabupaten/kota dulu'
-                : 'Pilih kecamatan',
-            items: _districtOptions,
-            onChanged: _selectedCityRegency == null
-                ? null
-                : (value) {
-                    if (_isSubmitting || _isDeleting) {
-                      return;
-                    }
-                    setState(() {
-                      _selectedDistrict = value;
-                      _selectedSubDistrict = null;
-                      _selectedPostalCode = null;
-                      _coverageErrorText = null;
-                    });
-                  },
-          ),
-          const SizedBox(height: 10),
-          _buildAreaDropdownField(
-            label: 'Kelurahan/Desa',
-            value: _selectedSubDistrict,
-            hintText: _selectedDistrict == null
-                ? 'Pilih kecamatan dulu'
-                : 'Pilih kelurahan/desa',
-            items: _subDistrictOptions,
-            onChanged: _selectedDistrict == null
-                ? null
-                : (value) {
-                    if (_isSubmitting || _isDeleting) {
-                      return;
-                    }
-                    setState(() {
-                      _selectedSubDistrict = value;
-                      final postalOptions = _postalCodeOptions;
-                      _selectedPostalCode = postalOptions.isNotEmpty
-                          ? postalOptions.first
-                          : null;
-                      _coverageErrorText = null;
-                    });
-                  },
-          ),
-          const SizedBox(height: 10),
-          _buildAreaDropdownField(
-            label: 'Kode Pos',
-            value: _selectedPostalCode,
-            hintText: _selectedSubDistrict == null
-                ? 'Pilih kelurahan/desa dulu'
-                : 'Pilih kode pos',
-            items: _postalCodeOptions,
-            onChanged: _selectedSubDistrict == null
-                ? null
-                : (value) {
-                    if (_isSubmitting || _isDeleting) {
-                      return;
-                    }
-                    setState(() {
-                      _selectedPostalCode = value;
-                      _coverageErrorText = null;
-                    });
-                  },
-          ),
-          if (_coverageErrorText != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              _coverageErrorText!,
-              style: const TextStyle(color: AppColors.error, fontSize: 12),
-            ),
-          ],
         ],
-      ),
+      ],
     );
   }
 
@@ -1442,18 +1465,9 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
       _selectedLongitude,
     );
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: _locationErrorText == null
-              ? AppColors.border
-              : AppColors.error,
-        ),
-      ),
+    return _buildOutlinedSection(
+      label: 'Lokasi di Peta',
+      hasError: _locationErrorText != null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1475,16 +1489,6 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
             Text(
               _locationErrorText!,
               style: const TextStyle(color: AppColors.error, fontSize: 12),
-            ),
-          ],
-          if (hasPinnedLocation) ...[
-            const SizedBox(height: 4),
-            Text(
-              'Sumber: $_selectedLocationSource',
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12,
-              ),
             ),
           ],
           const SizedBox(height: 12),
@@ -1519,65 +1523,88 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
   }
 
   Widget _buildAddressLabelSelector() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final useInlineLayout = constraints.maxWidth >= 320;
+        final label = const Text(
           'Tandai sebagai',
           style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
-            color: AppColors.textSecondary,
+            color: AppColors.textPrimary,
+            fontSize: 12.5,
+            fontWeight: FontWeight.w400,
           ),
-        ),
-        const SizedBox(height: 6),
-        Row(
+        );
+        final options = _buildAddressLabelOptionsRow();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: _buildAddressLabelOption(
-                label: 'Rumah',
-                isSelected: _selectedLabel == 'Rumah',
+            if (useInlineLayout)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  label,
+                  const SizedBox(width: 12),
+                  Expanded(child: options),
+                ],
+              )
+            else ...[
+              label,
+              const SizedBox(height: 4),
+              options,
+            ],
+            if (_isCustomLabel) ...[
+              const SizedBox(height: 10),
+              _buildTextField(
+                label: 'Label Alamat',
+                controller: _customLabelController,
+                focusNode: _customLabelFocusNode,
+                hintText: 'Contoh: Kos, Toko, Kontrakan',
+                validator: (value) {
+                  final text = value?.trim() ?? '';
+                  if (text.isEmpty) {
+                    return 'Label alamat wajib diisi';
+                  }
+                  return null;
+                },
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildAddressLabelOption(
-                label: 'Kantor',
-                isSelected: _selectedLabel == 'Kantor',
+            ],
+            if (_labelErrorText != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                _labelErrorText!,
+                style: const TextStyle(color: AppColors.error, fontSize: 12),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildAddressLabelOption(
-                label: 'Lainnya',
-                isSelected: _selectedLabel == 'Lainnya',
-              ),
-            ),
+            ],
           ],
+        );
+      },
+    );
+  }
+
+  Widget _buildAddressLabelOptionsRow() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildAddressLabelOption(
+            label: 'Rumah',
+            isSelected: _selectedLabel == 'Rumah',
+          ),
         ),
-        if (_isCustomLabel) ...[
-          const SizedBox(height: 10),
-          _buildTextField(
-            label: 'Label Alamat',
-            controller: _customLabelController,
-            focusNode: _customLabelFocusNode,
-            hintText: 'Contoh: Kos, Toko, Kontrakan',
-            validator: (value) {
-              final text = value?.trim() ?? '';
-              if (text.isEmpty) {
-                return 'Label alamat wajib diisi';
-              }
-              return null;
-            },
+        const SizedBox(width: 8),
+        Expanded(
+          child: _buildAddressLabelOption(
+            label: 'Kantor',
+            isSelected: _selectedLabel == 'Kantor',
           ),
-        ],
-        if (_labelErrorText != null) ...[
-          const SizedBox(height: 6),
-          Text(
-            _labelErrorText!,
-            style: const TextStyle(color: AppColors.error, fontSize: 12),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _buildAddressLabelOption(
+            label: 'Lainnya',
+            isSelected: _selectedLabel == 'Lainnya',
           ),
-        ],
+        ),
       ],
     );
   }
@@ -1603,10 +1630,10 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
           });
         },
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
           decoration: BoxDecoration(
             color: isSelected ? AppColors.primaryLight : AppColors.white,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: isSelected ? AppColors.primary : AppColors.border,
             ),
@@ -1616,8 +1643,8 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
             label,
             style: TextStyle(
               color: isSelected ? AppColors.primaryDark : AppColors.textPrimary,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),

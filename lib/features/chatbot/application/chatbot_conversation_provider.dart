@@ -921,7 +921,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
           actionPayloads,
           'OPEN_MAP_PICKER_PICKUP',
           fallbackTarget: 'pickup',
-          fallbackLabel: 'Pilih Titik Jemput',
+          fallbackLabel: 'Pilih Lokasi Jemput',
         ),
       );
     }
@@ -933,7 +933,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
           actionPayloads,
           'OPEN_MAP_PICKER_DESTINATION',
           fallbackTarget: 'destination',
-          fallbackLabel: 'Pilih Titik Tujuan',
+          fallbackLabel: 'Pilih Lokasi Tujuan',
         ),
       );
     }
@@ -945,7 +945,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
           actionPayloads,
           'OPEN_MAP_PICKER_DROPOFF',
           fallbackTarget: 'dropoff',
-          fallbackLabel: 'Pilih Titik Tujuan',
+          fallbackLabel: 'Pilih Lokasi Tujuan',
         ),
       );
     }
@@ -953,15 +953,15 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     if (nextActions.contains('OPEN_MAP_PICKER_DELIVERY')) {
       final deliveryFallbackLabel =
           serviceType == 'nitip' && nextActions.contains('CONFIRM_DRAFT')
-          ? 'Ganti Titik Antar'
-          : 'Pilih Titik Antar';
+          ? 'Ganti Lokasi Antar'
+          : 'Pilih Lokasi Antar';
       add(
         _mapPickerHintFromPayload(
           actionPayloads,
           'OPEN_MAP_PICKER_DELIVERY',
           fallbackTarget: 'delivery',
           fallbackLabel: deliveryFallbackLabel,
-          labelOverride: deliveryFallbackLabel == 'Ganti Titik Antar'
+          labelOverride: deliveryFallbackLabel == 'Ganti Lokasi Antar'
               ? deliveryFallbackLabel
               : null,
         ),
@@ -995,10 +995,9 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         _presetMessageHintFromPayload(
           actionPayloads,
           'CONFIRM_DRAFT',
-          fallbackLabel: serviceType == 'nitip'
-              ? 'Konfirmasi Nitip'
-              : 'Konfirmasi',
+          fallbackLabel: 'Buat Pesanan',
           fallbackMessage: 'Konfirmasi',
+          labelOverride: 'Buat Pesanan',
         ),
       );
     }
@@ -1019,11 +1018,11 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
           actionPayloads,
           'RESET_DESTINATION',
           fallbackLabel: serviceType == 'antar_jemput'
-              ? 'Ubah Titik Jemput/Tujuan'
+              ? 'Ubah Lokasi Jemput/Tujuan'
               : 'Ubah Lokasi Tujuan',
           fallbackMessage: 'Ubah Tujuan',
           labelOverride: serviceType == 'antar_jemput'
-              ? 'Ubah Titik Jemput/Tujuan'
+              ? 'Ubah Lokasi Jemput/Tujuan'
               : 'Ubah Lokasi Tujuan',
         ),
       );
@@ -1038,7 +1037,9 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
           actionPayloads,
           'CHANGE_PICKUP',
           fallbackTarget: 'pickup',
-          fallbackLabel: 'Ubah Titik Jemput',
+          fallbackLabel: serviceType == 'kurir'
+              ? 'Ubah Lokasi Ambil'
+              : 'Ubah Lokasi Jemput',
         ),
       );
     }
@@ -1121,7 +1122,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
 
     return ChatbotMessageActionHint(
       type: ChatbotMessageActionType.openRoutePicker,
-      label: 'Ubah Titik Ambil & Tujuan',
+      label: 'Ubah Lokasi Ambil/Tujuan',
       routePoints: <ChatbotRoutePointHint>[
         pointFrom(
           'CHANGE_PICKUP',
@@ -1207,9 +1208,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
 
     final isCourier = serviceType == 'kurir';
     final label = (payloadMap['label']?.toString().trim() ?? '').isEmpty
-        ? (isCourier
-              ? 'Atur Titik Ambil & Tujuan'
-              : 'Atur Titik Jemput & Tujuan')
+        ? (isCourier ? 'Atur Lokasi Ambil/Tujuan' : 'Atur Lokasi Jemput/Tujuan')
         : payloadMap['label'].toString().trim();
 
     ChatbotRoutePointHint pointFrom(
@@ -1321,7 +1320,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       return const <ChatbotMessageActionHint>[
         ChatbotMessageActionHint(
           type: ChatbotMessageActionType.openRoutePicker,
-          label: 'Atur Titik Ambil & Tujuan',
+          label: 'Atur Lokasi Ambil/Tujuan',
           routePoints: <ChatbotRoutePointHint>[
             ChatbotRoutePointHint(target: 'pickup', label: 'Titik Ambil'),
             ChatbotRoutePointHint(target: 'dropoff', label: 'Titik Tujuan'),
@@ -1338,7 +1337,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         ),
         ChatbotMessageActionHint(
           type: ChatbotMessageActionType.openMapPicker,
-          label: 'Pilih Titik Antar',
+          label: 'Pilih Lokasi Antar',
           target: 'delivery',
         ),
       ];
@@ -1351,7 +1350,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     return const <ChatbotMessageActionHint>[
       ChatbotMessageActionHint(
         type: ChatbotMessageActionType.openRoutePicker,
-        label: 'Atur Titik Jemput & Tujuan',
+        label: 'Atur Lokasi Jemput/Tujuan',
         routePoints: <ChatbotRoutePointHint>[
           ChatbotRoutePointHint(target: 'pickup', label: 'Titik Jemput'),
           ChatbotRoutePointHint(target: 'destination', label: 'Titik Tujuan'),

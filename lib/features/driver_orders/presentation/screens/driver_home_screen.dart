@@ -254,8 +254,8 @@ class _AvailabilityCard extends StatelessWidget {
                           color: statusColor,
                           fontSize: AppTextScaling.adaptive(
                             context,
-                            normal: 15,
-                            large: 14,
+                            normal: 16,
+                            large: 15,
                           ),
                           fontWeight: FontWeight.w800,
                           height: 1.15,

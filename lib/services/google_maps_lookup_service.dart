@@ -36,16 +36,24 @@ class GoogleMapsResolvedPlace {
   final List<String> types;
 }
 
-enum GoogleMapsLookupScope { indonesia, salatigaServiceAreaAddress }
+enum GoogleMapsLookupScope {
+  indonesia,
+  bangDelivServiceAreaAddress,
+  salatigaServiceAreaAddress,
+}
 
 class GoogleMapsLookupService {
   const GoogleMapsLookupService({http.Client? client, String? apiKey})
     : _client = client,
       _apiKeyOverride = apiKey;
 
-  static const _salatigaServiceAreaCenter = LatLng(-7.3305, 110.5084);
-  static const _salatigaServiceAreaRadiusMeters = 45000;
-  static const _salatigaServiceAreaBounds = '-7.6500,110.1000|-7.0500,110.8500';
+  static const _bangDelivServiceAreaCenter = LatLng(
+    -7.319916770351389,
+    110.46393594806243,
+  );
+  static const _bangDelivServiceAreaRadiusMeters = 50000;
+  static const _bangDelivServiceAreaBounds =
+      '-7.7700,110.0100|-6.8700,110.9200';
   static const _nearbyEstablishmentRadiusMeters = 120;
   static const _nearbyCandidateMaxDistanceMeters = 80.0;
 
@@ -482,11 +490,12 @@ class GoogleMapsLookupService {
     switch (scope) {
       case GoogleMapsLookupScope.indonesia:
         return;
+      case GoogleMapsLookupScope.bangDelivServiceAreaAddress:
       case GoogleMapsLookupScope.salatigaServiceAreaAddress:
         queryParameters
           ..['location'] =
-              '${_salatigaServiceAreaCenter.latitude},${_salatigaServiceAreaCenter.longitude}'
-          ..['radius'] = _salatigaServiceAreaRadiusMeters.toString()
+              '${_bangDelivServiceAreaCenter.latitude},${_bangDelivServiceAreaCenter.longitude}'
+          ..['radius'] = _bangDelivServiceAreaRadiusMeters.toString()
           ..['strictbounds'] = 'true';
     }
   }
@@ -498,9 +507,10 @@ class GoogleMapsLookupService {
     switch (scope) {
       case GoogleMapsLookupScope.indonesia:
         return;
+      case GoogleMapsLookupScope.bangDelivServiceAreaAddress:
       case GoogleMapsLookupScope.salatigaServiceAreaAddress:
         queryParameters
-          ..['bounds'] = _salatigaServiceAreaBounds
+          ..['bounds'] = _bangDelivServiceAreaBounds
           ..['components'] = 'country:ID';
     }
   }

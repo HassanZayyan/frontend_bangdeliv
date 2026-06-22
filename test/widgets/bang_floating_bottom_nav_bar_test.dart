@@ -198,6 +198,77 @@ void main() {
     },
   );
 
+  testWidgets('overlay theme keeps snackbars above the floating nav', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BangFloatingBottomNavOverlayTheme(
+          child: Scaffold(
+            body: BangFloatingBottomNavHost(
+              navigationBar: const BangFloatingBottomNavBar(
+                currentIndex: 0,
+                onTap: _noopTap,
+                items: [
+                  BangFloatingNavItem(
+                    icon: Icons.home_filled,
+                    label: 'Beranda',
+                  ),
+                  BangFloatingNavItem(
+                    icon: Icons.assignment_rounded,
+                    label: 'Aktivitas',
+                  ),
+                  BangFloatingNavItem(
+                    icon: Icons.person_outline,
+                    label: 'Profil',
+                  ),
+                ],
+              ),
+              child: Builder(
+                builder: (context) {
+                  return Center(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Status tersimpan')),
+                        );
+                      },
+                      child: const Text('Show snackbar'),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Show snackbar'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 750));
+
+    final navMaterial = find
+        .ancestor(of: find.text('Beranda'), matching: find.byType(Material))
+        .first;
+    final navTop = tester.getTopLeft(navMaterial).dy;
+    final snackBarMaterial = find
+        .ancestor(
+          of: find.text('Status tersimpan'),
+          matching: find.byType(Material),
+        )
+        .first;
+    final snackBarBottom = tester.getBottomLeft(snackBarMaterial).dy;
+    final visualGap = navTop - snackBarBottom;
+
+    expect(snackBarBottom, lessThan(navTop));
+    expect(
+      visualGap,
+      moreOrLessEquals(BangFloatingBottomNavBar.snackBarGap, epsilon: 1),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('stays compact on narrow screens', (tester) async {
     tester.view.physicalSize = const Size(320, 640);
     tester.view.devicePixelRatio = 1;
