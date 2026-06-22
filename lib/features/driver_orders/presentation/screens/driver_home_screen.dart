@@ -11,6 +11,7 @@ import '../../../auth/application/auth_session_provider.dart';
 import '../../../navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
 import '../../application/driver_order_providers.dart';
 import '../../../../utils/order_formatters.dart';
+import '../../../../utils/order_ui_helpers.dart';
 import '../../../../utils/service_type.dart';
 
 class DriverHomeScreen extends ConsumerWidget {
@@ -427,7 +428,10 @@ class _ActiveOrderSection extends StatelessWidget {
             trailingColor: AppColors.primaryDark,
           ),
           const SizedBox(height: 10),
-          _ServiceLabelPill(label: serviceTypeLabel(order.serviceTypeCode)),
+          _ServiceTypeLabel(
+            label: serviceTypeLabel(order.serviceTypeCode),
+            icon: serviceTypeLeadingIcon(order.serviceTypeCode),
+          ),
           const SizedBox(height: 12),
           _RouteSummary(order: order),
           const SizedBox(height: 14),
@@ -458,33 +462,84 @@ class _RouteSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
+    final pickupText = _pickupPreviewText(order);
+
+    return Column(
+      children: [
+        _AddressLine(
+          icon: Icons.radio_button_checked,
+          color: AppColors.primary,
+          label: 'Jemput',
+          text: pickupText,
+        ),
+        const SizedBox(height: 7),
+        _AddressLine(
+          icon: Icons.location_on_rounded,
+          color: const Color(0xFF2563EB),
+          label: 'Antar',
+          text: order.dropoffAddress,
+        ),
+      ],
+    );
+  }
+}
+
+String _pickupPreviewText(DriverOrderModel order) {
+  if (normalizeServiceTypeCode(order.serviceTypeCode) !=
+      ServiceTypeCodes.shopping) {
+    return order.pickupAddress;
+  }
+
+  final activeStops = order.shoppingStops
+      .where((stop) => stop.isActive)
+      .toList(growable: false);
+  final stops = activeStops.isNotEmpty ? activeStops : order.shoppingStops;
+  if (stops.isEmpty) {
+    return order.pickupAddress;
+  }
+
+  final names = stops
+      .map((stop) => stop.merchant.name.trim())
+      .where((name) => name.isNotEmpty)
+      .toList(growable: false);
+  if (names.isEmpty) {
+    return order.pickupAddress;
+  }
+
+  if (names.length == 1) {
+    return names.first;
+  }
+
+  return '${names.first} + ${names.length - 1} tempat';
+}
+
+class _ServiceTypeLabel extends StatelessWidget {
+  const _ServiceTypeLabel({required this.label, required this.icon});
+
+  final String label;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 240),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          _AddressLine(
-            icon: Icons.radio_button_checked,
-            color: AppColors.primary,
-            text: order.pickupAddress,
-            maxLines: 2,
-          ),
-          Padding(
-            padding: const EdgeInsets.only(left: 9),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Container(width: 1, height: 14, color: AppColors.border),
+          Icon(icon, size: 18, color: AppColors.primary),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                height: 1.1,
+              ),
             ),
-          ),
-          _AddressLine(
-            icon: Icons.location_on_rounded,
-            color: const Color(0xFF2563EB),
-            text: order.dropoffAddress,
-            maxLines: 2,
           ),
         ],
       ),
@@ -492,68 +547,52 @@ class _RouteSummary extends StatelessWidget {
   }
 }
 
-class _ServiceLabelPill extends StatelessWidget {
-  const _ServiceLabelPill({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          color: AppColors.primaryDark,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          height: 1.2,
-        ),
-      ),
-    );
-  }
+String _singleLineAddress(String value) {
+  final normalized = value.trim().replaceAll(RegExp(r'\s+'), ' ');
+  return normalized.isEmpty ? '-' : normalized;
 }
 
 class _AddressLine extends StatelessWidget {
   const _AddressLine({
     required this.icon,
     required this.color,
+    required this.label,
     required this.text,
-    required this.maxLines,
   });
 
   final IconData icon;
   final Color color;
+  final String label;
   final String text;
-  final int maxLines;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: Icon(icon, size: 18, color: color),
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 54,
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ),
-        const SizedBox(width: 10),
         Expanded(
           child: Text(
-            text,
-            maxLines: maxLines,
+            _singleLineAddress(text),
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: AppColors.textPrimary,
               fontSize: 13,
-              fontWeight: FontWeight.w500,
-              height: 1.35,
+              fontWeight: FontWeight.w600,
+              height: 1.25,
             ),
           ),
         ),

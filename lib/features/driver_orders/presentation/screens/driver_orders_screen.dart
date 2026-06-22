@@ -8,12 +8,14 @@ import '../../../../config/app_routes.dart';
 import '../../../../core/widgets/bang_async_state.dart';
 import '../../../../models/driver_order_model.dart';
 import '../../../navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
+import '../../application/driver_dispatch_presenter.dart';
 import '../../application/driver_order_providers.dart';
-import '../widgets/driver_distance_badge.dart';
 import '../../../../utils/courier_package_formatter.dart';
 import '../../../../utils/order_formatters.dart';
+import '../../../../utils/order_ui_helpers.dart';
 import '../../../../utils/service_type.dart';
 import '../../../../widgets/bang_ui.dart' show BangIllustrationEmptyState;
+import '../../../../widgets/profile_avatar.dart';
 
 class DriverOrdersScreen extends ConsumerWidget {
   const DriverOrdersScreen({super.key});
@@ -256,157 +258,101 @@ class _OrderCard extends StatelessWidget {
     return '#${order.id}';
   }
 
-  String get _etaLabel {
-    if (order.etaMinutes <= 0) {
-      return 'Order baru';
-    }
-    return 'Estimasi ${order.etaMinutes} menit';
+  void _showDetail(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      useRootNavigator: true,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return _IncomingOrderDetailSheet(
+          order: order,
+          displayOrderId: _displayOrderId,
+          isProcessing: isProcessing,
+          onAccept: onAccept,
+          onReject: onReject,
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final serviceLabel = serviceTypeLabel(order.serviceTypeCode);
-    final packageDetails = buildCourierPackageDetails(order);
+    final quantityLabel = _orderQuantityLabel(order);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.white,
+    return Material(
+      color: AppColors.white,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
+        side: const BorderSide(color: AppColors.border),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _ServiceTypeLabel(
+                label: serviceLabel,
+                icon: serviceTypeLeadingIcon(order.serviceTypeCode),
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                iconSize: 18,
+                maxWidth: 240,
+                textColor: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.background,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: AppColors.border),
-                      ),
-                      child: Text(
-                        _displayOrderId,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 11.5,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-                    _StatusPill(
-                      label: _etaLabel,
-                      background: AppColors.surfaceAlt,
-                      foreground: AppColors.textSecondary,
-                      icon: Icons.schedule_rounded,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    _CustomerAvatar(name: order.customerName),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            order.customerName,
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              height: 1.2,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            '${order.itemCount} item',
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                if (order.serviceTypeCode.isNotEmpty ||
-                    order.statusCode.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
+                _CustomerAvatar(name: order.customerName, size: 42),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (order.serviceTypeCode.isNotEmpty)
-                        _metaChip(
-                          serviceLabel,
-                          AppColors.surfaceAlt,
-                          AppColors.textPrimary,
+                      Text(
+                        order.customerName,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          height: 1.2,
                         ),
-                      if (order.statusCode.isNotEmpty)
-                        _metaChip(
-                          order.statusDisplayName ?? order.statusCode,
-                          AppColors.surfaceAlt,
-                          AppColors.success,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (quantityLabel != null) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          quantityLabel,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      DriverDistanceBadge(dispatch: order.dispatch),
+                      ],
                     ],
                   ),
-                ],
-                if (packageDetails.isCourier) ...[
-                  const SizedBox(height: 12),
-                  _CourierPackageSection(packageDetails: packageDetails),
-                ],
-                const SizedBox(height: 14),
-                _OrderRouteSection(order: order),
+                ),
               ],
             ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceAlt,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Row(
+            const SizedBox(height: 14),
+            _OrderRoutePreview(order: order),
+            const SizedBox(height: 16),
+            Row(
               children: [
-                Icon(
-                  Icons.payments_outlined,
-                  size: 18,
-                  color: AppColors.textSecondary,
-                ),
-                const SizedBox(width: 8),
-                const Text(
-                  'Fee driver',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const Spacer(),
+                Expanded(child: _InlineDistanceText(dispatch: order.dispatch)),
+                const SizedBox(width: 12),
                 Text(
                   formatCurrency(order.fee),
                   style: const TextStyle(
@@ -417,63 +363,385 @@ class _OrderCard extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 14),
+            OutlinedButton(
+              onPressed: () => _showDetail(context),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.primary, width: 1.2),
+                minimumSize: const Size.fromHeight(40),
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                textStyle: GoogleFonts.nunitoSans(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13.5,
+                ),
+              ),
+              child: const Text('Lihat Detail'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IncomingOrderDetailSheet extends StatelessWidget {
+  final DriverOrderModel order;
+  final String displayOrderId;
+  final bool isProcessing;
+  final VoidCallback? onAccept;
+  final VoidCallback? onReject;
+
+  const _IncomingOrderDetailSheet({
+    required this.order,
+    required this.displayOrderId,
+    required this.isProcessing,
+    this.onAccept,
+    this.onReject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final packageDetails = buildCourierPackageDetails(order);
+    final serviceLabel = serviceTypeLabel(order.serviceTypeCode);
+    final quantityLabel = _orderQuantityLabel(order);
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.88;
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 10),
+          Container(
+            width: 42,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.border,
+              borderRadius: BorderRadius.circular(99),
+            ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            padding: const EdgeInsets.fromLTRB(20, 16, 12, 10),
             child: Row(
               children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: isProcessing ? null : onReject,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.textPrimary,
-                      side: BorderSide(
-                        color: AppColors.border.withValues(alpha: 0.8),
-                        width: 1.5,
-                      ),
-                      minimumSize: const Size(0, 48),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      textStyle: GoogleFonts.nunitoSans(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                      ),
+                const Expanded(
+                  child: Text(
+                    'Detail Order',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
                     ),
-                    child: const Text('Tolak'),
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  flex: 2,
-                  child: FilledButton(
-                    onPressed: isProcessing ? null : onAccept,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: AppColors.white,
-                      elevation: 0,
-                      minimumSize: const Size(0, 48),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      textStyle: GoogleFonts.nunitoSans(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                      ),
-                    ),
-                    child: isProcessing
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.white,
-                            ),
-                          )
-                        : const Text('Terima Order'),
-                  ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded),
+                  color: AppColors.textSecondary,
+                  tooltip: 'Tutup',
+                  visualDensity: VisualDensity.compact,
                 ),
               ],
+            ),
+          ),
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ServiceTypeLabel(
+                          label: serviceLabel,
+                          icon: serviceTypeLeadingIcon(order.serviceTypeCode),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          iconSize: 18,
+                          maxWidth: 240,
+                          textColor: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      _OrderNumberText(label: displayOrderId),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      _CustomerAvatar(name: order.customerName, size: 44),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              order.customerName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w700,
+                                height: 1.2,
+                              ),
+                            ),
+                            if (quantityLabel != null) ...[
+                              const SizedBox(height: 3),
+                              Text(
+                                quantityLabel,
+                                style: const TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  _InlineDistanceText(dispatch: order.dispatch),
+                  const SizedBox(height: 18),
+                  _DetailSectionTitle('Rute'),
+                  const SizedBox(height: 10),
+                  _OrderRouteSection(
+                    order: order,
+                    framed: false,
+                    initiallyExpanded: true,
+                    showExpandButton: false,
+                  ),
+                  if (packageDetails.isCourier) ...[
+                    const SizedBox(height: 18),
+                    _CourierPackageSection(packageDetails: packageDetails),
+                  ],
+                  const SizedBox(height: 18),
+                  _FeeSummaryRow(fee: order.fee),
+                ],
+              ),
+            ),
+          ),
+          _OrderDecisionBar(
+            isProcessing: isProcessing,
+            onReject: onReject == null
+                ? null
+                : () {
+                    Navigator.of(context).pop();
+                    onReject?.call();
+                  },
+            onAccept: onAccept == null
+                ? null
+                : () {
+                    Navigator.of(context).pop();
+                    onAccept?.call();
+                  },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailSectionTitle extends StatelessWidget {
+  final String text;
+
+  const _DetailSectionTitle(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+        color: AppColors.textPrimary,
+        fontSize: 14,
+        fontWeight: FontWeight.w800,
+      ),
+    );
+  }
+}
+
+class _OrderDecisionBar extends StatelessWidget {
+  final bool isProcessing;
+  final VoidCallback? onAccept;
+  final VoidCallback? onReject;
+
+  const _OrderDecisionBar({
+    required this.isProcessing,
+    this.onAccept,
+    this.onReject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        border: Border(top: BorderSide(color: AppColors.border)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: isProcessing ? null : onReject,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textPrimary,
+                    side: BorderSide(
+                      color: AppColors.border.withValues(alpha: 0.8),
+                      width: 1.5,
+                    ),
+                    minimumSize: const Size(0, 48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    textStyle: GoogleFonts.nunitoSans(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                  child: const Text('Tolak'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: FilledButton(
+                  onPressed: isProcessing ? null : onAccept,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.white,
+                    elevation: 0,
+                    minimumSize: const Size(0, 48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    textStyle: GoogleFonts.nunitoSans(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                  child: isProcessing
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.white,
+                          ),
+                        )
+                      : const Text('Terima Order'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OrderRoutePreview extends StatelessWidget {
+  final DriverOrderModel order;
+
+  const _OrderRoutePreview({required this.order});
+
+  @override
+  Widget build(BuildContext context) {
+    final stops = _incomingRouteStops(order);
+    final visibleStops = stops.length <= 2
+        ? stops
+        : <_IncomingRouteStop>[stops.first, stops.last];
+
+    return Column(
+      children: [
+        for (var index = 0; index < visibleStops.length; index++) ...[
+          _RoutePreviewLine(stop: visibleStops[index]),
+          if (index < visibleStops.length - 1) const SizedBox(height: 7),
+        ],
+      ],
+    );
+  }
+}
+
+class _RoutePreviewLine extends StatelessWidget {
+  final _IncomingRouteStop stop;
+
+  const _RoutePreviewLine({required this.stop});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(stop.icon, size: 16, color: stop.iconColor),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 54,
+          child: Text(
+            stop.label,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            _singleLineAddress(stop.value),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              height: 1.25,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _InlineDistanceText extends StatelessWidget {
+  final DriverDispatchModel? dispatch;
+
+  const _InlineDistanceText({required this.dispatch});
+
+  @override
+  Widget build(BuildContext context) {
+    final viewData = DriverDispatchPresenter.present(dispatch);
+    final color = _distanceColor(viewData.bucket);
+    final label = _compactDistanceLabel(viewData.label);
+
+    return Semantics(
+      label: 'Jarak driver ke titik jemput ${viewData.label}',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.near_me_outlined, size: 16, color: color),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: color,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -481,20 +749,140 @@ class _OrderCard extends StatelessWidget {
     );
   }
 
-  Widget _metaChip(String text, Color background, Color foreground) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(100),
+  Color _distanceColor(String bucket) {
+    switch (bucket) {
+      case 'NEAR':
+        return AppColors.success;
+      case 'MEDIUM':
+        return AppColors.warning;
+      case 'FAR':
+        return AppColors.error;
+      default:
+        return AppColors.textSecondary;
+    }
+  }
+
+  String _compactDistanceLabel(String label) {
+    final normalized = label.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (normalized.isEmpty) {
+      return 'Jarak belum tersedia';
+    }
+    return normalized;
+  }
+}
+
+class _ServiceTypeLabel extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final double fontSize;
+  final FontWeight fontWeight;
+  final double iconSize;
+  final double maxWidth;
+  final Color textColor;
+
+  const _ServiceTypeLabel({
+    required this.label,
+    required this.icon,
+    this.fontSize = 12,
+    this.fontWeight = FontWeight.w800,
+    this.iconSize = 14,
+    this.maxWidth = 180,
+    this.textColor = AppColors.textSecondary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: iconSize, color: AppColors.primary),
+          SizedBox(width: fontSize >= 14 ? 6 : 5),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: textColor,
+                fontSize: fontSize,
+                fontWeight: fontWeight,
+                height: 1.1,
+              ),
+            ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _OrderNumberText extends StatelessWidget {
+  final String label;
+
+  const _OrderNumberText({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 150),
       child: Text(
-        text,
-        style: TextStyle(
-          color: foreground,
-          fontSize: 11,
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.right,
+        style: const TextStyle(
+          color: AppColors.textSecondary,
           fontWeight: FontWeight.w700,
+          fontSize: 12,
+          height: 1.1,
         ),
+      ),
+    );
+  }
+}
+
+class _FeeSummaryRow extends StatelessWidget {
+  final int fee;
+
+  const _FeeSummaryRow({required this.fee});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.payments_outlined,
+            size: 18,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(width: 8),
+          const Text(
+            'Fee driver',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            formatCurrency(fee),
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w800,
+              fontSize: 16,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -502,190 +890,199 @@ class _OrderCard extends StatelessWidget {
 
 class _CustomerAvatar extends StatelessWidget {
   final String name;
+  final double size;
 
-  const _CustomerAvatar({required this.name});
-
-  String get _initials {
-    final parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty || parts.first.isEmpty) {
-      return '?';
-    }
-    if (parts.length == 1) {
-      return parts.first.characters.first.toUpperCase();
-    }
-    return '${parts.first.characters.first}${parts.last.characters.first}'
-        .toUpperCase();
-  }
+  const _CustomerAvatar({required this.name, this.size = 42});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 44,
-      height: 44,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Text(
-        _initials,
-        style: const TextStyle(
-          color: AppColors.primaryDark,
-          fontWeight: FontWeight.w800,
-          fontSize: 15,
-        ),
-      ),
+    return ProfileAvatar(
+      name: name,
+      size: size,
+      backgroundColor: AppColors.surfaceAlt,
+      initialColor: AppColors.primaryDark,
+      borderColor: AppColors.border,
+      borderWidth: 1,
     );
   }
 }
 
-class _StatusPill extends StatelessWidget {
-  final String label;
-  final Color background;
-  final Color foreground;
-  final IconData icon;
+List<_IncomingRouteStop> _incomingRouteStops(DriverOrderModel order) {
+  if (normalizeServiceTypeCode(order.serviceTypeCode) ==
+          ServiceTypeCodes.shopping &&
+      order.shoppingStops.isNotEmpty) {
+    final stops = List<DriverShoppingStopModel>.from(order.shoppingStops)
+      ..sort((left, right) {
+        final leftSequence = left.sequenceNo <= 0 ? 999 : left.sequenceNo;
+        final rightSequence = right.sequenceNo <= 0 ? 999 : right.sequenceNo;
+        final sequenceCompare = leftSequence.compareTo(rightSequence);
+        if (sequenceCompare != 0) {
+          return sequenceCompare;
+        }
+        return left.pickupLocationId.compareTo(right.pickupLocationId);
+      });
 
-  const _StatusPill({
-    required this.label,
-    required this.background,
-    required this.foreground,
-    required this.icon,
-  });
+    return [
+      for (var index = 0; index < stops.length; index++)
+        _IncomingRouteStop(
+          icon: Icons.radio_button_checked,
+          iconColor: AppColors.primary,
+          label: 'Tempat ${index + 1}',
+          value: _merchantStopText(stops[index]),
+        ),
+      _IncomingRouteStop(
+        icon: Icons.location_on_rounded,
+        iconColor: const Color(0xFF2563EB),
+        label: 'Antar',
+        value: order.dropoffAddress,
+      ),
+    ];
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(100),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 13, color: foreground),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              label,
-              style: TextStyle(
-                color: foreground,
-                fontWeight: FontWeight.w700,
-                fontSize: 11,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.end,
-            ),
-          ),
-        ],
-      ),
-    );
+  return [
+    _IncomingRouteStop(
+      icon: Icons.radio_button_checked,
+      iconColor: AppColors.primary,
+      label: 'Jemput',
+      value: order.pickupAddress,
+    ),
+    _IncomingRouteStop(
+      icon: Icons.location_on_rounded,
+      iconColor: const Color(0xFF2563EB),
+      label: 'Antar',
+      value: order.dropoffAddress,
+    ),
+  ];
+}
+
+String _merchantStopText(DriverShoppingStopModel stop) {
+  final address = (stop.merchant.address ?? '').trim();
+  final itemSummary = _shoppingItemSummary(stop.items);
+  return [
+    stop.merchant.name.trim().isEmpty ? '-' : stop.merchant.name.trim(),
+    if (address.isNotEmpty) address,
+    if (itemSummary.isNotEmpty) itemSummary,
+  ].join('\n');
+}
+
+String _shoppingItemSummary(List<DriverShoppingItemModel> items) {
+  if (items.isEmpty) {
+    return '';
+  }
+
+  return items
+      .map((item) {
+        final name = item.name.trim();
+        if (name.isEmpty || name == '-') {
+          return '';
+        }
+        return '${item.quantity}x $name';
+      })
+      .where((text) => text.isNotEmpty)
+      .join(', ');
+}
+
+String _singleLineAddress(String value) {
+  final normalized = value.trim().replaceAll(RegExp(r'\s+'), ' ');
+  return normalized.isEmpty ? '-' : normalized;
+}
+
+String? _orderQuantityLabel(DriverOrderModel order) {
+  final count = order.itemCount;
+  if (count <= 0) {
+    return null;
+  }
+
+  switch (normalizeServiceTypeCode(order.serviceTypeCode)) {
+    case ServiceTypeCodes.ride:
+      return null;
+    case ServiceTypeCodes.courier:
+      return '$count paket';
+    case ServiceTypeCodes.shopping:
+      return '$count barang';
+    default:
+      return null;
   }
 }
 
 class _OrderRouteSection extends StatefulWidget {
   final DriverOrderModel order;
+  final bool framed;
+  final bool initiallyExpanded;
+  final bool showExpandButton;
 
-  const _OrderRouteSection({required this.order});
+  const _OrderRouteSection({
+    required this.order,
+    this.framed = true,
+    this.initiallyExpanded = false,
+    this.showExpandButton = true,
+  });
 
   @override
   State<_OrderRouteSection> createState() => _OrderRouteSectionState();
 }
 
 class _OrderRouteSectionState extends State<_OrderRouteSection> {
-  bool _expanded = false;
+  late bool _expanded;
 
   static const int _collapsedMaxLines = 2;
 
-  List<_IncomingRouteStop> get _routeStops {
-    if (normalizeServiceTypeCode(widget.order.serviceTypeCode) ==
-            ServiceTypeCodes.shopping &&
-        widget.order.shoppingStops.isNotEmpty) {
-      final stops =
-          List<DriverShoppingStopModel>.from(widget.order.shoppingStops)
-            ..sort((left, right) {
-              final leftSequence = left.sequenceNo <= 0 ? 999 : left.sequenceNo;
-              final rightSequence = right.sequenceNo <= 0
-                  ? 999
-                  : right.sequenceNo;
-              final sequenceCompare = leftSequence.compareTo(rightSequence);
-              if (sequenceCompare != 0) {
-                return sequenceCompare;
-              }
-              return left.pickupLocationId.compareTo(right.pickupLocationId);
-            });
-
-      return [
-        for (var index = 0; index < stops.length; index++)
-          _IncomingRouteStop(
-            icon: Icons.radio_button_checked,
-            iconColor: AppColors.primary,
-            label: 'Tempat ${index + 1}',
-            value: _merchantStopText(stops[index]),
-          ),
-        _IncomingRouteStop(
-          icon: Icons.location_on_rounded,
-          iconColor: const Color(0xFF2563EB),
-          label: 'Antar',
-          value: widget.order.dropoffAddress,
-        ),
-      ];
-    }
-
-    return [
-      _IncomingRouteStop(
-        icon: Icons.radio_button_checked,
-        iconColor: AppColors.primary,
-        label: 'Jemput',
-        value: widget.order.pickupAddress,
-      ),
-      _IncomingRouteStop(
-        icon: Icons.location_on_rounded,
-        iconColor: const Color(0xFF2563EB),
-        label: 'Antar',
-        value: widget.order.dropoffAddress,
-      ),
-    ];
+  @override
+  void initState() {
+    super.initState();
+    _expanded = widget.initiallyExpanded;
   }
 
-  bool get _canExpand => _routeStops.any((stop) {
-    final value = stop.value.trim();
-    return value.isNotEmpty && value != '-';
-  });
+  List<_IncomingRouteStop> get _routeStops => _incomingRouteStops(widget.order);
 
-  String _merchantStopText(DriverShoppingStopModel stop) {
-    final address = (stop.merchant.address ?? '').trim();
-    final itemSummary = _shoppingItemSummary(stop.items);
-    return [
-      stop.merchant.name.trim().isEmpty ? '-' : stop.merchant.name.trim(),
-      if (address.isNotEmpty) address,
-      if (itemSummary.isNotEmpty) itemSummary,
-    ].join('\n');
-  }
-
-  String _shoppingItemSummary(List<DriverShoppingItemModel> items) {
-    if (items.isEmpty) {
-      return '';
-    }
-
-    return items
-        .map((item) {
-          final name = item.name.trim();
-          if (name.isEmpty || name == '-') {
-            return '';
-          }
-          return '${item.quantity}x $name';
-        })
-        .where((text) => text.isNotEmpty)
-        .join(', ');
-  }
+  bool get _canExpand =>
+      widget.showExpandButton &&
+      _routeStops.any((stop) {
+        final value = stop.value.trim();
+        return value.isNotEmpty && value != '-';
+      });
 
   @override
   Widget build(BuildContext context) {
     final routeStops = _routeStops;
+
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var index = 0; index < routeStops.length; index++) ...[
+          _routeStop(stop: routeStops[index]),
+          if (index < routeStops.length - 1) const SizedBox(height: 8),
+        ],
+        if (_canExpand) ...[
+          const SizedBox(height: 6),
+          SizedBox(
+            width: double.infinity,
+            child: TextButton.icon(
+              onPressed: () => setState(() => _expanded = !_expanded),
+              icon: Icon(
+                _expanded
+                    ? Icons.expand_less_rounded
+                    : Icons.expand_more_rounded,
+                size: 18,
+              ),
+              label: Text(_expanded ? 'Tutup alamat' : 'Lihat alamat lengkap'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                backgroundColor: AppColors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: const BorderSide(color: AppColors.border),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+
+    if (!widget.framed) {
+      return content;
+    }
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -694,65 +1091,7 @@ class _OrderRouteSectionState extends State<_OrderRouteSection> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.border),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (var index = 0; index < routeStops.length; index++) ...[
-            _routeStop(stop: routeStops[index]),
-            if (index < routeStops.length - 1) _routeConnector(),
-          ],
-          if (_canExpand) ...[
-            const SizedBox(height: 6),
-            SizedBox(
-              width: double.infinity,
-              child: TextButton.icon(
-                onPressed: () => setState(() => _expanded = !_expanded),
-                icon: Icon(
-                  _expanded
-                      ? Icons.expand_less_rounded
-                      : Icons.expand_more_rounded,
-                  size: 18,
-                ),
-                label: Text(
-                  _expanded ? 'Tutup alamat' : 'Lihat alamat lengkap',
-                ),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.primary,
-                  backgroundColor: AppColors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    side: const BorderSide(color: AppColors.border),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _routeConnector() {
-    return Padding(
-      padding: const EdgeInsets.only(left: 11),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: List.generate(
-            5,
-            (index) => Container(
-              width: 2,
-              height: 4,
-              margin: const EdgeInsets.symmetric(vertical: 1.5),
-              decoration: BoxDecoration(
-                color: AppColors.textSecondary.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(1),
-              ),
-            ),
-          ),
-        ),
-      ),
+      child: content,
     );
   }
 
@@ -834,7 +1173,7 @@ class _CourierPackageSection extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
+              const Icon(
                 Icons.inventory_2_outlined,
                 size: 16,
                 color: AppColors.textSecondary,
@@ -861,41 +1200,15 @@ class _CourierPackageSection extends StatelessWidget {
               ),
             ),
           if (packageDetails.description.isNotEmpty)
-            _courierInfoLine('Barang', packageDetails.description),
-        ],
-      ),
-    );
-  }
-
-  Widget _courierInfoLine(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 86,
-            child: Text(
-              '$label:',
+            Text(
+              packageDetails.description,
               style: const TextStyle(
                 color: AppColors.textPrimary,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
                 height: 1.3,
               ),
             ),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 13,
-                height: 1.3,
-              ),
-            ),
-          ),
         ],
       ),
     );

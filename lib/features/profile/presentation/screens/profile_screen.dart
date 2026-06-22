@@ -163,9 +163,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ProfileAvatar(
                 name: profile.name,
                 avatarUrl: profile.avatarUrl,
-                size: 60,
-                borderColor: AppColors.primaryDark,
-                borderWidth: 2,
+                size: 56,
               ),
               const SizedBox(width: 12),
               Expanded(

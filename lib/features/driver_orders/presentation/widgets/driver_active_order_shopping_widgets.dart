@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../config/app_colors.dart';
@@ -722,19 +723,21 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
           Row(
             children: [
               Container(
-                width: 24,
-                height: 24,
+                width: 21,
+                height: 21,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
+                  color: AppColors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.border),
                 ),
                 child: Text(
                   '${stop.sequenceNo <= 0 ? 1 : stop.sequenceNo}',
                   style: const TextStyle(
-                    color: AppColors.primary,
-                    fontSize: 12,
+                    color: AppColors.primaryDark,
+                    fontSize: 11,
                     fontWeight: FontWeight.w800,
+                    height: 1,
                   ),
                 ),
               ),
@@ -868,7 +871,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     final closeButton = BangActionButton(
       label: 'Tempat tutup',
       variant: BangActionButtonVariant.outlined,
-      icon: Icons.storefront_outlined,
+      icon: Icons.cancel_outlined,
       isLoading: isClosingStop,
       isEnabled: !widget.isOrderBusy || isClosingStop,
       onPressed: () => _closeMerchant(stop),
@@ -878,12 +881,15 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
         minimumSize: const Size(0, 44),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+        textStyle: GoogleFonts.nunitoSans(
+          fontSize: 14,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
     final openButton = BangActionButton(
       label: 'Tempat buka',
-      icon: Icons.check_circle_outline,
+      icon: Icons.storefront_outlined,
       isLoading: isOpeningStop,
       isEnabled: !widget.isOrderBusy || isOpeningStop,
       onPressed: () => _openMerchant(stop),
@@ -891,7 +897,10 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
         minimumSize: const Size(0, 44),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+        textStyle: GoogleFonts.nunitoSans(
+          fontSize: 14,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
 

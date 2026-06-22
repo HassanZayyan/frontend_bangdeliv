@@ -59,41 +59,25 @@ class DriverTransferPaymentCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 4,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(999),
+              const Text(
+                'Bukti QRIS Customer',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Bukti QRIS Customer',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      _statusMessage(isPaid: isPaid, hasProof: hasProof),
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        height: 1.35,
-                      ),
-                    ),
-                  ],
+              const SizedBox(height: 3),
+              Text(
+                _statusMessage(isPaid: isPaid, hasProof: hasProof),
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  height: 1.35,
                 ),
               ),
             ],
@@ -386,22 +370,13 @@ class _WaitingProofState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.12)),
-      ),
-      child: const Text(
-        'Menunggu bukti QRIS dari customer.',
-        style: TextStyle(
-          color: AppColors.textPrimary,
-          fontSize: 12.5,
-          fontWeight: FontWeight.w700,
-          height: 1.35,
-        ),
+    return const Text(
+      'Menunggu bukti QRIS dari customer.',
+      style: TextStyle(
+        color: AppColors.textSecondary,
+        fontSize: 12.5,
+        fontWeight: FontWeight.w700,
+        height: 1.35,
       ),
     );
   }
@@ -423,14 +398,16 @@ InputDecoration _transferDialogInputDecoration({
     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
     labelStyle: const TextStyle(
       color: AppColors.textSecondary,
-      fontSize: 13,
       fontWeight: FontWeight.w600,
+    ),
+    prefixStyle: const TextStyle(
+      color: AppColors.textPrimary,
+      fontWeight: FontWeight.w700,
     ),
     border: border,
     enabledBorder: border,
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+    focusedBorder: border.copyWith(
+      borderSide: const BorderSide(color: AppColors.primary, width: 1.4),
     ),
   );
 }

@@ -6,7 +6,9 @@ import '../../../../config/app_colors.dart';
 import '../../../../models/driver_order_model.dart';
 import '../../../../utils/courier_package_formatter.dart';
 import '../../../../utils/currency_formatter.dart';
+import '../../../../utils/order_ui_helpers.dart';
 import '../../../../utils/service_type.dart';
+import '../../../../widgets/profile_avatar.dart';
 import 'driver_active_order_fee_widgets.dart';
 
 // --- Helper for consistent card styling ---
@@ -42,15 +44,28 @@ class DriverOrderCustomerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final serviceLabel = serviceTypeLabel(order.serviceTypeCode);
+    final orderNumber = order.orderNumber.isEmpty
+        ? order.id
+        : order.orderNumber;
 
     return _buildDriverCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            children: [
+              Expanded(
+                child: _serviceTypeLabel(order.serviceTypeCode, serviceLabel),
+              ),
+              const SizedBox(width: 12),
+              _orderNumberText(orderNumber),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              _buildAvatar(order.customerName),
+              _CustomerAvatar(name: order.customerName),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -66,37 +81,22 @@ class DriverOrderCustomerCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Order ID: ${order.orderNumber.isEmpty ? order.id : order.orderNumber}',
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
+                    const SizedBox(height: 3),
+                    _metadataText(
+                      order.statusDisplayName ?? order.statusCode,
+                      AppColors.success,
                     ),
+                    if (order.paymentStatus.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      _metadataText(
+                        '${paymentMethodLabel(order.paymentMethod)} - ${paymentStatusLabel(order.paymentStatus)}',
+                        AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ],
                   ],
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _pill(serviceLabel, AppColors.surfaceAlt, AppColors.textPrimary),
-              _pill(
-                order.statusDisplayName ?? order.statusCode,
-                AppColors.surfaceAlt,
-                AppColors.success,
-              ),
-              if (order.paymentStatus.isNotEmpty)
-                _pill(
-                  '${order.paymentMethod.toUpperCase()} ${order.paymentStatus.toUpperCase()}',
-                  AppColors.surfaceAlt,
-                  AppColors.textSecondary,
-                ),
             ],
           ),
         ],
@@ -104,47 +104,87 @@ class DriverOrderCustomerCard extends StatelessWidget {
     );
   }
 
-  Widget _buildAvatar(String name) {
-    final parts = name.trim().split(RegExp(r'\s+'));
-    final initials = parts.isEmpty || parts.first.isEmpty
-        ? '?'
-        : parts.length == 1
-        ? parts.first.characters.first.toUpperCase()
-        : '${parts.first.characters.first}${parts.last.characters.first}'
-              .toUpperCase();
-
-    return Container(
-      width: 42,
-      height: 42,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
-      ),
+  Widget _orderNumberText(String label) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 150),
       child: Text(
-        initials,
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.right,
         style: const TextStyle(
-          color: AppColors.primaryDark,
-          fontWeight: FontWeight.w800,
-          fontSize: 16,
+          color: AppColors.textSecondary,
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+          height: 1.1,
         ),
       ),
     );
   }
 
-  Widget _pill(String text, Color bg, Color fg) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(100),
-        border: Border.all(color: AppColors.border),
+  Widget _serviceTypeLabel(String serviceTypeCode, String label) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 240),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            serviceTypeLeadingIcon(serviceTypeCode),
+            size: 18,
+            color: AppColors.primary,
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                height: 1.1,
+              ),
+            ),
+          ),
+        ],
       ),
-      child: Text(
-        text,
-        style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.w700),
+    );
+  }
+
+  Widget _metadataText(
+    String text,
+    Color color, {
+    FontWeight fontWeight = FontWeight.w700,
+  }) {
+    return Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: color,
+        fontSize: 12.5,
+        fontWeight: fontWeight,
+        height: 1.2,
       ),
+    );
+  }
+}
+
+class _CustomerAvatar extends StatelessWidget {
+  final String name;
+
+  const _CustomerAvatar({required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    return ProfileAvatar(
+      name: name,
+      size: 42,
+      backgroundColor: AppColors.surfaceAlt,
+      initialColor: AppColors.primaryDark,
+      borderColor: AppColors.border,
+      borderWidth: 1,
     );
   }
 }
@@ -230,27 +270,7 @@ class DriverOrderRouteCard extends StatelessWidget {
               ),
             );
           }),
-        Padding(
-          padding: const EdgeInsets.only(left: 11),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: List.generate(
-                5,
-                (index) => Container(
-                  width: 2,
-                  height: 4,
-                  margin: const EdgeInsets.symmetric(vertical: 1.5),
-                  decoration: BoxDecoration(
-                    color: AppColors.textSecondary.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(1),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+        const SizedBox(height: 8),
         _routeStop(
           icon: Icons.location_on_rounded,
           iconColor: const Color(0xFF2563EB),
