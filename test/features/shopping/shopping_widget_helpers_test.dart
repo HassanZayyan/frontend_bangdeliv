@@ -27,7 +27,13 @@ void main() {
     );
   });
 
-  test('isAllowedShoppingMerchantPlace keeps purchase merchants only', () {
+  test('shoppingMerchantTypeLabel uses neutral label for general places', () {
+    expect(shoppingMerchantTypeLabel('restaurant'), 'Resto');
+    expect(shoppingMerchantTypeLabel('convenience_store'), 'Minimarket');
+    expect(shoppingMerchantTypeLabel('other'), 'Tempat');
+  });
+
+  test('isAllowedShoppingMerchantPlace allows named POI places', () {
     expect(
       isAllowedShoppingMerchantPlace(
         name: 'Kopi Contoh',
@@ -39,6 +45,13 @@ void main() {
       isAllowedShoppingMerchantPlace(
         name: 'Hypermart Salatiga',
         types: const ['store', 'establishment'],
+      ),
+      isTrue,
+    );
+    expect(
+      isAllowedShoppingMerchantPlace(
+        name: 'de Jangli Palm Villa',
+        types: const ['point_of_interest', 'establishment'],
       ),
       isTrue,
     );

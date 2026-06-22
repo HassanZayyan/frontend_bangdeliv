@@ -238,6 +238,32 @@ void main() {
     );
     expect(TrackOrderPresenter.shouldShowTrackingMap(completed), isFalse);
   });
+
+  test('delivered status is not presented as completed', () {
+    final delivered = _summary(
+      statusCode: 'DELIVERED',
+      statusLabel: 'Sudah Sampai Tujuan',
+    );
+    final completed = _summary(
+      statusCode: 'COMPLETED',
+      statusLabel: 'Selesai',
+      isTerminalStatus: true,
+    );
+
+    expect(
+      TrackOrderPresenter.detailStatusTitle(delivered),
+      'Sudah Sampai Tujuan',
+    );
+    expect(
+      TrackOrderPresenter.fixedStatusInfoMessage(delivered),
+      'Penumpang sudah tiba di tujuan. Proses order akan segera diselesaikan.',
+    );
+    expect(
+      TrackOrderPresenter.fixedStatusInfoMessage(delivered),
+      isNot(contains('Order sudah selesai')),
+    );
+    expect(TrackOrderPresenter.detailStatusTitle(completed), 'Pesanan selesai');
+  });
 }
 
 CustomerOrderSummaryModel _summary({

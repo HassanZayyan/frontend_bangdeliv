@@ -5,12 +5,22 @@ class MerchantModel {
   final String name;
   final String distance;
   final String imageUrl;
+  final String merchantType;
+  final String address;
+  final String phone;
+  final double? latitude;
+  final double? longitude;
 
   MerchantModel({
     required this.id,
     required this.name,
     required this.distance,
     required this.imageUrl,
+    this.merchantType = '',
+    this.address = '',
+    this.phone = '',
+    this.latitude,
+    this.longitude,
   });
 
   factory MerchantModel.fromApiJson(Map<String, dynamic> json) {
@@ -19,6 +29,11 @@ class MerchantModel {
       name: json['name']?.toString() ?? '-',
       distance: _distanceLabel(json['distance_km']),
       imageUrl: AppEnv.resolveBackendAssetUrl(json['banner_image']?.toString()),
+      merchantType: json['merchant_type']?.toString() ?? '',
+      address: json['address']?.toString() ?? '',
+      phone: json['phone']?.toString() ?? '',
+      latitude: _toNullableDouble(json['latitude']),
+      longitude: _toNullableDouble(json['longitude']),
     );
   }
 
@@ -42,5 +57,16 @@ class MerchantModel {
     }
 
     return double.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static double? _toNullableDouble(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(value.toString());
   }
 }

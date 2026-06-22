@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/chatbot_model.dart';
+import '../../../models/chatbot_launch_args.dart';
 import '../../../services/api_exception.dart';
 import '../../../services/chatbot_api_service.dart';
 import '../../../services/customer_order_api_service.dart';
@@ -413,11 +414,12 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     }
   }
 
-  Future<void> applyMerchantPickerAction({
+  Future<bool> applyMerchantPickerAction({
     required String serviceType,
     int? merchantId,
     ShoppingMerchantPlacePayload? merchantPlace,
     String mode = 'select',
+    bool appendAssistantMessage = true,
   }) async {
     _ensureService(serviceType);
 
@@ -426,7 +428,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         sessionId.isEmpty ||
         state.isApplyingAction ||
         ((merchantId == null || merchantId <= 0) && merchantPlace == null)) {
-      return;
+      return false;
     }
 
     state = state.copyWith(
@@ -455,18 +457,67 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         serviceType: serviceType,
         sessionId: resolvedSessionId,
         isApplyingAction: false,
-        messages: <ChatbotConversationMessage>[
-          ...state.messages,
-          _messageFromResult(result, serviceType),
-        ],
+        messages: appendAssistantMessage
+            ? <ChatbotConversationMessage>[
+                ...state.messages,
+                _messageFromResult(result, serviceType),
+              ]
+            : state.messages,
         clearErrorMessage: true,
       );
+      return true;
     } catch (_) {
       state = state.copyWith(
         isApplyingAction: false,
         errorMessage: 'Gagal memperbarui merchant Nitip.',
       );
+      return false;
     }
+  }
+
+  void appendMenuSuggestionActions({
+    required String serviceType,
+    required String? merchantName,
+    required List<ChatbotMenuSuggestion> suggestions,
+  }) {
+    _ensureService(serviceType);
+
+    if (serviceType != 'nitip' || suggestions.isEmpty) {
+      return;
+    }
+
+    final normalizedMerchant = (merchantName ?? '').trim();
+    final merchantLabel = normalizedMerchant.isEmpty
+        ? 'merchant ini'
+        : normalizedMerchant;
+    final actionHints = suggestions
+        .where((item) => item.name.trim().isNotEmpty)
+        .take(10)
+        .map(
+          (item) => ChatbotMessageActionHint(
+            type: ChatbotMessageActionType.sendPresetMessage,
+            label: item.label,
+            presetMessage: item.presetMessage,
+          ),
+        )
+        .toList(growable: false);
+
+    if (actionHints.isEmpty) {
+      return;
+    }
+
+    state = state.copyWith(
+      messages: <ChatbotConversationMessage>[
+        ..._clearActionHints(state.messages),
+        _botMessage(
+          text:
+              'Menu $merchantLabel tersedia. Pilih salah satu menu di bawah, atau tulis item dan jumlah sendiri.',
+          timestamp: _nowLabel(),
+          actionHints: actionHints,
+        ),
+      ],
+      clearErrorMessage: true,
+    );
   }
 
   Future<String> _sessionIdAfterResult(

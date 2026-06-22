@@ -95,7 +95,8 @@ class DriverActiveOrderScreen extends ConsumerWidget {
               ? null
               : LatLng(latestPosition.latitude, latestPosition.longitude);
 
-          final hasStickyActionBar = order.availableActions.isNotEmpty ||
+          final hasStickyActionBar =
+              order.availableActions.isNotEmpty ||
               (normalizeServiceTypeCode(order.serviceTypeCode) ==
                       ServiceTypeCodes.shopping &&
                   order.shoppingStops.any((stop) => stop.isActive) &&
@@ -118,12 +119,7 @@ class DriverActiveOrderScreen extends ConsumerWidget {
               physics: const AlwaysScrollableScrollPhysics(
                 parent: ClampingScrollPhysics(),
               ),
-              padding: EdgeInsets.fromLTRB(
-                16,
-                12,
-                16,
-                bottomPadding,
-              ),
+              padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
               children: [
                 DriverActiveOrderMapCard(
                   order: order,
@@ -139,28 +135,74 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                   DriverOrderPackageCard(order: order),
                   const SizedBox(height: 12),
                 ],
-                DriverOrderPricingCard(
-                  order: order,
-                  isProcessing: isProcessingAction(
-                    DriverOrderActionKeys.updateFee(order.id),
-                  ),
-                  onEditDeliveryFee:
-                      ({
-                        required amount,
-                        required reason,
-                      }) async {
-                        final error = await ref
-                            .read(driverOrdersProvider.notifier)
-                            .updateDeliveryFeeOverride(
-                              orderId: order.id,
-                              amount: amount,
-                              reason: reason,
-                            );
-                        if (error == null) {
-                          ref.invalidate(driverOrderDetailProvider(order.id));
-                        }
-                        return error;
-                      },
+                Builder(
+                  builder: (context) {
+                    final canEditDeliveryFee =
+                        order.deliveryFeeNegotiation?.canDriverSubmitQuote ==
+                        true;
+                    final canAcceptDeliveryFeeCounter =
+                        order.deliveryFeeNegotiation?.canDriverAcceptCounter ==
+                        true;
+
+                    return DriverOrderPricingCard(
+                      order: order,
+                      isProcessing: isProcessingAction(
+                        DriverOrderActionKeys.updateFee(order.id),
+                      ),
+                      isAcceptingDeliveryFeeCounter: isProcessingAction(
+                        DriverOrderActionKeys.acceptDeliveryFeeCounter(
+                          order.id,
+                        ),
+                      ),
+                      onEditDeliveryFee: canEditDeliveryFee
+                          ? ({required amount, required reason}) async {
+                              final error = await ref
+                                  .read(driverOrdersProvider.notifier)
+                                  .updateDeliveryFeeOverride(
+                                    orderId: order.id,
+                                    amount: amount,
+                                    reason: reason,
+                                  );
+                              if (error == null) {
+                                ref.invalidate(
+                                  driverOrderDetailProvider(order.id),
+                                );
+                              }
+                              return error;
+                            }
+                          : null,
+                      onAcceptDeliveryFeeCounter: canAcceptDeliveryFeeCounter
+                          ? () async {
+                              final error = await ref
+                                  .read(driverOrdersProvider.notifier)
+                                  .acceptDeliveryFeeCounterOffer(
+                                    orderId: order.id,
+                                  );
+
+                              if (!context.mounted) {
+                                return;
+                              }
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    error ??
+                                        'Tawaran ongkir customer disetujui.',
+                                  ),
+                                  backgroundColor: error == null
+                                      ? null
+                                      : AppColors.error,
+                                ),
+                              );
+                              if (error == null) {
+                                ref.invalidate(
+                                  driverOrderDetailProvider(order.id),
+                                );
+                              }
+                            }
+                          : null,
+                    );
+                  },
                 ),
                 const SizedBox(height: 12),
                 if (normalizeServiceTypeCode(order.serviceTypeCode) ==

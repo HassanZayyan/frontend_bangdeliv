@@ -356,7 +356,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       return;
     }
 
-    final result = await context.push<ShoppingMerchantPlacePayload>(
+    final result = await context.push<ShoppingMerchantPickerResult>(
       AppRoutes.shoppingMerchantMapPickerPath(orderId),
       extra: ShoppingMerchantMapPickerArgs(
         initialLatitude: detail?.dropoffLatitude,
@@ -368,7 +368,30 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       return;
     }
 
-    final matchedMerchant = await _resolveDatabaseMerchantForPlace(result);
+    if (result.isOfficial) {
+      final officialMerchant = ShoppingMerchantOption(
+        id: result.merchantId!,
+        name: result.place.name,
+        slug: null,
+        merchantType: shoppingMerchantTypeFromPlace(
+          name: result.place.name,
+          types: result.place.types,
+        ),
+        address: result.place.address,
+        latitude: result.place.latitude,
+        longitude: result.place.longitude,
+      );
+      final exists = _merchants.any((item) => item.id == officialMerchant.id);
+      if (!exists) {
+        setState(() => _merchants = [officialMerchant, ..._merchants]);
+      }
+      _selectMerchant(officialMerchant);
+      return;
+    }
+
+    final matchedMerchant = await _resolveDatabaseMerchantForPlace(
+      result.place,
+    );
     if (!mounted) {
       return;
     }
@@ -382,7 +405,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
       return;
     }
 
-    _selectExternalMerchantPlace(result);
+    _selectExternalMerchantPlace(result.place);
   }
 
   Future<ShoppingMerchantOption?> _resolveDatabaseMerchantForPlace(

@@ -8,6 +8,7 @@ InputDecoration driverDialogInputDecoration({
   String? labelText,
   String? hintText,
   String? prefixText,
+  String? errorText,
 }) {
   final border = OutlineInputBorder(
     borderRadius: BorderRadius.circular(12),
@@ -18,6 +19,7 @@ InputDecoration driverDialogInputDecoration({
     labelText: labelText,
     hintText: hintText,
     prefixText: prefixText,
+    errorText: errorText,
     isDense: true,
     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
     labelStyle: const TextStyle(

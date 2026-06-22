@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../../config/app_colors.dart';
@@ -388,6 +390,8 @@ class DriverOrderPricingCard extends StatelessWidget {
     required String reason,
   })?
   onEditDeliveryFee;
+  final Future<void> Function()? onAcceptDeliveryFeeCounter;
+  final bool isAcceptingDeliveryFeeCounter;
   final bool showDriverAdminFeeBreakdown;
 
   const DriverOrderPricingCard({
@@ -395,6 +399,8 @@ class DriverOrderPricingCard extends StatelessWidget {
     required this.order,
     this.isProcessing = false,
     this.onEditDeliveryFee,
+    this.onAcceptDeliveryFeeCounter,
+    this.isAcceptingDeliveryFeeCounter = false,
     this.showDriverAdminFeeBreakdown = false,
   });
 
@@ -412,6 +418,12 @@ class DriverOrderPricingCard extends StatelessWidget {
         showDriverAdminFeeBreakdown &&
         order.driverAdminFee > 0 &&
         order.driverIncomeGross > order.driverIncomeNet;
+    final deliveryFeeNegotiation = order.deliveryFeeNegotiation;
+    final counterAmount = deliveryFeeNegotiation?.counterAmount ?? 0;
+    final showCounterOffer =
+        onAcceptDeliveryFeeCounter != null &&
+        deliveryFeeNegotiation?.canDriverAcceptCounter == true &&
+        counterAmount > 0;
 
     return _buildDriverCard(
       child: Column(
@@ -486,8 +498,133 @@ class DriverOrderPricingCard extends StatelessWidget {
             valueColor: AppColors.primaryDark,
             valueSize: 17,
           ),
+          if (showCounterOffer) ...[
+            const SizedBox(height: 14),
+            _buildDeliveryFeeCounterOffer(counterAmount),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _buildDeliveryFeeCounterOffer(double counterAmount) {
+    final negotiation = order.deliveryFeeNegotiation;
+    final quotedAmount = negotiation?.quotedAmount;
+    final currentAmount = order.deliveryFee ?? negotiation?.oldDeliveryFee;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.16)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.12),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.local_offer_outlined,
+                  color: AppColors.primary,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Tawaran ongkir customer',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      formatRupiah(counterAmount),
+                      style: const TextStyle(
+                        color: AppColors.primaryDark,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (quotedAmount != null && quotedAmount > 0) ...[
+            _counterDetailLine('Revisi driver', formatRupiah(quotedAmount)),
+            const SizedBox(height: 6),
+          ],
+          if (currentAmount != null && currentAmount > 0) ...[
+            _counterDetailLine('Ongkir saat ini', formatRupiah(currentAmount)),
+            const SizedBox(height: 10),
+          ],
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: isProcessing || isAcceptingDeliveryFeeCounter
+                  ? null
+                  : () => unawaited(onAcceptDeliveryFeeCounter!()),
+              child: isAcceptingDeliveryFeeCounter
+                  ? const SizedBox(
+                      width: 17,
+                      height: 17,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.white,
+                      ),
+                    )
+                  : const Text('Terima Tawaran'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _counterDetailLine(String label, String value) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          value,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
     );
   }
 

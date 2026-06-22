@@ -23,9 +23,14 @@ class ShoppingMerchantMapPickerArgs {
 }
 
 class ShoppingMerchantMapPickerScreen extends ConsumerStatefulWidget {
-  const ShoppingMerchantMapPickerScreen({super.key, this.args});
+  const ShoppingMerchantMapPickerScreen({
+    super.key,
+    this.args,
+    GoogleMapsLookupService? mapsLookup,
+  }) : mapsLookup = mapsLookup ?? const GoogleMapsLookupService();
 
   final ShoppingMerchantMapPickerArgs? args;
+  final GoogleMapsLookupService mapsLookup;
 
   @override
   ConsumerState<ShoppingMerchantMapPickerScreen> createState() =>
@@ -35,39 +40,28 @@ class ShoppingMerchantMapPickerScreen extends ConsumerStatefulWidget {
 class _ShoppingMerchantMapPickerScreenState
     extends ConsumerState<ShoppingMerchantMapPickerScreen> {
   static const _fallbackCenter = LatLng(-7.3305, 110.5084);
-  static const _shoppingMapStyle = '''
-[
-  {
-    "featureType": "poi.business",
-    "elementType": "labels",
-    "stylers": [{"visibility": "off"}]
-  },
-  {
-    "featureType": "transit",
-    "elementType": "labels.icon",
-    "stylers": [{"visibility": "off"}]
-  }
-]
-''';
 
   final _searchController = TextEditingController();
-  final _mapsLookup = const GoogleMapsLookupService();
+  late final GoogleMapsLookupService _mapsLookup;
 
   GoogleMapController? _mapController;
   List<GoogleMapsPrediction> _predictions = const <GoogleMapsPrediction>[];
   List<ShoppingMerchantOption> _officialMerchants =
       const <ShoppingMerchantOption>[];
   ShoppingMerchantPlacePayload? _selectedPlace;
+  int? _selectedOfficialMerchantId;
   BitmapDescriptor? _restaurantMarkerIcon;
   BitmapDescriptor? _warungMarkerIcon;
   bool _isSearching = false;
   bool _isResolving = false;
   String? _errorText;
   late String _sessionToken;
+  int _tapResolveRequestId = 0;
 
   @override
   void initState() {
     super.initState();
+    _mapsLookup = widget.mapsLookup;
     _sessionToken = MapPickerHelpers.newMapsSessionToken();
     unawaited(_loadOfficialMerchantIcons());
     unawaited(_loadOfficialMerchants());
@@ -89,9 +83,12 @@ class _ShoppingMerchantMapPickerScreenState
   }
 
   Future<void> _searchPlaces() async {
+    _tapResolveRequestId += 1;
     final query = _searchController.text.trim();
     if (query.isEmpty) {
-      setState(() => _errorText = 'Ketik nama toko/resto terlebih dahulu.');
+      setState(() {
+        _errorText = 'Ketik nama tempat terlebih dahulu.';
+      });
       return;
     }
 
@@ -115,27 +112,17 @@ class _ShoppingMerchantMapPickerScreenState
       return;
     }
 
-    final filteredPredictions = predictions
-        .where(
-          (prediction) => isAllowedShoppingMerchantPlace(
-            name:
-                prediction.name ??
-                MapPickerHelpers.firstAddressSegment(prediction.description),
-            types: prediction.types,
-          ),
-        )
-        .toList(growable: false);
-
     setState(() {
-      _predictions = filteredPredictions;
+      _predictions = predictions;
       _isSearching = false;
-      if (filteredPredictions.isEmpty) {
+      if (predictions.isEmpty) {
         _errorText = 'Tempat tidak ditemukan.';
       }
     });
   }
 
   Future<void> _selectPrediction(GoogleMapsPrediction prediction) async {
+    _tapResolveRequestId += 1;
     setState(() {
       _isResolving = true;
       _errorText = null;
@@ -163,17 +150,6 @@ class _ShoppingMerchantMapPickerScreenState
         resolved.name ??
         prediction.name ??
         MapPickerHelpers.firstAddressSegment(prediction.description);
-    if (!isAllowedShoppingMerchantPlace(
-      name: resolvedName,
-      types: resolved.types,
-    )) {
-      setState(() {
-        _isResolving = false;
-        _errorText =
-            'Pilih resto, coffee shop, minimarket, market, atau warung.';
-      });
-      return;
-    }
 
     final place = ShoppingMerchantPlacePayload(
       placeId: resolved.placeId ?? prediction.placeId,
@@ -188,9 +164,83 @@ class _ShoppingMerchantMapPickerScreenState
     _setSelectedPlace(place);
   }
 
-  void _setSelectedPlace(ShoppingMerchantPlacePayload place) {
+  Future<void> _handleMapTap(LatLng target) async {
+    if (!_mapsLookup.isConfigured) {
+      setState(() => _errorText = 'Google Maps API belum dikonfigurasi.');
+      return;
+    }
+
+    final requestId = ++_tapResolveRequestId;
+    setState(() {
+      _isResolving = true;
+      _errorText = null;
+      _predictions = const <GoogleMapsPrediction>[];
+      _selectedOfficialMerchantId = null;
+      _selectedPlace = ShoppingMerchantPlacePayload(
+        placeId: null,
+        name: 'Mencari tempat...',
+        address: 'Mengambil alamat tempat dari titik peta.',
+        latitude: target.latitude,
+        longitude: target.longitude,
+        types: const <String>['map_tap'],
+      );
+    });
+
+    final resolved = await _mapsLookup.findNearestEstablishment(target);
+
+    if (!mounted || requestId != _tapResolveRequestId) {
+      return;
+    }
+
+    if (resolved == null) {
+      setState(() {
+        _isResolving = false;
+        _selectedPlace = null;
+        _errorText =
+            'Nama tempat belum ditemukan. Tap lebih dekat ke label tempat atau cari nama tempat.';
+      });
+      return;
+    }
+
+    final name = (resolved.name ?? '').trim();
+    if (name.isEmpty) {
+      setState(() {
+        _isResolving = false;
+        _selectedPlace = null;
+        _errorText =
+            'Nama tempat belum ditemukan. Tap lebih dekat ke label tempat atau cari nama tempat.';
+      });
+      return;
+    }
+
+    final fallbackAddress =
+        '${resolved.target.latitude.toStringAsFixed(6)}, ${resolved.target.longitude.toStringAsFixed(6)}';
+    final address = (resolved.address ?? '').trim().isNotEmpty
+        ? resolved.address!.trim()
+        : fallbackAddress;
+
+    _sessionToken = MapPickerHelpers.newMapsSessionToken();
+    _setSelectedPlace(
+      ShoppingMerchantPlacePayload(
+        placeId: resolved.placeId,
+        name: name,
+        address: address,
+        latitude: resolved.target.latitude,
+        longitude: resolved.target.longitude,
+        types: resolved.types.isEmpty
+            ? const <String>['establishment']
+            : resolved.types,
+      ),
+    );
+  }
+
+  void _setSelectedPlace(
+    ShoppingMerchantPlacePayload place, {
+    int? officialMerchantId,
+  }) {
     setState(() {
       _selectedPlace = place;
+      _selectedOfficialMerchantId = officialMerchantId;
       _predictions = const <GoogleMapsPrediction>[];
       _searchController.text = place.name;
       _isResolving = false;
@@ -244,6 +294,7 @@ class _ShoppingMerchantMapPickerScreenState
   }
 
   void _selectOfficialMerchant(ShoppingMerchantOption merchant) {
+    _tapResolveRequestId += 1;
     final latitude = merchant.latitude;
     final longitude = merchant.longitude;
     if (latitude == null || longitude == null) {
@@ -265,14 +316,13 @@ class _ShoppingMerchantMapPickerScreenState
           'bangdeliv_official',
         ],
       ),
+      officialMerchantId: merchant.id,
     );
   }
 
   Set<Marker> _buildMarkers() {
     final selectedPlace = _selectedPlace;
-    final selectedOfficialMerchant = selectedPlace == null
-        ? null
-        : _matchedOfficialMerchant(selectedPlace);
+    final selectedOfficialMerchant = _selectedOfficialMerchant(selectedPlace);
     final markers = <Marker>{};
 
     for (final merchant in _officialMerchants) {
@@ -345,6 +395,25 @@ class _ShoppingMerchantMapPickerScreenState
     return null;
   }
 
+  ShoppingMerchantOption? _selectedOfficialMerchant(
+    ShoppingMerchantPlacePayload? place,
+  ) {
+    if (place == null) {
+      return null;
+    }
+
+    final selectedId = _selectedOfficialMerchantId;
+    if (selectedId != null && selectedId > 0) {
+      for (final merchant in _officialMerchants) {
+        if (merchant.id == selectedId) {
+          return merchant;
+        }
+      }
+    }
+
+    return _matchedOfficialMerchant(place);
+  }
+
   void _confirmSelection() {
     final place = _selectedPlace;
     if (place == null) {
@@ -352,15 +421,19 @@ class _ShoppingMerchantMapPickerScreenState
       return;
     }
 
-    Navigator.of(context).pop(place);
+    final officialMerchant = _selectedOfficialMerchant(place);
+    Navigator.of(context).pop(
+      ShoppingMerchantPickerResult(
+        place: place,
+        merchantId: officialMerchant?.id ?? _selectedOfficialMerchantId,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final selectedPlace = _selectedPlace;
-    final selectedOfficialMerchant = selectedPlace == null
-        ? null
-        : _matchedOfficialMerchant(selectedPlace);
+    final selectedOfficialMerchant = _selectedOfficialMerchant(selectedPlace);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -382,10 +455,10 @@ class _ShoppingMerchantMapPickerScreenState
                 target: _initialTarget,
                 zoom: 14,
               ),
-              style: _shoppingMapStyle,
               onMapCreated: (controller) => _mapController = controller,
               myLocationButtonEnabled: true,
               zoomControlsEnabled: false,
+              onTap: _handleMapTap,
               markers: _buildMarkers(),
             ),
             Positioned(
@@ -464,7 +537,7 @@ class _SearchPanel extends StatelessWidget {
                     enabled: !isResolving,
                     textInputAction: TextInputAction.search,
                     decoration: const InputDecoration(
-                      hintText: 'Cari toko, resto, atau minimarket',
+                      hintText: 'Cari nama tempat',
                       prefixIcon: Icon(Icons.search_rounded, size: 20),
                     ),
                     onSubmitted: (_) => onSearch(),

@@ -5,17 +5,23 @@ import 'package:go_router/go_router.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
 import '../../../../config/app_text_scaling.dart';
+import '../../../../core/di/app_providers.dart';
 import '../../../../models/address_location_picker_result.dart';
+import '../../../../models/chatbot_launch_args.dart';
 import '../../../../models/route_location_picker_result.dart';
 import '../../../../models/user_profile_model.dart';
 import '../../../../services/customer_order_api_service.dart';
+import '../../../../utils/currency_formatter.dart';
 import '../../../auth/application/auth_session_provider.dart';
 import '../../application/chatbot_conversation_provider.dart';
 import '../../../../utils/address_readiness.dart';
 import '../../../shopping/presentation/screens/shopping_merchant_map_picker_screen.dart';
+import '../widgets/chatbot_menu_selector.dart';
 
 class ChatbotScreen extends ConsumerStatefulWidget {
-  const ChatbotScreen({super.key});
+  const ChatbotScreen({super.key, this.launchArgs});
+
+  final ChatbotLaunchArgs? launchArgs;
 
   @override
   ConsumerState<ChatbotScreen> createState() => _ChatbotScreenState();
@@ -23,10 +29,25 @@ class ChatbotScreen extends ConsumerStatefulWidget {
 
 enum _ChatbotMenuAction { restart }
 
+class _ChatbotMenuSelectorData {
+  const _ChatbotMenuSelectorData({
+    required this.merchantName,
+    required this.menus,
+  });
+
+  final String merchantName;
+  final List<ChatbotMenuSuggestion> menus;
+}
+
 class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   late final TextEditingController _inputController;
   late final ScrollController _scrollController;
   String? _bootstrappedServiceType;
+  String? _appliedLaunchSignature;
+  _ChatbotMenuSelectorData? _menuSelectorData;
+  bool _isLoadingMenuSelector = false;
+  String? _menuSelectorNotice;
+  int _menuSelectorRequestId = 0;
   bool _didAutoOpenAddressBook = false;
 
   @override
@@ -50,6 +71,11 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     }
 
     _bootstrappedServiceType = serviceType;
+    _appliedLaunchSignature = null;
+    _menuSelectorData = null;
+    _isLoadingMenuSelector = false;
+    _menuSelectorNotice = null;
+    _menuSelectorRequestId += 1;
     _didAutoOpenAddressBook = false;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
@@ -68,6 +94,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
   _ServiceContext get _serviceContext {
     final rawServiceType =
+        widget.launchArgs?.serviceType ??
         GoRouterState.of(context).uri.queryParameters['service_type'] ??
         'nitip';
 
@@ -143,6 +170,59 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       _didAutoOpenAddressBook = true;
       await _handleOpenAddressesAction();
     }
+
+    await _maybeApplyLaunchArgs();
+  }
+
+  Future<void> _maybeApplyLaunchArgs() async {
+    final launchArgs = widget.launchArgs;
+    if (launchArgs == null ||
+        launchArgs.serviceType != _serviceContext.serviceType) {
+      return;
+    }
+
+    final merchantId = launchArgs.merchantId;
+    if (_serviceContext.serviceType != 'nitip' ||
+        merchantId == null ||
+        merchantId <= 0) {
+      return;
+    }
+
+    if (!_hasSavedAddressInProfile()) {
+      return;
+    }
+
+    final signature =
+        '${launchArgs.serviceType}:$merchantId:${launchArgs.menuSuggestions.map((item) => item.name).join('|')}';
+    if (_appliedLaunchSignature == signature) {
+      return;
+    }
+
+    final state = ref.read(chatbotConversationProvider);
+    if (state.isBusy || (state.sessionId ?? '').trim().isEmpty) {
+      return;
+    }
+
+    _appliedLaunchSignature = signature;
+    final applied = await ref
+        .read(chatbotConversationProvider.notifier)
+        .applyMerchantPickerAction(
+          serviceType: _serviceContext.serviceType,
+          merchantId: merchantId,
+          mode: 'select',
+          appendAssistantMessage: false,
+        );
+
+    if (!mounted || !applied) {
+      return;
+    }
+
+    _showMenuSelector(
+      merchantName: launchArgs.merchantName,
+      menus: launchArgs.menuSuggestions,
+    );
+
+    _scrollToBottom();
   }
 
   Future<void> _sendMessage([String? presetText]) async {
@@ -153,6 +233,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
     if (ChatbotCommandParser.isRestartCommand(raw)) {
       _inputController.clear();
+      _clearMenuSelector();
       await _handleRestartConversation();
       return;
     }
@@ -163,6 +244,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     }
 
     _inputController.clear();
+    _clearMenuSelector();
 
     await ref
         .read(chatbotConversationProvider.notifier)
@@ -180,6 +262,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   }
 
   Future<void> _handleRestartConversation() async {
+    _clearMenuSelector();
     await ref
         .read(chatbotConversationProvider.notifier)
         .restartActiveSession(
@@ -212,6 +295,62 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     return _serviceContext.welcomeMessageFor(hasUsableSavedAddress(addresses));
   }
 
+  bool get _hasMenuSelectorSurface {
+    return _menuSelectorData != null ||
+        _isLoadingMenuSelector ||
+        (_menuSelectorNotice ?? '').trim().isNotEmpty;
+  }
+
+  void _showMenuSelector({
+    required String? merchantName,
+    required List<ChatbotMenuSuggestion> menus,
+  }) {
+    _menuSelectorRequestId += 1;
+    final normalizedMenus = menus
+        .where((menu) => menu.name.trim().isNotEmpty)
+        .toList(growable: false);
+    if (normalizedMenus.isEmpty) {
+      _clearMenuSelector();
+      return;
+    }
+
+    setState(() {
+      _menuSelectorData = _ChatbotMenuSelectorData(
+        merchantName: (merchantName ?? '').trim(),
+        menus: normalizedMenus,
+      );
+      _isLoadingMenuSelector = false;
+      _menuSelectorNotice = null;
+    });
+  }
+
+  void _showMenuSelectorNotice(String message) {
+    _menuSelectorRequestId += 1;
+    setState(() {
+      _menuSelectorData = null;
+      _isLoadingMenuSelector = false;
+      _menuSelectorNotice = message;
+    });
+  }
+
+  void _clearMenuSelector() {
+    if (!_hasMenuSelectorSurface) {
+      return;
+    }
+
+    _menuSelectorRequestId += 1;
+    setState(() {
+      _menuSelectorData = null;
+      _isLoadingMenuSelector = false;
+      _menuSelectorNotice = null;
+    });
+  }
+
+  Future<void> _handleMenuSelectorConfirm(String message) async {
+    _clearMenuSelector();
+    await _sendMessage(message);
+  }
+
   Future<void> _handleBack() async {
     if (!mounted) {
       return;
@@ -240,7 +379,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     final latestActionMessageIndex = state.messages.lastIndexWhere(
       (message) => !message.isUser && message.actionHints.isNotEmpty,
     );
-    final showStaticSuggestions = latestActionMessageIndex < 0;
+    final showStaticSuggestions =
+        latestActionMessageIndex < 0 && !_hasMenuSelectorSurface;
 
     // Auto-scroll whenever the message list grows (new send / map-pin response)
     ref.listen<ChatbotConversationState>(chatbotConversationProvider, (
@@ -361,14 +501,18 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                 : ListView(
                     controller: _scrollController,
                     padding: const EdgeInsets.all(20),
-                    children: List.generate(state.messages.length, (index) {
-                      final message = state.messages[index];
-                      return _buildMessageItem(
-                        message,
-                        actionsEnabled:
-                            !effectiveBusy && index == latestActionMessageIndex,
-                      );
-                    }),
+                    children: [
+                      ...List.generate(state.messages.length, (index) {
+                        final message = state.messages[index];
+                        return _buildMessageItem(
+                          message,
+                          actionsEnabled:
+                              !effectiveBusy &&
+                              index == latestActionMessageIndex,
+                        );
+                      }),
+                      if (_hasMenuSelectorSurface) _buildMenuSelectorSurface(),
+                    ],
                   ),
           ),
           Container(
@@ -526,6 +670,88 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
               fontWeight: FontWeight.w600,
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMenuSelectorSurface() {
+    final selectorData = _menuSelectorData;
+    if (selectorData != null) {
+      return ChatbotMenuSelector(
+        merchantName: selectorData.merchantName,
+        menus: selectorData.menus,
+        onConfirm: _handleMenuSelectorConfirm,
+      );
+    }
+
+    if (_isLoadingMenuSelector) {
+      return _buildMenuSelectorInfoBubble(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                'Memuat menu merchant...',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: AppTextScaling.adaptive(
+                    context,
+                    normal: 13,
+                    large: 12.4,
+                  ),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final notice = (_menuSelectorNotice ?? '').trim();
+    if (notice.isNotEmpty) {
+      return _buildMenuSelectorInfoBubble(
+        child: Text(
+          notice,
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: AppTextScaling.adaptive(context, normal: 13, large: 12.4),
+            height: 1.35,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildMenuSelectorInfoBubble({required Widget child}) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.sizeOf(context).width * 0.78,
+        ),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            border: Border.all(color: AppColors.border),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: child,
         ),
       ),
     );
@@ -2065,6 +2291,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         .read(chatbotConversationProvider.notifier)
         .onAddressBookUpdated(serviceType: _serviceContext.serviceType);
 
+    await _maybeApplyLaunchArgs();
+
     _scrollToBottom();
   }
 
@@ -2122,7 +2350,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       return;
     }
 
-    final result = await context.push<ShoppingMerchantPlacePayload>(
+    final result = await context.push<ShoppingMerchantPickerResult>(
       AppRoutes.chatbotShoppingMerchantMapPickerPath(),
       extra: ShoppingMerchantMapPickerArgs(
         initialLatitude: actionHint.initialLatitude,
@@ -2134,13 +2362,80 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       return;
     }
 
-    await ref
+    _clearMenuSelector();
+
+    final applied = await ref
         .read(chatbotConversationProvider.notifier)
         .applyMerchantPickerAction(
           serviceType: _serviceContext.serviceType,
-          merchantPlace: result,
+          merchantId: result.merchantId,
+          merchantPlace: result.isOfficial ? null : result.place,
           mode: actionHint.merchantMode == 'add' ? 'add' : 'select',
+          appendAssistantMessage: !result.isOfficial,
         );
+
+    if (!mounted || !applied) {
+      return;
+    }
+
+    if (result.isOfficial) {
+      await _loadOfficialMerchantMenus(
+        merchantId: result.merchantId!,
+        merchantName: result.place.name,
+      );
+      return;
+    }
+
+    _scrollToBottom();
+  }
+
+  Future<void> _loadOfficialMerchantMenus({
+    required int merchantId,
+    required String merchantName,
+  }) async {
+    final requestId = ++_menuSelectorRequestId;
+    setState(() {
+      _menuSelectorData = null;
+      _isLoadingMenuSelector = true;
+      _menuSelectorNotice = null;
+    });
+    _scrollToBottom();
+
+    try {
+      final menus = await ref
+          .read(customerOrderRepositoryProvider)
+          .searchMerchantMenus(merchantId, '');
+      if (!mounted || requestId != _menuSelectorRequestId) {
+        return;
+      }
+
+      final suggestions = menus
+          .where((menu) => menu.name.trim().isNotEmpty)
+          .map(
+            (menu) => ChatbotMenuSuggestion(
+              name: menu.name.trim(),
+              presetMessage: '${menu.name.trim()} 1',
+              priceLabel: formatRupiah(menu.price),
+              imageUrl: menu.imageUrl,
+            ),
+          )
+          .toList(growable: false);
+
+      if (suggestions.isEmpty) {
+        _showMenuSelectorNotice(
+          'Menu resmi merchant ini belum tersedia. Kamu tetap bisa tulis item manual.',
+        );
+      } else {
+        _showMenuSelector(merchantName: merchantName, menus: suggestions);
+      }
+    } catch (_) {
+      if (!mounted || requestId != _menuSelectorRequestId) {
+        return;
+      }
+      _showMenuSelectorNotice(
+        'Menu belum bisa dimuat. Kamu tetap bisa tulis item manual.',
+      );
+    }
 
     _scrollToBottom();
   }

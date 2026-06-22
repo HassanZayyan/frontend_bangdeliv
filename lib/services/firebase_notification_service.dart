@@ -219,7 +219,8 @@ class FirebaseNotificationService {
     if (type != 'order_chat_message' &&
         type != 'order_status_changed' &&
         type != 'order_price_changed' &&
-        type != 'payment_proof_required') {
+        type != 'payment_proof_required' &&
+        type != 'shopping_item_unavailable') {
       return null;
     }
 
@@ -251,6 +252,13 @@ class FirebaseNotificationService {
                   (data['pickup_location_id'] ?? '').toString(),
                 ),
               ),
+      'shopping_item_unavailable' => AppRoutes.orderTrackPath(
+        orderId,
+        focus: TrackingFocusTarget.shoppingPrice,
+        pickupLocationId: int.tryParse(
+          (data['pickup_location_id'] ?? '').toString(),
+        ),
+      ),
       _ => AppRoutes.orderTrackPath(orderId),
     };
   }
@@ -422,8 +430,10 @@ class FirebaseNotificationService {
     final priceEventId = int.tryParse(
       (message.data['price_event_id'] ?? '').toString(),
     );
+    final eventId = int.tryParse((message.data['event_id'] ?? '').toString());
     final type = (message.data['type'] ?? '').toString();
-    final notificationRefId = messageId ?? historyId ?? priceEventId ?? 0;
+    final notificationRefId =
+        messageId ?? historyId ?? priceEventId ?? eventId ?? 0;
     final key = orderId != null && orderId > 0 && notificationRefId > 0
         ? '$type:$orderId:$notificationRefId'
         : 'fcm:${message.messageId ?? ''}:${orderId ?? 0}:$notificationRefId';
@@ -469,7 +479,8 @@ class FirebaseNotificationService {
     try {
       final isStatusNotification =
           (data['type'] ?? '').toString() == 'order_status_changed' ||
-          (data['type'] ?? '').toString() == 'order_price_changed';
+          (data['type'] ?? '').toString() == 'order_price_changed' ||
+          (data['type'] ?? '').toString() == 'shopping_item_unavailable';
       final android = AndroidNotificationDetails(
         isStatusNotification
             ? statusNotificationChannelId

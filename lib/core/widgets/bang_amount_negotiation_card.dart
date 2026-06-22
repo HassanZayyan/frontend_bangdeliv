@@ -17,6 +17,8 @@ class BangAmountNegotiationCard extends StatelessWidget {
     this.approveLoading = false,
     this.counterLoading = false,
     this.cancelLoading = false,
+    this.previousAmount,
+    this.reason,
   });
 
   final String label;
@@ -29,11 +31,19 @@ class BangAmountNegotiationCard extends StatelessWidget {
   final bool approveLoading;
   final bool counterLoading;
   final bool cancelLoading;
+  final double? previousAmount;
+  final String? reason;
 
   bool get _hasLoading => approveLoading || counterLoading || cancelLoading;
 
   @override
   Widget build(BuildContext context) {
+    final normalizedReason = (reason ?? '').trim();
+    final hasPreviousAmount =
+        previousAmount != null &&
+        previousAmount! > 0 &&
+        previousAmount!.round() != amount.round();
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -82,11 +92,45 @@ class BangAmountNegotiationCard extends StatelessWidget {
                         fontSize: 18,
                       ),
                     ),
+                    if (hasPreviousAmount) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        'Ongkir sebelumnya ${formatCurrency(previousAmount!)}',
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
             ],
           ),
+          if (normalizedReason.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.white.withValues(alpha: 0.72),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                ),
+              ),
+              child: Text(
+                'Alasan driver: $normalizedReason',
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 12.5,
+                  height: 1.35,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           Row(
             children: [

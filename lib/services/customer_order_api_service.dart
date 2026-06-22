@@ -458,6 +458,15 @@ class ShoppingMerchantPlacePayload {
   }
 }
 
+class ShoppingMerchantPickerResult {
+  const ShoppingMerchantPickerResult({required this.place, this.merchantId});
+
+  final ShoppingMerchantPlacePayload place;
+  final int? merchantId;
+
+  bool get isOfficial => merchantId != null && merchantId! > 0;
+}
+
 class ShoppingItemDraftPayload {
   final int? merchantId;
   final ShoppingMerchantPlacePayload? merchantPlace;
@@ -502,11 +511,13 @@ class ShoppingMenuOption {
   final int id;
   final String name;
   final double price;
+  final String imageUrl;
 
   const ShoppingMenuOption({
     required this.id,
     required this.name,
     required this.price,
+    this.imageUrl = '',
   });
 
   factory ShoppingMenuOption.fromJson(Map<String, dynamic> json) {
@@ -514,6 +525,7 @@ class ShoppingMenuOption {
       id: int.tryParse(json['id']?.toString() ?? '') ?? 0,
       name: (json['name'] ?? '-').toString(),
       price: _toDouble(json['price']),
+      imageUrl: AppEnv.resolveBackendAssetUrl(json['image']?.toString()),
     );
   }
 
