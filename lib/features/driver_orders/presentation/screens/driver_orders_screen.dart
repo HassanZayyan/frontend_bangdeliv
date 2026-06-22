@@ -618,7 +618,7 @@ class _OrderRouteSectionState extends State<_OrderRouteSection> {
           _IncomingRouteStop(
             icon: Icons.radio_button_checked,
             iconColor: AppColors.primary,
-            label: 'Merchant ${index + 1}',
+            label: 'Tempat ${index + 1}',
             value: _merchantStopText(stops[index]),
           ),
         _IncomingRouteStop(

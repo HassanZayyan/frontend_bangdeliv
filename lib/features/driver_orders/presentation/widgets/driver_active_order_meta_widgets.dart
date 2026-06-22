@@ -221,7 +221,7 @@ class DriverOrderRouteCard extends StatelessWidget {
               child: _routeStop(
                 icon: Icons.radio_button_checked,
                 iconColor: stop.isFailed ? AppColors.error : AppColors.primary,
-                title: 'Merchant $sequence',
+                title: 'Tempat $sequence',
                 value: [
                   stop.merchant.name,
                   if (address.isNotEmpty) address,

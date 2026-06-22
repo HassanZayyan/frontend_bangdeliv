@@ -222,7 +222,7 @@ class ShoppingItemChangeRequestStopModel {
           ModelParseUtils.optionalText(
             json['merchant_name'] ?? json['merchantName'] ?? json['name'],
           ) ??
-          'Merchant',
+          'Tempat',
       merchantAddress: ModelParseUtils.optionalText(
         json['merchant_address'] ?? json['merchantAddress'] ?? json['address'],
       ),

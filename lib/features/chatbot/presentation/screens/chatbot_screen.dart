@@ -132,7 +132,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           iconAsset:
               'assets/images/services/service_shopping_basket_simplified.png',
           welcomeMessage:
-              'Halo! Saya BangBot untuk layanan Nitip. Tulis merchant dan item lewat chat, atau pilih merchant di map. Kamu bisa tambah sampai 3 merchant dalam satu pesanan.',
+              'Halo! Saya BangBot untuk layanan Nitip. Tulis tempat dan item lewat chat, atau pilih tempat di map. Kamu bisa tambah sampai 3 tempat dalam satu pesanan.',
           addressRequiredMessage:
               'Sebelum pesan Nitip, isi Alamat Saya dulu supaya titik antar pesanan kamu siap dipakai.',
           suggestions: [
@@ -701,7 +701,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             const SizedBox(width: 10),
             Flexible(
               child: Text(
-                'Memuat menu merchant...',
+                'Memuat menu tempat...',
                 style: TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: AppTextScaling.adaptive(
@@ -1997,7 +1997,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
   bool _isShoppingMerchantHeader(String line) {
     return RegExp(
-      r'^merchant(?:\s+\d+)?$',
+      r'^(?:merchant|tempat)(?:\s+\d+)?$',
       caseSensitive: false,
     ).hasMatch(line.trim());
   }
@@ -2423,7 +2423,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
       if (suggestions.isEmpty) {
         _showMenuSelectorNotice(
-          'Menu resmi merchant ini belum tersedia. Kamu tetap bisa tulis item manual.',
+          'Menu resmi tempat ini belum tersedia. Kamu tetap bisa tulis item manual.',
         );
       } else {
         _showMenuSelector(merchantName: merchantName, menus: suggestions);

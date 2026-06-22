@@ -46,12 +46,12 @@ class MerchantDetailScreen extends ConsumerWidget {
           merchant: fallbackMerchant,
           menus: const <FoodModel>[],
           returnPath: returnPath,
-          menusError: 'Menu merchant eksternal belum tersedia.',
+          menusError: 'Menu tempat eksternal belum tersedia.',
         );
       }
 
       return _MerchantDetailErrorState(
-        message: 'Merchant tidak valid.',
+        message: 'Tempat tidak valid.',
         onBack: () => _handleBack(context),
       );
     }
@@ -86,7 +86,7 @@ class MerchantDetailScreen extends ConsumerWidget {
         }
 
         return _MerchantDetailErrorState(
-          message: 'Gagal memuat detail merchant.',
+          message: 'Gagal memuat detail tempat.',
           onBack: () => _handleBack(context),
         );
       },
@@ -433,7 +433,7 @@ class _MenuSection extends StatelessWidget {
         else if (menus.isEmpty)
           const _MenuInfoCard(
             icon: Icons.restaurant_menu_outlined,
-            message: 'Menu resmi merchant ini belum tersedia.',
+            message: 'Menu resmi tempat ini belum tersedia.',
           )
         else
           ListView.separated(

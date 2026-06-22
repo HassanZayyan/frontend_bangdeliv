@@ -174,7 +174,7 @@ class ChatbotApiService {
       throw const ApiException('Session chat tidak valid.');
     }
     if ((merchantId == null || merchantId <= 0) && merchantPlace == null) {
-      throw const ApiException('Merchant belum dipilih.');
+      throw const ApiException('Tempat belum dipilih.');
     }
 
     final requestBody = <String, dynamic>{
@@ -199,8 +199,7 @@ class ChatbotApiService {
     final status = response['status']?.toString().toLowerCase();
     if (status == 'error') {
       throw ApiException(
-        response['message']?.toString() ??
-            'Gagal memperbarui merchant chatbot.',
+        response['message']?.toString() ?? 'Gagal memperbarui tempat chatbot.',
       );
     }
 

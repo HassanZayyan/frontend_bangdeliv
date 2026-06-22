@@ -161,7 +161,7 @@ class _TrackShoppingOrderItemsCardState
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '${stop.merchant.name} - Resto tutup/order batal',
+                  '${stop.merchant.name} - Tempat tutup/order batal',
                   style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontWeight: FontWeight.w800,
@@ -328,7 +328,7 @@ class _TrackShoppingOrderItemsCardState
                       action: 'CANCEL_MERCHANT',
                       pickupLocationId: stop.pickupLocationId,
                     ),
-                    child: const Text('Batalkan merchant ini'),
+                    child: const Text('Batalkan tempat ini'),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -443,7 +443,7 @@ class _TrackShoppingOrderItemsCardState
               const SizedBox(width: 8),
               if (stop.isFailed || stop.isSkipped)
                 _stopStatusChip(
-                  stop.isFailed ? 'Resto tutup/order batal' : 'Dilewati',
+                  stop.isFailed ? 'Tempat tutup/order batal' : 'Dilewati',
                 )
               else if (canEditUnavailable)
                 TextButton.icon(
@@ -514,7 +514,7 @@ class _TrackShoppingOrderItemsCardState
           if (hasPendingPrice) ...[
             const SizedBox(height: 4),
             const Text(
-              'Harga barang mengikuti struk dari merchant.',
+              'Harga barang mengikuti struk dari tempat.',
               style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 11,
@@ -575,7 +575,7 @@ class _TrackShoppingOrderItemsCardState
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
             icon: const Icon(Icons.storefront_outlined, size: 16),
-            label: const Text('Batal merchant'),
+            label: const Text('Batal tempat'),
           ),
       ],
     );
@@ -861,7 +861,7 @@ class _TrackShoppingOrderItemsCardState
       context,
       title: 'Lanjut tanpa ${item.name}?',
       message:
-          'Item ini akan dilewati, lalu driver mengirim harga baru untuk merchant ini.',
+          'Item ini akan dilewati, lalu driver mengirim harga baru untuk tempat ini.',
       confirmLabel: 'Lanjut tanpa ini',
     );
     if (!confirmed || !context.mounted) {
@@ -888,8 +888,8 @@ class _TrackShoppingOrderItemsCardState
       context,
       title: 'Batalkan ${stop.merchant.name}?',
       message:
-          'Semua item dari merchant ini tidak akan dibeli. Kalau ini merchant terakhir, order Nitip bisa ikut dibatalkan.',
-      confirmLabel: 'Batal merchant',
+          'Semua item dari tempat ini tidak akan dibeli. Kalau ini tempat terakhir, order Nitip bisa ikut dibatalkan.',
+      confirmLabel: 'Batal tempat',
       isDestructive: true,
     );
     if (!confirmed || !context.mounted) {
@@ -902,7 +902,7 @@ class _TrackShoppingOrderItemsCardState
       action: 'CANCEL_MERCHANT',
       pickupLocationId: stop.pickupLocationId,
       note:
-          'Customer membatalkan merchant karena item tidak tersedia di ${stop.merchant.name}.',
+          'Customer membatalkan tempat karena item tidak tersedia di ${stop.merchant.name}.',
       successMessage: '${stop.merchant.name} dibatalkan.',
     );
   }

@@ -14,7 +14,7 @@ class HomeApiService {
   Future<MerchantDetailModel> fetchMerchantDetail(String merchantId) async {
     final normalizedId = merchantId.trim();
     if (normalizedId.isEmpty) {
-      throw const ApiException('Merchant tidak valid.');
+      throw const ApiException('Tempat tidak valid.');
     }
 
     final detailResponse = await _apiClient.get(

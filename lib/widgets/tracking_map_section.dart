@@ -634,7 +634,7 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
           .map(
             (stop) => _PickupPointView(
               id: stop.id,
-              label: stop.label.trim().isEmpty ? 'Merchant' : stop.label,
+              label: stop.label.trim().isEmpty ? 'Tempat' : stop.label,
               position: LatLng(stop.latitude, stop.longitude),
             ),
           )

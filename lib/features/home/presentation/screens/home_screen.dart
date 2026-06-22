@@ -226,7 +226,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void _openMerchantDetail(BuildContext context, MerchantModel merchant) {
     if (merchant.id.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Detail merchant tidak tersedia.')),
+        const SnackBar(content: Text('Detail tempat tidak tersedia.')),
       );
       return;
     }

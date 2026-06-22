@@ -284,7 +284,7 @@ class _DriverShoppingMerchantQuotePanelState
           keyboardType: TextInputType.number,
           enabled: canSubmitQuote && !widget.isOrderBusy,
           decoration: driverDialogInputDecoration(
-            labelText: 'Harga merchant',
+            labelText: 'Harga tempat',
             prefixText: 'Rp ',
           ),
         ),
@@ -305,7 +305,7 @@ class _DriverShoppingMerchantQuotePanelState
   Future<void> _submitQuote() async {
     final amount = parseDriverCurrencyInput(_amountController.text);
     if (amount <= 0) {
-      _showSnack('Harga merchant harus lebih dari 0.', isError: true);
+      _showSnack('Harga tempat harus lebih dari 0.', isError: true);
       return;
     }
 
@@ -760,7 +760,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
                   ),
                   child: Text(
                     stop.isFailed
-                        ? 'Resto tutup/order batal'
+                        ? 'Tempat tutup/order batal'
                         : stop.isReplaced
                         ? 'Diganti'
                         : stop.isCompleted
@@ -810,33 +810,10 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
           ],
           if (stop.isActive && isPendingMerchant) ...[
             const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: BangActionButton(
-                    label: 'Resto tutup',
-                    variant: BangActionButtonVariant.outlined,
-                    icon: Icons.storefront_outlined,
-                    isLoading: isClosingStop,
-                    isEnabled: !widget.isOrderBusy || isClosingStop,
-                    onPressed: () => _closeMerchant(stop),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.error,
-                      side: const BorderSide(color: AppColors.error),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: BangActionButton(
-                    label: 'Resto buka',
-                    icon: Icons.check_circle_outline,
-                    isLoading: isOpeningStop,
-                    isEnabled: !widget.isOrderBusy || isOpeningStop,
-                    onPressed: () => _openMerchant(stop),
-                  ),
-                ),
-              ],
+            _buildPendingMerchantActions(
+              stop: stop,
+              isClosingStop: isClosingStop,
+              isOpeningStop: isOpeningStop,
             ),
           ],
           if (stop.isActive && !isPendingMerchant && shouldShowQuotePanel) ...[
@@ -883,6 +860,64 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     );
   }
 
+  Widget _buildPendingMerchantActions({
+    required DriverShoppingStopModel stop,
+    required bool isClosingStop,
+    required bool isOpeningStop,
+  }) {
+    final closeButton = BangActionButton(
+      label: 'Tempat tutup',
+      variant: BangActionButtonVariant.outlined,
+      icon: Icons.storefront_outlined,
+      isLoading: isClosingStop,
+      isEnabled: !widget.isOrderBusy || isClosingStop,
+      onPressed: () => _closeMerchant(stop),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.error,
+        side: const BorderSide(color: AppColors.error),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        minimumSize: const Size(0, 44),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+      ),
+    );
+    final openButton = BangActionButton(
+      label: 'Tempat buka',
+      icon: Icons.check_circle_outline,
+      isLoading: isOpeningStop,
+      isEnabled: !widget.isOrderBusy || isOpeningStop,
+      onPressed: () => _openMerchant(stop),
+      style: FilledButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        minimumSize: const Size(0, 44),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 300) {
+          return Column(
+            children: [
+              SizedBox(width: double.infinity, child: closeButton),
+              const SizedBox(height: 8),
+              SizedBox(width: double.infinity, child: openButton),
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(child: closeButton),
+            const SizedBox(width: 6),
+            Expanded(child: openButton),
+          ],
+        );
+      },
+    );
+  }
+
   String _stopStatusLabel(DriverShoppingStopModel stop) {
     if (stop.isOpenConfirmed) return 'Buka';
     if (stop.isItemsPendingCustomer) return 'Menunggu keputusan item';
@@ -912,7 +947,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Resto tutup?'),
+        title: const Text('Tempat tutup?'),
         content: Text(
           '${stop.merchant.name} akan dibatalkan dan itemnya tidak dihitung.',
         ),
@@ -934,7 +969,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
 
     final error = await widget.onMarkMerchantClosed(
       pickupLocationId: stop.pickupLocationId,
-      reason: 'Resto tutup/order batal saat driver tiba.',
+      reason: 'Tempat tutup/order batal saat driver tiba.',
     );
     if (!mounted) {
       return;

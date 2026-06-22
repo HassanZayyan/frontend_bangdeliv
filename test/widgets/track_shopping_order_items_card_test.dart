@@ -11,7 +11,7 @@ import 'package:frontend_bangdeliv/models/shopping_order_capability_model.dart';
 import 'package:frontend_bangdeliv/services/customer_order_api_service.dart';
 
 void main() {
-  testWidgets('unavailable item actions request remove or cancel merchant', (
+  testWidgets('unavailable item actions request remove or cancel tempat', (
     tester,
   ) async {
     final repository = _FakeCustomerOrderRepository();
@@ -19,7 +19,7 @@ void main() {
     await _pumpCard(tester, repository);
 
     expect(find.text('Lanjut tanpa ini'), findsOneWidget);
-    expect(find.text('Batal merchant'), findsOneWidget);
+    expect(find.text('Batal tempat'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'Lanjut tanpa ini'));
     await tester.pumpAndSettle();
@@ -31,9 +31,9 @@ void main() {
     expect(repository.lastItemId, 12);
     expect(repository.lastTargetPickupLocationId, 77);
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Batal merchant'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Batal tempat'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Batal merchant'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Batal tempat'));
     await tester.pumpAndSettle();
 
     expect(repository.changeCalls, 2);
@@ -59,7 +59,7 @@ void main() {
 
     expect(find.text('Edit'), findsOneWidget);
     expect(find.text('Lanjut tanpa ini'), findsNothing);
-    expect(find.text('Batal merchant'), findsOneWidget);
+    expect(find.text('Batal tempat'), findsOneWidget);
   });
 
   testWidgets('cancelled with fee pricing uses cancellation fee label', (
@@ -247,7 +247,7 @@ CustomerOrderDetailModel _shoppingDetail({
       itemsSummary: '1x ramen mala, 1x es jeruk',
       totalAmount: 9000,
       statusCode: statusCode,
-      statusLabel: 'Driver di merchant',
+      statusLabel: 'Driver di tempat',
       isTerminalStatus: false,
       createdAt: DateTime(2026, 6, 18),
       estimatedDelivery: null,

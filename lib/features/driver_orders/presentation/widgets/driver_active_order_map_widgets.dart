@@ -201,7 +201,7 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
           (stop) => _DriverPickupPoint(
             id: stop.pickupLocationId.toString(),
             label:
-                'Merchant ${stop.sequenceNo <= 0 ? 1 : stop.sequenceNo}: ${stop.merchant.name}',
+                'Tempat ${stop.sequenceNo <= 0 ? 1 : stop.sequenceNo}: ${stop.merchant.name}',
             position: LatLng(stop.merchant.latitude!, stop.merchant.longitude!),
           ),
         )

@@ -10,7 +10,7 @@ void main() {
     expect(
       orderStatusDisplayLabel(
         OrderStatusCodes.arrivedMerchant,
-        fallbackLabel: 'Driver Tiba di Merchant',
+        fallbackLabel: 'Driver Tiba di Tempat',
       ),
       'Driver tiba di lokasi ambil',
     );

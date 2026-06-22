@@ -308,7 +308,7 @@ class DriverOrderService {
   }) async {
     final response = await _post(
       '/v1/driver/orders/$orderId/shopping-stops/$pickupLocationId/open',
-      fallback: 'Gagal mengonfirmasi merchant buka.',
+      fallback: 'Gagal mengonfirmasi tempat buka.',
     );
 
     return _orderFromMutationResponse(response, orderId);
@@ -343,7 +343,7 @@ class DriverOrderService {
         'reason': reason.trim(),
         if (pickupLocationId > 0) 'pickup_location_id': pickupLocationId,
       },
-      fallback: 'Gagal mencatat merchant tutup.',
+      fallback: 'Gagal mencatat tempat tutup.',
     );
 
     return fetchOrderDetail(orderId);

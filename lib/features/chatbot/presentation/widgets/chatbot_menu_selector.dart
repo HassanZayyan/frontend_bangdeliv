@@ -83,7 +83,7 @@ class _ChatbotMenuSelectorState extends State<ChatbotMenuSelector> {
   @override
   Widget build(BuildContext context) {
     final merchantName = widget.merchantName.trim().isEmpty
-        ? 'merchant ini'
+        ? 'tempat ini'
         : widget.merchantName.trim();
 
     return Align(

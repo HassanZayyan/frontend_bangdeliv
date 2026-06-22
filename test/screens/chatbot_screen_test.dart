@@ -105,7 +105,7 @@ void main() {
     expect(find.text('Atur Titik Jemput & Tujuan'), findsNothing);
   });
 
-  testWidgets('nitip welcome shows concise multi merchant guidance', (
+  testWidgets('nitip welcome shows concise multi tempat guidance', (
     WidgetTester tester,
   ) async {
     await _pumpChatbot(
@@ -114,11 +114,11 @@ void main() {
       chatbotApiService: _FakeChatbotApiService(),
     );
 
-    expect(find.textContaining('pilih merchant di map'), findsOneWidget);
-    expect(find.textContaining('sampai 3 merchant'), findsOneWidget);
+    expect(find.textContaining('pilih tempat di map'), findsOneWidget);
+    expect(find.textContaining('sampai 3 tempat'), findsOneWidget);
     expect(find.textContaining('Contoh: Beli di'), findsNothing);
     expect(
-      find.widgetWithText(OutlinedButton, 'Pilih Merchant di Map'),
+      find.widgetWithText(OutlinedButton, 'Pilih Tempat di Map'),
       findsOneWidget,
     );
   });
@@ -312,7 +312,7 @@ void main() {
     });
   }
 
-  testWidgets('nitip missing merchant shows merchant map picker action', (
+  testWidgets('nitip missing tempat shows map picker action', (
     WidgetTester tester,
   ) async {
     await _pumpChatbot(
@@ -324,7 +324,7 @@ void main() {
     await _sendMessage(tester, 'beli sembako');
 
     expect(
-      find.widgetWithText(OutlinedButton, 'Pilih Merchant di Map'),
+      find.widgetWithText(OutlinedButton, 'Pilih Tempat di Map'),
       findsOneWidget,
     );
   });
@@ -355,10 +355,7 @@ void main() {
     expect(fakeService.patchMerchantCallCount, 1);
     expect(fakeService.lastMerchantId, 42);
     expect(find.textContaining('Draft Nitip belum lengkap'), findsNothing);
-    expect(
-      find.textContaining('Merchant Nitip berhasil dipilih'),
-      findsNothing,
-    );
+    expect(find.textContaining('Tempat Nitip berhasil dipilih'), findsNothing);
     expect(find.text('Pilih menu'), findsOneWidget);
     expect(find.text('Bakso Balungan'), findsOneWidget);
     expect(find.text('Bakso Urat'), findsOneWidget);
@@ -422,7 +419,7 @@ void main() {
     await _sendMessage(tester, 'beli sembako');
 
     await tester.tap(
-      find.widgetWithText(OutlinedButton, 'Pilih Merchant di Map'),
+      find.widgetWithText(OutlinedButton, 'Pilih Tempat di Map'),
     );
     await _pumpChatbotFrame(tester);
     await tester.tap(find.text('Pilih Kedai Kedua'));
@@ -433,10 +430,7 @@ void main() {
     expect(fakeRepository.searchMenuCallCount, 1);
     expect(fakeRepository.lastMerchantId, 42);
     expect(find.textContaining('Draft Nitip belum lengkap'), findsOneWidget);
-    expect(
-      find.textContaining('Merchant Nitip berhasil dipilih'),
-      findsNothing,
-    );
+    expect(find.textContaining('Tempat Nitip berhasil dipilih'), findsNothing);
     expect(find.text('Pilih menu'), findsOneWidget);
     expect(find.text('Dimsum Dan Seblak Wolu'), findsOneWidget);
     expect(find.text('Dimsum Ayam'), findsOneWidget);
@@ -467,7 +461,7 @@ void main() {
     await _sendMessage(tester, 'beli sembako');
 
     await tester.tap(
-      find.widgetWithText(OutlinedButton, 'Pilih Merchant di Map'),
+      find.widgetWithText(OutlinedButton, 'Pilih Tempat di Map'),
     );
     await _pumpChatbotFrame(tester);
     await tester.tap(find.text('Pilih Kedai Kedua'));
@@ -479,7 +473,7 @@ void main() {
   });
 
   testWidgets(
-    'nitip ready first merchant offers add merchant with examples and mode add',
+    'nitip ready first tempat offers add tempat with examples and mode add',
     (WidgetTester tester) async {
       final fakeService = _FakeChatbotApiService();
       await _pumpChatbot(
@@ -490,15 +484,15 @@ void main() {
 
       await _sendMessage(tester, 'draft nitip merchant siap');
 
-      expect(find.textContaining('Mau tambah merchant lain?'), findsOneWidget);
+      expect(find.textContaining('Mau tambah tempat lain?'), findsOneWidget);
       expect(find.textContaining('- susu 1'), findsOneWidget);
       expect(
-        find.widgetWithText(OutlinedButton, 'Tambah Merchant'),
+        find.widgetWithText(OutlinedButton, 'Tambah Tempat'),
         findsOneWidget,
       );
       expect(find.text('Beli ayam geprek'), findsNothing);
 
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Tambah Merchant'));
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Tambah Tempat'));
       await _pumpChatbotFrame(tester);
       await tester.tap(find.text('Pilih Kedai Kedua'));
       await _pumpChatbotFrame(tester);
@@ -1173,8 +1167,8 @@ class _FakeChatbotApiService extends ChatbotApiService {
         'data': {
           'intent': 'shopping_order',
           'assistant_text':
-              'Draft Nitip merchant pertama sudah aman.\n\n'
-              'Merchant\n'
+              'Draft Nitip tempat pertama sudah aman.\n\n'
+              'Tempat\n'
               'Kedai Tinari\n\n'
               'Daftar belanja\n'
               '1. 1x ramen mala (harga menyusul dari nota)\n'
@@ -1184,8 +1178,8 @@ class _FakeChatbotApiService extends ChatbotApiService {
               'Estimasi ongkir sementara: Rp 9.000\n'
               'Estimasi total sementara: Rp 9.000\n'
               'Metode pembayaran: pilih COD atau QRIS.\n\n'
-              'Mau tambah merchant lain? Pilih merchantnya dulu.\n'
-              'Contoh setelah merchant berikutnya dipilih:\n'
+              'Mau tambah tempat lain? Pilih tempatnya dulu.\n'
+              'Contoh setelah tempat berikutnya dipilih:\n'
               '- susu 1\n'
               '- roti tawar 2\n\n'
               'Ketik "konfirmasi" kalau sudah oke.',
@@ -1224,7 +1218,7 @@ class _FakeChatbotApiService extends ChatbotApiService {
           },
           'action_payloads': {
             'OPEN_ADD_MERCHANT_PICKER': {
-              'label': 'Tambah Merchant',
+              'label': 'Tambah Tempat',
               'mode': 'add',
               'initial_latitude': -7.0509,
               'initial_longitude': 110.4315,
@@ -1261,13 +1255,13 @@ class _FakeChatbotApiService extends ChatbotApiService {
           },
           'validation': {
             'is_valid_order': false,
-            'rejection_reasons': ['Merchant/toko belum dipilih.'],
+            'rejection_reasons': ['Tempat belum dipilih.'],
             'missing_fields': ['merchant'],
             'next_actions': ['OPEN_MERCHANT_PICKER'],
           },
           'action_payloads': {
             'OPEN_MERCHANT_PICKER': {
-              'label': 'Pilih Merchant di Map',
+              'label': 'Pilih Tempat di Map',
               'initial_latitude': -7.0509,
               'initial_longitude': 110.4315,
             },
@@ -1674,8 +1668,8 @@ class _FakeChatbotApiService extends ChatbotApiService {
       'data': {
         'intent': 'shopping_order',
         'assistant_text': mode == 'add'
-            ? 'Draft Nitip belum lengkap. Lengkapi: items.\n\nMerchant\nKedai Kedua\n\nTulis item dan jumlah untuk merchant ini.\nContoh:\n- susu 1\n- roti tawar 2\n- air mineral 1'
-            : 'Draft Nitip belum lengkap. Lengkapi: items.\n\nMerchant\nKedai Kedua\n\nTulis item dan jumlah untuk merchant ini.\nContoh:\n- susu 1\n- roti tawar 2\n- air mineral 1',
+            ? 'Draft Nitip belum lengkap. Lengkapi: items.\n\nTempat\nKedai Kedua\n\nTulis item dan jumlah untuk tempat ini.\nContoh:\n- susu 1\n- roti tawar 2\n- air mineral 1'
+            : 'Draft Nitip belum lengkap. Lengkapi: items.\n\nTempat\nKedai Kedua\n\nTulis item dan jumlah untuk tempat ini.\nContoh:\n- susu 1\n- roti tawar 2\n- air mineral 1',
         'validation': {
           'is_valid_order': false,
           'rejection_reasons': [],

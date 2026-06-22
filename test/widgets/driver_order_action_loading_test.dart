@@ -13,7 +13,7 @@ import 'package:frontend_bangdeliv/utils/order_status.dart';
 import 'package:frontend_bangdeliv/utils/service_type.dart';
 
 void main() {
-  testWidgets('driver action card only shows spinner on selected action', (
+  testWidgets('driver action card disables actions while processing', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -34,19 +34,18 @@ void main() {
               ],
             ),
             isProcessing: true,
-            onReportPickupFailed: null,
             onTapAction: (_) async {},
           ),
         ),
       ),
     );
 
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    expect(find.text('Catat COD'), findsOneWidget);
-    final codButton = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'Catat COD'),
+    expect(find.byType(CircularProgressIndicator), findsNWidgets(2));
+    final actionButtons = tester.widgetList<FilledButton>(
+      find.byType(FilledButton),
     );
-    expect(codButton.onPressed, isNull);
+    expect(actionButtons, hasLength(2));
+    expect(actionButtons.every((button) => button.onPressed == null), isTrue);
   });
 
   testWidgets('proof checklist only shows spinner for selected proof type', (
@@ -179,7 +178,37 @@ void main() {
     );
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    expect(find.text('Resto tutup'), findsOneWidget);
+    expect(find.text('Tempat tutup'), findsOneWidget);
+  });
+
+  testWidgets('shopping merchant action buttons fit narrow card width', (
+    tester,
+  ) async {
+    const stop = DriverShoppingStopModel(
+      pickupLocationId: 7,
+      sequenceNo: 1,
+      fulfillmentStatus: 'PENDING',
+      merchant: DriverShoppingMerchantModel(
+        id: 1,
+        name: 'Kedai Tinari',
+        merchantType: 'restaurant',
+        address: 'Jl. Merchant',
+      ),
+      items: <DriverShoppingItemModel>[],
+    );
+
+    await _pumpShoppingItemsCard(
+      tester,
+      order: _order(
+        serviceTypeCode: ServiceTypeCodes.shopping,
+        shoppingStops: const [stop],
+      ),
+      cardWidth: 328,
+    );
+
+    expect(find.text('Tempat tutup'), findsOneWidget);
+    expect(find.text('Tempat buka'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(
@@ -332,32 +361,39 @@ Future<void> _pumpShoppingItemsCard(
   bool canUploadReceipt = false,
   bool canCheckout = false,
   Set<int> closingMerchantIds = const <int>{},
+  double? cardWidth,
 }) async {
+  final card = DriverShoppingItemsCard(
+    order: order,
+    isOrderBusy: isOrderBusy,
+    isSavingCheckout: isSavingCheckout,
+    isSavingItems: (_) => false,
+    canEditAvailability: canEditAvailability,
+    canUploadReceipt: canUploadReceipt,
+    canCheckout: canCheckout,
+    isSubmittingQuote: (_) => false,
+    isBypassingPrice: (_) => false,
+    isMarkingMerchantOpen: (_) => false,
+    isClosingMerchant: (pickupLocationId) =>
+        closingMerchantIds.contains(pickupLocationId),
+    onUploadReceipt: (_) async => null,
+    onSubmitQuote: ({required amount, pickupLocationId}) async => null,
+    onBypassPrice: ({required pickupLocationId}) async => null,
+    onMarkMerchantOpen: ({required pickupLocationId}) async => null,
+    onMarkMerchantClosed:
+        ({required pickupLocationId, required reason}) async => null,
+    onSaveItems: (_, _) async => null,
+    onSave: (_, _) async => null,
+  );
+
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
-        body: DriverShoppingItemsCard(
-          order: order,
-          isOrderBusy: isOrderBusy,
-          isSavingCheckout: isSavingCheckout,
-          isSavingItems: (_) => false,
-          canEditAvailability: canEditAvailability,
-          canUploadReceipt: canUploadReceipt,
-          canCheckout: canCheckout,
-          isSubmittingQuote: (_) => false,
-          isBypassingPrice: (_) => false,
-          isMarkingMerchantOpen: (_) => false,
-          isClosingMerchant: (pickupLocationId) =>
-              closingMerchantIds.contains(pickupLocationId),
-          onUploadReceipt: (_) async => null,
-          onSubmitQuote: ({required amount, pickupLocationId}) async => null,
-          onBypassPrice: ({required pickupLocationId}) async => null,
-          onMarkMerchantOpen: ({required pickupLocationId}) async => null,
-          onMarkMerchantClosed:
-              ({required pickupLocationId, required reason}) async => null,
-          onSaveItems: (_, _) async => null,
-          onSave: (_, _) async => null,
-        ),
+        body: cardWidth == null
+            ? card
+            : Center(
+                child: SizedBox(width: cardWidth, child: card),
+              ),
       ),
     ),
   );

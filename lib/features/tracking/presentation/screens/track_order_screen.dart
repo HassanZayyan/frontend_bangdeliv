@@ -705,7 +705,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
           (stop) => TrackingMapPickupPoint(
             id: stop.pickupLocationId.toString(),
             label:
-                'Merchant ${stop.sequenceNo <= 0 ? 1 : stop.sequenceNo}: ${stop.merchant.name}',
+                'Tempat ${stop.sequenceNo <= 0 ? 1 : stop.sequenceNo}: ${stop.merchant.name}',
             latitude: stop.merchant.latitude!,
             longitude: stop.merchant.longitude!,
           ),
@@ -1437,8 +1437,8 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
 
     if (isCancelledWithFee) {
       return isPaid
-          ? 'Penalty merchant gagal sudah tercatat.'
-          : 'Bayar penalty merchant gagal sesuai nominal.';
+          ? 'Penalty tempat gagal sudah tercatat.'
+          : 'Bayar penalty tempat gagal sesuai nominal.';
     }
 
     if (isTransfer) {
@@ -1899,9 +1899,9 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
   }) {
     if (isCancelledWithFee) {
       if (isPaid) {
-        return 'Fee pembatalan merchant sudah tercatat.';
+        return 'Fee pembatalan tempat sudah tercatat.';
       }
-      return 'Bayar fee pembatalan merchant sebesar 50% dari ongkir aktif terakhir lewat QRIS.';
+      return 'Bayar fee pembatalan tempat sebesar 50% dari ongkir aktif terakhir lewat QRIS.';
     }
 
     if (isTransfer) {
