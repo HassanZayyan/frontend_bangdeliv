@@ -15,6 +15,7 @@ import '../../application/customer_order_providers.dart';
 import '../../application/order_chat_provider.dart';
 import '../../application/order_chat_unread_provider.dart';
 import '../../../../utils/order_formatters.dart';
+import '../../../../widgets/profile_avatar.dart';
 
 class OrderChatScreen extends ConsumerStatefulWidget {
   const OrderChatScreen({super.key, required this.orderId});
@@ -338,24 +339,9 @@ class _ChatDriverTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final normalizedAvatar = avatarUrl?.trim() ?? '';
-
     return Row(
       children: [
-        ClipOval(
-          child: SizedBox.square(
-            dimension: 36,
-            child: normalizedAvatar.isEmpty
-                ? _fallbackAvatar()
-                : Image.network(
-                    normalizedAvatar,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return _fallbackAvatar();
-                    },
-                  ),
-          ),
-        ),
+        ProfileAvatar(name: driverName, avatarUrl: avatarUrl, size: 36),
         const SizedBox(width: 10),
         Expanded(
           child: Row(
@@ -388,38 +374,6 @@ class _ChatDriverTitle extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  Widget _fallbackAvatar() {
-    return Container(
-      alignment: Alignment.center,
-      color: AppColors.primary.withValues(alpha: 0.12),
-      child: Text(
-        _initials(driverName),
-        style: const TextStyle(
-          color: AppColors.primary,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-
-  String _initials(String name) {
-    final parts = name
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((part) => part.isNotEmpty)
-        .toList(growable: false);
-    if (parts.isEmpty) {
-      return 'D';
-    }
-    if (parts.length == 1) {
-      return parts.first.characters.first.toUpperCase();
-    }
-
-    return '${parts.first.characters.first}${parts[1].characters.first}'
-        .toUpperCase();
   }
 }
 
@@ -758,7 +712,7 @@ class _EmptyChat extends StatelessWidget {
       padding: EdgeInsets.only(top: 80),
       child: Column(
         children: [
-          Icon(Icons.chat_bubble_outline, color: AppColors.textSecondary),
+          Icon(Icons.sms_outlined, color: AppColors.textSecondary),
           SizedBox(height: 10),
           Text(
             'Belum ada pesan.',

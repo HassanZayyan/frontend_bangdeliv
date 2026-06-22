@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -40,6 +41,7 @@ class TrackingMapSection extends StatefulWidget {
     this.borderRadius = 16,
     this.showLegend = true,
     this.followDriver = false,
+    this.mapPadding,
   });
 
   final String dropoffAddress;
@@ -56,6 +58,7 @@ class TrackingMapSection extends StatefulWidget {
   final double borderRadius;
   final bool showLegend;
   final bool followDriver;
+  final EdgeInsets? mapPadding;
 
   @override
   State<TrackingMapSection> createState() => _TrackingMapSectionState();
@@ -69,9 +72,24 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
   LatLng? _lastFocusedDriverPosition;
   DateTime? _lastFocusedDriverUpdatedAt;
   BitmapDescriptor? _driverMarkerIcon;
+  Timer? _fitCameraDebounce;
+  double _cameraBearing = 0;
+  CameraPosition? _lastCameraPosition;
 
   static const LatLng _fallbackCenter = LatLng(-7.0503, 110.4370);
   static const double _driverFollowZoom = 16;
+
+  EdgeInsets get _effectiveMapPadding => widget.mapPadding ?? EdgeInsets.zero;
+
+  double get _normalizedCameraBearing {
+    final bearing = _cameraBearing % 360;
+    return bearing < 0 ? bearing + 360 : bearing;
+  }
+
+  bool get _shouldShowCompass {
+    final bearing = _normalizedCameraBearing;
+    return bearing > 3 && bearing < 357;
+  }
 
   @override
   void initState() {
@@ -92,20 +110,32 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
   void didUpdateWidget(covariant TrackingMapSection oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (_routePointsChanged(oldWidget)) {
+    final routeChanged = _routePointsChanged(oldWidget);
+    final driverChanged = _driverPositionChanged(oldWidget);
+    final paddingChanged = _mapPaddingChanged(oldWidget);
+
+    if (routeChanged) {
       _hasPerformedInitialFit = false;
     }
 
     if (!widget.followDriver) {
       _isFollowingDriver = false;
-      unawaited(_fitCameraToMarkers());
+      if (routeChanged || driverChanged) {
+        unawaited(_fitCameraToMarkers());
+      } else if (paddingChanged) {
+        _scheduleFitCameraToMarkers();
+      }
       return;
     }
 
     if (!_hasDriverCoordinates) {
       _lastFocusedDriverPosition = null;
       _lastFocusedDriverUpdatedAt = null;
-      unawaited(_fitCameraToMarkers());
+      if (routeChanged || driverChanged) {
+        unawaited(_fitCameraToMarkers());
+      } else if (paddingChanged) {
+        _scheduleFitCameraToMarkers();
+      }
       return;
     }
 
@@ -118,13 +148,19 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
       return;
     }
 
-    if (_isFollowingDriver && _driverPositionChanged(oldWidget)) {
+    if (paddingChanged) {
+      _scheduleFitCameraToMarkers();
+      return;
+    }
+
+    if (_isFollowingDriver && driverChanged) {
       unawaited(_focusCameraOnDriver());
     }
   }
 
   @override
   void dispose() {
+    _fitCameraDebounce?.cancel();
     _mapController?.dispose();
     super.dispose();
   }
@@ -172,16 +208,52 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
     });
   }
 
-  void _resumeDriverFollow() {
-    if (!_hasDriverCoordinates) {
+  void _handleCameraMove(CameraPosition position) {
+    _lastCameraPosition = position;
+
+    if ((_cameraBearing - position.bearing).abs() < 1) {
       return;
     }
 
     setState(() {
-      _isFollowingDriver = true;
+      _cameraBearing = position.bearing;
     });
+  }
 
-    _focusCameraOnDriver(force: true);
+  Future<void> _resetCameraBearing() async {
+    final currentPosition = _lastCameraPosition;
+    if (_mapController == null || !mounted || currentPosition == null) {
+      return;
+    }
+
+    await _animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(
+          target: currentPosition.target,
+          zoom: currentPosition.zoom,
+          tilt: 0,
+          bearing: 0,
+        ),
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _cameraBearing = 0;
+    });
+  }
+
+  void _resetCameraToMarkers() {
+    if (_isFollowingDriver) {
+      setState(() {
+        _isFollowingDriver = false;
+      });
+    }
+
+    _scheduleFitCameraToMarkers();
   }
 
   Future<void> _focusCameraOnDriver({bool force = false}) async {
@@ -238,6 +310,16 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
       await Future<void>.delayed(const Duration(milliseconds: 150));
       _isProgrammaticCameraMove = false;
     }
+  }
+
+  void _scheduleFitCameraToMarkers() {
+    _fitCameraDebounce?.cancel();
+    _fitCameraDebounce = Timer(const Duration(milliseconds: 120), () {
+      if (!mounted) {
+        return;
+      }
+      unawaited(_fitCameraToMarkers());
+    });
   }
 
   Future<void> _fitCameraToMarkers() async {
@@ -324,10 +406,16 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
         oldWidget.driverLocationUpdatedAt != widget.driverLocationUpdatedAt;
   }
 
+  bool _mapPaddingChanged(TrackingMapSection oldWidget) {
+    return (oldWidget.mapPadding ?? EdgeInsets.zero) != _effectiveMapPadding;
+  }
+
   @override
   Widget build(BuildContext context) {
     final markers = _buildMarkers();
     final showRouteUnavailableHint = _shouldShowRouteUnavailableHint();
+    final mapPadding = _effectiveMapPadding;
+    final controlTop = showRouteUnavailableHint ? 88.0 : 52.0;
 
     if (markers.isEmpty) {
       return _buildUnavailableMap();
@@ -347,6 +435,7 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
               ),
               markers: markers,
               polylines: _buildPolylines(),
+              padding: mapPadding,
               scrollGesturesEnabled: true,
               zoomGesturesEnabled: true,
               rotateGesturesEnabled: true,
@@ -359,8 +448,9 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
               myLocationButtonEnabled: false,
               mapToolbarEnabled: false,
               zoomControlsEnabled: false,
-              compassEnabled: true,
+              compassEnabled: false,
               onCameraMoveStarted: _handleCameraMoveStarted,
+              onCameraMove: _handleCameraMove,
               onMapCreated: (controller) {
                 _mapController = controller;
                 unawaited(_fitInitialCamera());
@@ -377,12 +467,22 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
             if (widget.followDriver &&
                 _hasDriverCoordinates &&
                 !_isFollowingDriver)
-              Positioned(top: 52, right: 10, child: _buildResumeFollowButton()),
+              Positioned(
+                top: controlTop,
+                right: 10,
+                child: _buildResetCameraButton(),
+              ),
+            if (_shouldShowCompass)
+              Positioned(
+                top: controlTop,
+                left: 10,
+                child: _buildCompassButton(),
+              ),
             if (widget.showLegend)
               Positioned(
                 left: 10,
                 right: 10,
-                bottom: 10,
+                bottom: mapPadding.bottom + 10,
                 child: _buildLegend(),
               ),
           ],
@@ -415,15 +515,32 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
     );
   }
 
-  Widget _buildResumeFollowButton() {
+  Widget _buildResetCameraButton() {
     return Material(
       color: AppColors.white.withValues(alpha: 0.95),
       shape: const CircleBorder(),
       elevation: 2,
       child: IconButton(
-        onPressed: _resumeDriverFollow,
-        tooltip: 'Ikuti driver',
+        onPressed: _resetCameraToMarkers,
+        tooltip: 'Tampilkan semua titik',
         icon: const Icon(Icons.my_location_rounded),
+        color: AppColors.primary,
+      ),
+    );
+  }
+
+  Widget _buildCompassButton() {
+    return Material(
+      color: AppColors.white.withValues(alpha: 0.95),
+      shape: const CircleBorder(),
+      elevation: 2,
+      child: IconButton(
+        onPressed: _resetCameraBearing,
+        tooltip: 'Arah utara',
+        icon: Transform.rotate(
+          angle: -_normalizedCameraBearing * math.pi / 180,
+          child: const Icon(Icons.explore_rounded),
+        ),
         color: AppColors.primary,
       ),
     );

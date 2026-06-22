@@ -207,7 +207,7 @@ class _MerchantDetailView extends StatelessWidget {
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: () => _openNitipChatbot(context),
-              icon: const Icon(Icons.chat_bubble_outline_rounded),
+              icon: const Icon(Icons.sms_outlined),
               label: const Text('Pesan di chatbot'),
             ),
           ),

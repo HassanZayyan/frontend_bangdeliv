@@ -23,6 +23,7 @@ import '../../../../utils/order_status.dart';
 import '../../../../utils/order_ui_helpers.dart';
 import '../../../../utils/service_type.dart';
 import '../../../../widgets/order_chat_badge_icon.dart';
+import '../../../../widgets/profile_avatar.dart';
 import '../../../../widgets/tracking_map_section.dart';
 import '../../application/track_order_presenter.dart';
 
@@ -48,6 +49,17 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
   final Map<int, GlobalKey> _shoppingPriceFocusKeys = <int, GlobalKey>{};
   String? _scheduledFocusSignature;
   String? _completedFocusSignature;
+  double? _trackingSheetExtent;
+
+  static const double _trackingSheetInitialChildSize = 0.38;
+  static const double _trackingSheetMinChildSize = 0.20;
+  static const double _trackingSheetMidChildSize = 0.62;
+  static const double _trackingSheetMaxChildSize = 0.92;
+  static const double _trackingSheetExtentUpdateThreshold = 0.006;
+  static const double _trackingMapTopPadding = 76;
+  static const double _trackingMapSidePadding = 16;
+  static const double _trackingMapBottomGap = 18;
+  static const double _trackingMapMinimumVisibleHeight = 180;
 
   static const _kStepLabelsDefault = [
     'Menunggu',
@@ -72,6 +84,41 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     'Perjalanan',
     'Selesai',
   ];
+
+  double get _effectiveTrackingSheetExtent =>
+      _trackingSheetExtent ?? _trackingSheetInitialChildSize;
+
+  bool _handleTrackingSheetNotification(
+    DraggableScrollableNotification notification,
+  ) {
+    final nextExtent = notification.extent
+        .clamp(_trackingSheetMinChildSize, _trackingSheetMaxChildSize)
+        .toDouble();
+    if ((nextExtent - _effectiveTrackingSheetExtent).abs() <
+        _trackingSheetExtentUpdateThreshold) {
+      return false;
+    }
+
+    setState(() => _trackingSheetExtent = nextExtent);
+    return false;
+  }
+
+  EdgeInsets _trackingMapPadding(BoxConstraints constraints) {
+    final height = constraints.maxHeight;
+    final sheetHeight = height * _effectiveTrackingSheetExtent;
+    final desiredBottom = sheetHeight + _trackingMapBottomGap;
+    final maxBottom = (height - _trackingMapMinimumVisibleHeight)
+        .clamp(0.0, height)
+        .toDouble();
+    final bottomPadding = desiredBottom.clamp(0.0, maxBottom).toDouble();
+
+    return EdgeInsets.fromLTRB(
+      _trackingMapSidePadding,
+      _trackingMapTopPadding,
+      _trackingMapSidePadding,
+      bottomPadding,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -399,6 +446,8 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final mapPadding = _trackingMapPadding(constraints);
+
         return Stack(
           children: [
             Positioned.fill(
@@ -416,112 +465,121 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                       driverLocationUpdatedAt: detail.driverLocationUpdatedAt,
                       height: constraints.maxHeight,
                       borderRadius: 0,
-                      showLegend: true,
+                      showLegend: false,
                       followDriver: true,
+                      mapPadding: mapPadding,
                     )
                   : const ColoredBox(color: AppColors.background),
             ),
-            DraggableScrollableSheet(
-              initialChildSize: 0.38,
-              minChildSize: 0.20,
-              maxChildSize: 0.92,
-              snap: true,
-              snapSizes: const [0.38, 0.62, 0.92],
-              builder: (context, scrollController) {
-                return DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(24),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.10),
-                        blurRadius: 24,
-                        offset: const Offset(0, -6),
+            NotificationListener<DraggableScrollableNotification>(
+              onNotification: _handleTrackingSheetNotification,
+              child: DraggableScrollableSheet(
+                initialChildSize: _trackingSheetInitialChildSize,
+                minChildSize: _trackingSheetMinChildSize,
+                maxChildSize: _trackingSheetMaxChildSize,
+                snap: true,
+                snapSizes: const [
+                  _trackingSheetInitialChildSize,
+                  _trackingSheetMidChildSize,
+                  _trackingSheetMaxChildSize,
+                ],
+                builder: (context, scrollController) {
+                  return DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(24),
                       ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 12),
-                      Container(
-                        width: 48,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: AppColors.border,
-                          borderRadius: BorderRadius.circular(999),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.10),
+                          blurRadius: 24,
+                          offset: const Offset(0, -6),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      Expanded(
-                        child: RefreshIndicator(
-                          onRefresh: onRefresh ?? () async {},
-                          child: ListView(
-                            controller: scrollController,
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
-                            children: [
-                              _buildActiveTrackingCard(
-                                order: order,
-                                isRide: isRide,
-                                driverEtaMessage: driverEtaMessage,
-                              ),
-                              const SizedBox(height: 12),
-                              if (driverName.isNotEmpty) ...[
-                                _buildDriverCard(
-                                  driverName,
-                                  orderId: order.id,
-                                  vehicleLabel: driverVehicleLabel,
-                                  vehiclePlate: driverVehiclePlate,
-                                  onChat: () => context.push(
-                                    AppRoutes.orderChatPath(order.id),
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                              ],
-                              _buildRouteCard(detail),
-                              const SizedBox(height: 12),
-                              _buildOrderDetailsCard(
-                                context,
-                                ref,
-                                order,
-                                detail,
-                              ),
-                              const SizedBox(height: 12),
-                              if (detail.isShoppingOrder) ...[
-                                TrackShoppingOrderItemsCard(
-                                  detail: detail,
-                                  onChanged: onRefresh,
-                                  shoppingPriceFocusKeyFor:
-                                      _shoppingPriceFocusKey,
-                                ),
-                                const SizedBox(height: 12),
-                              ],
-                              if (detail.proofs.isNotEmpty) ...[
-                                _buildProofsCard(context, detail.proofs),
-                                const SizedBox(height: 12),
-                              ],
-                              ..._paymentCardSection(
-                                context,
-                                ref,
-                                order,
-                                detail,
-                                onRefresh,
-                              ),
-                              _buildTimelineCard(
-                                detail.timeline,
-                                isRide: isRide,
-                                shouldShowMap: shouldShowMap,
-                              ),
-                            ],
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 12),
+                        Container(
+                          width: 48,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: AppColors.border,
+                            borderRadius: BorderRadius.circular(999),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                );
-              },
+                        const SizedBox(height: 16),
+                        Expanded(
+                          child: RefreshIndicator(
+                            onRefresh: onRefresh ?? () async {},
+                            child: ListView(
+                              controller: scrollController,
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
+                              children: [
+                                _buildActiveTrackingCard(
+                                  order: order,
+                                  isRide: isRide,
+                                  driverEtaMessage: driverEtaMessage,
+                                ),
+                                const SizedBox(height: 12),
+                                if (driverName.isNotEmpty) ...[
+                                  _buildDriverCard(
+                                    driverName,
+                                    orderId: order.id,
+                                    avatarUrl: detail.driverAvatarUrl,
+                                    vehicleLabel: driverVehicleLabel,
+                                    vehiclePlate: driverVehiclePlate,
+                                    onChat: () => context.push(
+                                      AppRoutes.orderChatPath(order.id),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
+                                _buildRouteCard(detail),
+                                const SizedBox(height: 12),
+                                _buildOrderDetailsCard(
+                                  context,
+                                  ref,
+                                  order,
+                                  detail,
+                                ),
+                                const SizedBox(height: 12),
+                                if (detail.isShoppingOrder) ...[
+                                  TrackShoppingOrderItemsCard(
+                                    detail: detail,
+                                    onChanged: onRefresh,
+                                    shoppingPriceFocusKeyFor:
+                                        _shoppingPriceFocusKey,
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
+                                if (detail.proofs.isNotEmpty) ...[
+                                  _buildProofsCard(context, detail.proofs),
+                                  const SizedBox(height: 12),
+                                ],
+                                ..._paymentCardSection(
+                                  context,
+                                  ref,
+                                  order,
+                                  detail,
+                                  onRefresh,
+                                ),
+                                _buildTimelineCard(
+                                  detail.timeline,
+                                  isRide: isRide,
+                                  shouldShowMap: shouldShowMap,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
           ],
         );
@@ -575,6 +633,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                 _buildDriverCard(
                   driverName,
                   orderId: order.id,
+                  avatarUrl: detail.driverAvatarUrl,
                   vehicleLabel: driverVehicleLabel,
                   vehiclePlate: driverVehiclePlate,
                   onChat: () => context.push(AppRoutes.orderChatPath(order.id)),
@@ -948,9 +1007,9 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: AppColors.primaryDark,
-                fontSize: 22,
+                fontSize: 20,
                 fontWeight: FontWeight.w900,
-                height: 1.05,
+                height: 1.1,
               ),
             ),
           ],
@@ -1051,6 +1110,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
   Widget _buildDriverCard(
     String driverName, {
     required int orderId,
+    String? avatarUrl,
     String? vehicleLabel,
     String? vehiclePlate,
     VoidCallback? onChat,
@@ -1077,42 +1137,39 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
       ),
       child: Row(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.08),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppColors.primary.withValues(alpha: 0.18),
-              ),
-            ),
-            child: Center(
-              child: Text(
-                _driverInitials(driverName),
-                style: GoogleFonts.nunitoSans(
-                  color: AppColors.primaryDark,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 17,
-                ),
-              ),
-            ),
-          ),
+          ProfileAvatar(name: driverName, avatarUrl: avatarUrl, size: 48),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  driverName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.nunitoSans(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                    height: 1.15,
-                  ),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        driverName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.nunitoSans(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                          height: 1.15,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Text(
+                      '(driver)',
+                      maxLines: 1,
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w400,
+                        fontSize: 12.5,
+                        height: 1.2,
+                      ),
+                    ),
+                  ],
                 ),
                 if (vehicleSubtitle != null) ...[
                   const SizedBox(height: 4),
@@ -1122,8 +1179,8 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: AppColors.textSecondary,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
                       height: 1.25,
                     ),
                   ),
@@ -1156,22 +1213,6 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
 
   String _detailStatusTitle(CustomerOrderSummaryModel order) {
     return TrackOrderPresenter.detailStatusTitle(order);
-  }
-
-  String _driverInitials(String driverName) {
-    final parts = driverName
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((part) => part.isNotEmpty)
-        .toList(growable: false);
-    if (parts.isEmpty) {
-      return '?';
-    }
-    if (parts.length == 1) {
-      return parts.first.characters.first.toUpperCase();
-    }
-    return '${parts.first.characters.first}${parts[1].characters.first}'
-        .toUpperCase();
   }
 
   // ---------------------------------------------------------------------------
@@ -1278,7 +1319,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
 
   Widget _summaryRow(TrackInfoRow row) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2006,20 +2047,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
             label: pickupLabel,
             value: pickupText,
           ),
-          const Padding(
-            padding: EdgeInsets.only(left: 9, top: 4, bottom: 4),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: SizedBox(
-                height: 18,
-                child: VerticalDivider(
-                  color: AppColors.border,
-                  thickness: 1.4,
-                  width: 1,
-                ),
-              ),
-            ),
-          ),
+          const SizedBox(height: 8),
           TrackRoutePoint(
             icon: Icons.location_on,
             iconColor: AppColors.success,
@@ -2064,21 +2092,20 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
           .where((stop) => stop.isActive)
           .toList(growable: false);
       final stops = activeStops.isEmpty ? detail.shoppingStops : activeStops;
-      final firstStop = stops.first;
-      final merchantName = firstStop.merchant.name.trim();
-      final merchantAddress = (firstStop.merchant.address ?? '').trim();
-      final buffer = StringBuffer(
-        merchantName.isNotEmpty && merchantName != '-' ? merchantName : 'Toko',
-      );
+      final showNumbers = stops.length > 1;
+      return stops.indexed
+          .map((entry) {
+            final name = entry.$2.merchant.name.trim();
+            final label = name.isEmpty || name == '-'
+                ? 'Toko ${entry.$1 + 1}'
+                : name;
+            if (!showNumbers) {
+              return label;
+            }
 
-      if (merchantAddress.isNotEmpty) {
-        buffer.write(' - $merchantAddress');
-      }
-      if (stops.length > 1) {
-        buffer.write(' +${stops.length - 1} lokasi ambil lainnya');
-      }
-
-      return buffer.toString();
+            return '${entry.$1 + 1}. $label';
+          })
+          .join('\n');
     }
 
     final pickupAddress = (detail.pickupAddress ?? '').trim();
@@ -2189,11 +2216,13 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            formatDateTime(item.changedAt),
+                            _statusHistoryTimestamp(item.changedAt),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: AppColors.textSecondary,
-                              fontSize: 11.2,
-                              height: 1.25,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
@@ -2206,6 +2235,11 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
         ],
       ),
     );
+  }
+
+  String _statusHistoryTimestamp(DateTime? value) {
+    final formatted = formatDateMonthTime(value);
+    return formatted == '-' ? formatted : '$formatted WIB';
   }
 
   // ---------------------------------------------------------------------------

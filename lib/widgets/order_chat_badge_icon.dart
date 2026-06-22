@@ -19,7 +19,7 @@ class OrderChatBadgeIcon extends StatelessWidget {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        Icon(Icons.chat_bubble_outline, color: iconColor),
+        Icon(Icons.sms_outlined, color: iconColor),
         if (unreadCount > 0)
           Positioned(
             top: -5,

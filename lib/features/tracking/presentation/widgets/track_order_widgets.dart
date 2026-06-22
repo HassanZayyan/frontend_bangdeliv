@@ -392,6 +392,7 @@ class _TrackShoppingOrderItemsCardState
     final showStopQuoteCard =
         stopQuote?.amount.canCustomerRespond == true &&
         (stopQuote?.amount.quotedAmount ?? 0) > 0;
+    final stopTextIndent = activeStopCount > 1 ? 30.0 : 0.0;
 
     return Padding(
       padding: EdgeInsets.only(top: showDivider ? 12 : 8),
@@ -409,31 +410,42 @@ class _TrackShoppingOrderItemsCardState
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (activeStopCount > 1) ...[
-                _stopNumberBadge(sequenceNo),
-                const SizedBox(width: 9),
-              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      stop.merchant.name,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
-                        height: 1.25,
-                      ),
+                    Row(
+                      children: [
+                        if (activeStopCount > 1) ...[
+                          _stopNumberBadge(sequenceNo),
+                          const SizedBox(width: 9),
+                        ],
+                        Expanded(
+                          child: Text(
+                            stop.merchant.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                              height: 1.25,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     if (address != null) ...[
                       const SizedBox(height: 3),
-                      Text(
-                        address,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 11.5,
-                          height: 1.35,
+                      Padding(
+                        padding: EdgeInsets.only(left: stopTextIndent),
+                        child: Text(
+                          address,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11.5,
+                            height: 1.35,
+                          ),
                         ),
                       ),
                     ],
@@ -672,7 +684,7 @@ class _TrackShoppingOrderItemsCardState
                   '${item.quantity <= 0 ? 1 : item.quantity}x ${item.name}',
                   style: TextStyle(
                     color: AppColors.textPrimary,
-                    fontSize: 13.8,
+                    fontSize: 13.3,
                     height: 1.3,
                     fontWeight: FontWeight.w800,
                     decoration: item.isAvailable
@@ -738,6 +750,7 @@ class _TrackShoppingOrderItemsCardState
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: Text(
@@ -746,17 +759,19 @@ class _TrackShoppingOrderItemsCardState
                 color: isTotal
                     ? AppColors.textPrimary
                     : AppColors.textSecondary,
-                fontWeight: isTotal ? FontWeight.w800 : FontWeight.w600,
-                fontSize: isTotal ? 13.5 : 12.8,
+                fontWeight: isTotal ? FontWeight.w800 : FontWeight.w400,
+                fontSize: isTotal ? 13.5 : 13,
               ),
             ),
           ),
+          const SizedBox(width: 16),
           Text(
             formatCurrency(value),
+            textAlign: TextAlign.right,
             style: TextStyle(
               color: AppColors.textPrimary,
-              fontWeight: isTotal ? FontWeight.w800 : FontWeight.w700,
-              fontSize: isTotal ? 14.5 : 12.8,
+              fontWeight: isTotal ? FontWeight.w800 : FontWeight.w600,
+              fontSize: isTotal ? 14.5 : 13,
             ),
           ),
         ],
