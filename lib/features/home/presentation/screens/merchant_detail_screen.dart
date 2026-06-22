@@ -213,7 +213,7 @@ class _MerchantDetailView extends StatelessWidget {
           ),
         ),
         body: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -234,40 +234,168 @@ class _MerchantDetailView extends StatelessWidget {
   }
 }
 
-class _MerchantHero extends StatelessWidget {
+class _MerchantHero extends StatefulWidget {
   const _MerchantHero({required this.merchant});
 
   final MerchantModel merchant;
 
   @override
+  State<_MerchantHero> createState() => _MerchantHeroState();
+}
+
+class _MerchantHeroState extends State<_MerchantHero> {
+  int _currentIndex = 0;
+
+  List<String> get _imageUrls {
+    final gallery = widget.merchant.galleryImageUrls
+        .where((url) => url.trim().isNotEmpty)
+        .toList(growable: false);
+    if (gallery.isNotEmpty) {
+      return gallery;
+    }
+
+    final fallback = widget.merchant.imageUrl.trim();
+    return fallback.isEmpty ? const <String>[] : <String>[fallback];
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final imageUrls = _imageUrls;
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: AspectRatio(
-        aspectRatio: 16 / 9,
-        child: merchant.imageUrl.isEmpty
-            ? Container(
-                color: AppColors.primaryLight,
-                child: const Icon(
-                  Icons.storefront_outlined,
-                  size: 58,
+        aspectRatio: 4 / 3,
+        child: imageUrls.isEmpty
+            ? const _MerchantHeroFallback(icon: Icons.storefront_outlined)
+            : Stack(
+                fit: StackFit.expand,
+                children: [
+                  PageView.builder(
+                    itemCount: imageUrls.length,
+                    onPageChanged: (index) {
+                      if (!mounted) {
+                        return;
+                      }
+
+                      setState(() => _currentIndex = index);
+                    },
+                    itemBuilder: (context, index) {
+                      return Semantics(
+                        label:
+                            'Foto ${widget.merchant.name} ${index + 1} dari ${imageUrls.length}',
+                        image: true,
+                        child: _MerchantHeroImage(imageUrl: imageUrls[index]),
+                      );
+                    },
+                  ),
+                  if (imageUrls.length > 1)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 10,
+                      child: Center(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: AppColors.black.withValues(alpha: 0.28),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 5,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                for (
+                                  var index = 0;
+                                  index < imageUrls.length;
+                                  index++
+                                )
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 180),
+                                    curve: Curves.easeOut,
+                                    width: index == _currentIndex ? 18 : 6,
+                                    height: 6,
+                                    margin: const EdgeInsets.symmetric(
+                                      horizontal: 3,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: index == _currentIndex
+                                          ? AppColors.white
+                                          : AppColors.white.withValues(
+                                              alpha: 0.58,
+                                            ),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+class _MerchantHeroImage extends StatelessWidget {
+  const _MerchantHeroImage({required this.imageUrl});
+
+  final String imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: AppColors.surfaceAlt,
+      child: Image.network(
+        imageUrl,
+        width: double.infinity,
+        height: double.infinity,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          return const _MerchantHeroFallback(icon: Icons.broken_image_outlined);
+        },
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) {
+            return child;
+          }
+
+          return const _MerchantHeroFallback(
+            icon: Icons.storefront_outlined,
+            isLoading: true,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _MerchantHeroFallback extends StatelessWidget {
+  const _MerchantHeroFallback({required this.icon, this.isLoading = false});
+
+  final IconData icon;
+  final bool isLoading;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.surfaceAlt,
+      child: Center(
+        child: isLoading
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.4,
                   color: AppColors.primary,
                 ),
               )
-            : Image.network(
-                merchant.imageUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: AppColors.primaryLight,
-                    child: const Icon(
-                      Icons.broken_image_outlined,
-                      size: 58,
-                      color: AppColors.primary,
-                    ),
-                  );
-                },
-              ),
+            : Icon(icon, size: 58, color: AppColors.primary),
       ),
     );
   }

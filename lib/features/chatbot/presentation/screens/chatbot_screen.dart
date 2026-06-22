@@ -2314,7 +2314,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   }
 
   Future<void> _handleOpenAddressesAction() async {
-    await context.push(AppRoutes.addresses);
+    await context.push(AppRoutes.addressesForOrder());
     if (!mounted) {
       return;
     }

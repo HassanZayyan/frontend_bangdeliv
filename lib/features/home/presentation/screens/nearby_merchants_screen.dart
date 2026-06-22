@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
 import '../../../../config/app_text_scaling.dart';
-import '../../../../models/home_data_model.dart';
 import '../../../../models/merchant_model.dart';
 import '../../../../models/user_profile_model.dart';
 import '../../../../core/di/app_providers.dart';
@@ -27,15 +26,18 @@ class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen>
     with WidgetsBindingObserver {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
-  late Future<HomeDataModel> _future;
+  Future<List<MerchantModel>>? _merchantsFuture;
   String _query = '';
   bool _wasKeyboardVisible = false;
 
   @override
   void initState() {
     super.initState();
-    _future = _fetch();
     WidgetsBinding.instance.addObserver(this);
+  }
+
+  Future<List<MerchantModel>> get _currentFuture {
+    return _merchantsFuture ??= _fetch();
   }
 
   @override
@@ -62,12 +64,12 @@ class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen>
     }
   }
 
-  Future<HomeDataModel> _fetch() {
+  Future<List<MerchantModel>> _fetch() {
     final activeAddress = _activeAddress(ref.read(authSessionProvider).profile);
 
     return ref
         .read(homeApiServiceProvider)
-        .fetchHomeData(
+        .fetchNearbyMerchants(
           search: _query,
           latitude: _usableCoordinate(activeAddress?.latitude),
           longitude: _usableCoordinate(activeAddress?.longitude),
@@ -75,17 +77,18 @@ class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen>
   }
 
   Future<void> _refresh() async {
+    final nextFuture = _fetch();
     setState(() {
-      _future = _fetch();
+      _merchantsFuture = nextFuture;
     });
-    await _future;
+    await nextFuture;
   }
 
   void _submitSearch(String value) {
     _searchFocusNode.unfocus();
     setState(() {
       _query = value.trim();
-      _future = _fetch();
+      _merchantsFuture = _fetch();
     });
   }
 
@@ -104,8 +107,9 @@ class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen>
       if (!mounted) {
         return;
       }
+      final nextFuture = _fetch();
       setState(() {
-        _future = _fetch();
+        _merchantsFuture = nextFuture;
       });
     }
   }
@@ -171,14 +175,12 @@ class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen>
         body: SafeArea(
           top: false,
           bottom: false,
-          child: FutureBuilder<HomeDataModel>(
-            future: _future,
+          child: FutureBuilder<List<MerchantModel>>(
+            future: _currentFuture,
             builder: (context, snapshot) {
               final isLoading =
                   snapshot.connectionState == ConnectionState.waiting;
-              final data = snapshot.data;
-              final merchants =
-                  data?.nearbyMerchants ?? const <MerchantModel>[];
+              final merchants = snapshot.data ?? const <MerchantModel>[];
 
               return RefreshIndicator(
                 color: AppColors.primary,
