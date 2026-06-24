@@ -10,6 +10,17 @@ import '../../../utils/order_formatters.dart';
 import '../../auth/application/auth_session_provider.dart';
 import '../../../core/di/app_providers.dart';
 
+String _normalizeConversationServiceType(String serviceType) {
+  switch (serviceType.trim().toLowerCase()) {
+    case 'antar_jemput':
+    case 'kurir':
+    case 'nitip':
+      return serviceType.trim().toLowerCase();
+    default:
+      return 'nitip';
+  }
+}
+
 enum ChatbotMessageActionType {
   openAddresses,
   openMapPicker,
@@ -19,6 +30,8 @@ enum ChatbotMessageActionType {
   openTrackOrder,
   openActivity,
 }
+
+enum _MessageResultContext { general, mapPin }
 
 class ChatbotCommandParser {
   const ChatbotCommandParser._();
@@ -100,6 +113,34 @@ class ChatbotConversationMessage {
   final List<ChatbotMessageActionHint> actionHints;
 }
 
+class ChatbotMenuSelectorDraft {
+  const ChatbotMenuSelectorDraft({
+    required this.merchantName,
+    required this.merchantMode,
+    required this.menus,
+    required this.quantities,
+  });
+
+  final String merchantName;
+  final String merchantMode;
+  final List<ChatbotMenuSuggestion> menus;
+  final List<int> quantities;
+
+  ChatbotMenuSelectorDraft copyWith({
+    String? merchantName,
+    String? merchantMode,
+    List<ChatbotMenuSuggestion>? menus,
+    List<int>? quantities,
+  }) {
+    return ChatbotMenuSelectorDraft(
+      merchantName: merchantName ?? this.merchantName,
+      merchantMode: merchantMode ?? this.merchantMode,
+      menus: menus ?? this.menus,
+      quantities: quantities ?? this.quantities,
+    );
+  }
+}
+
 class ChatbotConversationState {
   const ChatbotConversationState({
     required this.serviceType,
@@ -110,6 +151,9 @@ class ChatbotConversationState {
     required this.isApplyingAction,
     required this.hasInitialized,
     required this.errorMessage,
+    required this.activeOrderId,
+    required this.menuSelectorDraft,
+    required this.menuSelectorNotice,
   });
 
   final String serviceType;
@@ -120,8 +164,14 @@ class ChatbotConversationState {
   final bool isApplyingAction;
   final bool hasInitialized;
   final String? errorMessage;
+  final int? activeOrderId;
+  final ChatbotMenuSelectorDraft? menuSelectorDraft;
+  final String? menuSelectorNotice;
 
   bool get isBusy => isBootstrapping || isSending || isApplyingAction;
+  bool get hasActiveOrder => (activeOrderId ?? 0) > 0;
+  bool get hasMenuSelectorSurface =>
+      menuSelectorDraft != null || (menuSelectorNotice ?? '').trim().isNotEmpty;
 
   ChatbotConversationState copyWith({
     String? serviceType,
@@ -132,8 +182,13 @@ class ChatbotConversationState {
     bool? isApplyingAction,
     bool? hasInitialized,
     String? errorMessage,
+    int? activeOrderId,
+    ChatbotMenuSelectorDraft? menuSelectorDraft,
+    String? menuSelectorNotice,
     bool clearSessionId = false,
     bool clearErrorMessage = false,
+    bool clearActiveOrderId = false,
+    bool clearMenuSelectorSurface = false,
   }) {
     return ChatbotConversationState(
       serviceType: serviceType ?? this.serviceType,
@@ -146,31 +201,28 @@ class ChatbotConversationState {
       errorMessage: clearErrorMessage
           ? null
           : (errorMessage ?? this.errorMessage),
+      activeOrderId: clearActiveOrderId
+          ? null
+          : (activeOrderId ?? this.activeOrderId),
+      menuSelectorDraft: clearMenuSelectorSurface
+          ? null
+          : (menuSelectorDraft ?? this.menuSelectorDraft),
+      menuSelectorNotice: clearMenuSelectorSurface
+          ? null
+          : (menuSelectorNotice ?? this.menuSelectorNotice),
     );
   }
 }
 
 class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
+  ChatbotConversationNotifier(this._initialServiceType);
+
+  final String _initialServiceType;
+
   @override
   ChatbotConversationState build() {
-    return const ChatbotConversationState(
-      serviceType: 'nitip',
-      sessionId: null,
-      messages: <ChatbotConversationMessage>[],
-      isBootstrapping: false,
-      isSending: false,
-      isApplyingAction: false,
-      hasInitialized: false,
-      errorMessage: null,
-    );
-  }
-
-  void _ensureService(String serviceType) {
-    if (state.serviceType == serviceType) {
-      return;
-    }
-
-    state = ChatbotConversationState(
+    final serviceType = _normalizeConversationServiceType(_initialServiceType);
+    return ChatbotConversationState(
       serviceType: serviceType,
       sessionId: null,
       messages: const <ChatbotConversationMessage>[],
@@ -179,6 +231,32 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       isApplyingAction: false,
       hasInitialized: false,
       errorMessage: null,
+      activeOrderId: null,
+      menuSelectorDraft: null,
+      menuSelectorNotice: null,
+    );
+  }
+
+  void _ensureService(String serviceType) {
+    final normalizedServiceType = _normalizeConversationServiceType(
+      serviceType,
+    );
+    if (state.serviceType == normalizedServiceType) {
+      return;
+    }
+
+    state = ChatbotConversationState(
+      serviceType: normalizedServiceType,
+      sessionId: null,
+      messages: const <ChatbotConversationMessage>[],
+      isBootstrapping: false,
+      isSending: false,
+      isApplyingAction: false,
+      hasInitialized: false,
+      errorMessage: null,
+      activeOrderId: null,
+      menuSelectorDraft: null,
+      menuSelectorNotice: null,
     );
   }
 
@@ -245,6 +323,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       ],
       isSending: true,
       clearErrorMessage: true,
+      clearMenuSelectorSurface: true,
     );
 
     final api = ref.read(chatbotRepositoryProvider);
@@ -265,6 +344,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         serviceType: serviceType,
         sessionId: sessionId,
         isSending: false,
+        activeOrderId: _activeOrderIdFromResult(result),
         messages: <ChatbotConversationMessage>[
           ...state.messages,
           _messageFromResult(result, serviceType),
@@ -316,6 +396,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       isApplyingAction: true,
       messages: _clearActionHints(state.messages),
       clearErrorMessage: true,
+      clearMenuSelectorSurface: true,
     );
 
     final api = ref.read(chatbotRepositoryProvider);
@@ -339,9 +420,15 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         serviceType: serviceType,
         sessionId: resolvedSessionId,
         isApplyingAction: false,
+        activeOrderId: _activeOrderIdFromResult(result),
         messages: <ChatbotConversationMessage>[
           ...state.messages,
-          _messageFromResult(result, serviceType),
+          _messageFromResult(
+            result,
+            serviceType,
+            contextAction: _MessageResultContext.mapPin,
+            contextTarget: target,
+          ),
         ],
         clearErrorMessage: true,
       );
@@ -371,6 +458,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       isApplyingAction: true,
       messages: _clearActionHints(state.messages),
       clearErrorMessage: true,
+      clearMenuSelectorSurface: true,
     );
 
     final api = ref.read(chatbotRepositoryProvider);
@@ -400,6 +488,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         serviceType: serviceType,
         sessionId: resolvedSessionId,
         isApplyingAction: false,
+        activeOrderId: _activeOrderIdFromResult(result),
         messages: <ChatbotConversationMessage>[
           ...state.messages,
           _messageFromResult(result, serviceType),
@@ -435,6 +524,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       isApplyingAction: true,
       messages: _clearActionHints(state.messages),
       clearErrorMessage: true,
+      clearMenuSelectorSurface: true,
     );
 
     final api = ref.read(chatbotRepositoryProvider);
@@ -457,6 +547,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         serviceType: serviceType,
         sessionId: resolvedSessionId,
         isApplyingAction: false,
+        activeOrderId: _activeOrderIdFromResult(result),
         messages: appendAssistantMessage
             ? <ChatbotConversationMessage>[
                 ...state.messages,
@@ -517,7 +608,135 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         ),
       ],
       clearErrorMessage: true,
+      clearMenuSelectorSurface: true,
     );
+  }
+
+  void showMenuSelector({
+    required String serviceType,
+    required String? merchantName,
+    required List<ChatbotMenuSuggestion> menus,
+    String merchantMode = 'select',
+  }) {
+    _ensureService(serviceType);
+
+    final normalizedMenus = menus
+        .where((menu) => menu.name.trim().isNotEmpty)
+        .toList(growable: false);
+    if (normalizedMenus.isEmpty) {
+      clearMenuSelectorSurface(serviceType: serviceType);
+      return;
+    }
+
+    final effectiveMerchantName = (merchantName ?? '').trim();
+    final normalizedMode = merchantMode.trim().toLowerCase();
+    final effectiveMerchantMode =
+        normalizedMode == 'add' || normalizedMode == 'maps_add'
+        ? 'add'
+        : 'select';
+    final previous = state.menuSelectorDraft;
+    final quantities =
+        previous != null &&
+            previous.merchantName == effectiveMerchantName &&
+            previous.merchantMode == effectiveMerchantMode &&
+            _hasSameMenuSuggestions(previous.menus, normalizedMenus)
+        ? previous.quantities
+              .take(normalizedMenus.length)
+              .map((quantity) => quantity.clamp(0, 99).toInt())
+              .toList(growable: false)
+        : List<int>.filled(normalizedMenus.length, 0);
+
+    state = state.copyWith(
+      menuSelectorDraft: ChatbotMenuSelectorDraft(
+        merchantName: effectiveMerchantName,
+        merchantMode: effectiveMerchantMode,
+        menus: normalizedMenus,
+        quantities: quantities.length == normalizedMenus.length
+            ? quantities
+            : List<int>.filled(normalizedMenus.length, 0),
+      ),
+      menuSelectorNotice: '',
+    );
+  }
+
+  void adjustMenuSelectorQuantity({
+    required String serviceType,
+    required int index,
+    required int delta,
+  }) {
+    _ensureService(serviceType);
+
+    final selector = state.menuSelectorDraft;
+    if (selector == null || index < 0 || index >= selector.menus.length) {
+      return;
+    }
+
+    final quantities = selector.quantities.length == selector.menus.length
+        ? selector.quantities.toList(growable: true)
+        : List<int>.filled(selector.menus.length, 0);
+    quantities[index] = (quantities[index] + delta).clamp(0, 99).toInt();
+
+    state = state.copyWith(
+      menuSelectorDraft: selector.copyWith(
+        quantities: quantities.toList(growable: false),
+      ),
+      menuSelectorNotice: '',
+    );
+  }
+
+  void showMenuSelectorNotice({
+    required String serviceType,
+    required String message,
+  }) {
+    _ensureService(serviceType);
+
+    final normalizedMessage = message.trim();
+    state = state.copyWith(clearMenuSelectorSurface: true);
+    if (normalizedMessage.isEmpty) {
+      return;
+    }
+
+    state = state.copyWith(menuSelectorNotice: normalizedMessage);
+  }
+
+  void clearMenuSelectorSurface({required String serviceType}) {
+    _ensureService(serviceType);
+
+    if (!state.hasMenuSelectorSurface) {
+      return;
+    }
+
+    state = state.copyWith(clearMenuSelectorSurface: true);
+  }
+
+  bool _hasSameMenuSuggestions(
+    List<ChatbotMenuSuggestion> current,
+    List<ChatbotMenuSuggestion> incoming,
+  ) {
+    if (current.length != incoming.length) {
+      return false;
+    }
+
+    for (var index = 0; index < current.length; index++) {
+      if (current[index].name.trim() != incoming[index].name.trim()) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  int? _activeOrderIdFromResult(ChatbotResult result) {
+    if (!result.isOrderCreated) {
+      return null;
+    }
+
+    final orderId = result.createdOrderId;
+    if (orderId == null || orderId <= 0) {
+      return null;
+    }
+
+    return orderId;
   }
 
   Future<String> _sessionIdAfterResult(
@@ -594,6 +813,42 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
           ? 'Pesanan dimulai ulang. Sesi lama mungkin belum terhapus di server.'
           : null,
       clearErrorMessage: !clearFailed,
+      clearActiveOrderId: true,
+      clearMenuSelectorSurface: true,
+    );
+  }
+
+  void resetAfterResolvedOrder({
+    required String serviceType,
+    required int orderId,
+    required String welcomeMessage,
+  }) {
+    _ensureService(serviceType);
+
+    if (state.activeOrderId != orderId || state.isBusy) {
+      return;
+    }
+
+    final normalizedWelcome = welcomeMessage.trim();
+    state = state.copyWith(
+      serviceType: serviceType,
+      sessionId: _generateSessionId(serviceType),
+      messages: normalizedWelcome.isEmpty
+          ? const <ChatbotConversationMessage>[]
+          : <ChatbotConversationMessage>[
+              _botMessage(
+                text: normalizedWelcome,
+                timestamp: _nowLabel(),
+                actionHints: _bootstrapActionHints(serviceType),
+              ),
+            ],
+      isBootstrapping: false,
+      isSending: false,
+      isApplyingAction: false,
+      hasInitialized: normalizedWelcome.isNotEmpty,
+      clearErrorMessage: true,
+      clearActiveOrderId: true,
+      clearMenuSelectorSurface: true,
     );
   }
 
@@ -707,8 +962,19 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
 
   ChatbotConversationMessage _messageFromResult(
     ChatbotResult result,
-    String serviceType,
-  ) {
+    String serviceType, {
+    _MessageResultContext contextAction = _MessageResultContext.general,
+    String? contextTarget,
+  }) {
+    final shouldUseDeliveryAddressResponse = _shouldUseDeliveryAddressResponse(
+      serviceType: serviceType,
+      contextAction: contextAction,
+      contextTarget: contextTarget,
+      result: result,
+    );
+    final shouldUseMerchantMapFallback =
+        !shouldUseDeliveryAddressResponse &&
+        _shouldUseMerchantMapFallback(result, serviceType);
     final metaParts = <String>['Layanan: $serviceType'];
     if (result.modelUsed != null && result.modelUsed!.trim().isNotEmpty) {
       metaParts.add('Model: ${result.modelUsed}');
@@ -722,13 +988,98 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       }
     }
 
+    final assistantText = shouldUseMerchantMapFallback
+        ? _merchantMapFallbackMessage
+        : shouldUseDeliveryAddressResponse
+        ? _deliveryAddressSelectedMessage
+        : result.toAssistantText();
+
     return ChatbotConversationMessage(
-      text: result.toAssistantText(),
+      text: assistantText,
       timestamp: _nowLabel(),
       isUser: false,
       meta: metaParts.join(' • '),
-      actionHints: _resolveActionHintsFromResult(result),
+      actionHints: _resolveActionHintsFromResult(
+        result,
+        preferMerchantMapPicker: shouldUseMerchantMapFallback,
+        preferMerchantListPicker: shouldUseDeliveryAddressResponse,
+      ),
     );
+  }
+
+  static const String _deliveryAddressSelectedMessage =
+      'Alamat antar sudah dipilih. Sekarang pilih toko/resto agar driver tahu lokasi pembelian.';
+
+  static const String _merchantMapFallbackMessage =
+      'Nama toko/resto itu belum ada di daftar BangDeliv. Cari lewat Maps supaya driver mendapat titik yang tepat.';
+
+  bool _shouldUseDeliveryAddressResponse({
+    required String serviceType,
+    required _MessageResultContext contextAction,
+    required String? contextTarget,
+    required ChatbotResult result,
+  }) {
+    final normalizedServiceType = (result.serviceType ?? serviceType)
+        .trim()
+        .toLowerCase();
+    final normalizedTarget = (contextTarget ?? '').trim().toLowerCase();
+    if (normalizedServiceType != 'nitip' ||
+        contextAction != _MessageResultContext.mapPin ||
+        normalizedTarget != 'delivery' ||
+        result.isOrderCreated) {
+      return false;
+    }
+
+    final validation = result.validation;
+    if (validation == null) {
+      return false;
+    }
+
+    return validation.nextActions.any((action) {
+      final normalized = action.trim().toUpperCase();
+      return normalized == 'OPEN_MERCHANT_PICKER' ||
+          normalized == 'OPEN_ADD_MERCHANT_PICKER';
+    });
+  }
+
+  bool _shouldUseMerchantMapFallback(ChatbotResult result, String serviceType) {
+    final normalizedServiceType = (result.serviceType ?? serviceType)
+        .trim()
+        .toLowerCase();
+    if (normalizedServiceType != 'nitip' || result.isOrderCreated) {
+      return false;
+    }
+
+    final validation = result.validation;
+    if (validation == null) {
+      return false;
+    }
+
+    final hasMerchantPickerAction = validation.nextActions.any((action) {
+      final normalized = action.trim().toUpperCase();
+      return normalized == 'OPEN_MERCHANT_PICKER' ||
+          normalized == 'OPEN_ADD_MERCHANT_PICKER';
+    });
+    if (!hasMerchantPickerAction) {
+      return false;
+    }
+
+    final hasMissingMerchantField = validation.missingFields.any((field) {
+      final normalized = field.trim().toLowerCase();
+      return normalized.contains('tempat') ||
+          normalized.contains('toko') ||
+          normalized.contains('resto') ||
+          normalized.contains('merchant') ||
+          normalized.contains('place');
+    });
+    if (hasMissingMerchantField) {
+      return true;
+    }
+
+    final assistantText = (result.assistantText ?? '').trim().toLowerCase();
+    return assistantText.contains('lengkapi: tempat') ||
+        (assistantText.contains('belum lengkap') &&
+            assistantText.contains('tempat'));
   }
 
   ChatbotConversationMessage _botMessage({
@@ -765,8 +1116,10 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
   }
 
   List<ChatbotMessageActionHint> _resolveActionHintsFromResult(
-    ChatbotResult result,
-  ) {
+    ChatbotResult result, {
+    bool preferMerchantMapPicker = false,
+    bool preferMerchantListPicker = false,
+  }) {
     if (result.isOrderCreated) {
       return _orderCreatedActionHints(result);
     }
@@ -788,11 +1141,92 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       paymentMethod: result.draftPaymentMethod,
     );
 
-    return _resolveActionHints(
+    final hints = _resolveActionHints(
       nextActions: effectiveNextActions,
       actionPayloads: result.actionPayloads,
       serviceType: serviceType,
     );
+    if (preferMerchantMapPicker) {
+      return _preferMerchantMapPickerHints(hints);
+    }
+    if (preferMerchantListPicker) {
+      return _preferMerchantListPickerHints(hints);
+    }
+
+    return hints;
+  }
+
+  List<ChatbotMessageActionHint> _preferMerchantMapPickerHints(
+    List<ChatbotMessageActionHint> hints,
+  ) {
+    var replacedMerchantHint = false;
+    final mapped = hints
+        .map((hint) {
+          if (hint.type != ChatbotMessageActionType.openMerchantPicker) {
+            return hint;
+          }
+
+          replacedMerchantHint = true;
+          final normalizedMode = (hint.merchantMode ?? '').trim().toLowerCase();
+          return ChatbotMessageActionHint(
+            type: ChatbotMessageActionType.openMerchantPicker,
+            label: 'Cari lewat Maps',
+            merchantMode: normalizedMode == 'add' ? 'maps_add' : 'maps',
+            initialLatitude: hint.initialLatitude,
+            initialLongitude: hint.initialLongitude,
+          );
+        })
+        .toList(growable: true);
+
+    if (!replacedMerchantHint) {
+      mapped.add(
+        const ChatbotMessageActionHint(
+          type: ChatbotMessageActionType.openMerchantPicker,
+          label: 'Cari lewat Maps',
+          merchantMode: 'maps',
+        ),
+      );
+    }
+
+    return mapped;
+  }
+
+  List<ChatbotMessageActionHint> _preferMerchantListPickerHints(
+    List<ChatbotMessageActionHint> hints,
+  ) {
+    var replacedMerchantHint = false;
+    final mapped = <ChatbotMessageActionHint>[];
+
+    for (final hint in hints) {
+      if (hint.type != ChatbotMessageActionType.openMerchantPicker) {
+        continue;
+      }
+
+      replacedMerchantHint = true;
+      final normalizedMode = (hint.merchantMode ?? '').trim().toLowerCase();
+      final isAddMode = normalizedMode == 'add' || normalizedMode == 'maps_add';
+      mapped.add(
+        ChatbotMessageActionHint(
+          type: ChatbotMessageActionType.openMerchantPicker,
+          label: isAddMode ? 'Tambah Toko/Resto' : 'Pilih Toko/Resto',
+          merchantMode: isAddMode ? 'add' : 'select',
+          initialLatitude: hint.initialLatitude,
+          initialLongitude: hint.initialLongitude,
+        ),
+      );
+    }
+
+    if (!replacedMerchantHint) {
+      mapped.add(
+        const ChatbotMessageActionHint(
+          type: ChatbotMessageActionType.openMerchantPicker,
+          label: 'Pilih Toko/Resto',
+          merchantMode: 'select',
+        ),
+      );
+    }
+
+    return mapped;
   }
 
   List<String> _sanitizePaymentActionsForResolvedDraft({
@@ -879,7 +1313,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         _merchantPickerHintFromPayload(
           actionPayloads,
           actionKey: 'OPEN_MERCHANT_PICKER',
-          fallbackLabel: 'Pilih Tempat di Map',
+          fallbackLabel: 'Pilih Toko/Resto',
           fallbackMode: 'select',
         ),
       );
@@ -890,7 +1324,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         _merchantPickerHintFromPayload(
           actionPayloads,
           actionKey: 'OPEN_ADD_MERCHANT_PICKER',
-          fallbackLabel: 'Tambah Tempat',
+          fallbackLabel: 'Tambah Toko/Resto',
           fallbackMode: 'add',
         ),
       );
@@ -953,15 +1387,15 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     if (nextActions.contains('OPEN_MAP_PICKER_DELIVERY')) {
       final deliveryFallbackLabel =
           serviceType == 'nitip' && nextActions.contains('CONFIRM_DRAFT')
-          ? 'Ganti Lokasi Antar'
-          : 'Pilih Lokasi Antar';
+          ? 'Ganti Alamat Antar'
+          : 'Pilih Alamat Antar';
       add(
         _mapPickerHintFromPayload(
           actionPayloads,
           'OPEN_MAP_PICKER_DELIVERY',
           fallbackTarget: 'delivery',
           fallbackLabel: deliveryFallbackLabel,
-          labelOverride: deliveryFallbackLabel == 'Ganti Lokasi Antar'
+          labelOverride: deliveryFallbackLabel == 'Ganti Alamat Antar'
               ? deliveryFallbackLabel
               : null,
         ),
@@ -1185,13 +1619,27 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
 
     return ChatbotMessageActionHint(
       type: ChatbotMessageActionType.openMerchantPicker,
-      label: (payloadMap['label']?.toString().trim() ?? '').isEmpty
-          ? fallbackLabel
-          : payloadMap['label'].toString().trim(),
+      label: _friendlyMerchantPickerLabel(
+        (payloadMap['label']?.toString().trim() ?? '').isEmpty
+            ? fallbackLabel
+            : payloadMap['label'].toString().trim(),
+      ),
       merchantMode: mode == 'add' ? 'add' : 'select',
       initialLatitude: _toDouble(payloadMap['initial_latitude']),
       initialLongitude: _toDouble(payloadMap['initial_longitude']),
     );
+  }
+
+  String _friendlyMerchantPickerLabel(String label) {
+    final normalized = label.trim();
+    if (normalized == 'Pilih Tempat di Map' || normalized == 'Pilih Tempat') {
+      return 'Pilih Toko/Resto';
+    }
+    if (normalized == 'Tambah Tempat') {
+      return 'Tambah Toko/Resto';
+    }
+
+    return label;
   }
 
   ChatbotMessageActionHint _routePickerHintFromPayload(
@@ -1333,11 +1781,11 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       return const <ChatbotMessageActionHint>[
         ChatbotMessageActionHint(
           type: ChatbotMessageActionType.openMerchantPicker,
-          label: 'Pilih Tempat di Map',
+          label: 'Pilih Toko/Resto',
         ),
         ChatbotMessageActionHint(
           type: ChatbotMessageActionType.openMapPicker,
-          label: 'Pilih Lokasi Antar',
+          label: 'Pilih Alamat Antar',
           target: 'delivery',
         ),
       ];
@@ -1407,6 +1855,8 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
 }
 
 final chatbotConversationProvider =
-    NotifierProvider<ChatbotConversationNotifier, ChatbotConversationState>(
-      ChatbotConversationNotifier.new,
-    );
+    NotifierProvider.family<
+      ChatbotConversationNotifier,
+      ChatbotConversationState,
+      String
+    >(ChatbotConversationNotifier.new);

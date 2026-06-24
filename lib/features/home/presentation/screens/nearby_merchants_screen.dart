@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +12,7 @@ import '../../../../models/user_profile_model.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../auth/application/auth_session_provider.dart';
 import '../../../navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
+import '../../../../utils/map_picker_helpers.dart';
 import '../../../../widgets/bang_ui.dart';
 import 'merchant_detail_screen.dart';
 import '../widgets/nearby_merchant_card.dart';
@@ -24,16 +27,23 @@ class NearbyMerchantsScreen extends ConsumerStatefulWidget {
 
 class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen>
     with WidgetsBindingObserver {
+  static const _searchDebounceDuration = Duration(milliseconds: 400);
+
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   Future<List<MerchantModel>>? _merchantsFuture;
+  Timer? _searchDebounce;
   String _query = '';
   bool _wasKeyboardVisible = false;
+  double? _currentUserLatitude;
+  double? _currentUserLongitude;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _searchController.addListener(_scheduleSearch);
+    unawaited(_hydrateCurrentUserLocation());
   }
 
   Future<List<MerchantModel>> get _currentFuture {
@@ -71,12 +81,13 @@ class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen>
         .read(homeApiServiceProvider)
         .fetchNearbyMerchants(
           search: _query,
-          latitude: _usableCoordinate(activeAddress?.latitude),
-          longitude: _usableCoordinate(activeAddress?.longitude),
+          latitude: _requestLatitude(activeAddress),
+          longitude: _requestLongitude(activeAddress),
         );
   }
 
   Future<void> _refresh() async {
+    await _hydrateCurrentUserLocation(reload: false);
     final nextFuture = _fetch();
     setState(() {
       _merchantsFuture = nextFuture;
@@ -84,12 +95,66 @@ class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen>
     await nextFuture;
   }
 
-  void _submitSearch(String value) {
-    _searchFocusNode.unfocus();
+  void _scheduleSearch() {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(_searchDebounceDuration, () {
+      if (!mounted) {
+        return;
+      }
+
+      _applySearchQuery(_searchController.text);
+    });
+  }
+
+  void _applySearchQuery(
+    String value, {
+    bool unfocus = false,
+    bool force = false,
+  }) {
+    _searchDebounce?.cancel();
+    if (unfocus) {
+      _searchFocusNode.unfocus();
+    }
+
+    final query = value.trim();
+    if (!force && _query == query) {
+      return;
+    }
+
     setState(() {
-      _query = value.trim();
+      _query = query;
       _merchantsFuture = _fetch();
     });
+  }
+
+  Future<void> _hydrateCurrentUserLocation({bool reload = true}) async {
+    try {
+      final target = await MapPickerHelpers.currentLocationIfPermitted();
+      if (!mounted || target == null) {
+        return;
+      }
+
+      final isSameTarget =
+          _currentUserLatitude == target.latitude &&
+          _currentUserLongitude == target.longitude;
+      if (isSameTarget) {
+        return;
+      }
+
+      setState(() {
+        _currentUserLatitude = target.latitude;
+        _currentUserLongitude = target.longitude;
+        if (reload) {
+          _merchantsFuture = _fetch();
+        }
+      });
+    } catch (_) {
+      return;
+    }
+  }
+
+  void _submitSearch(String value) {
+    _applySearchQuery(value, unfocus: true, force: true);
   }
 
   void _goHome() {
@@ -134,9 +199,21 @@ class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen>
     return value;
   }
 
+  double? _requestLatitude(SavedAddressModel? activeAddress) {
+    return _usableCoordinate(_currentUserLatitude) ??
+        _usableCoordinate(activeAddress?.latitude);
+  }
+
+  double? _requestLongitude(SavedAddressModel? activeAddress) {
+    return _usableCoordinate(_currentUserLongitude) ??
+        _usableCoordinate(activeAddress?.longitude);
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _searchDebounce?.cancel();
+    _searchController.removeListener(_scheduleSearch);
     _searchFocusNode.dispose();
     _searchController.dispose();
     super.dispose();

@@ -24,6 +24,8 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     -7.319916770351389,
     110.46393594806243,
   );
+  static const _routeSearchRadiusMeters = 50000;
+  static const _routeSearchMaxResults = 8;
   static const double _minimumRouteDistanceMeters = 20;
   static const String _routeTooCloseMessage =
       'Titik tujuan terlalu dekat dengan titik jemput. Pilih titik tujuan yang berbeda.';
@@ -43,6 +45,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
   final SearchController _searchController = SearchController();
   final _mapsLookup = const GoogleMapsLookupService();
   late LatLng _cameraTarget;
+  LatLng? _currentUserLocation;
   late double _initialZoom;
   late String _activeTarget;
   String? _pendingMapSelectionTarget;
@@ -61,6 +64,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
 
   String get _pickupTarget => widget.args.pickupTarget;
   String get _destinationTarget => widget.args.destinationTarget;
+  LatLng get _searchOriginTarget => _currentUserLocation ?? _cameraTarget;
 
   @override
   void initState() {
@@ -133,9 +137,25 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
 
   Future<void> _checkLocationPermission() async {
     final isGranted = await MapPickerHelpers.hasLocationPermission();
-    if (isGranted && mounted) {
-      setState(() => _isLocationPermissionGranted = true);
+    LatLng? currentLocation;
+    if (isGranted) {
+      try {
+        currentLocation = await MapPickerHelpers.currentLocationIfPermitted();
+      } catch (_) {
+        currentLocation = null;
+      }
     }
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isLocationPermissionGranted = isGranted;
+      if (currentLocation != null) {
+        _currentUserLocation = currentLocation;
+      }
+    });
   }
 
   @override
@@ -246,12 +266,20 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                       if (query.isEmpty) {
                         return const Iterable<Widget>.empty();
                       }
-                      final results = await _mapsLookup.searchPlaces(query);
+                      final results = await _mapsLookup.searchPlaces(
+                        query,
+                        locationBias: _searchOriginTarget,
+                        radiusMeters: _routeSearchRadiusMeters,
+                        restrictToLocationBias: true,
+                        maxResults: _routeSearchMaxResults,
+                      );
                       return results.map((prediction) {
+                        final distanceLabel = _routePredictionDistanceLabel(
+                          prediction.distanceMeters,
+                        );
                         return ListTile(
-                          leading: const Icon(
-                            Icons.location_on,
-                            color: AppColors.primary,
+                          leading: _RoutePredictionPin(
+                            distanceLabel: distanceLabel,
                           ),
                           title: Text(
                             prediction.description,
@@ -733,6 +761,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
       }
 
       final target = location.target!;
+      _currentUserLocation = target;
       _cameraTarget = target;
       await _animateCameraSafely(target, 18);
       final address = await _mapsLookup.reverseGeocode(target);
@@ -1096,6 +1125,57 @@ class _PointCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _RoutePredictionPin extends StatelessWidget {
+  const _RoutePredictionPin({required this.distanceLabel});
+
+  final String? distanceLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 48,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.location_on, color: AppColors.primary, size: 26),
+          if ((distanceLabel ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              distanceLabel!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                height: 1,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+String? _routePredictionDistanceLabel(int? distanceMeters) {
+  if (distanceMeters == null || distanceMeters < 0) {
+    return null;
+  }
+
+  if (distanceMeters < 1000) {
+    return '$distanceMeters m';
+  }
+
+  final distanceKm = distanceMeters / 1000;
+  if (distanceKm < 10) {
+    return '${distanceKm.toStringAsFixed(1)} km';
+  }
+
+  return '${distanceKm.round()} km';
 }
 
 class _RoutePoint {

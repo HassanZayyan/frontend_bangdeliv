@@ -294,39 +294,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget _buildHelpCard() {
     return BangCard(
       padding: EdgeInsets.zero,
-      onTap: _showContactSupportSheet,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        child: Row(
-          children: [
-            const SizedBox.square(
-              dimension: 28,
-              child: Icon(
-                Icons.support_agent,
-                color: AppColors.primary,
-                size: 21,
-              ),
-            ),
-            const SizedBox(width: 16),
-            const Expanded(
-              child: Text(
-                'Butuh bantuan?',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Icon(
-              Icons.chevron_right_rounded,
-              size: 20,
-              color: AppColors.textSecondary,
-            ),
-          ],
-        ),
+      child: _buildMenuTile(
+        icon: Icons.support_agent,
+        title: 'Butuh bantuan?',
+        onTap: _showContactSupportSheet,
       ),
     );
   }

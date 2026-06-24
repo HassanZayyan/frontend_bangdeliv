@@ -94,8 +94,26 @@ class MerchantDetailScreen extends ConsumerWidget {
         merchant: detail.merchant,
         menus: detail.menus,
         returnPath: returnPath,
+        displayDistance: _effectiveDistance(detail.merchant, fallbackMerchant),
       ),
     );
+  }
+
+  String _effectiveDistance(
+    MerchantModel merchant,
+    MerchantModel? fallbackMerchant,
+  ) {
+    final detailDistance = merchant.distance.trim();
+    if (detailDistance.isNotEmpty && detailDistance != '-') {
+      return detailDistance;
+    }
+
+    final fallbackDistance = fallbackMerchant?.distance.trim() ?? '';
+    if (fallbackDistance.isNotEmpty && fallbackDistance != '-') {
+      return fallbackDistance;
+    }
+
+    return '';
   }
 
   void _handleBack(BuildContext context) {
@@ -119,6 +137,7 @@ class _MerchantDetailView extends StatelessWidget {
     required this.merchant,
     required this.menus,
     this.returnPath,
+    this.displayDistance,
     this.isLoadingMenus = false,
     this.menusError,
   });
@@ -126,6 +145,7 @@ class _MerchantDetailView extends StatelessWidget {
   final MerchantModel merchant;
   final List<FoodModel> menus;
   final String? returnPath;
+  final String? displayDistance;
   final bool isLoadingMenus;
   final String? menusError;
 
@@ -219,7 +239,11 @@ class _MerchantDetailView extends StatelessWidget {
             children: [
               _MerchantHero(merchant: merchant),
               const SizedBox(height: 18),
-              _MerchantInfo(merchant: merchant, menuCount: menus.length),
+              _MerchantInfo(
+                merchant: merchant,
+                menuCount: menus.length,
+                displayDistance: displayDistance,
+              ),
               const SizedBox(height: 22),
               _MenuSection(
                 menus: menus,
@@ -284,8 +308,18 @@ class _MerchantHeroState extends State<_MerchantHero> {
                       return Semantics(
                         label:
                             'Foto ${widget.merchant.name} ${index + 1} dari ${imageUrls.length}',
+                        button: true,
                         image: true,
-                        child: _MerchantHeroImage(imageUrl: imageUrls[index]),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => _openPhotoPreview(
+                            context,
+                            imageUrls: imageUrls,
+                            initialIndex: index,
+                            merchantName: widget.merchant.name,
+                          ),
+                          child: _MerchantHeroImage(imageUrl: imageUrls[index]),
+                        ),
                       );
                     },
                   ),
@@ -338,6 +372,236 @@ class _MerchantHeroState extends State<_MerchantHero> {
                     ),
                 ],
               ),
+      ),
+    );
+  }
+
+  void _openPhotoPreview(
+    BuildContext context, {
+    required List<String> imageUrls,
+    required int initialIndex,
+    required String merchantName,
+  }) {
+    if (imageUrls.isEmpty) {
+      return;
+    }
+
+    showDialog<void>(
+      context: context,
+      barrierColor: AppColors.black,
+      builder: (context) {
+        return _MerchantPhotoPreview(
+          imageUrls: imageUrls,
+          initialIndex: initialIndex,
+          merchantName: merchantName,
+        );
+      },
+    );
+  }
+}
+
+class _MerchantPhotoPreview extends StatefulWidget {
+  const _MerchantPhotoPreview({
+    required this.imageUrls,
+    required this.initialIndex,
+    required this.merchantName,
+  });
+
+  final List<String> imageUrls;
+  final int initialIndex;
+  final String merchantName;
+
+  @override
+  State<_MerchantPhotoPreview> createState() => _MerchantPhotoPreviewState();
+}
+
+class _MerchantPhotoPreviewState extends State<_MerchantPhotoPreview>
+    with SingleTickerProviderStateMixin {
+  static const double _doubleTapZoomScale = 2.6;
+
+  late final PageController _pageController;
+  late final TransformationController _transformationController;
+  late final AnimationController _zoomAnimationController;
+  Animation<Matrix4>? _zoomAnimation;
+  late int _currentIndex;
+  Offset? _doubleTapLocalPosition;
+
+  @override
+  void initState() {
+    super.initState();
+    final maxIndex = widget.imageUrls.isEmpty ? 0 : widget.imageUrls.length - 1;
+    _currentIndex = widget.initialIndex.clamp(0, maxIndex).toInt();
+    _pageController = PageController(initialPage: _currentIndex);
+    _transformationController = TransformationController();
+    _zoomAnimationController =
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 190),
+        )..addListener(() {
+          final value = _zoomAnimation?.value;
+          if (value != null) {
+            _transformationController.value = value;
+          }
+        });
+  }
+
+  @override
+  void dispose() {
+    _zoomAnimationController.dispose();
+    _transformationController.dispose();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _handlePageChanged(int index) {
+    _zoomAnimationController.stop();
+    _transformationController.value = Matrix4.identity();
+    setState(() => _currentIndex = index);
+  }
+
+  void _handleDoubleTapDown(TapDownDetails details) {
+    _doubleTapLocalPosition = details.localPosition;
+  }
+
+  void _handleDoubleTap() {
+    final currentScale = _transformationController.value.getMaxScaleOnAxis();
+    if (currentScale > 1.01) {
+      _animateZoomTo(Matrix4.identity());
+      return;
+    }
+
+    final position = _doubleTapLocalPosition;
+    if (position == null) {
+      return;
+    }
+
+    final target = Matrix4.identity()
+      ..translateByDouble(
+        -position.dx * (_doubleTapZoomScale - 1),
+        -position.dy * (_doubleTapZoomScale - 1),
+        0,
+        1,
+      )
+      ..scaleByDouble(_doubleTapZoomScale, _doubleTapZoomScale, 1, 1);
+    _animateZoomTo(target);
+  }
+
+  void _animateZoomTo(Matrix4 target) {
+    _zoomAnimation =
+        Matrix4Tween(
+          begin: _transformationController.value,
+          end: target,
+        ).animate(
+          CurvedAnimation(
+            parent: _zoomAnimationController,
+            curve: Curves.easeOut,
+          ),
+        );
+    _zoomAnimationController.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog.fullscreen(
+      backgroundColor: AppColors.black,
+      child: SafeArea(
+        child: Stack(
+          children: [
+            PageView.builder(
+              controller: _pageController,
+              itemCount: widget.imageUrls.length,
+              onPageChanged: _handlePageChanged,
+              itemBuilder: (context, index) {
+                return Semantics(
+                  label:
+                      'Preview foto ${widget.merchantName} ${index + 1} dari ${widget.imageUrls.length}',
+                  image: true,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onDoubleTapDown: _handleDoubleTapDown,
+                    onDoubleTap: _handleDoubleTap,
+                    child: InteractiveViewer(
+                      transformationController: _transformationController,
+                      minScale: 1,
+                      maxScale: 4,
+                      child: Center(
+                        child: Image.network(
+                          widget.imageUrls[index],
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Icon(
+                              Icons.broken_image_outlined,
+                              color: AppColors.white,
+                              size: 54,
+                            );
+                          },
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) {
+                              return child;
+                            }
+
+                            return const SizedBox(
+                              width: 26,
+                              height: 26,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.4,
+                                color: AppColors.white,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IconButton.filled(
+                tooltip: 'Tutup foto',
+                style: IconButton.styleFrom(
+                  backgroundColor: AppColors.white.withValues(alpha: 0.14),
+                  foregroundColor: AppColors.white,
+                ),
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close_rounded),
+              ),
+            ),
+            if (widget.imageUrls.length > 1)
+              Positioned(
+                left: 20,
+                right: 20,
+                bottom: 18,
+                child: Center(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppColors.black.withValues(alpha: 0.46),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: AppColors.white.withValues(alpha: 0.18),
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 7,
+                      ),
+                      child: Text(
+                        '${_currentIndex + 1}/${widget.imageUrls.length}',
+                        style: const TextStyle(
+                          color: AppColors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -402,14 +666,20 @@ class _MerchantHeroFallback extends StatelessWidget {
 }
 
 class _MerchantInfo extends StatelessWidget {
-  const _MerchantInfo({required this.merchant, required this.menuCount});
+  const _MerchantInfo({
+    required this.merchant,
+    required this.menuCount,
+    this.displayDistance,
+  });
 
   final MerchantModel merchant;
   final int menuCount;
+  final String? displayDistance;
 
   @override
   Widget build(BuildContext context) {
-    final address = merchant.address.trim();
+    final distance = (displayDistance ?? merchant.distance).trim();
+    final hasDistance = distance.isNotEmpty && distance != '-';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -425,16 +695,9 @@ class _MerchantInfo extends StatelessWidget {
             height: 1.18,
           ),
         ),
-        const SizedBox(height: 12),
-        _InfoRow(
-          icon: Icons.location_on_outlined,
-          text: address.isEmpty ? merchant.distance : address,
-        ),
-        if (merchant.distance.trim().isNotEmpty &&
-            merchant.distance.trim() != '-' &&
-            address.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          _InfoRow(icon: Icons.near_me_outlined, text: merchant.distance),
+        if (hasDistance) ...[
+          const SizedBox(height: 12),
+          _InfoRow(icon: Icons.near_me_outlined, text: distance),
         ],
         const SizedBox(height: 12),
         Wrap(
@@ -585,8 +848,14 @@ class _MenuTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final imageUrl = menu.imageUrl.trim();
+    final hasImage = imageUrl.isNotEmpty;
+
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: EdgeInsets.symmetric(
+        horizontal: hasImage ? 10 : 14,
+        vertical: hasImage ? 10 : 12,
+      ),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(12),
@@ -594,41 +863,35 @@ class _MenuTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: SizedBox.square(
-              dimension: 64,
-              child: menu.imageUrl.isEmpty
-                  ? Container(
+          if (hasImage) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox.square(
+                dimension: 64,
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
                       color: AppColors.primaryLight,
                       child: const Icon(
-                        Icons.restaurant_menu_outlined,
+                        Icons.broken_image_outlined,
                         color: AppColors.primary,
                       ),
-                    )
-                  : Image.network(
-                      menu.imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: AppColors.primaryLight,
-                          child: const Icon(
-                            Icons.broken_image_outlined,
-                            color: AppColors.primary,
-                          ),
-                        );
-                      },
-                    ),
+                    );
+                  },
+                ),
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
+            const SizedBox(width: 12),
+          ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   menu.name,
-                  maxLines: 2,
+                  maxLines: hasImage ? 2 : 3,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: AppColors.textPrimary,
