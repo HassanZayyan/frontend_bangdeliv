@@ -28,6 +28,8 @@ class AppRoutes {
   static const String shoppingAddItem = '/orders/:orderId/shopping/add-item';
   static const String shoppingMerchantMapPicker =
       '/orders/:orderId/shopping/merchant-map-picker';
+  static const String chatbotShoppingMerchantPicker =
+      '/chatbot/shopping/merchant-picker';
   static const String chatbotShoppingMerchantMapPicker =
       '/chatbot/shopping/merchant-map-picker';
   static const String orderChat = '/orders/:orderId/chat';
@@ -66,6 +68,10 @@ class AppRoutes {
 
   static String chatbotShoppingMerchantMapPickerPath() {
     return chatbotShoppingMerchantMapPicker;
+  }
+
+  static String chatbotShoppingMerchantPickerPath() {
+    return chatbotShoppingMerchantPicker;
   }
 
   static String driverOrderActivePath(String orderId) {

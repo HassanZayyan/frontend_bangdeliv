@@ -92,6 +92,172 @@ void main() {
   });
 
   test(
+    'searchPlaces can restrict to location bias and sort by distance',
+    () async {
+      late Uri requestedUrl;
+      final service = GoogleMapsLookupService(
+        apiKey: 'test-key',
+        client: MockClient((request) async {
+          requestedUrl = request.url;
+          return http.Response(
+            jsonEncode({
+              'status': 'OK',
+              'predictions': [
+                {
+                  'description': 'Alfamart Jakarta',
+                  'place_id': 'far-alfamart',
+                  'structured_formatting': {'main_text': 'Alfamart'},
+                  'distance_meters': 120000,
+                  'types': ['convenience_store', 'establishment'],
+                },
+                {
+                  'description': 'Alfamart Salatiga',
+                  'place_id': 'near-alfamart',
+                  'structured_formatting': {'main_text': 'Alfamart'},
+                  'distance_meters': 450,
+                  'types': ['convenience_store', 'establishment'],
+                },
+              ],
+            }),
+            200,
+          );
+        }),
+      );
+
+      final predictions = await service.searchPlaces(
+        'alfamart',
+        establishmentOnly: true,
+        locationBias: const LatLng(-7.3178, 110.4630),
+        radiusMeters: 50000,
+        restrictToLocationBias: true,
+      );
+
+      expect(predictions.map((prediction) => prediction.placeId), [
+        'near-alfamart',
+        'far-alfamart',
+      ]);
+      expect(predictions.first.distanceMeters, 450);
+      expect(requestedUrl.queryParameters['origin'], '-7.317800,110.463000');
+      expect(
+        requestedUrl.queryParameters['locationrestriction'],
+        'circle:50000@-7.317800,110.463000',
+      );
+      expect(requestedUrl.queryParameters, isNot(contains('location')));
+      expect(requestedUrl.queryParameters, isNot(contains('radius')));
+      expect(requestedUrl.queryParameters, isNot(contains('strictbounds')));
+    },
+  );
+
+  test(
+    'searchPlaces can supplement autocomplete results up to requested max',
+    () async {
+      final requestedUrls = <Uri>[];
+      final service = GoogleMapsLookupService(
+        apiKey: 'test-key',
+        client: MockClient((request) async {
+          requestedUrls.add(request.url);
+          if (request.url.path == '/maps/api/place/autocomplete/json') {
+            return http.Response(
+              jsonEncode({
+                'status': 'OK',
+                'predictions': [
+                  for (var index = 1; index <= 5; index++)
+                    {
+                      'description': 'Alamat Autocomplete $index',
+                      'place_id': 'auto-$index',
+                      'structured_formatting': {
+                        'main_text': 'Autocomplete $index',
+                      },
+                      'distance_meters': index * 1000,
+                      'types': ['establishment'],
+                    },
+                ],
+              }),
+              200,
+            );
+          }
+
+          expect(request.url.path, '/maps/api/place/textsearch/json');
+          return http.Response(
+            jsonEncode({
+              'status': 'OK',
+              'results': [
+                {
+                  'name': 'Alfamart Dekat',
+                  'place_id': 'text-near',
+                  'formatted_address': 'Jl. Dekat',
+                  'types': ['store', 'establishment'],
+                  'geometry': {
+                    'location': {'lat': -7.3179, 'lng': 110.4630},
+                  },
+                },
+                {
+                  'name': 'Alfamart Tengah',
+                  'place_id': 'text-mid',
+                  'formatted_address': 'Jl. Tengah',
+                  'types': ['store', 'establishment'],
+                  'geometry': {
+                    'location': {'lat': -7.3200, 'lng': 110.4630},
+                  },
+                },
+                {
+                  'name': 'Alfamart Jauh',
+                  'place_id': 'text-far',
+                  'formatted_address': 'Jl. Jauh',
+                  'types': ['store', 'establishment'],
+                  'geometry': {
+                    'location': {'lat': -7.3700, 'lng': 110.4630},
+                  },
+                },
+                {
+                  'name': 'Alfamart Lebih Jauh',
+                  'place_id': 'text-extra',
+                  'formatted_address': 'Jl. Lebih Jauh',
+                  'types': ['store', 'establishment'],
+                  'geometry': {
+                    'location': {'lat': -7.3900, 'lng': 110.4630},
+                  },
+                },
+              ],
+            }),
+            200,
+          );
+        }),
+      );
+
+      final predictions = await service.searchPlaces(
+        'alfamart',
+        locationBias: const LatLng(-7.3178, 110.4630),
+        radiusMeters: 50000,
+        restrictToLocationBias: true,
+        maxResults: 8,
+      );
+
+      expect(predictions, hasLength(8));
+      expect(predictions.map((prediction) => prediction.placeId), [
+        'text-near',
+        'text-mid',
+        'auto-1',
+        'auto-2',
+        'auto-3',
+        'auto-4',
+        'auto-5',
+        'text-far',
+      ]);
+      expect(requestedUrls.map((url) => url.path), [
+        '/maps/api/place/autocomplete/json',
+        '/maps/api/place/textsearch/json',
+      ]);
+      expect(requestedUrls.last.queryParameters['query'], 'alfamart');
+      expect(requestedUrls.last.queryParameters['radius'], '50000');
+      expect(
+        requestedUrls.last.queryParameters['location'],
+        '-7.317800,110.463000',
+      );
+    },
+  );
+
+  test(
     'geocodeQuery can scope address lookup with service-area bounds',
     () async {
       late Uri requestedUrl;

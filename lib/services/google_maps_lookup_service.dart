@@ -12,12 +12,14 @@ class GoogleMapsPrediction {
     required this.placeId,
     this.name,
     this.types = const <String>[],
+    this.distanceMeters,
   });
 
   final String description;
   final String? placeId;
   final String? name;
   final List<String> types;
+  final int? distanceMeters;
 }
 
 class GoogleMapsResolvedPlace {
@@ -69,12 +71,17 @@ class GoogleMapsLookupService {
     GoogleMapsLookupScope scope = GoogleMapsLookupScope.indonesia,
     String? sessionToken,
     bool establishmentOnly = false,
+    LatLng? locationBias,
+    int? radiusMeters,
+    bool restrictToLocationBias = false,
+    int maxResults = 5,
   }) async {
     final normalizedQuery = query.trim();
     final apiKey = _apiKey;
     if (normalizedQuery.isEmpty || apiKey.isEmpty) {
       return const <GoogleMapsPrediction>[];
     }
+    final resultLimit = maxResults.clamp(1, 20);
 
     final queryParameters = <String, String>{
       'input': normalizedQuery,
@@ -86,6 +93,12 @@ class GoogleMapsLookupService {
         'sessiontoken': sessionToken!.trim(),
     };
     _applyAutocompleteScope(queryParameters, scope);
+    _applyAutocompleteLocationBias(
+      queryParameters,
+      locationBias: locationBias,
+      radiusMeters: radiusMeters,
+      restrictToLocationBias: restrictToLocationBias,
+    );
 
     final url = Uri.https(
       'maps.googleapis.com',
@@ -109,11 +122,28 @@ class GoogleMapsLookupService {
         return const <GoogleMapsPrediction>[];
       }
 
-      return predictions
+      final parsedPredictions = predictions
           .whereType<Map<String, dynamic>>()
           .map(_predictionFromJson)
           .where((prediction) => prediction.description.isNotEmpty)
-          .toList(growable: false);
+          .toList(growable: true);
+      if (locationBias != null &&
+          resultLimit > 5 &&
+          resultLimit > parsedPredictions.length) {
+        parsedPredictions.addAll(
+          await _textSearchPredictions(
+            normalizedQuery,
+            apiKey,
+            locationBias: locationBias,
+            radiusMeters: radiusMeters,
+            existing: parsedPredictions,
+          ),
+        );
+      }
+
+      return _sortPredictionsByDistance(
+        _dedupePredictions(parsedPredictions),
+      ).take(resultLimit).toList(growable: false);
     } catch (_) {
       return const <GoogleMapsPrediction>[];
     }
@@ -458,7 +488,159 @@ class GoogleMapsLookupService {
       placeId: json['place_id']?.toString(),
       name: name,
       types: types,
+      distanceMeters: _positiveInt(json['distance_meters']),
     );
+  }
+
+  int? _positiveInt(dynamic value) {
+    final number = value is num
+        ? value.toInt()
+        : int.tryParse(value?.toString() ?? '');
+    if (number == null || number < 0) {
+      return null;
+    }
+
+    return number;
+  }
+
+  Future<List<GoogleMapsPrediction>> _textSearchPredictions(
+    String query,
+    String apiKey, {
+    required LatLng locationBias,
+    required int? radiusMeters,
+    required List<GoogleMapsPrediction> existing,
+  }) async {
+    final radius = (radiusMeters ?? _bangDelivServiceAreaRadiusMeters).clamp(
+      1,
+      _bangDelivServiceAreaRadiusMeters,
+    );
+    final queryParameters = <String, String>{
+      'query': query,
+      'location':
+          '${locationBias.latitude.toStringAsFixed(6)},${locationBias.longitude.toStringAsFixed(6)}',
+      'radius': radius.toString(),
+      'key': apiKey,
+      'language': 'id',
+    };
+    final url = Uri.https(
+      'maps.googleapis.com',
+      '/maps/api/place/textsearch/json',
+      queryParameters,
+    );
+
+    try {
+      final response = await _get(url);
+      if (response.statusCode != 200) {
+        return const <GoogleMapsPrediction>[];
+      }
+
+      final data = json.decode(response.body);
+      if (data is! Map<String, dynamic> || data['status'] != 'OK') {
+        return const <GoogleMapsPrediction>[];
+      }
+
+      final results = data['results'];
+      if (results is! List || results.isEmpty) {
+        return const <GoogleMapsPrediction>[];
+      }
+
+      final existingKeys = existing.map(_predictionDedupeKey).toSet();
+      final items = <GoogleMapsPrediction>[];
+      for (final result in results.whereType<Map<String, dynamic>>()) {
+        final prediction = _predictionFromTextSearchResult(
+          result,
+          locationBias,
+        );
+        if (prediction == null) {
+          continue;
+        }
+        final key = _predictionDedupeKey(prediction);
+        if (existingKeys.add(key)) {
+          items.add(prediction);
+        }
+      }
+
+      return items;
+    } catch (_) {
+      return const <GoogleMapsPrediction>[];
+    }
+  }
+
+  GoogleMapsPrediction? _predictionFromTextSearchResult(
+    Map<String, dynamic> json,
+    LatLng locationBias,
+  ) {
+    final resolved = _resolvedPlaceFromResult(json);
+    if (resolved == null) {
+      return null;
+    }
+
+    final name = resolved.name;
+    final address = resolved.address;
+    final description = (address ?? name ?? '').trim();
+    if (description.isEmpty) {
+      return null;
+    }
+
+    return GoogleMapsPrediction(
+      description: description,
+      placeId: resolved.placeId,
+      name: name,
+      types: resolved.types,
+      distanceMeters: _distanceMeters(locationBias, resolved.target).round(),
+    );
+  }
+
+  List<GoogleMapsPrediction> _dedupePredictions(
+    List<GoogleMapsPrediction> predictions,
+  ) {
+    final seen = <String>{};
+    final deduped = <GoogleMapsPrediction>[];
+    for (final prediction in predictions) {
+      final key = _predictionDedupeKey(prediction);
+      if (seen.add(key)) {
+        deduped.add(prediction);
+      }
+    }
+
+    return deduped;
+  }
+
+  String _predictionDedupeKey(GoogleMapsPrediction prediction) {
+    final placeId = (prediction.placeId ?? '').trim();
+    if (placeId.isNotEmpty) {
+      return 'place:$placeId';
+    }
+
+    final text = _normalizePlaceLookupText(prediction.description);
+    return 'text:$text';
+  }
+
+  List<GoogleMapsPrediction> _sortPredictionsByDistance(
+    List<GoogleMapsPrediction> predictions,
+  ) {
+    if (!predictions.any((prediction) => prediction.distanceMeters != null)) {
+      return predictions;
+    }
+
+    final sorted = predictions.toList();
+    sorted.sort((first, second) {
+      final firstDistance = first.distanceMeters;
+      final secondDistance = second.distanceMeters;
+      if (firstDistance == null && secondDistance == null) {
+        return 0;
+      }
+      if (firstDistance == null) {
+        return 1;
+      }
+      if (secondDistance == null) {
+        return -1;
+      }
+
+      return firstDistance.compareTo(secondDistance);
+    });
+
+    return sorted;
   }
 
   Future<http.Response> _get(Uri url) {
@@ -497,6 +679,42 @@ class GoogleMapsLookupService {
               '${_bangDelivServiceAreaCenter.latitude},${_bangDelivServiceAreaCenter.longitude}'
           ..['radius'] = _bangDelivServiceAreaRadiusMeters.toString()
           ..['strictbounds'] = 'true';
+    }
+  }
+
+  void _applyAutocompleteLocationBias(
+    Map<String, String> queryParameters, {
+    required LatLng? locationBias,
+    required int? radiusMeters,
+    required bool restrictToLocationBias,
+  }) {
+    if (locationBias == null) {
+      return;
+    }
+
+    final radius = (radiusMeters ?? _bangDelivServiceAreaRadiusMeters).clamp(
+      1,
+      _bangDelivServiceAreaRadiusMeters,
+    );
+    final location =
+        '${locationBias.latitude.toStringAsFixed(6)},'
+        '${locationBias.longitude.toStringAsFixed(6)}';
+    final circularArea =
+        'circle:$radius@${locationBias.latitude.toStringAsFixed(6)},'
+        '${locationBias.longitude.toStringAsFixed(6)}';
+
+    queryParameters
+      ..remove('location')
+      ..remove('radius')
+      ..remove('strictbounds')
+      ..['origin'] = location;
+
+    if (restrictToLocationBias) {
+      queryParameters['locationrestriction'] = circularArea;
+      queryParameters.remove('locationbias');
+    } else {
+      queryParameters['locationbias'] = circularArea;
+      queryParameters.remove('locationrestriction');
     }
   }
 

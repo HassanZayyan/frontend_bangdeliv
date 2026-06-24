@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:frontend_bangdeliv/models/chatbot_model.dart';
 import 'package:frontend_bangdeliv/models/chatbot_launch_args.dart';
+import 'package:frontend_bangdeliv/models/customer_order_model.dart';
 import 'package:frontend_bangdeliv/models/user_profile_model.dart';
 import 'package:frontend_bangdeliv/core/di/app_providers.dart';
 import 'package:frontend_bangdeliv/data/repositories/customer_order_repository.dart';
@@ -62,7 +63,7 @@ void main() {
       chatbotApiService: _FakeChatbotApiService(),
     );
 
-    expect(find.text('Atur Titik Ambil & Tujuan'), findsOneWidget);
+    expect(find.text('Atur Lokasi Ambil/Tujuan'), findsOneWidget);
     expect(find.text('Pilih Titik Ambil'), findsNothing);
     expect(find.text('Pilih Titik Tujuan'), findsNothing);
   });
@@ -76,7 +77,7 @@ void main() {
       chatbotApiService: _FakeChatbotApiService(),
     );
 
-    expect(find.text('Atur Titik Jemput & Tujuan'), findsOneWidget);
+    expect(find.text('Atur Lokasi Jemput/Tujuan'), findsOneWidget);
     expect(find.text('Pilih Titik Jemput'), findsNothing);
     expect(find.text('Pilih Titik Tujuan'), findsNothing);
   });
@@ -102,7 +103,7 @@ void main() {
       find.widgetWithText(OutlinedButton, 'Pilih Tujuan Baru'),
       findsOneWidget,
     );
-    expect(find.text('Atur Titik Jemput & Tujuan'), findsNothing);
+    expect(find.text('Atur Lokasi Jemput/Tujuan'), findsNothing);
   });
 
   testWidgets('nitip welcome shows concise multi tempat guidance', (
@@ -114,11 +115,11 @@ void main() {
       chatbotApiService: _FakeChatbotApiService(),
     );
 
-    expect(find.textContaining('pilih tempat di map'), findsOneWidget);
-    expect(find.textContaining('sampai 3 tempat'), findsOneWidget);
-    expect(find.textContaining('Contoh: Beli di'), findsNothing);
+    expect(find.textContaining('pilih toko/resto dari daftar'), findsOneWidget);
+    expect(find.textContaining('sampai 3 toko/resto'), findsOneWidget);
+    expect(find.textContaining('Beli di Nasgor Gajah'), findsOneWidget);
     expect(
-      find.widgetWithText(OutlinedButton, 'Pilih Tempat di Map'),
+      find.widgetWithText(OutlinedButton, 'Pilih Toko/Resto'),
       findsOneWidget,
     );
   });
@@ -234,7 +235,7 @@ void main() {
       await _sendMessage(tester, 'COD');
 
       expect(
-        find.widgetWithText(OutlinedButton, 'Konfirmasi Nitip'),
+        find.widgetWithText(OutlinedButton, 'Buat Pesanan'),
         findsOneWidget,
       );
       expect(find.widgetWithText(OutlinedButton, 'COD'), findsNothing);
@@ -261,10 +262,7 @@ void main() {
     await _pumpChatbotFrame(tester);
 
     expect(fakeService.callCount, 2);
-    expect(
-      find.widgetWithText(OutlinedButton, 'Konfirmasi Nitip'),
-      findsOneWidget,
-    );
+    expect(find.widgetWithText(OutlinedButton, 'Buat Pesanan'), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, 'COD'), findsNothing);
     expect(find.widgetWithText(OutlinedButton, 'QRIS'), findsNothing);
   });
@@ -273,15 +271,15 @@ void main() {
       in const <String, ({String draftMessage, String confirmLabel})>{
         'antar_jemput': (
           draftMessage: 'draft transport payment',
-          confirmLabel: 'Konfirmasi',
+          confirmLabel: 'Buat Pesanan',
         ),
         'kurir': (
           draftMessage: 'draft transport payment',
-          confirmLabel: 'Konfirmasi',
+          confirmLabel: 'Buat Pesanan',
         ),
         'nitip': (
           draftMessage: 'draft nitip payment',
-          confirmLabel: 'Konfirmasi Nitip',
+          confirmLabel: 'Buat Pesanan',
         ),
       }.entries) {
     testWidgets('${entry.key} QRIS button advances to confirmation', (
@@ -324,7 +322,7 @@ void main() {
     await _sendMessage(tester, 'beli sembako');
 
     expect(
-      find.widgetWithText(OutlinedButton, 'Pilih Tempat di Map'),
+      find.widgetWithText(OutlinedButton, 'Cari lewat Maps'),
       findsOneWidget,
     );
   });
@@ -418,9 +416,7 @@ void main() {
 
     await _sendMessage(tester, 'beli sembako');
 
-    await tester.tap(
-      find.widgetWithText(OutlinedButton, 'Pilih Tempat di Map'),
-    );
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Cari lewat Maps'));
     await _pumpChatbotFrame(tester);
     await tester.tap(find.text('Pilih Kedai Kedua'));
     await _pumpChatbotFrame(tester);
@@ -429,7 +425,7 @@ void main() {
     expect(fakeService.lastMerchantId, 42);
     expect(fakeRepository.searchMenuCallCount, 1);
     expect(fakeRepository.lastMerchantId, 42);
-    expect(find.textContaining('Draft Nitip belum lengkap'), findsOneWidget);
+    expect(find.textContaining('Draft Nitip belum lengkap'), findsNothing);
     expect(find.textContaining('Tempat Nitip berhasil dipilih'), findsNothing);
     expect(find.text('Pilih menu'), findsOneWidget);
     expect(find.text('Dimsum Dan Seblak Wolu'), findsOneWidget);
@@ -446,6 +442,135 @@ void main() {
     expect(fakeService.lastMessage, 'Dimsum Ayam 2\nEs Teh 1');
   });
 
+  testWidgets('nitip official menu selector survives reopening chatbot', (
+    WidgetTester tester,
+  ) async {
+    final fakeService = _FakeChatbotApiService();
+    final fakeRepository = _FakeCustomerOrderRepository(
+      menusByMerchantId: const <int, List<ShoppingMenuOption>>{
+        42: <ShoppingMenuOption>[
+          ShoppingMenuOption(id: 9, name: 'Dimsum Ayam', price: 15000),
+          ShoppingMenuOption(id: 10, name: 'Es Teh', price: 3000),
+        ],
+      },
+    );
+
+    final router = await _pumpChatbot(
+      tester,
+      serviceType: 'nitip',
+      chatbotApiService: fakeService,
+      customerOrderRepository: fakeRepository,
+      merchantPickerResult: const ShoppingMerchantPickerResult(
+        merchantId: 42,
+        place: ShoppingMerchantPlacePayload(
+          placeId: 'official-42',
+          name: 'Dimsum Dan Seblak Wolu',
+          address: 'Lokasi BangDeliv',
+          latitude: -7.3178,
+          longitude: 110.463,
+          types: <String>['restaurant'],
+        ),
+      ),
+    );
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Pilih Toko/Resto'));
+    await _pumpChatbotFrame(tester);
+    await tester.tap(find.text('Pilih Kedai Kedua'));
+    await _pumpChatbotFrame(tester);
+
+    expect(find.text('Pilih menu'), findsOneWidget);
+    expect(find.text('Dimsum Ayam'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Tambah Dimsum Ayam'));
+    await _pumpChatbotFrame(tester);
+
+    await tester.tap(find.byIcon(Icons.chevron_left));
+    await _pumpChatbotFrame(tester);
+
+    expect(find.text('Home Screen'), findsOneWidget);
+
+    router.go('/chatbot?service_type=nitip');
+    await _pumpChatbotFrame(tester);
+
+    expect(find.text('Pilih menu'), findsOneWidget);
+    expect(find.text('Dimsum Ayam'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Konfirmasi'));
+    await _pumpChatbotFrame(tester);
+
+    expect(fakeService.lastMessage, 'Dimsum Ayam 1');
+    expect(find.text('Pilih menu'), findsNothing);
+  });
+
+  testWidgets('nitip menu selector can change official merchant from list', (
+    WidgetTester tester,
+  ) async {
+    final fakeService = _FakeChatbotApiService();
+    final fakeRepository = _FakeCustomerOrderRepository(
+      menusByMerchantId: const <int, List<ShoppingMenuOption>>{
+        42: <ShoppingMenuOption>[
+          ShoppingMenuOption(id: 9, name: 'Dimsum Ayam', price: 15000),
+        ],
+        43: <ShoppingMenuOption>[
+          ShoppingMenuOption(id: 21, name: 'Bakso Urat', price: 12000),
+        ],
+      },
+    );
+
+    await _pumpChatbot(
+      tester,
+      serviceType: 'nitip',
+      chatbotApiService: fakeService,
+      customerOrderRepository: fakeRepository,
+      merchantPickerResults: const <ShoppingMerchantPickerResult>[
+        ShoppingMerchantPickerResult(
+          merchantId: 42,
+          place: ShoppingMerchantPlacePayload(
+            placeId: 'official-42',
+            name: 'Dimsum Dan Seblak Wolu',
+            address: 'Lokasi BangDeliv',
+            latitude: -7.3178,
+            longitude: 110.463,
+            types: <String>['restaurant'],
+          ),
+        ),
+        ShoppingMerchantPickerResult(
+          merchantId: 43,
+          place: ShoppingMerchantPlacePayload(
+            placeId: 'official-43',
+            name: 'Bakso Balungan',
+            address: 'Lokasi BangDeliv',
+            latitude: -7.318,
+            longitude: 110.464,
+            types: <String>['restaurant'],
+          ),
+        ),
+      ],
+    );
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Pilih Toko/Resto'));
+    await _pumpChatbotFrame(tester);
+    await tester.tap(find.text('Pilih Kedai Kedua'));
+    await _pumpChatbotFrame(tester);
+
+    expect(find.text('Dimsum Dan Seblak Wolu'), findsOneWidget);
+    expect(find.text('Dimsum Ayam'), findsOneWidget);
+
+    await tester.tap(find.text('Ganti Toko/Resto'));
+    await _pumpChatbotFrame(tester);
+    await tester.tap(find.text('Pilih Kedai Kedua'));
+    await _pumpChatbotFrame(tester);
+
+    expect(fakeService.patchMerchantCallCount, 2);
+    expect(fakeService.lastMerchantMode, 'select');
+    expect(fakeService.lastMerchantId, 43);
+    expect(fakeRepository.searchMenuCallCount, 2);
+    expect(fakeRepository.lastMerchantId, 43);
+    expect(find.text('Bakso Balungan'), findsOneWidget);
+    expect(find.text('Bakso Urat'), findsOneWidget);
+    expect(find.text('Dimsum Ayam'), findsNothing);
+  });
+
   testWidgets('nitip external merchant picker keeps manual item flow', (
     WidgetTester tester,
   ) async {
@@ -460,16 +585,14 @@ void main() {
 
     await _sendMessage(tester, 'beli sembako');
 
-    await tester.tap(
-      find.widgetWithText(OutlinedButton, 'Pilih Tempat di Map'),
-    );
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Cari lewat Maps'));
     await _pumpChatbotFrame(tester);
     await tester.tap(find.text('Pilih Kedai Kedua'));
     await _pumpChatbotFrame(tester);
 
     expect(fakeRepository.searchMenuCallCount, 0);
     expect(find.text('Pilih menu'), findsNothing);
-    expect(find.textContaining('Draft Nitip belum lengkap'), findsNWidgets(2));
+    expect(find.textContaining('Draft Nitip belum lengkap'), findsOneWidget);
   });
 
   testWidgets(
@@ -487,12 +610,14 @@ void main() {
       expect(find.textContaining('Mau tambah tempat lain?'), findsOneWidget);
       expect(find.textContaining('- susu 1'), findsOneWidget);
       expect(
-        find.widgetWithText(OutlinedButton, 'Tambah Tempat'),
+        find.widgetWithText(OutlinedButton, 'Tambah Toko/Resto'),
         findsOneWidget,
       );
       expect(find.text('Beli ayam geprek'), findsNothing);
 
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Tambah Tempat'));
+      await tester.tap(
+        find.widgetWithText(OutlinedButton, 'Tambah Toko/Resto'),
+      );
       await _pumpChatbotFrame(tester);
       await tester.tap(find.text('Pilih Kedai Kedua'));
       await _pumpChatbotFrame(tester);
@@ -520,7 +645,7 @@ void main() {
     expect(oldCodButtons, findsNothing);
 
     final confirmButton = tester.widget<OutlinedButton>(
-      find.widgetWithText(OutlinedButton, 'Konfirmasi Nitip'),
+      find.widgetWithText(OutlinedButton, 'Buat Pesanan'),
     );
     expect(confirmButton.onPressed, isNotNull);
   });
@@ -564,8 +689,8 @@ void main() {
 
       expect(find.textContaining(entry.value), findsOneWidget);
       expect(find.text('Isi Alamat Saya'), findsOneWidget);
-      expect(find.text('Atur Titik Ambil & Tujuan'), findsNothing);
-      expect(find.text('Atur Titik Jemput & Tujuan'), findsNothing);
+      expect(find.text('Atur Lokasi Ambil/Tujuan'), findsNothing);
+      expect(find.text('Atur Lokasi Jemput/Tujuan'), findsNothing);
 
       await _sendMessage(tester, 'coba mulai order');
 
@@ -611,6 +736,67 @@ void main() {
     expect(find.textContaining('Ongkir: Rp 9.000.'), findsNothing);
     expect(find.text('Lacak Pesanan'), findsOneWidget);
     expect(find.textContaining('belum bisa digunakan'), findsNothing);
+  });
+
+  testWidgets('draft chat survives leaving and reopening chatbot', (
+    WidgetTester tester,
+  ) async {
+    final fakeService = _FakeChatbotApiService();
+    final router = await _pumpChatbot(
+      tester,
+      serviceType: 'antar_jemput',
+      chatbotApiService: fakeService,
+    );
+
+    await _sendMessage(tester, 'antar ke polines');
+
+    expect(find.textContaining('Draft siap'), findsOneWidget);
+    expect(fakeService.callCount, 1);
+
+    await tester.tap(find.byIcon(Icons.chevron_left));
+    await _pumpChatbotFrame(tester);
+
+    expect(find.text('Home Screen'), findsOneWidget);
+
+    router.go('/chatbot?service_type=antar_jemput');
+    await _pumpChatbotFrame(tester);
+
+    expect(find.textContaining('Draft siap'), findsOneWidget);
+    expect(fakeService.callCount, 1);
+  });
+
+  testWidgets('resolved order resets chatbot conversation', (
+    WidgetTester tester,
+  ) async {
+    final fakeOrders = _FakeCustomerOrderRepository(
+      orders: <CustomerOrderSummaryModel>[
+        _buildOrderSummary(
+          id: 33,
+          statusCode: 'COMPLETED',
+          statusLabel: 'Selesai',
+          isTerminalStatus: true,
+        ),
+      ],
+    );
+
+    await _pumpChatbot(
+      tester,
+      serviceType: 'antar_jemput',
+      chatbotApiService: _FakeChatbotApiService(),
+      customerOrderRepository: fakeOrders,
+    );
+
+    await _sendMessage(tester, 'Konfirmasi');
+
+    expect(fakeOrders.fetchOrdersCallCount, greaterThan(0));
+    expect(
+      find.textContaining('order antar jemput berhasil dibuat'),
+      findsNothing,
+    );
+    expect(
+      find.textContaining('Halo! Saya BangBot untuk layanan Antar Jemput'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('order created keeps chat usable with a fresh session', (
@@ -680,11 +866,11 @@ void main() {
   for (final entry in const <String, ({String message, String action})>{
     'kurir': (
       message: 'Alamat ambil kamu sudah tersimpan',
-      action: 'Atur Titik Ambil & Tujuan',
+      action: 'Atur Lokasi Ambil/Tujuan',
     ),
     'nitip': (
       message: 'Alamat antar pesanan kamu sudah tersimpan',
-      action: 'Pilih Titik Antar',
+      action: 'Pilih Alamat Antar',
     ),
   }.entries) {
     testWidgets('${entry.key} shows address-ready message after address fill', (
@@ -705,7 +891,7 @@ void main() {
 
       expect(find.textContaining(entry.value.message), findsOneWidget);
       expect(find.text(entry.value.action), findsOneWidget);
-      expect(find.text('Atur Titik Jemput & Tujuan'), findsNothing);
+      expect(find.text('Atur Lokasi Jemput/Tujuan'), findsNothing);
     });
   }
 
@@ -721,7 +907,7 @@ void main() {
     await _sendMessage(tester, 'butuh map tujuan');
 
     expect(find.textContaining('belum pas di peta'), findsOneWidget);
-    expect(find.text('Atur Titik Ambil & Tujuan'), findsWidgets);
+    expect(find.text('Atur Lokasi Ambil/Tujuan'), findsWidgets);
     expect(find.text('Pilih Titik Tujuan di Map'), findsNothing);
   });
 
@@ -739,7 +925,9 @@ void main() {
     );
     addTearDown(container.dispose);
 
-    final notifier = container.read(chatbotConversationProvider.notifier);
+    final notifier = container.read(
+      chatbotConversationProvider('kurir').notifier,
+    );
     await notifier.bootstrap(
       serviceType: 'kurir',
       welcomeMessage:
@@ -754,7 +942,7 @@ void main() {
       address: 'Pin -7.328900, 110.500100',
     );
 
-    final state = container.read(chatbotConversationProvider);
+    final state = container.read(chatbotConversationProvider('kurir'));
 
     expect(fakeService.patchLocationCallCount, 1);
     expect(fakeService.lastPatchTarget, 'pickup');
@@ -776,7 +964,9 @@ void main() {
     );
     addTearDown(container.dispose);
 
-    final notifier = container.read(chatbotConversationProvider.notifier);
+    final notifier = container.read(
+      chatbotConversationProvider('kurir').notifier,
+    );
     await notifier.bootstrap(
       serviceType: 'kurir',
       welcomeMessage: 'Halo kurir',
@@ -794,7 +984,7 @@ void main() {
       ],
     );
 
-    final state = container.read(chatbotConversationProvider);
+    final state = container.read(chatbotConversationProvider('kurir'));
 
     expect(fakeService.patchLocationsCallCount, 1);
     expect(fakeService.patchLocationCallCount, 0);
@@ -816,7 +1006,9 @@ void main() {
     );
     addTearDown(container.dispose);
 
-    final notifier = container.read(chatbotConversationProvider.notifier);
+    final notifier = container.read(
+      chatbotConversationProvider('antar_jemput').notifier,
+    );
     await notifier.bootstrap(
       serviceType: 'antar_jemput',
       welcomeMessage: 'Halo ride',
@@ -879,8 +1071,33 @@ Future<GoRouter> _pumpChatbot(
   ChatbotLaunchArgs? launchArgs,
   CustomerOrderRepository? customerOrderRepository,
   ShoppingMerchantPickerResult? merchantPickerResult,
+  List<ShoppingMerchantPickerResult>? merchantPickerResults,
 }) async {
   SharedPreferences.setMockInitialValues(<String, Object>{});
+
+  var merchantPickerResultIndex = 0;
+  ShoppingMerchantPickerResult nextMerchantPickerResult() {
+    final queuedResults = merchantPickerResults;
+    if (queuedResults != null && queuedResults.isNotEmpty) {
+      final index = merchantPickerResultIndex
+          .clamp(0, queuedResults.length - 1)
+          .toInt();
+      merchantPickerResultIndex += 1;
+      return queuedResults[index];
+    }
+
+    return merchantPickerResult ??
+        const ShoppingMerchantPickerResult(
+          place: ShoppingMerchantPlacePayload(
+            placeId: 'google-place-kedai-kedua',
+            name: 'Kedai Kedua',
+            address: 'Jl. Kedai Kedua',
+            latitude: -7.05,
+            longitude: 110.43,
+            types: <String>['restaurant'],
+          ),
+        );
+  }
 
   final router = GoRouter(
     initialLocation: '/chatbot?service_type=$serviceType',
@@ -914,25 +1131,28 @@ Future<GoRouter> _pumpChatbot(
         },
       ),
       GoRoute(
-        path: '/chatbot/shopping/merchant-map-picker',
+        path: '/chatbot/shopping/merchant-picker',
         builder: (BuildContext context, GoRouterState state) {
-          final result =
-              merchantPickerResult ??
-              const ShoppingMerchantPickerResult(
-                place: ShoppingMerchantPlacePayload(
-                  placeId: 'google-place-kedai-kedua',
-                  name: 'Kedai Kedua',
-                  address: 'Jl. Kedai Kedua',
-                  latitude: -7.05,
-                  longitude: 110.43,
-                  types: <String>['restaurant'],
-                ),
-              );
           return Scaffold(
             body: Center(
               child: ElevatedButton(
                 onPressed: () {
-                  context.pop(result);
+                  context.pop(nextMerchantPickerResult());
+                },
+                child: const Text('Pilih Kedai Kedua'),
+              ),
+            ),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/chatbot/shopping/merchant-map-picker',
+        builder: (BuildContext context, GoRouterState state) {
+          return Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () {
+                  context.pop(nextMerchantPickerResult());
                 },
                 child: const Text('Pilih Kedai Kedua'),
               ),
@@ -1032,15 +1252,53 @@ AuthSessionState _buildAuthenticatedSessionWithoutAddress() {
   return AuthSessionState.fromProfile(profile);
 }
 
+CustomerOrderSummaryModel _buildOrderSummary({
+  required int id,
+  required String statusCode,
+  required String statusLabel,
+  required bool isTerminalStatus,
+}) {
+  return CustomerOrderSummaryModel(
+    id: id,
+    orderNumber: 'BD-260623-$id',
+    serviceTypeCode: 'ride',
+    serviceTypeLabel: 'Antar Jemput',
+    restaurantName: '',
+    itemsSummary: 'Antar jemput',
+    totalAmount: 9000,
+    statusCode: statusCode,
+    statusLabel: statusLabel,
+    isTerminalStatus: isTerminalStatus,
+    createdAt: DateTime(2026, 6, 23, 10),
+    estimatedDelivery: null,
+    deliveryAddress: 'Alun-Alun Salatiga',
+    paymentStatus: 'paid',
+    paymentMethod: 'COD',
+  );
+}
+
 class _FakeCustomerOrderRepository implements CustomerOrderRepository {
   _FakeCustomerOrderRepository({
+    this.orders = const <CustomerOrderSummaryModel>[],
     this.menusByMerchantId = const <int, List<ShoppingMenuOption>>{},
   });
 
+  final List<CustomerOrderSummaryModel> orders;
   final Map<int, List<ShoppingMenuOption>> menusByMerchantId;
+  int fetchOrdersCallCount = 0;
   int searchMenuCallCount = 0;
   int? lastMerchantId;
   String? lastMenuQuery;
+
+  @override
+  Future<List<CustomerOrderSummaryModel>> fetchOrders({
+    String? status,
+    int page = 1,
+    int perPage = 20,
+  }) async {
+    fetchOrdersCallCount += 1;
+    return orders;
+  }
 
   @override
   Future<List<ShoppingMenuOption>> searchMerchantMenus(

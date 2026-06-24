@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../../config/app_colors.dart';
+import '../../../../config/app_text_scaling.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../services/customer_order_api_service.dart';
 import '../../../../services/google_maps_lookup_service.dart';
@@ -40,20 +41,23 @@ class ShoppingMerchantMapPickerScreen extends ConsumerStatefulWidget {
 class _ShoppingMerchantMapPickerScreenState
     extends ConsumerState<ShoppingMerchantMapPickerScreen> {
   static const _fallbackCenter = LatLng(-7.319916770351389, 110.46393594806243);
+  static const _placeSearchRadiusMeters = 50000;
+  static const _placeSearchMaxResults = 8;
 
-  final _searchController = TextEditingController();
+  final SearchController _searchController = SearchController();
   late final GoogleMapsLookupService _mapsLookup;
 
   GoogleMapController? _mapController;
-  List<GoogleMapsPrediction> _predictions = const <GoogleMapsPrediction>[];
+  LatLng? _lastCameraTarget;
+  LatLng? _currentUserLocation;
   List<ShoppingMerchantOption> _officialMerchants =
       const <ShoppingMerchantOption>[];
   ShoppingMerchantPlacePayload? _selectedPlace;
   int? _selectedOfficialMerchantId;
   BitmapDescriptor? _restaurantMarkerIcon;
   BitmapDescriptor? _warungMarkerIcon;
-  bool _isSearching = false;
   bool _isResolving = false;
+  bool _isLocationPermissionGranted = false;
   String? _errorText;
   late String _sessionToken;
   int _tapResolveRequestId = 0;
@@ -65,6 +69,7 @@ class _ShoppingMerchantMapPickerScreenState
     _sessionToken = MapPickerHelpers.newMapsSessionToken();
     unawaited(_loadOfficialMerchantIcons());
     unawaited(_loadOfficialMerchants());
+    unawaited(_hydrateCurrentUserLocation());
   }
 
   @override
@@ -75,50 +80,85 @@ class _ShoppingMerchantMapPickerScreenState
   }
 
   LatLng get _initialTarget {
+    final explicitTarget = MapPickerHelpers.validLatLng(
+      widget.args?.initialLatitude,
+      widget.args?.initialLongitude,
+    );
+    if (explicitTarget != null) {
+      return explicitTarget;
+    }
+
+    return _currentUserLocation ?? _fallbackCenter;
+  }
+
+  bool get _hasExplicitInitialTarget {
     return MapPickerHelpers.validLatLng(
           widget.args?.initialLatitude,
           widget.args?.initialLongitude,
-        ) ??
-        _fallbackCenter;
+        ) !=
+        null;
   }
 
-  Future<void> _searchPlaces() async {
-    _tapResolveRequestId += 1;
-    final query = _searchController.text.trim();
-    if (query.isEmpty) {
-      setState(() {
-        _errorText = 'Ketik nama tempat terlebih dahulu.';
-      });
-      return;
+  LatLng get _searchBiasTarget {
+    final currentUserLocation = _currentUserLocation;
+    if (currentUserLocation != null) {
+      return currentUserLocation;
     }
 
-    if (!_mapsLookup.isConfigured) {
-      setState(() => _errorText = 'Google Maps API belum dikonfigurasi.');
-      return;
+    final selectedPlace = _selectedPlace;
+    if (selectedPlace != null) {
+      return LatLng(selectedPlace.latitude, selectedPlace.longitude);
     }
 
-    setState(() {
-      _isSearching = true;
-      _errorText = null;
-    });
+    return _lastCameraTarget ?? _initialTarget;
+  }
 
-    final predictions = await _mapsLookup.searchPlaces(
-      query,
+  Future<List<GoogleMapsPrediction>> _searchPredictions(String query) async {
+    final normalizedQuery = query.trim();
+    if (normalizedQuery.isEmpty || !_mapsLookup.isConfigured) {
+      return const <GoogleMapsPrediction>[];
+    }
+
+    return _mapsLookup.searchPlaces(
+      normalizedQuery,
+      scope: GoogleMapsLookupScope.bangDelivServiceAreaAddress,
       sessionToken: _sessionToken,
       establishmentOnly: true,
+      locationBias: _searchBiasTarget,
+      radiusMeters: _placeSearchRadiusMeters,
+      restrictToLocationBias: true,
+      maxResults: _placeSearchMaxResults,
     );
+  }
+
+  Future<void> _hydrateCurrentUserLocation() async {
+    final isGranted = await MapPickerHelpers.hasLocationPermission();
+    LatLng? currentLocation;
+    if (isGranted) {
+      try {
+        currentLocation = await MapPickerHelpers.currentLocationIfPermitted();
+      } catch (_) {
+        currentLocation = null;
+      }
+    }
 
     if (!mounted) {
       return;
     }
 
     setState(() {
-      _predictions = predictions;
-      _isSearching = false;
-      if (predictions.isEmpty) {
-        _errorText = 'Tempat tidak ditemukan.';
+      _isLocationPermissionGranted = isGranted;
+      if (currentLocation != null) {
+        _currentUserLocation = currentLocation;
+        _lastCameraTarget ??= currentLocation;
       }
     });
+
+    if (!_hasExplicitInitialTarget && currentLocation != null) {
+      await _mapController?.animateCamera(
+        CameraUpdate.newLatLngZoom(currentLocation, 14),
+      );
+    }
   }
 
   Future<void> _selectPrediction(GoogleMapsPrediction prediction) async {
@@ -141,7 +181,7 @@ class _ShoppingMerchantMapPickerScreenState
     if (resolved == null) {
       setState(() {
         _isResolving = false;
-        _errorText = 'Detail tempat belum bisa diambil.';
+        _errorText = 'Detail toko/resto belum bisa diambil.';
       });
       return;
     }
@@ -174,12 +214,11 @@ class _ShoppingMerchantMapPickerScreenState
     setState(() {
       _isResolving = true;
       _errorText = null;
-      _predictions = const <GoogleMapsPrediction>[];
       _selectedOfficialMerchantId = null;
       _selectedPlace = ShoppingMerchantPlacePayload(
         placeId: null,
-        name: 'Mencari tempat...',
-        address: 'Mengambil alamat tempat dari titik peta.',
+        name: 'Mencari toko/resto...',
+        address: 'Mengambil alamat toko/resto dari titik peta.',
         latitude: target.latitude,
         longitude: target.longitude,
         types: const <String>['map_tap'],
@@ -197,7 +236,7 @@ class _ShoppingMerchantMapPickerScreenState
         _isResolving = false;
         _selectedPlace = null;
         _errorText =
-            'Nama tempat belum ditemukan. Tap lebih dekat ke label tempat atau cari nama tempat.';
+            'Nama toko/resto belum ditemukan. Tap lebih dekat ke label toko/resto atau cari nama toko/resto.';
       });
       return;
     }
@@ -208,7 +247,7 @@ class _ShoppingMerchantMapPickerScreenState
         _isResolving = false;
         _selectedPlace = null;
         _errorText =
-            'Nama tempat belum ditemukan. Tap lebih dekat ke label tempat atau cari nama tempat.';
+            'Nama toko/resto belum ditemukan. Tap lebih dekat ke label toko/resto atau cari nama toko/resto.';
       });
       return;
     }
@@ -241,7 +280,6 @@ class _ShoppingMerchantMapPickerScreenState
     setState(() {
       _selectedPlace = place;
       _selectedOfficialMerchantId = officialMerchantId;
-      _predictions = const <GoogleMapsPrediction>[];
       _searchController.text = place.name;
       _isResolving = false;
       _errorText = null;
@@ -417,7 +455,7 @@ class _ShoppingMerchantMapPickerScreenState
   void _confirmSelection() {
     final place = _selectedPlace;
     if (place == null) {
-      setState(() => _errorText = 'Pilih tempat terlebih dahulu.');
+      setState(() => _errorText = 'Pilih toko/resto terlebih dahulu.');
       return;
     }
 
@@ -430,6 +468,90 @@ class _ShoppingMerchantMapPickerScreenState
     );
   }
 
+  Widget _buildSearchAnchor() {
+    return SearchAnchor(
+      searchController: _searchController,
+      viewBackgroundColor: AppColors.white,
+      viewSurfaceTintColor: AppColors.white,
+      builder: (BuildContext context, SearchController controller) {
+        final fieldFontSize = AppTextScaling.adaptive(
+          context,
+          normal: 14,
+          large: 13.25,
+        );
+
+        return SearchBar(
+          controller: controller,
+          constraints: const BoxConstraints(minHeight: 50),
+          padding: const WidgetStatePropertyAll<EdgeInsets>(
+            EdgeInsets.symmetric(horizontal: 14),
+          ),
+          onTap: controller.openView,
+          onChanged: (_) => controller.openView(),
+          leading: const Icon(Icons.search, color: AppColors.textSecondary),
+          textStyle: WidgetStatePropertyAll(
+            TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: fieldFontSize,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+          hintText: 'Cari nama toko/resto',
+          hintStyle: WidgetStatePropertyAll(
+            TextStyle(
+              color: AppColors.textMuted,
+              fontSize: fieldFontSize,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+          side: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.focused)) {
+              return const BorderSide(color: AppColors.primary, width: 1.5);
+            }
+            return const BorderSide(color: AppColors.border);
+          }),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+          backgroundColor: const WidgetStatePropertyAll(AppColors.surface),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+          shadowColor: const WidgetStatePropertyAll(Colors.transparent),
+          overlayColor: WidgetStatePropertyAll(
+            AppColors.primary.withValues(alpha: 0.08),
+          ),
+          elevation: const WidgetStatePropertyAll(0),
+        );
+      },
+      suggestionsBuilder:
+          (BuildContext context, SearchController controller) async {
+            final query = controller.text.trim();
+            if (query.isEmpty) {
+              return const Iterable<Widget>.empty();
+            }
+
+            final results = await _searchPredictions(query);
+            return results.map((prediction) {
+              final distanceLabel = _predictionDistanceLabel(
+                prediction.distanceMeters,
+              );
+              return ListTile(
+                leading: _PredictionPin(distanceLabel: distanceLabel),
+                title: Text(
+                  prediction.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onTap: () async {
+                  controller.closeView(prediction.description);
+                  await _selectPrediction(prediction);
+                  FocusManager.instance.primaryFocus?.unfocus();
+                },
+              );
+            });
+          },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final selectedPlace = _selectedPlace;
@@ -439,54 +561,63 @@ class _ShoppingMerchantMapPickerScreenState
       backgroundColor: AppColors.background,
       appBar: AppBar(
         elevation: 0,
-        centerTitle: true,
         backgroundColor: AppColors.white,
         foregroundColor: AppColors.textPrimary,
         title: const Text(
-          'Pilih Tempat',
-          style: TextStyle(fontWeight: FontWeight.w800),
+          'Pilih Toko/Resto',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
         ),
       ),
       body: SafeArea(
-        child: Stack(
+        child: Column(
           children: [
-            GoogleMap(
-              initialCameraPosition: CameraPosition(
-                target: _initialTarget,
-                zoom: 14,
-              ),
-              onMapCreated: (controller) => _mapController = controller,
-              myLocationButtonEnabled: true,
-              zoomControlsEnabled: false,
-              onTap: _handleMapTap,
-              markers: _buildMarkers(),
-            ),
-            Positioned(
-              left: 16,
-              right: 16,
-              top: 16,
-              child: _SearchPanel(
-                controller: _searchController,
-                predictions: _predictions,
-                isSearching: _isSearching,
-                isResolving: _isResolving,
-                errorText: _errorText,
-                onSearch: _searchPlaces,
-                onSelectPrediction: _selectPrediction,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildSearchAnchor(),
+                  if ((_errorText ?? '').trim().isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    _SearchErrorText(message: _errorText!),
+                  ],
+                ],
               ),
             ),
-            if (selectedPlace != null)
-              Positioned(
-                left: 16,
-                right: 16,
-                bottom: 16,
-                child: _SelectedPlacePanel(
-                  place: selectedPlace,
-                  isOfficial: selectedOfficialMerchant != null,
-                  isResolving: _isResolving,
-                  onConfirm: _confirmSelection,
-                ),
+            Expanded(
+              child: Stack(
+                children: [
+                  GoogleMap(
+                    initialCameraPosition: CameraPosition(
+                      target: _initialTarget,
+                      zoom: 14,
+                    ),
+                    onMapCreated: (controller) => _mapController = controller,
+                    onCameraMove: (position) =>
+                        _lastCameraTarget = position.target,
+                    myLocationEnabled: _isLocationPermissionGranted,
+                    myLocationButtonEnabled: _isLocationPermissionGranted,
+                    zoomControlsEnabled: false,
+                    onTap: _handleMapTap,
+                    markers: _buildMarkers(),
+                  ),
+                  if (selectedPlace != null)
+                    Positioned(
+                      left: 16,
+                      right: 16,
+                      bottom: 16,
+                      child: _SelectedPlacePanel(
+                        place: selectedPlace,
+                        isOfficial: selectedOfficialMerchant != null,
+                        isResolving: _isResolving,
+                        onConfirm: _confirmSelection,
+                      ),
+                    ),
+                ],
               ),
+            ),
           ],
         ),
       ),
@@ -498,146 +629,85 @@ String _normalizeName(String value) {
   return value.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
 }
 
-class _SearchPanel extends StatelessWidget {
-  const _SearchPanel({
-    required this.controller,
-    required this.predictions,
-    required this.isSearching,
-    required this.isResolving,
-    required this.errorText,
-    required this.onSearch,
-    required this.onSelectPrediction,
-  });
+class _SearchErrorText extends StatelessWidget {
+  const _SearchErrorText({required this.message});
 
-  final TextEditingController controller;
-  final List<GoogleMapsPrediction> predictions;
-  final bool isSearching;
-  final bool isResolving;
-  final String? errorText;
-  final VoidCallback onSearch;
-  final ValueChanged<GoogleMapsPrediction> onSelectPrediction;
+  final String message;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.white,
-      borderRadius: BorderRadius.circular(16),
-      elevation: 4,
-      shadowColor: Colors.black.withValues(alpha: 0.10),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    enabled: !isResolving,
-                    textInputAction: TextInputAction.search,
-                    decoration: const InputDecoration(
-                      hintText: 'Cari nama tempat',
-                      prefixIcon: Icon(Icons.search_rounded, size: 20),
-                    ),
-                    onSubmitted: (_) => onSearch(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 46,
-                  height: 46,
-                  child: IconButton.filled(
-                    tooltip: 'Cari tempat',
-                    style: IconButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: AppColors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: isSearching || isResolving ? null : onSearch,
-                    icon: isSearching
-                        ? const SizedBox(
-                            width: 17,
-                            height: 17,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.white,
-                            ),
-                          )
-                        : const Icon(Icons.search_rounded, size: 20),
-                  ),
-                ),
-              ],
-            ),
-            if ((errorText ?? '').trim().isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.info_outline_rounded,
-                    color: AppColors.error,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      errorText!,
-                      style: const TextStyle(
-                        color: AppColors.error,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            if (predictions.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 230),
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: predictions.length,
-                  separatorBuilder: (_, _) =>
-                      const Divider(height: 1, color: AppColors.divider),
-                  itemBuilder: (context, index) {
-                    final prediction = predictions[index];
-                    return ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(
-                        Icons.place_outlined,
-                        color: AppColors.primary,
-                      ),
-                      title: Text(
-                        prediction.name ?? prediction.description,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                      subtitle: prediction.name == null
-                          ? null
-                          : Text(
-                              prediction.description,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                      onTap: isResolving
-                          ? null
-                          : () => onSelectPrediction(prediction),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ],
+    return Row(
+      children: [
+        const Icon(
+          Icons.info_outline_rounded,
+          color: AppColors.error,
+          size: 16,
         ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            message,
+            style: const TextStyle(
+              color: AppColors.error,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PredictionPin extends StatelessWidget {
+  const _PredictionPin({required this.distanceLabel});
+
+  final String? distanceLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 48,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.location_on, color: AppColors.primary, size: 26),
+          if ((distanceLabel ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              distanceLabel!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                height: 1,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
+}
+
+String? _predictionDistanceLabel(int? distanceMeters) {
+  if (distanceMeters == null || distanceMeters < 0) {
+    return null;
+  }
+
+  if (distanceMeters < 1000) {
+    return '$distanceMeters m';
+  }
+
+  final distanceKm = distanceMeters / 1000;
+  if (distanceKm < 10) {
+    return '${distanceKm.toStringAsFixed(1)} km';
+  }
+
+  return '${distanceKm.round()} km';
 }
 
 class _SelectedPlacePanel extends StatelessWidget {
@@ -659,6 +729,12 @@ class _SelectedPlacePanel extends StatelessWidget {
       name: place.name,
       types: place.types,
     );
+    final categoryLabel = isOfficial
+        ? 'Resmi BangDeliv'
+        : shoppingMerchantTypeLabel(merchantType);
+    final categoryColor = isOfficial
+        ? AppColors.primaryDark
+        : AppColors.textSecondary;
 
     return Material(
       color: AppColors.white,
@@ -666,23 +742,10 @@ class _SelectedPlacePanel extends StatelessWidget {
       elevation: 6,
       shadowColor: Colors.black.withValues(alpha: 0.12),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Container(
-              width: 42,
-              height: 42,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: AppColors.primaryLight,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                shoppingMerchantIcon(merchantType),
-                color: AppColors.primary,
-              ),
-            ),
-            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -690,43 +753,73 @@ class _SelectedPlacePanel extends StatelessWidget {
                 children: [
                   Text(
                     place.name,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: AppColors.textPrimary,
-                      fontSize: 14,
+                      fontSize: 14.5,
                       fontWeight: FontWeight.w800,
+                      height: 1.18,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 5),
                   Text(
                     place.address,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: AppColors.textSecondary,
-                      fontSize: 12,
+                      fontSize: 12.25,
                       fontWeight: FontWeight.w500,
+                      height: 1.28,
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    isOfficial
-                        ? 'Resmi BangDeliv'
-                        : shoppingMerchantTypeLabel(merchantType),
-                    style: const TextStyle(
-                      color: AppColors.primaryDark,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                    ),
+                  const SizedBox(height: 7),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        shoppingMerchantIcon(merchantType),
+                        size: 14,
+                        color: categoryColor,
+                      ),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          categoryLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: categoryColor,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            height: 1.1,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 10),
-            FilledButton(
-              onPressed: isResolving ? null : onConfirm,
-              child: const Text('Pilih'),
+            const SizedBox(width: 12),
+            SizedBox(
+              width: 82,
+              height: 48,
+              child: FilledButton(
+                onPressed: isResolving ? null : onConfirm,
+                style: FilledButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  textStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text('Pilih'),
+              ),
             ),
           ],
         ),

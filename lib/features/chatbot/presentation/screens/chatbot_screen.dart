@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,11 +10,13 @@ import '../../../../config/app_text_scaling.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../models/address_location_picker_result.dart';
 import '../../../../models/chatbot_launch_args.dart';
+import '../../../../models/customer_order_model.dart';
 import '../../../../models/route_location_picker_result.dart';
 import '../../../../models/user_profile_model.dart';
 import '../../../../services/customer_order_api_service.dart';
 import '../../../../utils/currency_formatter.dart';
 import '../../../auth/application/auth_session_provider.dart';
+import '../../../orders/application/customer_order_providers.dart';
 import '../../application/chatbot_conversation_provider.dart';
 import '../../../../utils/address_readiness.dart';
 import '../../../shopping/presentation/screens/shopping_merchant_map_picker_screen.dart';
@@ -29,25 +33,14 @@ class ChatbotScreen extends ConsumerStatefulWidget {
 
 enum _ChatbotMenuAction { restart }
 
-class _ChatbotMenuSelectorData {
-  const _ChatbotMenuSelectorData({
-    required this.merchantName,
-    required this.menus,
-  });
-
-  final String merchantName;
-  final List<ChatbotMenuSuggestion> menus;
-}
-
 class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   late final TextEditingController _inputController;
   late final ScrollController _scrollController;
   String? _bootstrappedServiceType;
   String? _appliedLaunchSignature;
-  _ChatbotMenuSelectorData? _menuSelectorData;
   bool _isLoadingMenuSelector = false;
-  String? _menuSelectorNotice;
   int _menuSelectorRequestId = 0;
+  int? _scheduledResolvedResetOrderId;
   bool _didAutoOpenAddressBook = false;
 
   @override
@@ -72,9 +65,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
     _bootstrappedServiceType = serviceType;
     _appliedLaunchSignature = null;
-    _menuSelectorData = null;
     _isLoadingMenuSelector = false;
-    _menuSelectorNotice = null;
     _menuSelectorRequestId += 1;
     _didAutoOpenAddressBook = false;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -132,7 +123,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           iconAsset:
               'assets/images/services/service_shopping_basket_simplified.png',
           welcomeMessage:
-              'Halo! Saya BangBot untuk layanan Nitip. Tulis tempat dan item lewat chat, atau pilih tempat di map. Kamu bisa tambah sampai 3 tempat dalam satu pesanan.',
+              'Halo! Saya BangBot untuk layanan Nitip. Tulis nama toko/resto dan barang yang ingin dibeli, atau pilih toko/resto dari daftar.\n\nContoh:\nBeli di Nasgor Gajah:\n- Nasi Goreng 1\n- Es Teh 1\n\nKamu bisa tambah sampai 3 toko/resto dalam satu pesanan.',
           addressRequiredMessage:
               'Sebelum pesan Nitip, isi Alamat Saya dulu supaya titik antar pesanan kamu siap dipakai.',
           suggestions: [
@@ -144,24 +135,34 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     }
   }
 
+  ChatbotConversationNotifier _conversationNotifier([String? serviceType]) {
+    return ref.read(
+      chatbotConversationProvider(
+        serviceType ?? _serviceContext.serviceType,
+      ).notifier,
+    );
+  }
+
+  ChatbotConversationState _readConversation([String? serviceType]) {
+    return ref.read(
+      chatbotConversationProvider(serviceType ?? _serviceContext.serviceType),
+    );
+  }
+
   Future<void> _bootstrapConversation() async {
     final hasSavedAddress = _hasSavedAddressInProfile();
     final welcomeMessage = _serviceContext.welcomeMessageFor(hasSavedAddress);
 
-    await ref
-        .read(chatbotConversationProvider.notifier)
-        .bootstrap(
-          serviceType: _serviceContext.serviceType,
-          welcomeMessage: welcomeMessage,
-        );
+    await _conversationNotifier().bootstrap(
+      serviceType: _serviceContext.serviceType,
+      welcomeMessage: welcomeMessage,
+    );
 
     if (!hasSavedAddress) {
-      ref
-          .read(chatbotConversationProvider.notifier)
-          .ensureAddressGuardMessage(
-            serviceType: _serviceContext.serviceType,
-            message: _serviceContext.addressRequiredMessage,
-          );
+      _conversationNotifier().ensureAddressGuardMessage(
+        serviceType: _serviceContext.serviceType,
+        message: _serviceContext.addressRequiredMessage,
+      );
     }
 
     _scrollToBottom();
@@ -198,20 +199,18 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       return;
     }
 
-    final state = ref.read(chatbotConversationProvider);
+    final state = _readConversation();
     if (state.isBusy || (state.sessionId ?? '').trim().isEmpty) {
       return;
     }
 
     _appliedLaunchSignature = signature;
-    final applied = await ref
-        .read(chatbotConversationProvider.notifier)
-        .applyMerchantPickerAction(
-          serviceType: _serviceContext.serviceType,
-          merchantId: merchantId,
-          mode: 'select',
-          appendAssistantMessage: false,
-        );
+    final applied = await _conversationNotifier().applyMerchantPickerAction(
+      serviceType: _serviceContext.serviceType,
+      merchantId: merchantId,
+      mode: 'select',
+      appendAssistantMessage: false,
+    );
 
     if (!mounted || !applied) {
       return;
@@ -220,6 +219,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     _showMenuSelector(
       merchantName: launchArgs.merchantName,
       menus: launchArgs.menuSuggestions,
+      merchantMode: 'select',
     );
 
     _scrollToBottom();
@@ -246,9 +246,10 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     _inputController.clear();
     _clearMenuSelector();
 
-    await ref
-        .read(chatbotConversationProvider.notifier)
-        .sendMessage(raw, serviceType: _serviceContext.serviceType);
+    await _conversationNotifier().sendMessage(
+      raw,
+      serviceType: _serviceContext.serviceType,
+    );
 
     _scrollToBottom();
   }
@@ -263,12 +264,10 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
   Future<void> _handleRestartConversation() async {
     _clearMenuSelector();
-    await ref
-        .read(chatbotConversationProvider.notifier)
-        .restartActiveSession(
-          serviceType: _serviceContext.serviceType,
-          welcomeMessage: _currentWelcomeMessage(),
-        );
+    await _conversationNotifier().restartActiveSession(
+      serviceType: _serviceContext.serviceType,
+      welcomeMessage: _currentWelcomeMessage(),
+    );
 
     _scrollToBottom();
   }
@@ -295,15 +294,14 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     return _serviceContext.welcomeMessageFor(hasUsableSavedAddress(addresses));
   }
 
-  bool get _hasMenuSelectorSurface {
-    return _menuSelectorData != null ||
-        _isLoadingMenuSelector ||
-        (_menuSelectorNotice ?? '').trim().isNotEmpty;
+  bool _hasMenuSelectorSurface(ChatbotConversationState state) {
+    return state.hasMenuSelectorSurface || _isLoadingMenuSelector;
   }
 
   void _showMenuSelector({
     required String? merchantName,
     required List<ChatbotMenuSuggestion> menus,
+    String merchantMode = 'select',
   }) {
     _menuSelectorRequestId += 1;
     final normalizedMenus = menus
@@ -314,41 +312,62 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       return;
     }
 
+    _conversationNotifier().showMenuSelector(
+      serviceType: _serviceContext.serviceType,
+      merchantName: merchantName,
+      menus: normalizedMenus,
+      merchantMode: merchantMode,
+    );
+
     setState(() {
-      _menuSelectorData = _ChatbotMenuSelectorData(
-        merchantName: (merchantName ?? '').trim(),
-        menus: normalizedMenus,
-      );
       _isLoadingMenuSelector = false;
-      _menuSelectorNotice = null;
     });
   }
 
   void _showMenuSelectorNotice(String message) {
     _menuSelectorRequestId += 1;
+    _conversationNotifier().showMenuSelectorNotice(
+      serviceType: _serviceContext.serviceType,
+      message: message,
+    );
+
     setState(() {
-      _menuSelectorData = null;
       _isLoadingMenuSelector = false;
-      _menuSelectorNotice = message;
     });
   }
 
   void _clearMenuSelector() {
-    if (!_hasMenuSelectorSurface) {
+    if (!_isLoadingMenuSelector &&
+        !_readConversation().hasMenuSelectorSurface) {
       return;
     }
 
     _menuSelectorRequestId += 1;
+    _conversationNotifier().clearMenuSelectorSurface(
+      serviceType: _serviceContext.serviceType,
+    );
+
     setState(() {
-      _menuSelectorData = null;
       _isLoadingMenuSelector = false;
-      _menuSelectorNotice = null;
     });
   }
 
   Future<void> _handleMenuSelectorConfirm(String message) async {
     _clearMenuSelector();
     await _sendMessage(message);
+  }
+
+  Future<void> _handleChangeMenuSelectorMerchant(
+    ChatbotMenuSelectorDraft selector,
+  ) async {
+    final mode = selector.merchantMode == 'add' ? 'add' : 'select';
+    await _handleOpenMerchantPickerAction(
+      ChatbotMessageActionHint(
+        type: ChatbotMessageActionType.openMerchantPicker,
+        label: mode == 'add' ? 'Tambah Toko/Resto' : 'Ganti Toko/Resto',
+        merchantMode: mode,
+      ),
+    );
   }
 
   Future<void> _handleBack() async {
@@ -370,9 +389,64 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     context.go(AppRoutes.home);
   }
 
+  void _resetConversationIfOrderResolved(
+    ChatbotConversationState conversation,
+    AsyncValue<List<CustomerOrderSummaryModel>> ordersAsync,
+  ) {
+    final orderId = conversation.activeOrderId;
+    if (orderId == null || orderId <= 0) {
+      return;
+    }
+
+    final orders = ordersAsync.asData?.value;
+    if (orders == null || orders.isEmpty) {
+      return;
+    }
+
+    CustomerOrderSummaryModel? matchedOrder;
+    for (final order in orders) {
+      if (order.id == orderId) {
+        matchedOrder = order;
+        break;
+      }
+    }
+
+    if (matchedOrder == null || !matchedOrder.isResolvedForCustomer) {
+      return;
+    }
+
+    if (_scheduledResolvedResetOrderId == orderId) {
+      return;
+    }
+
+    _scheduledResolvedResetOrderId = orderId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      final latestConversation = _readConversation(conversation.serviceType);
+      if (latestConversation.activeOrderId != orderId) {
+        _scheduledResolvedResetOrderId = null;
+        return;
+      }
+
+      _clearMenuSelector();
+      _conversationNotifier(conversation.serviceType).resetAfterResolvedOrder(
+        serviceType: conversation.serviceType,
+        orderId: orderId,
+        welcomeMessage: _currentWelcomeMessage(),
+      );
+      _scheduledResolvedResetOrderId = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(chatbotConversationProvider);
+    final conversationProvider = chatbotConversationProvider(
+      _serviceContext.serviceType,
+    );
+    final state = ref.watch(conversationProvider);
     final isServiceMismatch = state.serviceType != _serviceContext.serviceType;
     final effectiveBusy = state.isBusy || isServiceMismatch;
     final inputEnabled = !effectiveBusy;
@@ -380,17 +454,28 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       (message) => !message.isUser && message.actionHints.isNotEmpty,
     );
     final showStaticSuggestions =
-        latestActionMessageIndex < 0 && !_hasMenuSelectorSurface;
+        latestActionMessageIndex < 0 && !_hasMenuSelectorSurface(state);
 
     // Auto-scroll whenever the message list grows (new send / map-pin response)
-    ref.listen<ChatbotConversationState>(chatbotConversationProvider, (
+    ref.listen<ChatbotConversationState>(conversationProvider, (
       previous,
       next,
     ) {
       if ((previous?.messages.length ?? 0) < next.messages.length) {
         _scrollToBottom();
       }
+      if ((previous?.activeOrderId ?? 0) != (next.activeOrderId ?? 0) &&
+          next.hasActiveOrder) {
+        unawaited(
+          ref.read(customerOrdersProvider.notifier).refresh(showLoading: false),
+        );
+      }
     });
+    if (state.hasActiveOrder) {
+      ref.watch(customerOrdersAutoRefreshProvider);
+      final ordersAsync = ref.watch(customerOrdersProvider);
+      _resetConversationIfOrderResolved(state, ordersAsync);
+    }
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -511,7 +596,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                               index == latestActionMessageIndex,
                         );
                       }),
-                      if (_hasMenuSelectorSurface) _buildMenuSelectorSurface(),
+                      if (_hasMenuSelectorSurface(state))
+                        _buildMenuSelectorSurface(state),
                     ],
                   ),
           ),
@@ -675,12 +761,21 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     );
   }
 
-  Widget _buildMenuSelectorSurface() {
-    final selectorData = _menuSelectorData;
+  Widget _buildMenuSelectorSurface(ChatbotConversationState state) {
+    final selectorData = state.menuSelectorDraft;
     if (selectorData != null) {
       return ChatbotMenuSelector(
         merchantName: selectorData.merchantName,
         menus: selectorData.menus,
+        quantities: selectorData.quantities,
+        onQuantityDelta: (index, delta) {
+          _conversationNotifier().adjustMenuSelectorQuantity(
+            serviceType: _serviceContext.serviceType,
+            index: index,
+            delta: delta,
+          );
+        },
+        onChangeMerchant: () => _handleChangeMenuSelectorMerchant(selectorData),
         onConfirm: _handleMenuSelectorConfirm,
       );
     }
@@ -718,7 +813,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       );
     }
 
-    final notice = (_menuSelectorNotice ?? '').trim();
+    final notice = (state.menuSelectorNotice ?? '').trim();
     if (notice.isNotEmpty) {
       return _buildMenuSelectorInfoBubble(
         child: Text(
@@ -944,13 +1039,10 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         if (parts.instructionLine.isNotEmpty &&
             !_hasPaymentActionHints(message.actionHints)) ...[
           const SizedBox(height: 10),
-          Text(
+          _buildAssistantInstructionText(
             parts.instructionLine,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12,
-              height: 1.4,
-            ),
+            fontSize: 12,
+            height: 1.4,
           ),
         ],
       ],
@@ -1002,7 +1094,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildActionHintGroup(
-            title: 'Atur lokasi',
+            title: _locationSetupActionTitle(),
             actions: locationSetupActions,
             actionsEnabled: actionsEnabled,
             isUser: isUser,
@@ -1100,7 +1192,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           ],
         ),
         _buildActionHintGroup(
-          title: 'Atur lokasi',
+          title: _locationSetupActionTitle(),
           actions: locationSetupActions,
           actionsEnabled: actionsEnabled,
           isUser: isUser,
@@ -1169,6 +1261,12 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         ],
       ],
     );
+  }
+
+  String _locationSetupActionTitle() {
+    return _serviceContext.serviceType == 'nitip'
+        ? 'Atur pesanan'
+        : 'Atur lokasi';
   }
 
   Widget _buildActionHintGroup({
@@ -1264,6 +1362,10 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       return Icons.edit_location_alt_outlined;
     }
 
+    if (_isMerchantMapPickerActionHint(actionHint)) {
+      return Icons.map_outlined;
+    }
+
     return switch (actionHint.type) {
       ChatbotMessageActionType.openAddresses => Icons.home_outlined,
       ChatbotMessageActionType.openMapPicker => Icons.location_on_outlined,
@@ -1300,6 +1402,10 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       'Titik Tujuan': 'Lokasi Tujuan',
       'Titik Antar': 'Lokasi Antar',
       'Titik di Peta': 'Lokasi di Peta',
+      'Pilih Tempat di Map': 'Pilih Toko/Resto',
+      'Pilih Tempat': 'Pilih Toko/Resto',
+      'Tambah Tempat': 'Tambah Toko/Resto',
+      'Lokasi Antar': 'Alamat Antar',
     };
 
     for (final entry in replacements.entries) {
@@ -1348,7 +1454,14 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             actionHint.type == ChatbotMessageActionType.openAddresses) &&
         (label.contains('atur') ||
             label.contains('pilih') ||
+            label.contains('cari') ||
             label.contains('isi alamat'));
+  }
+
+  bool _isMerchantMapPickerActionHint(ChatbotMessageActionHint actionHint) {
+    final mode = (actionHint.merchantMode ?? '').trim().toLowerCase();
+    return actionHint.type == ChatbotMessageActionType.openMerchantPicker &&
+        (mode == 'maps' || mode == 'maps_add');
   }
 
   bool _isConfirmationActionHint(ChatbotMessageActionHint actionHint) {
@@ -1381,13 +1494,10 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         ),
         if (parts.instructionLine.isNotEmpty) ...[
           const SizedBox(height: 10),
-          Text(
+          _buildAssistantInstructionText(
             parts.instructionLine,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12,
-              height: 1.4,
-            ),
+            fontSize: 12,
+            height: 1.4,
           ),
         ],
       ],
@@ -1415,14 +1525,11 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         ],
         if (parts.instructionLine.isNotEmpty) ...[
           const SizedBox(height: 10),
-          Text(
+          _buildAssistantInstructionText(
             parts.instructionLine,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12.5,
-              height: 1.4,
-              fontWeight: FontWeight.w500,
-            ),
+            fontSize: 12.5,
+            height: 1.4,
+            fontWeight: FontWeight.w500,
           ),
         ],
       ],
@@ -1446,14 +1553,11 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         ),
         if (parts.instructionLine.isNotEmpty) ...[
           const SizedBox(height: 10),
-          Text(
+          _buildAssistantInstructionText(
             parts.instructionLine,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 14.5,
-              height: 1.45,
-              fontWeight: FontWeight.w500,
-            ),
+            fontSize: 14.5,
+            height: 1.45,
+            fontWeight: FontWeight.w500,
           ),
         ],
       ],
@@ -1706,14 +1810,11 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         ],
         if (parts.instructionLines.isNotEmpty) ...[
           const SizedBox(height: 10),
-          Text(
-            parts.instructionLines.join('\n'),
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12.5,
-              height: 1.45,
-              fontWeight: FontWeight.w600,
-            ),
+          _buildAssistantInstructionLines(
+            parts.instructionLines,
+            fontSize: 12.5,
+            height: 1.45,
+            fontWeight: FontWeight.w600,
           ),
         ],
       ],
@@ -1748,6 +1849,75 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildAssistantInstructionText(
+    String text, {
+    required double fontSize,
+    required double height,
+    FontWeight? fontWeight,
+  }) {
+    final lines = text
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
+
+    return _buildAssistantInstructionLines(
+      lines,
+      fontSize: fontSize,
+      height: height,
+      fontWeight: fontWeight,
+    );
+  }
+
+  Widget _buildAssistantInstructionLines(
+    List<String> lines, {
+    required double fontSize,
+    required double height,
+    FontWeight? fontWeight,
+  }) {
+    if (lines.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var index = 0; index < lines.length; index += 1) ...[
+          _buildAssistantInstructionLine(
+            lines[index],
+            fontSize: fontSize,
+            height: height,
+            fontWeight: fontWeight,
+          ),
+          if (index < lines.length - 1) const SizedBox(height: 4),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAssistantInstructionLine(
+    String line, {
+    required double fontSize,
+    required double height,
+    FontWeight? fontWeight,
+  }) {
+    final isPaymentMethodLine = line.toLowerCase().startsWith(
+      'metode pembayaran:',
+    );
+
+    return Text(
+      line,
+      style: TextStyle(
+        color: isPaymentMethodLine
+            ? AppColors.textPrimary
+            : AppColors.textSecondary,
+        fontSize: isPaymentMethodLine ? 13.5 : fontSize,
+        height: isPaymentMethodLine ? 1.35 : height,
+        fontWeight: isPaymentMethodLine ? FontWeight.w800 : fontWeight,
+      ),
     );
   }
 
@@ -2321,9 +2491,9 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
     await ref.read(authSessionProvider.notifier).refreshSession();
 
-    ref
-        .read(chatbotConversationProvider.notifier)
-        .onAddressBookUpdated(serviceType: _serviceContext.serviceType);
+    _conversationNotifier().onAddressBookUpdated(
+      serviceType: _serviceContext.serviceType,
+    );
 
     await _maybeApplyLaunchArgs();
 
@@ -2364,15 +2534,13 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       return;
     }
 
-    await ref
-        .read(chatbotConversationProvider.notifier)
-        .applyMapPinAction(
-          serviceType: _serviceContext.serviceType,
-          target: target,
-          latitude: result.latitude,
-          longitude: result.longitude,
-          address: null,
-        );
+    await _conversationNotifier().applyMapPinAction(
+      serviceType: _serviceContext.serviceType,
+      target: target,
+      latitude: result.latitude,
+      longitude: result.longitude,
+      address: null,
+    );
 
     _scrollToBottom();
   }
@@ -2384,8 +2552,11 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       return;
     }
 
+    final openMapsDirectly = _isMerchantMapPickerActionHint(actionHint);
     final result = await context.push<ShoppingMerchantPickerResult>(
-      AppRoutes.chatbotShoppingMerchantMapPickerPath(),
+      openMapsDirectly
+          ? AppRoutes.chatbotShoppingMerchantMapPickerPath()
+          : AppRoutes.chatbotShoppingMerchantPickerPath(),
       extra: ShoppingMerchantMapPickerArgs(
         initialLatitude: actionHint.initialLatitude,
         initialLongitude: actionHint.initialLongitude,
@@ -2398,15 +2569,18 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
     _clearMenuSelector();
 
-    final applied = await ref
-        .read(chatbotConversationProvider.notifier)
-        .applyMerchantPickerAction(
-          serviceType: _serviceContext.serviceType,
-          merchantId: result.merchantId,
-          merchantPlace: result.isOfficial ? null : result.place,
-          mode: actionHint.merchantMode == 'add' ? 'add' : 'select',
-          appendAssistantMessage: !result.isOfficial,
-        );
+    final appliedMode =
+        actionHint.merchantMode == 'add' ||
+            actionHint.merchantMode == 'maps_add'
+        ? 'add'
+        : 'select';
+    final applied = await _conversationNotifier().applyMerchantPickerAction(
+      serviceType: _serviceContext.serviceType,
+      merchantId: result.merchantId,
+      merchantPlace: result.isOfficial ? null : result.place,
+      mode: appliedMode,
+      appendAssistantMessage: !result.isOfficial,
+    );
 
     if (!mounted || !applied) {
       return;
@@ -2416,6 +2590,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       await _loadOfficialMerchantMenus(
         merchantId: result.merchantId!,
         merchantName: result.place.name,
+        merchantMode: appliedMode,
       );
       return;
     }
@@ -2426,12 +2601,14 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   Future<void> _loadOfficialMerchantMenus({
     required int merchantId,
     required String merchantName,
+    required String merchantMode,
   }) async {
     final requestId = ++_menuSelectorRequestId;
+    _conversationNotifier().clearMenuSelectorSurface(
+      serviceType: _serviceContext.serviceType,
+    );
     setState(() {
-      _menuSelectorData = null;
       _isLoadingMenuSelector = true;
-      _menuSelectorNotice = null;
     });
     _scrollToBottom();
 
@@ -2460,7 +2637,11 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           'Menu resmi tempat ini belum tersedia. Kamu tetap bisa tulis item manual.',
         );
       } else {
-        _showMenuSelector(merchantName: merchantName, menus: suggestions);
+        _showMenuSelector(
+          merchantName: merchantName,
+          menus: suggestions,
+          merchantMode: merchantMode,
+        );
       }
     } catch (_) {
       if (!mounted || requestId != _menuSelectorRequestId) {
@@ -2548,9 +2729,9 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         )
         .toList(growable: false);
 
-    await ref
-        .read(chatbotConversationProvider.notifier)
-        .applyRoutePickerAction(serviceType: serviceType, locations: locations);
+    await _conversationNotifier(
+      serviceType,
+    ).applyRoutePickerAction(serviceType: serviceType, locations: locations);
 
     _scrollToBottom();
   }

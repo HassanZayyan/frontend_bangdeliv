@@ -9,11 +9,17 @@ class ChatbotMenuSelector extends StatefulWidget {
     super.key,
     required this.merchantName,
     required this.menus,
+    required this.quantities,
+    required this.onQuantityDelta,
+    required this.onChangeMerchant,
     required this.onConfirm,
   });
 
   final String merchantName;
   final List<ChatbotMenuSuggestion> menus;
+  final List<int> quantities;
+  final void Function(int index, int delta) onQuantityDelta;
+  final VoidCallback onChangeMerchant;
   final ValueChanged<String> onConfirm;
 
   @override
@@ -21,51 +27,21 @@ class ChatbotMenuSelector extends StatefulWidget {
 }
 
 class _ChatbotMenuSelectorState extends State<ChatbotMenuSelector> {
-  late List<int> _quantities;
-
-  @override
-  void initState() {
-    super.initState();
-    _quantities = List<int>.filled(widget.menus.length, 0);
-  }
-
-  @override
-  void didUpdateWidget(covariant ChatbotMenuSelector oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.menus.length != widget.menus.length ||
-        !_hasSameMenuNames(oldWidget.menus, widget.menus)) {
-      _quantities = List<int>.filled(widget.menus.length, 0);
-    }
-  }
+  List<int> get _quantities => List<int>.generate(
+    widget.menus.length,
+    (index) => index < widget.quantities.length
+        ? widget.quantities[index].clamp(0, 99).toInt()
+        : 0,
+    growable: false,
+  );
 
   bool get _hasSelectedItems => _quantities.any((quantity) => quantity > 0);
 
-  bool _hasSameMenuNames(
-    List<ChatbotMenuSuggestion> oldMenus,
-    List<ChatbotMenuSuggestion> newMenus,
-  ) {
-    if (oldMenus.length != newMenus.length) {
-      return false;
-    }
-
-    for (var index = 0; index < oldMenus.length; index++) {
-      if (oldMenus[index].name != newMenus[index].name) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  void _setQuantity(int index, int quantity) {
-    final boundedQuantity = quantity.clamp(0, 99);
-    setState(() => _quantities[index] = boundedQuantity);
-  }
-
   void _confirmSelection() {
+    final quantities = _quantities;
     final lines = <String>[];
     for (var index = 0; index < widget.menus.length; index++) {
-      final quantity = _quantities[index];
+      final quantity = quantities[index];
       if (quantity <= 0) {
         continue;
       }
@@ -85,6 +61,7 @@ class _ChatbotMenuSelectorState extends State<ChatbotMenuSelector> {
     final merchantName = widget.merchantName.trim().isEmpty
         ? 'tempat ini'
         : widget.merchantName.trim();
+    final quantities = _quantities;
 
     return Align(
       alignment: Alignment.centerLeft,
@@ -104,40 +81,17 @@ class _ChatbotMenuSelectorState extends State<ChatbotMenuSelector> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Pilih menu',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: AppTextScaling.adaptive(
-                    context,
-                    normal: 15,
-                    large: 14.4,
-                  ),
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
+              _MenuSelectorHeader(
                 merchantName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: AppTextScaling.adaptive(
-                    context,
-                    normal: 12,
-                    large: 11.6,
-                  ),
-                  fontWeight: FontWeight.w600,
-                ),
+                onChangeMerchant: widget.onChangeMerchant,
               ),
               const SizedBox(height: 12),
               for (var index = 0; index < widget.menus.length; index++) ...[
                 _MenuSelectorRow(
                   menu: widget.menus[index],
-                  quantity: _quantities[index],
-                  onDecrease: () => _setQuantity(index, _quantities[index] - 1),
-                  onIncrease: () => _setQuantity(index, _quantities[index] + 1),
+                  quantity: quantities[index],
+                  onDecrease: () => widget.onQuantityDelta(index, -1),
+                  onIncrease: () => widget.onQuantityDelta(index, 1),
                 ),
                 if (index != widget.menus.length - 1)
                   const Divider(height: 18, color: AppColors.border),
@@ -180,6 +134,74 @@ class _ChatbotMenuSelectorState extends State<ChatbotMenuSelector> {
   }
 }
 
+class _MenuSelectorHeader extends StatelessWidget {
+  const _MenuSelectorHeader(
+    this.merchantName, {
+    required this.onChangeMerchant,
+  });
+
+  final String merchantName;
+  final VoidCallback onChangeMerchant;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = Text(
+      'Pilih menu',
+      style: TextStyle(
+        color: AppColors.textPrimary,
+        fontSize: AppTextScaling.adaptive(context, normal: 15, large: 14.4),
+        fontWeight: FontWeight.w800,
+      ),
+    );
+    final merchant = Text(
+      merchantName,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: AppColors.textSecondary,
+        fontSize: AppTextScaling.adaptive(context, normal: 12, large: 11.6),
+        fontWeight: FontWeight.w600,
+      ),
+    );
+    final changeButton = OutlinedButton.icon(
+      onPressed: onChangeMerchant,
+      icon: Icon(
+        Icons.storefront_outlined,
+        size: AppTextScaling.adaptive(context, normal: 16, large: 15),
+      ),
+      label: Text(
+        'Ganti Toko/Resto',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: AppTextScaling.adaptive(context, normal: 12, large: 11.5),
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.primaryDark,
+        minimumSize: const Size(0, 32),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        side: const BorderSide(color: AppColors.primary, width: 1.2),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        title,
+        const SizedBox(height: 4),
+        merchant,
+        const SizedBox(height: 8),
+        Align(alignment: Alignment.centerLeft, child: changeButton),
+      ],
+    );
+  }
+}
+
 class _MenuSelectorRow extends StatelessWidget {
   const _MenuSelectorRow({
     required this.menu,
@@ -198,81 +220,128 @@ class _MenuSelectorRow extends StatelessWidget {
     final priceLabel = (menu.priceLabel ?? '').trim();
     final imageUrl = (menu.imageUrl ?? '').trim();
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            width: 48,
-            height: 48,
-            color: AppColors.primaryLight,
-            child: imageUrl.isEmpty
-                ? const Icon(
-                    Icons.restaurant_menu,
-                    color: AppColors.primary,
-                    size: 22,
-                  )
-                : Image.network(
-                    imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return const Icon(
-                        Icons.restaurant_menu,
-                        color: AppColors.primary,
-                        size: 22,
-                      );
-                    },
-                  ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                menu.name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: AppTextScaling.adaptive(
-                    context,
-                    normal: 13,
-                    large: 12.4,
-                  ),
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              if (priceLabel.isNotEmpty) ...[
-                const SizedBox(height: 3),
-                Text(
-                  priceLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: AppColors.primary,
-                    fontSize: AppTextScaling.adaptive(
-                      context,
-                      normal: 12,
-                      large: 11.4,
-                    ),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        _QuantityStepper(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final useStackedControls = constraints.maxWidth < 340;
+        final hasThumbnail = imageUrl.isNotEmpty;
+        final thumbnail = hasThumbnail
+            ? _MenuThumbnail(imageUrl: imageUrl)
+            : null;
+        final details = _MenuDetails(
+          menuName: menu.name,
+          priceLabel: priceLabel,
+          maxNameLines: useStackedControls ? 3 : 2,
+        );
+        final stepper = _QuantityStepper(
           label: menu.name,
           quantity: quantity,
           onDecrease: onDecrease,
           onIncrease: onIncrease,
+        );
+
+        if (useStackedControls) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (thumbnail != null) ...[thumbnail, const SizedBox(width: 12)],
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    details,
+                    const SizedBox(height: 10),
+                    Align(alignment: Alignment.centerRight, child: stepper),
+                  ],
+                ),
+              ),
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            if (thumbnail != null) ...[thumbnail, const SizedBox(width: 12)],
+            Expanded(child: details),
+            const SizedBox(width: 10),
+            stepper,
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _MenuThumbnail extends StatelessWidget {
+  const _MenuThumbnail({required this.imageUrl});
+
+  final String imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        width: 48,
+        height: 48,
+        child: Image.network(
+          imageUrl,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return const SizedBox.shrink();
+          },
         ),
+      ),
+    );
+  }
+}
+
+class _MenuDetails extends StatelessWidget {
+  const _MenuDetails({
+    required this.menuName,
+    required this.priceLabel,
+    required this.maxNameLines,
+  });
+
+  final String menuName;
+  final String priceLabel;
+  final int maxNameLines;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          menuName,
+          maxLines: maxNameLines,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: AppTextScaling.adaptive(context, normal: 13, large: 12.4),
+            fontWeight: FontWeight.w800,
+            height: 1.24,
+          ),
+        ),
+        if (priceLabel.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            priceLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: AppColors.primary,
+              fontSize: AppTextScaling.adaptive(
+                context,
+                normal: 12,
+                large: 11.4,
+              ),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -293,38 +362,53 @@ class _QuantityStepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _StepperButton(
-          tooltip: 'Kurangi $label',
-          icon: Icons.remove,
-          enabled: quantity > 0,
-          onTap: onDecrease,
-        ),
-        SizedBox(
-          width: 28,
-          child: Text(
-            quantity.toString(),
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: AppTextScaling.adaptive(
-                context,
-                normal: 13,
-                large: 12.4,
+    return Container(
+      height: 34,
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _StepperButton(
+            tooltip: 'Kurangi $label',
+            icon: Icons.remove_rounded,
+            enabled: quantity > 0,
+            foregroundColor: quantity > 0
+                ? AppColors.textPrimary
+                : AppColors.textSecondary.withValues(alpha: 0.42),
+            onTap: onDecrease,
+          ),
+          SizedBox(
+            width: 30,
+            child: Text(
+              quantity.toString(),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: AppTextScaling.adaptive(
+                  context,
+                  normal: 13,
+                  large: 12.4,
+                ),
+                fontWeight: FontWeight.w800,
               ),
-              fontWeight: FontWeight.w800,
             ),
           ),
-        ),
-        _StepperButton(
-          tooltip: 'Tambah $label',
-          icon: Icons.add,
-          enabled: quantity < 99,
-          onTap: onIncrease,
-        ),
-      ],
+          _StepperButton(
+            tooltip: 'Tambah $label',
+            icon: Icons.add_rounded,
+            enabled: quantity < 99,
+            foregroundColor: quantity < 99
+                ? AppColors.primary
+                : AppColors.textSecondary.withValues(alpha: 0.42),
+            onTap: onIncrease,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -334,33 +418,29 @@ class _StepperButton extends StatelessWidget {
     required this.tooltip,
     required this.icon,
     required this.enabled,
+    required this.foregroundColor,
     required this.onTap,
   });
 
   final String tooltip;
   final IconData icon;
   final bool enabled;
+  final Color foregroundColor;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final color = enabled ? AppColors.primary : AppColors.textSecondary;
-
     return Tooltip(
       message: tooltip,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: enabled ? onTap : null,
-        child: Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: enabled
-                ? AppColors.primaryLight
-                : AppColors.border.withValues(alpha: 0.55),
-            shape: BoxShape.circle,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          child: SizedBox(
+            width: 31,
+            height: 34,
+            child: Icon(icon, size: 18, color: foregroundColor),
           ),
-          child: Icon(icon, size: 18, color: color),
         ),
       ),
     );

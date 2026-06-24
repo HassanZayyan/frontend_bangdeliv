@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -13,6 +15,7 @@ import '../../../../models/user_profile_model.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../auth/application/auth_session_provider.dart';
 import '../../../orders/application/customer_order_providers.dart';
+import '../../../../utils/map_picker_helpers.dart';
 import '../../../../utils/order_formatters.dart';
 import '../../../../utils/order_ui_helpers.dart';
 import '../../../../widgets/app_content_background.dart';
@@ -45,15 +48,20 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  _HomeDataRequest? _currentLocationRequest;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_hydrateCurrentUserLocation());
+  }
+
   @override
   Widget build(BuildContext context) {
     final activeAddress = _activeAddress(
       ref.watch(authSessionProvider).profile,
     );
-    final homeRequest = (
-      latitude: _usableCoordinate(activeAddress?.latitude),
-      longitude: _usableCoordinate(activeAddress?.longitude),
-    );
+    final homeRequest = _homeRequestFor(activeAddress);
     final homeDataAsync = ref.watch(_homeScreenDataProvider(homeRequest));
     final activeOrder = ref.watch(customerActiveOrderProvider);
 
@@ -69,7 +77,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: RefreshIndicator(
                   color: AppColors.primary,
                   backgroundColor: AppColors.white,
-                  onRefresh: () => _refreshHomeData(homeRequest),
+                  onRefresh: _refreshHomeData,
                   child: SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(
                       parent: ClampingScrollPhysics(),
@@ -77,7 +85,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     child: homeDataAsync.when(
                       loading: () => _buildLoadingContent(context),
                       error: (error, stackTrace) =>
-                          _buildErrorContent(error.toString(), homeRequest),
+                          _buildErrorContent(error.toString()),
                       data: (data) => _buildDataContent(
                         context,
                         data,
@@ -94,13 +102,49 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Future<void> _refreshHomeData(_HomeDataRequest request) async {
+  Future<void> _refreshHomeData() async {
+    await _hydrateCurrentUserLocation();
+    final activeAddress = _activeAddress(ref.read(authSessionProvider).profile);
+    final request = _homeRequestFor(activeAddress);
     ref.invalidate(_homeScreenDataProvider(request));
     try {
       await ref.read(_homeScreenDataProvider(request).future);
     } catch (_) {
       // Error state is rendered by _homeScreenDataProvider.
     }
+  }
+
+  Future<void> _hydrateCurrentUserLocation() async {
+    try {
+      final target = await MapPickerHelpers.currentLocationIfPermitted();
+      if (!mounted || target == null) {
+        return;
+      }
+
+      final nextRequest = (
+        latitude: target.latitude,
+        longitude: target.longitude,
+      );
+      if (_currentLocationRequest == nextRequest) {
+        return;
+      }
+
+      setState(() => _currentLocationRequest = nextRequest);
+    } catch (_) {
+      return;
+    }
+  }
+
+  _HomeDataRequest _homeRequestFor(SavedAddressModel? activeAddress) {
+    final currentLocationRequest = _currentLocationRequest;
+    if (currentLocationRequest != null) {
+      return currentLocationRequest;
+    }
+
+    return (
+      latitude: _usableCoordinate(activeAddress?.latitude),
+      longitude: _usableCoordinate(activeAddress?.longitude),
+    );
   }
 
   SavedAddressModel? _activeAddress(UserProfileModel? profile) {
@@ -408,7 +452,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildErrorContent(String message, _HomeDataRequest request) {
+  Widget _buildErrorContent(String message) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -421,7 +465,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           child: BangErrorState(
             title: 'Gagal memuat data beranda',
             message: message,
-            onRetry: () => ref.invalidate(_homeScreenDataProvider(request)),
+            onRetry: () => unawaited(_refreshHomeData()),
           ),
         ),
         const SizedBox(height: BangFloatingBottomNavBar.scrollClearance),

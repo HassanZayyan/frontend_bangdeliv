@@ -122,5 +122,22 @@ class MapPickerHelpers {
     );
   }
 
+  static Future<LatLng?> currentLocationIfPermitted() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return null;
+
+    final permission = await Geolocator.checkPermission();
+    final isGranted =
+        permission == LocationPermission.always ||
+        permission == LocationPermission.whileInUse;
+    if (!isGranted) return null;
+
+    final position = await Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+    );
+
+    return LatLng(position.latitude, position.longitude);
+  }
+
   static double _degreesToRadians(double value) => value * math.pi / 180;
 }

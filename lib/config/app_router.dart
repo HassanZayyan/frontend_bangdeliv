@@ -20,6 +20,7 @@ import '../features/chatbot/presentation/screens/chatbot_screen.dart';
 import '../features/orders/presentation/screens/order_chat_screen.dart';
 import '../features/shopping/presentation/screens/shopping_add_item_screen.dart';
 import '../features/shopping/presentation/screens/shopping_merchant_map_picker_screen.dart';
+import '../features/shopping/presentation/screens/shopping_merchant_picker_screen.dart';
 import '../features/tracking/presentation/screens/track_order_screen.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
 import '../features/profile/presentation/screens/edit_profile_screen.dart';
@@ -187,6 +188,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final extra = state.extra;
           return ShoppingMerchantMapPickerScreen(
+            args: extra is ShoppingMerchantMapPickerArgs ? extra : null,
+          );
+        },
+      ),
+      _rootRoute(
+        path: AppRoutes.chatbotShoppingMerchantPicker,
+        builder: (context, state) {
+          final extra = state.extra;
+          return ShoppingMerchantPickerScreen(
             args: extra is ShoppingMerchantMapPickerArgs ? extra : null,
           );
         },
@@ -592,6 +602,7 @@ const Set<String> _customerOnlyRoutes = {
   AppRoutes.track,
   AppRoutes.shoppingAddItem,
   AppRoutes.shoppingMerchantMapPicker,
+  AppRoutes.chatbotShoppingMerchantPicker,
   AppRoutes.chatbotShoppingMerchantMapPicker,
   AppRoutes.addresses,
   AppRoutes.addressPicker,
