@@ -378,7 +378,7 @@ class _CancelOrderDialogState extends State<_CancelOrderDialog> {
   @override
   Widget build(BuildContext context) {
     final viewportHeight = MediaQuery.sizeOf(context).height;
-    final buttonTextStyle = GoogleFonts.nunitoSans(
+    final buttonTextStyle = GoogleFonts.inter(
       fontSize: 13,
       fontWeight: FontWeight.w700,
       height: 1.1,

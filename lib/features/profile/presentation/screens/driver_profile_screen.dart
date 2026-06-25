@@ -130,7 +130,7 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
                         horizontal: 16,
                         vertical: 12,
                       ),
-                      textStyle: GoogleFonts.nunitoSans(
+                      textStyle: GoogleFonts.inter(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
                       ),

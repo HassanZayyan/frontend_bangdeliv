@@ -155,7 +155,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         const SizedBox(height: 14),
         RichText(
           text: TextSpan(
-            style: GoogleFonts.fredoka(
+            style: GoogleFonts.inter(
               fontSize: 40,
               fontWeight: FontWeight.w700,
               letterSpacing: 0,

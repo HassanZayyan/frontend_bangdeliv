@@ -174,7 +174,7 @@ class VehicleInfoFields extends StatelessWidget {
     final decoration = InputDecoration(
       labelText: labelText,
       floatingLabelBehavior: FloatingLabelBehavior.always,
-      labelStyle: GoogleFonts.nunitoSans(
+      labelStyle: GoogleFonts.inter(
         color: labelColor ?? AppColors.textSecondary,
         fontSize: labelFontSize,
         fontWeight: labelFontWeight,
@@ -207,13 +207,13 @@ class VehicleInfoFields extends StatelessWidget {
     );
   }
 
-  TextStyle get _fieldTextStyle => GoogleFonts.nunitoSans(
+  TextStyle get _fieldTextStyle => GoogleFonts.inter(
     color: AppColors.textPrimary,
     fontSize: fieldFontSize,
     fontWeight: FontWeight.w400,
   );
 
-  TextStyle get _hintTextStyle => GoogleFonts.nunitoSans(
+  TextStyle get _hintTextStyle => GoogleFonts.inter(
     color: AppColors.textSecondary,
     fontSize: hintFontSize,
     fontWeight: FontWeight.w400,

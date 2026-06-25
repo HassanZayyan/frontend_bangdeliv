@@ -27,6 +27,36 @@ class DriverActiveOrderScreen extends ConsumerWidget {
 
   const DriverActiveOrderScreen({super.key, required this.orderId});
 
+  // Dipakai untuk mengukur tinggi sticky action bar agar toast hasil aksi
+  // driver muncul DI ATAS tombol aksi, bukan menutupinya. Khusus layar ini.
+  static final GlobalKey _stickyActionBarKey = GlobalKey();
+
+  // Menampilkan snackbar hasil aksi driver dengan margin bawah yang menyesuaikan
+  // tinggi tombol aksi (sticky action bar). Jika tombol aksi tidak tampil, jatuh
+  // kembali ke inset default (di atas floating bottom nav).
+  void _showActionSnackBar(
+    BuildContext context, {
+    required String message,
+    bool isError = false,
+  }) {
+    final renderObject = _stickyActionBarKey.currentContext?.findRenderObject();
+    final actionBarHeight = renderObject is RenderBox && renderObject.hasSize
+        ? renderObject.size.height
+        : 0.0;
+    final bottomInset = actionBarHeight > 1
+        ? actionBarHeight + 12
+        : BangFloatingBottomNavBar.snackBarBottomInset(context);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? AppColors.error : null,
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.fromLTRB(16, 0, 16, bottomInset),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (orderId.trim().isEmpty || !_isServerOrderId(orderId)) {
@@ -465,6 +495,7 @@ class DriverActiveOrderScreen extends ConsumerWidget {
     bool isProcessing,
   ) {
     return DriverOrderStickyActionBar(
+      key: _stickyActionBarKey,
       order: order,
       isProcessing: isProcessing,
       onTapAction: (action) async {
@@ -494,9 +525,7 @@ class DriverActiveOrderScreen extends ConsumerWidget {
         }
 
         if (error == null) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('${action.label} berhasil.')));
+          _showActionSnackBar(context, message: '${action.label} berhasil.');
           ref.invalidate(driverOrderDetailProvider(order.id));
           if (action.targetStatusCode != null &&
               !isDriverRunningOrderStatus(action.targetStatusCode!)) {
@@ -505,9 +534,7 @@ class DriverActiveOrderScreen extends ConsumerWidget {
           return;
         }
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error), backgroundColor: AppColors.error),
-        );
+        _showActionSnackBar(context, message: error, isError: true);
       },
     );
   }

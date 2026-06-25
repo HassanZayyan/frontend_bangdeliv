@@ -17,11 +17,28 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _currentPasswordFocusNode = FocusNode();
+  final _newPasswordFocusNode = FocusNode();
+  final _confirmPasswordFocusNode = FocusNode();
 
   bool _isSubmitting = false;
   bool _showCurrentPassword = false;
   bool _showNewPassword = false;
   bool _showConfirmPassword = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentPasswordFocusNode.addListener(_handleFieldFocusChanged);
+    _newPasswordFocusNode.addListener(_handleFieldFocusChanged);
+    _confirmPasswordFocusNode.addListener(_handleFieldFocusChanged);
+  }
+
+  void _handleFieldFocusChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +75,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                         label: 'Password Saat Ini',
                         hintText: 'Masukkan password lama',
                         controller: _currentPasswordController,
+                        focusNode: _currentPasswordFocusNode,
                         isVisible: _showCurrentPassword,
                         onToggleVisibility: () {
                           setState(() {
@@ -80,6 +98,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                         label: 'Password Baru',
                         hintText: 'Masukkan password baru',
                         controller: _newPasswordController,
+                        focusNode: _newPasswordFocusNode,
                         isVisible: _showNewPassword,
                         onToggleVisibility: () {
                           setState(() {
@@ -105,6 +124,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                         label: 'Konfirmasi Password Baru',
                         hintText: 'Ulangi password baru',
                         controller: _confirmPasswordController,
+                        focusNode: _confirmPasswordFocusNode,
                         isVisible: _showConfirmPassword,
                         onToggleVisibility: () {
                           setState(() {
@@ -225,12 +245,14 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     required String label,
     required String hintText,
     required TextEditingController controller,
+    required FocusNode focusNode,
     required bool isVisible,
     required VoidCallback onToggleVisibility,
     required String? Function(String?) validator,
   }) {
     return TextFormField(
       controller: controller,
+      focusNode: focusNode,
       obscureText: !isVisible,
       style: TextStyle(
         color: AppColors.textPrimary,
@@ -239,7 +261,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       ),
       validator: validator,
       decoration: InputDecoration(
-        labelText: label,
+        labelText: focusNode.hasFocus ? label : null,
         floatingLabelBehavior: FloatingLabelBehavior.always,
         labelStyle: TextStyle(
           fontWeight: FontWeight.w600,
@@ -338,6 +360,15 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   @override
   void dispose() {
+    _currentPasswordFocusNode
+      ..removeListener(_handleFieldFocusChanged)
+      ..dispose();
+    _newPasswordFocusNode
+      ..removeListener(_handleFieldFocusChanged)
+      ..dispose();
+    _confirmPasswordFocusNode
+      ..removeListener(_handleFieldFocusChanged)
+      ..dispose();
     _currentPasswordController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();

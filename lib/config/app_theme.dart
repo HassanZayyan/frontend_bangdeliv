@@ -4,7 +4,7 @@ import 'app_colors.dart';
 
 class AppTheme {
   static ThemeData get lightTheme {
-    final baseTextTheme = GoogleFonts.nunitoSansTextTheme();
+    final baseTextTheme = GoogleFonts.interTextTheme();
 
     return ThemeData(
       useMaterial3: true,
@@ -19,37 +19,37 @@ class AppTheme {
       dividerColor: AppColors.divider,
 
       textTheme: baseTextTheme.copyWith(
-        displayLarge: GoogleFonts.nunitoSans(
+        displayLarge: GoogleFonts.inter(
           color: AppColors.textPrimary,
           fontSize: 28,
           fontWeight: FontWeight.w700,
         ),
-        displayMedium: GoogleFonts.nunitoSans(
+        displayMedium: GoogleFonts.inter(
           color: AppColors.textPrimary,
           fontSize: 22,
           fontWeight: FontWeight.w600,
         ),
-        titleLarge: GoogleFonts.nunitoSans(
+        titleLarge: GoogleFonts.inter(
           color: AppColors.textPrimary,
           fontSize: 18,
           fontWeight: FontWeight.w700,
         ),
-        titleMedium: GoogleFonts.nunitoSans(
+        titleMedium: GoogleFonts.inter(
           color: AppColors.textPrimary,
           fontSize: 15,
           fontWeight: FontWeight.w700,
         ),
-        bodyLarge: GoogleFonts.nunitoSans(
+        bodyLarge: GoogleFonts.inter(
           color: AppColors.textPrimary,
           fontSize: 16,
           fontWeight: FontWeight.normal,
         ),
-        bodyMedium: GoogleFonts.nunitoSans(
+        bodyMedium: GoogleFonts.inter(
           color: AppColors.textSecondary,
           fontSize: 14,
           fontWeight: FontWeight.normal,
         ),
-        labelLarge: GoogleFonts.nunitoSans(
+        labelLarge: GoogleFonts.inter(
           color: AppColors.white,
           fontSize: 14,
           fontWeight: FontWeight.w600,
@@ -61,7 +61,7 @@ class AppTheme {
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
         centerTitle: false,
-        titleTextStyle: GoogleFonts.nunitoSans(
+        titleTextStyle: GoogleFonts.inter(
           color: AppColors.textPrimary,
           fontSize: 17,
           fontWeight: FontWeight.w700,
@@ -87,7 +87,7 @@ class AppTheme {
             borderRadius: BorderRadius.circular(12),
           ),
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-          textStyle: GoogleFonts.nunitoSans(
+          textStyle: GoogleFonts.inter(
             fontSize: 16,
             fontWeight: FontWeight.w600,
           ),
@@ -103,7 +103,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: GoogleFonts.nunitoSans(
+          textStyle: GoogleFonts.inter(
             fontSize: 14,
             fontWeight: FontWeight.w700,
           ),
@@ -118,22 +118,22 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: GoogleFonts.nunitoSans(
+          textStyle: GoogleFonts.inter(
             fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
         ),
       ),
 
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: AppColors.surface,
         selectedItemColor: AppColors.primary,
         unselectedItemColor: AppColors.textSecondary,
-        selectedLabelStyle: TextStyle(
+        selectedLabelStyle: GoogleFonts.inter(
           fontSize: 11,
           fontWeight: FontWeight.w700,
         ),
-        unselectedLabelStyle: TextStyle(
+        unselectedLabelStyle: GoogleFonts.inter(
           fontSize: 11,
           fontWeight: FontWeight.w600,
         ),
@@ -147,7 +147,7 @@ class AppTheme {
         disabledColor: AppColors.surfaceAlt,
         side: const BorderSide(color: AppColors.border),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-        labelStyle: GoogleFonts.nunitoSans(
+        labelStyle: GoogleFonts.inter(
           color: AppColors.textPrimary,
           fontSize: 12,
           fontWeight: FontWeight.w600,
@@ -156,7 +156,7 @@ class AppTheme {
 
       snackBarTheme: SnackBarThemeData(
         backgroundColor: AppColors.darkBlue,
-        contentTextStyle: GoogleFonts.nunitoSans(
+        contentTextStyle: GoogleFonts.inter(
           color: AppColors.white,
           fontSize: 13,
           fontWeight: FontWeight.w500,
@@ -185,7 +185,7 @@ class AppTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
         ),
-        hintStyle: GoogleFonts.nunitoSans(
+        hintStyle: GoogleFonts.inter(
           color: AppColors.textSecondary,
           fontSize: 14,
           fontWeight: FontWeight.w400,

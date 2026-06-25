@@ -145,11 +145,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _buildProfileHero(BuildContext context, UserProfileModel profile) {
-    final nameFontSize = AppTextScaling.adaptive(
-      context,
-      normal: 16.5,
-      large: 15.4,
-    );
 
     return Material(
       color: Colors.transparent,
@@ -176,8 +171,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.displayMedium
                           ?.copyWith(
-                            fontSize: nameFontSize,
-                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
                           ),
                     ),
                     const SizedBox(height: 4),
@@ -277,7 +272,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           side: BorderSide(color: AppColors.error.withValues(alpha: 0.38)),
           minimumSize: const Size.fromHeight(48),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          textStyle: GoogleFonts.nunitoSans(
+          textStyle: GoogleFonts.inter(
             fontSize: 15,
             fontWeight: FontWeight.w800,
           ),

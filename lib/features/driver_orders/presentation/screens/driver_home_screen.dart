@@ -441,7 +441,7 @@ class _ActiveOrderSection extends StatelessWidget {
               onPressed: onOpenDetail,
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 13),
-                textStyle: GoogleFonts.nunitoSans(
+                textStyle: GoogleFonts.inter(
                   fontWeight: FontWeight.w700,
                   fontSize: 14,
                 ),
