@@ -881,7 +881,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
         minimumSize: const Size(0, 44),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        textStyle: GoogleFonts.nunitoSans(
+        textStyle: GoogleFonts.inter(
           fontSize: 14,
           fontWeight: FontWeight.w800,
         ),
@@ -897,7 +897,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
         minimumSize: const Size(0, 44),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        textStyle: GoogleFonts.nunitoSans(
+        textStyle: GoogleFonts.inter(
           fontSize: 14,
           fontWeight: FontWeight.w800,
         ),

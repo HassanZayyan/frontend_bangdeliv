@@ -358,7 +358,7 @@ class _DriverOrderActionControls extends StatelessWidget {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    textStyle: GoogleFonts.nunitoSans(
+                    textStyle: GoogleFonts.inter(
                       fontWeight: FontWeight.w700,
                       fontSize: 15,
                     ),

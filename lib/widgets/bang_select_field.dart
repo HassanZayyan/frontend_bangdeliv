@@ -118,7 +118,7 @@ class BangSelectField extends StatelessWidget {
                             hasValue ? selectedValue : hintText,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.nunitoSans(
+                            style: GoogleFonts.inter(
                               color: hasValue
                                   ? AppColors.textPrimary
                                   : AppColors.textSecondary,
@@ -171,7 +171,7 @@ class BangSelectField extends StatelessWidget {
       fillColor: fillColor,
       labelText: (label ?? '').trim().isEmpty ? null : label!.trim(),
       floatingLabelBehavior: FloatingLabelBehavior.always,
-      labelStyle: GoogleFonts.nunitoSans(
+      labelStyle: GoogleFonts.inter(
         color: labelColor,
         fontSize: labelFontSize,
         fontWeight: labelFontWeight,
@@ -186,7 +186,7 @@ class BangSelectField extends StatelessWidget {
       ),
       errorBorder: errorBorder,
       focusedErrorBorder: errorBorder,
-      errorStyle: GoogleFonts.nunitoSans(
+      errorStyle: GoogleFonts.inter(
         color: AppColors.error,
         fontSize: 12,
         fontWeight: FontWeight.w500,
@@ -283,7 +283,7 @@ class _BangSelectMenuItem extends StatelessWidget {
             text,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.nunitoSans(
+            style: GoogleFonts.inter(
               color: AppColors.textPrimary,
               fontSize: fontSize,
               fontWeight: selected ? FontWeight.w700 : FontWeight.w400,

@@ -374,7 +374,7 @@ class _OrderCard extends StatelessWidget {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
-                textStyle: GoogleFonts.nunitoSans(
+                textStyle: GoogleFonts.inter(
                   fontWeight: FontWeight.w800,
                   fontSize: 13.5,
                 ),
@@ -604,7 +604,7 @@ class _OrderDecisionBar extends StatelessWidget {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    textStyle: GoogleFonts.nunitoSans(
+                    textStyle: GoogleFonts.inter(
                       fontWeight: FontWeight.w700,
                       fontSize: 15,
                     ),
@@ -625,7 +625,7 @@ class _OrderDecisionBar extends StatelessWidget {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    textStyle: GoogleFonts.nunitoSans(
+                    textStyle: GoogleFonts.inter(
                       fontWeight: FontWeight.w700,
                       fontSize: 15,
                     ),

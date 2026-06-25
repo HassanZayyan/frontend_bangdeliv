@@ -562,7 +562,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 Expanded(
                   child: Text(
                     formatCurrency(order.totalAmount),
-                    style: GoogleFonts.nunitoSans(
+                    style: GoogleFonts.inter(
                       color: AppColors.textPrimary,
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
@@ -592,7 +592,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         'Lacak',
                         maxLines: 1,
                         softWrap: false,
-                        style: GoogleFonts.nunitoSans(
+                        style: GoogleFonts.inter(
                           color: AppColors.primary,
                           fontSize: 13,
                           fontWeight: FontWeight.w700,

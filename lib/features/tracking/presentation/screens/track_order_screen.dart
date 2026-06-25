@@ -1150,7 +1150,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                         driverName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.nunitoSans(
+                        style: GoogleFonts.inter(
                           color: AppColors.textPrimary,
                           fontWeight: FontWeight.w600,
                           fontSize: 16,

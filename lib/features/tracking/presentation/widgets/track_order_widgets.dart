@@ -89,7 +89,7 @@ class _TrackShoppingOrderItemsCardState
                     ),
                     minimumSize: const Size(0, 30),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    textStyle: GoogleFonts.nunitoSans(
+                    textStyle: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
@@ -509,7 +509,7 @@ class _TrackShoppingOrderItemsCardState
                   padding: EdgeInsets.zero,
                   minimumSize: const Size(0, 32),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  textStyle: GoogleFonts.nunitoSans(
+                  textStyle: GoogleFonts.inter(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),

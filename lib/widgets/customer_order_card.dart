@@ -124,7 +124,7 @@ class CustomerOrderCard extends StatelessWidget {
                             order.restaurantName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.nunitoSans(
+                            style: GoogleFonts.inter(
                               fontWeight: FontWeight.w700,
                               fontSize: titleFontSize,
                               color: AppColors.textPrimary,
@@ -151,7 +151,7 @@ class CustomerOrderCard extends StatelessWidget {
                         formatCurrency(order.totalAmount),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.nunitoSans(
+                        style: GoogleFonts.inter(
                           fontWeight: FontWeight.w500,
                           fontSize: titleFontSize,
                           color: AppColors.textPrimary,
@@ -222,7 +222,7 @@ class CustomerOrderCard extends StatelessWidget {
       children: [
         Text(
           formatCurrency(order.totalAmount),
-          style: GoogleFonts.nunitoSans(
+          style: GoogleFonts.inter(
             fontWeight: FontWeight.w500,
             fontSize: 16,
             color: AppColors.textPrimary,
@@ -271,12 +271,12 @@ class CustomerOrderCard extends StatelessWidget {
       normal: 13,
       large: 12.5,
     );
-    final buttonTextStyle = GoogleFonts.nunitoSans(
+    final buttonTextStyle = GoogleFonts.inter(
       fontSize: buttonFontSize,
       fontWeight: FontWeight.w700,
       height: 1.1,
     );
-    final trackTextStyle = GoogleFonts.nunitoSans(
+    final trackTextStyle = GoogleFonts.inter(
       color: AppColors.primary,
       fontSize: trackFontSize,
       fontWeight: FontWeight.w700,

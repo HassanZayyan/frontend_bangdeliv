@@ -375,7 +375,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     String? activeAddress, {
     required bool showMapPanel,
   }) {
-    final actionButtonTextStyle = GoogleFonts.nunitoSans(
+    final actionButtonTextStyle = GoogleFonts.inter(
       fontSize: 15,
       fontWeight: FontWeight.w600,
     );

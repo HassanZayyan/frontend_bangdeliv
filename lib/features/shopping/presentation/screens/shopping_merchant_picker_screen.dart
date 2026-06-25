@@ -368,7 +368,7 @@ class _ShoppingMerchantPickerScreenState
                       color: AppColors.primary.withValues(alpha: 0.45),
                     ),
                     overlayColor: AppColors.primary.withValues(alpha: 0.06),
-                    textStyle: GoogleFonts.nunitoSans(
+                    textStyle: GoogleFonts.inter(
                       fontSize: 13.25,
                       fontWeight: FontWeight.w700,
                     ),
@@ -451,7 +451,7 @@ class _MerchantSearchEmptyState extends StatelessWidget {
             textAlign: TextAlign.center,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.nunitoSans(
+            style: GoogleFonts.inter(
               color: AppColors.textPrimary,
               fontSize: 14.5,
               fontWeight: FontWeight.w800,
@@ -462,7 +462,7 @@ class _MerchantSearchEmptyState extends StatelessWidget {
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: GoogleFonts.nunitoSans(
+            style: GoogleFonts.inter(
               color: AppColors.textSecondary,
               fontSize: 13,
               fontWeight: FontWeight.w500,
@@ -490,7 +490,7 @@ class _MapSearchFooter extends StatelessWidget {
           Text(
             'Tidak menemukan toko/resto yang Anda cari?',
             textAlign: TextAlign.center,
-            style: GoogleFonts.nunitoSans(
+            style: GoogleFonts.inter(
               color: AppColors.textSecondary,
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -510,7 +510,7 @@ class _MapSearchFooter extends StatelessWidget {
               overlayColor: AppColors.primary.withValues(alpha: 0.06),
               minimumSize: const Size(0, 40),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-              textStyle: GoogleFonts.nunitoSans(
+              textStyle: GoogleFonts.inter(
                 fontSize: 13.25,
                 fontWeight: FontWeight.w700,
               ),

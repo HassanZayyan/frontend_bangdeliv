@@ -48,6 +48,7 @@ double parseDriverCurrencyInput(String raw) {
 Future<XFile?> pickDriverOrderImage(BuildContext context) async {
   final source = await showModalBottomSheet<ImageSource>(
     context: context,
+    useRootNavigator: true,
     backgroundColor: AppColors.white,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
