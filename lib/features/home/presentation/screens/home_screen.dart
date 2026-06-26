@@ -583,7 +583,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         vertical: 6,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                     ),
                     child: FittedBox(

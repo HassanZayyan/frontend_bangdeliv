@@ -11,6 +11,7 @@ import '../../../../config/app_routes.dart';
 import '../../../../core/widgets/bang_async_state.dart';
 import '../../../../models/order_chat_model.dart';
 import '../../../auth/application/auth_session_provider.dart';
+import '../../../driver_orders/application/driver_order_providers.dart';
 import '../../application/customer_order_providers.dart';
 import '../../application/order_chat_provider.dart';
 import '../../application/order_chat_unread_provider.dart';
@@ -174,15 +175,29 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
     final chatAsync = ref.watch(orderChatProvider(widget.orderId));
     final session = ref.watch(authSessionProvider);
     final currentUserId = session.profile?.id ?? 0;
-    final detailAsync = session.role == SessionUserRole.customer
+    final isDriverSession = session.role == SessionUserRole.driver;
+    final customerDetailAsync = session.role == SessionUserRole.customer
         ? ref.watch(customerOrderDetailProvider(widget.orderId))
         : null;
-    final detail = detailAsync?.asData?.value;
+    final driverDetailAsync = isDriverSession
+        ? ref.watch(driverOrderDetailProvider(widget.orderId.toString()))
+        : null;
+    final customerDetail = customerDetailAsync?.asData?.value;
+    final driverDetail = driverDetailAsync?.asData?.value;
     final messages =
         chatAsync.asData?.value.messages ?? const <OrderChatMessageModel>[];
-    final driverName = (detail?.driverName ?? _driverNameFromMessages(messages))
-        .trim();
-    final driverAvatarUrl = detail?.driverAvatarUrl?.trim();
+    final participantName =
+        (isDriverSession
+                ? (driverDetail?.customerName ??
+                      _participantNameFromMessages(messages, 'customer'))
+                : (customerDetail?.driverName ??
+                      _participantNameFromMessages(messages, 'driver')))
+            .trim();
+    final participantFallback = isDriverSession ? 'Customer' : 'Driver';
+    final participantRoleLabel = isDriverSession ? 'customer' : 'driver';
+    final participantAvatarUrl = isDriverSession
+        ? null
+        : customerDetail?.driverAvatarUrl?.trim();
 
     ref.listen<AsyncValue<OrderChatState>>(orderChatProvider(widget.orderId), (
       previous,
@@ -210,9 +225,12 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
       child: Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
-          title: _ChatDriverTitle(
-            driverName: driverName.isEmpty ? 'Driver' : driverName,
-            avatarUrl: driverAvatarUrl,
+          title: _ChatParticipantTitle(
+            participantName: participantName.isEmpty
+                ? participantFallback
+                : participantName,
+            participantRoleLabel: participantRoleLabel,
+            avatarUrl: participantAvatarUrl,
           ),
           backgroundColor: AppColors.white,
           elevation: 0,
@@ -319,10 +337,12 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
     );
   }
 
-  String _driverNameFromMessages(List<OrderChatMessageModel> messages) {
+  String _participantNameFromMessages(
+    List<OrderChatMessageModel> messages,
+    String role,
+  ) {
     for (final message in messages) {
-      if (message.senderRole == 'driver' &&
-          message.senderName.trim().isNotEmpty) {
+      if (message.senderRole == role && message.senderName.trim().isNotEmpty) {
         return message.senderName.trim();
       }
     }
@@ -331,24 +351,29 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
   }
 }
 
-class _ChatDriverTitle extends StatelessWidget {
-  const _ChatDriverTitle({required this.driverName, this.avatarUrl});
+class _ChatParticipantTitle extends StatelessWidget {
+  const _ChatParticipantTitle({
+    required this.participantName,
+    required this.participantRoleLabel,
+    this.avatarUrl,
+  });
 
-  final String driverName;
+  final String participantName;
+  final String participantRoleLabel;
   final String? avatarUrl;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        ProfileAvatar(name: driverName, avatarUrl: avatarUrl, size: 36),
+        ProfileAvatar(name: participantName, avatarUrl: avatarUrl, size: 36),
         const SizedBox(width: 10),
         Expanded(
           child: Row(
             children: [
               Flexible(
                 child: Text(
-                  driverName,
+                  participantName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -359,10 +384,10 @@ class _ChatDriverTitle extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 4),
-              const Text(
-                '(driver)',
+              Text(
+                '($participantRoleLabel)',
                 maxLines: 1,
-                style: TextStyle(
+                style: const TextStyle(
                   color: AppColors.textSecondary,
                   fontWeight: FontWeight.w400,
                   fontSize: 12.5,

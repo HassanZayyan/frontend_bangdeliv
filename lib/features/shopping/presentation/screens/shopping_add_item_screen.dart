@@ -880,7 +880,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
           'Tambah Item',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontWeight: FontWeight.w800),
+          style: TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
       body: SafeArea(

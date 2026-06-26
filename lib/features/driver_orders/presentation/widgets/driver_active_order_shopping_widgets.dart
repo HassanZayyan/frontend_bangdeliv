@@ -698,6 +698,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
 
   Widget _buildStopSection(DriverShoppingStopModel stop) {
     final activeItems = stop.items;
+    final merchantAddress = _displayMerchantAddress(stop.merchant);
     final quote = widget.order.shoppingNegotiation?.quoteForPickup(
       stop.pickupLocationId,
     );
@@ -797,12 +798,14 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
                 ),
             ],
           ),
-          if ((stop.merchant.address ?? '').trim().isNotEmpty) ...[
+          if (merchantAddress != null) ...[
             const SizedBox(height: 4),
             Padding(
               padding: const EdgeInsets.only(left: 32),
               child: Text(
-                stop.merchant.address!.trim(),
+                merchantAddress,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 12,
@@ -869,7 +872,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     required bool isOpeningStop,
   }) {
     final closeButton = BangActionButton(
-      label: 'Tempat tutup',
+      label: 'Tutup',
       variant: BangActionButtonVariant.outlined,
       icon: Icons.cancel_outlined,
       isLoading: isClosingStop,
@@ -878,35 +881,31 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.error,
         side: const BorderSide(color: AppColors.error),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
         minimumSize: const Size(0, 44),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        textStyle: GoogleFonts.inter(
-          fontSize: 14,
-          fontWeight: FontWeight.w800,
-        ),
+        textStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800),
       ),
     );
     final openButton = BangActionButton(
-      label: 'Tempat buka',
+      label: 'Buka',
       icon: Icons.storefront_outlined,
       isLoading: isOpeningStop,
       isEnabled: !widget.isOrderBusy || isOpeningStop,
       onPressed: () => _openMerchant(stop),
       style: FilledButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
         minimumSize: const Size(0, 44),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        textStyle: GoogleFonts.inter(
-          fontSize: 14,
-          fontWeight: FontWeight.w800,
-        ),
+        textStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800),
       ),
     );
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 300) {
+        if (constraints.maxWidth < 240) {
           return Column(
             children: [
               SizedBox(width: double.infinity, child: closeButton),
@@ -919,12 +918,50 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
         return Row(
           children: [
             Expanded(child: closeButton),
-            const SizedBox(width: 6),
+            const SizedBox(width: 8),
             Expanded(child: openButton),
           ],
         );
       },
     );
+  }
+
+  String? _displayMerchantAddress(DriverShoppingMerchantModel merchant) {
+    final address = (merchant.address ?? '').trim();
+    final hasMapPoint = merchant.latitude != null && merchant.longitude != null;
+    if (address.isEmpty || address == '-') {
+      return hasMapPoint ? 'Titik lokasi merchant' : null;
+    }
+
+    final lower = address.toLowerCase();
+    final looksLikeCoordinate = RegExp(
+      r'-?\d+\.\d+,\s*-?\d+\.\d+',
+    ).hasMatch(address);
+    if (looksLikeCoordinate ||
+        lower.contains('dummy') ||
+        lower.startsWith('lokasi bangdeliv')) {
+      return hasMapPoint ? 'Titik lokasi merchant' : null;
+    }
+
+    var cleaned = address;
+    final merchantPrefix = '${merchant.name.trim()},';
+    if (cleaned.toLowerCase().startsWith(merchantPrefix.toLowerCase())) {
+      cleaned = cleaned.substring(merchantPrefix.length).trim();
+    }
+
+    final segments = cleaned
+        .split(',')
+        .map((segment) => segment.trim())
+        .where(
+          (segment) =>
+              segment.isNotEmpty && segment.toLowerCase() != 'indonesia',
+        )
+        .toList(growable: false);
+    if (segments.isEmpty) {
+      return null;
+    }
+
+    return segments.take(3).join(', ');
   }
 
   String _stopStatusLabel(DriverShoppingStopModel stop) {

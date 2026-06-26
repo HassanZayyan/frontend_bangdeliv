@@ -48,7 +48,7 @@ class DriverOrderHistoryDetailScreen extends ConsumerWidget {
         appBar: AppBar(
           title: const Text(
             'Detail Pesanan',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
           ),
           backgroundColor: AppColors.white,
           elevation: 0,

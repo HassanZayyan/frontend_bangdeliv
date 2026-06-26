@@ -111,7 +111,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           'Edit Profil',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
         ),
         backgroundColor: AppColors.white,
         elevation: 0,

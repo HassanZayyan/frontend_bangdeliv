@@ -56,6 +56,8 @@ class CustomerOrderCard extends StatelessWidget {
       normal: 13,
       large: 12.4,
     );
+    final showCardNavigationCue =
+        showDetailHint && onTap != null && !showTrackAction;
 
     return Container(
       decoration: BoxDecoration(
@@ -120,15 +122,29 @@ class CustomerOrderCard extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            order.restaurantName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.inter(
-                              fontWeight: FontWeight.w700,
-                              fontSize: titleFontSize,
-                              color: AppColors.textPrimary,
-                            ),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  order.restaurantName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.inter(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: titleFontSize,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ),
+                              if (showCardNavigationCue) ...[
+                                const SizedBox(width: 6),
+                                const Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: AppColors.textSecondary,
+                                  size: 20,
+                                ),
+                              ],
+                            ],
                           ),
                           if (!hideItemsSummary) ...[
                             const SizedBox(height: 4),
@@ -175,7 +191,7 @@ class CustomerOrderCard extends StatelessWidget {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildOrderMeta(),
+                            _buildOrderMeta(context),
                             const SizedBox(height: 10),
                             _buildActionButtons(
                               context: context,
@@ -189,7 +205,7 @@ class CustomerOrderCard extends StatelessWidget {
                       return Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(child: _buildOrderMeta()),
+                          Expanded(child: _buildOrderMeta(context)),
                           if (_hasAnyAction) ...[
                             const SizedBox(width: 12),
                             _buildActionButtons(
@@ -216,7 +232,7 @@ class CustomerOrderCard extends StatelessWidget {
         (showReorderAction && onReorder != null);
   }
 
-  Widget _buildOrderMeta() {
+  Widget _buildOrderMeta(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -282,7 +298,7 @@ class CustomerOrderCard extends StatelessWidget {
       fontWeight: FontWeight.w700,
       height: 1.1,
     );
-    final dangerTextStyle = trackTextStyle.copyWith(color: AppColors.white);
+    final dangerTextStyle = trackTextStyle.copyWith(color: AppColors.error);
     final neutralTextStyle = buttonTextStyle.copyWith(
       color: AppColors.textSecondary,
     );
@@ -297,7 +313,7 @@ class CustomerOrderCard extends StatelessWidget {
             minimumSize: Size(0, trackButtonHeight),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(8),
             ),
           ),
           child: FittedBox(
@@ -315,15 +331,20 @@ class CustomerOrderCard extends StatelessWidget {
 
     if (showCancelAction && onCancel != null) {
       buttons.add(
-        ElevatedButton(
+        OutlinedButton(
           onPressed: isCancelling ? null : onCancel,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.error,
-            foregroundColor: AppColors.white,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.error,
+            disabledForegroundColor: AppColors.textMuted,
+            side: BorderSide(
+              color: isCancelling
+                  ? AppColors.border
+                  : AppColors.error.withValues(alpha: 0.55),
+            ),
             minimumSize: Size(0, buttonHeight),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
             ),
           ),
           child: isCancelling
@@ -332,7 +353,7 @@ class CustomerOrderCard extends StatelessWidget {
                   height: 14,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: AppColors.white,
+                    color: AppColors.error,
                   ),
                 )
               : FittedBox(

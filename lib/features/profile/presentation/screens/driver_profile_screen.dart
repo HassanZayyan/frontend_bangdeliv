@@ -63,7 +63,7 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
           'Profil Driver',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
         ),
         backgroundColor: AppColors.white,
         elevation: 0,
@@ -132,10 +132,10 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
                       ),
                       textStyle: GoogleFonts.inter(
                         fontSize: 15,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w700,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                       backgroundColor: AppColors.white,
                     ),
@@ -378,6 +378,7 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
   }) {
     return ListTile(
       onTap: onTap,
+      enableFeedback: false,
       leading: Icon(icon, color: AppColors.primary),
       title: Text(
         title,
@@ -502,6 +503,10 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
                     onTap: () => sheetContext.pop(true),
+                    splashFactory: NoSplash.splashFactory,
+                    overlayColor: const WidgetStatePropertyAll(
+                      Colors.transparent,
+                    ),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 14,

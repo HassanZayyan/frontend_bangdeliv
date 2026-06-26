@@ -1187,19 +1187,32 @@ class TrackRoutePoint extends StatelessWidget {
     required this.iconColor,
     required this.label,
     required this.value,
+    this.showConnector = false,
   });
 
   final IconData icon;
   final Color iconColor;
   final String label;
   final String value;
+  final bool showConnector;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: iconColor, size: 19),
+        SizedBox(
+          width: 20,
+          child: Column(
+            children: [
+              Icon(icon, color: iconColor, size: 19),
+              if (showConnector) ...[
+                const SizedBox(height: 4),
+                const _DashedRouteConnector(),
+              ],
+            ],
+          ),
+        ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -1228,6 +1241,49 @@ class TrackRoutePoint extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+class _DashedRouteConnector extends StatelessWidget {
+  const _DashedRouteConnector();
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: const Size(2, 34),
+      painter: _DashedRouteConnectorPainter(
+        color: AppColors.primary.withValues(alpha: 0.34),
+      ),
+    );
+  }
+}
+
+class _DashedRouteConnectorPainter extends CustomPainter {
+  const _DashedRouteConnectorPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round;
+    const dashHeight = 4.0;
+    const dashGap = 3.5;
+    var y = 0.0;
+    final centerX = size.width / 2;
+
+    while (y < size.height) {
+      final endY = (y + dashHeight).clamp(0.0, size.height);
+      canvas.drawLine(Offset(centerX, y), Offset(centerX, endY), paint);
+      y += dashHeight + dashGap;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedRouteConnectorPainter oldDelegate) {
+    return oldDelegate.color != color;
   }
 }
 

@@ -226,7 +226,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
       appBar: AppBar(
         title: Text(
           appBarTitle,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
         ),
         backgroundColor: AppColors.white,
         elevation: 0,
@@ -2046,8 +2046,9 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
             iconColor: AppColors.primary,
             label: pickupLabel,
             value: pickupText,
+            showConnector: true,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 2),
           TrackRoutePoint(
             icon: Icons.location_on,
             iconColor: AppColors.success,
