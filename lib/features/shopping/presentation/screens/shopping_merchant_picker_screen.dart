@@ -373,7 +373,7 @@ class _ShoppingMerchantPickerScreenState
                       fontWeight: FontWeight.w700,
                     ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                 ),
@@ -434,7 +434,7 @@ class _MerchantSearchEmptyState extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -515,7 +515,7 @@ class _MapSearchFooter extends StatelessWidget {
                 fontWeight: FontWeight.w700,
               ),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(999),
+                borderRadius: BorderRadius.circular(10),
               ),
             ),
           ),
@@ -542,20 +542,20 @@ class _MerchantPickerTile extends StatelessWidget {
 
     return Material(
       color: AppColors.white,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(10),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(color: AppColors.border),
           ),
           child: Row(
             children: [
               ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
                 child: SizedBox.square(
                   dimension: 68,
                   child: _MerchantImage(imageUrl: merchant.imageUrl),

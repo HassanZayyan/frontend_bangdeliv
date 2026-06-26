@@ -66,7 +66,7 @@ class ShoppingMerchantSearchSection extends StatelessWidget {
                     backgroundColor: AppColors.primary,
                     foregroundColor: AppColors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                   onPressed: isLoading ? null : onSearch,
@@ -93,7 +93,7 @@ class ShoppingMerchantSearchSection extends StatelessWidget {
                       foregroundColor: AppColors.primary,
                       side: const BorderSide(color: AppColors.primary),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                     onPressed: isLoading ? null : onOpenMapPicker,
@@ -142,8 +142,10 @@ bool _isSameMerchantOption(
     return selected.id == merchant.id;
   }
 
-  return selected.name.trim().toLowerCase() == merchant.name.trim().toLowerCase() &&
-      selected.address?.trim().toLowerCase() == merchant.address?.trim().toLowerCase();
+  return selected.name.trim().toLowerCase() ==
+          merchant.name.trim().toLowerCase() &&
+      selected.address?.trim().toLowerCase() ==
+          merchant.address?.trim().toLowerCase();
 }
 
 class _MerchantOptionCard extends StatelessWidget {
@@ -161,14 +163,14 @@ class _MerchantOptionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: AppColors.white,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(10),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         onTap: onTap,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: selected ? AppColors.primary : AppColors.border,
               width: selected ? 1.5 : 1,

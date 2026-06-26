@@ -24,7 +24,7 @@ class AddAddressScreen extends ConsumerStatefulWidget {
 class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
     with WidgetsBindingObserver {
   static const String _fixedProvince = 'Jawa Tengah';
-  static const double _buttonRadius = 8;
+  static const double _buttonRadius = 10;
   static const Map<String, Map<String, Map<String, List<String>>>>
   _coverageData = {
     'Kota Salatiga': {
@@ -1197,15 +1197,15 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
           fontWeight: FontWeight.w400,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: AppColors.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
         ),
       ),
@@ -1264,7 +1264,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
     required bool hasError,
   }) {
     final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(10),
       borderSide: BorderSide(
         color: hasError ? AppColors.error : AppColors.border,
       ),
@@ -1765,7 +1765,7 @@ class _AddressDefaultToggle extends StatelessWidget {
       checked: value,
       enabled: enabled,
       child: InkWell(
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(10),
         onTap: enabled ? () => onChanged(!value) : null,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
@@ -1777,7 +1777,7 @@ class _AddressDefaultToggle extends StatelessWidget {
             padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
               color: trackColor,
-              borderRadius: BorderRadius.circular(999),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: AnimatedAlign(
               duration: const Duration(milliseconds: 180),

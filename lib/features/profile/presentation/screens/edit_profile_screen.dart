@@ -154,7 +154,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                                       onTap: _isSubmitting
                                           ? null
                                           : _openAvatarPickerSheet,
-                                      borderRadius: BorderRadius.circular(100),
+                                      borderRadius: BorderRadius.circular(10),
                                       child: SizedBox(
                                         width: 44,
                                         height: 44,
@@ -293,7 +293,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             onPressed: _isSubmitting ? null : _handleSubmit,
             style: ElevatedButton.styleFrom(
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
               ),
             ),
             child: _isSubmitting
@@ -408,15 +408,15 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           vertical: 13,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: AppColors.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
         ),
       ),
@@ -446,7 +446,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       context: context,
       backgroundColor: AppColors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
       ),
       clipBehavior: Clip.antiAlias,
       builder: (sheetContext) {

@@ -38,7 +38,7 @@ class TrackingMapSection extends StatefulWidget {
     this.driverLocationUpdatedAt,
     this.encodedPolyline,
     this.height = 260,
-    this.borderRadius = 16,
+    this.borderRadius = 10,
     this.showLegend = true,
     this.followDriver = false,
     this.mapPadding,
@@ -498,7 +498,7 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: AppColors.white.withValues(alpha: 0.95),
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.border),
         ),
         child: const Text(
@@ -595,7 +595,7 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: AppColors.white.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Text(

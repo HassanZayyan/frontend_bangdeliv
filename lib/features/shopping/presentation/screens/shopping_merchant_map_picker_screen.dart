@@ -511,7 +511,7 @@ class _ShoppingMerchantMapPickerScreenState
             return const BorderSide(color: AppColors.border);
           }),
           shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
           backgroundColor: const WidgetStatePropertyAll(AppColors.surface),
           surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
@@ -738,7 +738,7 @@ class _SelectedPlacePanel extends StatelessWidget {
 
     return Material(
       color: AppColors.white,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(10),
       elevation: 6,
       shadowColor: Colors.black.withValues(alpha: 0.12),
       child: Padding(
@@ -815,7 +815,7 @@ class _SelectedPlacePanel extends StatelessWidget {
                     fontWeight: FontWeight.w800,
                   ),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
                 child: const Text('Pilih'),

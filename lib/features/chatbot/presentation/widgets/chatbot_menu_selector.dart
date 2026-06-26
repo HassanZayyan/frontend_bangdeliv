@@ -4,7 +4,7 @@ import '../../../../config/app_colors.dart';
 import '../../../../config/app_text_scaling.dart';
 import '../../../../models/chatbot_launch_args.dart';
 
-const double _chatbotButtonRadius = 8;
+const double _chatbotButtonRadius = 10;
 
 class ChatbotMenuSelector extends StatefulWidget {
   const ChatbotMenuSelector({
@@ -77,7 +77,7 @@ class _ChatbotMenuSelectorState extends State<ChatbotMenuSelector> {
           decoration: BoxDecoration(
             color: AppColors.white,
             border: Border.all(color: AppColors.border),
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -285,7 +285,7 @@ class _MenuThumbnail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(10),
       child: SizedBox(
         width: 48,
         height: 48,

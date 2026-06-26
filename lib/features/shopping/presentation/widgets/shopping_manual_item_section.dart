@@ -67,7 +67,7 @@ class ShoppingManualItemSection extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: AppColors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(color: AppColors.border),
           ),
           child: Column(
@@ -224,7 +224,7 @@ class _MenuQuickPickSectionState extends State<_MenuQuickPickSection> {
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: AppColors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(color: AppColors.border),
           ),
           child: Column(
@@ -285,7 +285,7 @@ class _MenuQuickPickTile extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         onTap: onAdd,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),

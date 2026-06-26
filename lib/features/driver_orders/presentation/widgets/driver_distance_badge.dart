@@ -20,7 +20,7 @@ class DriverDistanceBadge extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
           color: colors.background,
-          borderRadius: BorderRadius.circular(100),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: colors.foreground.withValues(alpha: 0.18)),
         ),
         child: Row(

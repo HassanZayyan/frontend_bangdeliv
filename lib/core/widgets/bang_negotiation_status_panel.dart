@@ -27,7 +27,7 @@ class BangNegotiationStatusPanel extends StatelessWidget {
       padding: EdgeInsets.all(compact ? 10 : 12),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
       child: Row(

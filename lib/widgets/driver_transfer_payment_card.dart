@@ -45,7 +45,7 @@ class DriverTransferPaymentCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -238,7 +238,7 @@ class DriverTransferPaymentCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: borderColor),
       ),
       child: Text(
@@ -314,7 +314,7 @@ class DriverTransferPaymentCard extends StatelessWidget {
       builder: (context) => Dialog(
         insetPadding: const EdgeInsets.all(18),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           child: InteractiveViewer(
             child: Image.network(
               url,
@@ -387,7 +387,7 @@ InputDecoration _transferDialogInputDecoration({
   String? prefixText,
 }) {
   final border = OutlineInputBorder(
-    borderRadius: BorderRadius.circular(12),
+    borderRadius: BorderRadius.circular(10),
     borderSide: const BorderSide(color: AppColors.border),
   );
 
@@ -465,7 +465,7 @@ class _TransferPaymentDialogState extends State<_TransferPaymentDialog> {
             constraints: const BoxConstraints(maxWidth: 420),
             child: Material(
               color: AppColors.white,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(10),
               clipBehavior: Clip.antiAlias,
               child: SingleChildScrollView(
                 child: Padding(

@@ -266,7 +266,7 @@ class _OrderCard extends StatelessWidget {
       useRootNavigator: true,
       backgroundColor: AppColors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
       ),
       builder: (sheetContext) {
         return _IncomingOrderDetailSheet(
@@ -288,7 +288,7 @@ class _OrderCard extends StatelessWidget {
     return Material(
       color: AppColors.white,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         side: const BorderSide(color: AppColors.border),
       ),
       clipBehavior: Clip.antiAlias,
@@ -421,7 +421,7 @@ class _IncomingOrderDetailSheet extends StatelessWidget {
             height: 4,
             decoration: BoxDecoration(
               color: AppColors.border,
-              borderRadius: BorderRadius.circular(99),
+              borderRadius: BorderRadius.circular(10),
             ),
           ),
           Padding(
@@ -602,7 +602,7 @@ class _OrderDecisionBar extends StatelessWidget {
                     ),
                     minimumSize: const Size(0, 48),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     textStyle: GoogleFonts.inter(
                       fontWeight: FontWeight.w700,
@@ -623,7 +623,7 @@ class _OrderDecisionBar extends StatelessWidget {
                     elevation: 0,
                     minimumSize: const Size(0, 48),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     textStyle: GoogleFonts.inter(
                       fontWeight: FontWeight.w700,
@@ -854,7 +854,7 @@ class _FeeSummaryRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Row(
@@ -1070,7 +1070,7 @@ class _OrderRouteSectionState extends State<_OrderRouteSection> {
                 foregroundColor: AppColors.primary,
                 backgroundColor: AppColors.white,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                   side: const BorderSide(color: AppColors.border),
                 ),
               ),
@@ -1088,7 +1088,7 @@ class _OrderRouteSectionState extends State<_OrderRouteSection> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: content,
@@ -1165,7 +1165,7 @@ class _CourierPackageSection extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(

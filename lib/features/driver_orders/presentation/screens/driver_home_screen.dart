@@ -668,7 +668,7 @@ class _DriverSurface extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: borderColor ?? AppColors.border),
         boxShadow: [
           BoxShadow(

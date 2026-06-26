@@ -45,7 +45,7 @@ class DriverShoppingItemChangeRequestCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -207,7 +207,7 @@ class _DriverShoppingMerchantQuotePanelState
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.primary.withValues(alpha: 0.045),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.primary.withValues(alpha: 0.14)),
       ),
       child: Column(
@@ -476,7 +476,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -760,7 +760,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
                   ),
                   decoration: BoxDecoration(
                     color: AppColors.error.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
                     stop.isFailed
@@ -785,7 +785,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
                   ),
                   decoration: BoxDecoration(
                     color: AppColors.primary.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
                     _stopStatusLabel(stop),
@@ -883,7 +883,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
         side: const BorderSide(color: AppColors.error),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
         minimumSize: const Size(0, 44),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         textStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800),
       ),
@@ -897,7 +897,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
       style: FilledButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
         minimumSize: const Size(0, 44),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         textStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800),
       ),
@@ -1047,14 +1047,14 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
           .map(
             (proof) => InkWell(
               onTap: () => _showProofPreview(proof),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
               child: SizedBox(
                 width: 96,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                       child: Image.network(
                         proof.photoUrl!,
                         width: 96,
@@ -1102,7 +1102,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
       builder: (context) => Dialog(
         insetPadding: const EdgeInsets.all(18),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           child: InteractiveViewer(
             child: Image.network(
               url,

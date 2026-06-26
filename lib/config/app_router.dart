@@ -593,7 +593,12 @@ const Set<String> _guestAccessibleRoutes = {
   AppRoutes.home,
   AppRoutes.menuDetail,
   AppRoutes.merchantDetail,
+  AppRoutes.nearbyMerchants,
+  _nearbyMerchantDetailRoute,
 };
+
+const String _nearbyMerchantDetailRoute =
+    '${AppRoutes.nearbyMerchants}/${AppRoutes.nearbyMerchantDetail}';
 
 const Set<String> _customerOnlyRoutes = {
   AppRoutes.home,

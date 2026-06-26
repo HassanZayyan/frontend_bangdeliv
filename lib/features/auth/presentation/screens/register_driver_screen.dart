@@ -145,16 +145,13 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
           decoration: BoxDecoration(
             color: AppColors.white,
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(22),
-              bottom: Radius.circular(22),
-            ),
-            border: Border.all(color: AppColors.border.withValues(alpha: 0.8)),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.border.withValues(alpha: 0.65)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.045),
-                blurRadius: 14,
-                offset: const Offset(0, 5),
+                color: Colors.black.withValues(alpha: 0.025),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
@@ -192,7 +189,7 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
   Widget _profileField({required String label, required String value}) {
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(10),
-      borderSide: const BorderSide(color: AppColors.border),
+      borderSide: BorderSide(color: AppColors.border.withValues(alpha: 0.85)),
     );
 
     return InputDecorator(
@@ -206,7 +203,7 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
         ),
         isDense: true,
         filled: true,
-        fillColor: AppColors.background,
+        fillColor: AppColors.surfaceAlt.withValues(alpha: 0.72),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 12,
           vertical: 12,
@@ -244,7 +241,7 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
       hintText: hintText,
       isDense: true,
       filled: true,
-      fillColor: AppColors.white,
+      fillColor: AppColors.surfaceAlt.withValues(alpha: 0.72),
       hintStyle: const TextStyle(
         color: AppColors.textSecondary,
         fontSize: 14,
@@ -253,11 +250,11 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: borderColor),
+        borderSide: BorderSide(color: borderColor.withValues(alpha: 0.85)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: borderColor),
+        borderSide: BorderSide(color: borderColor.withValues(alpha: 0.85)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
@@ -274,7 +271,7 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
         style: ElevatedButton.styleFrom(
           minimumSize: const Size.fromHeight(48),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
           ),
         ),
         child: _isSubmitting
@@ -316,7 +313,7 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
             enabled: !_isSubmitting,
             showLabels: true,
             filled: true,
-            fillColor: AppColors.white,
+            fillColor: AppColors.surfaceAlt.withValues(alpha: 0.72),
             vehicleTypeLabel: 'Jenis Motor',
             labelColor: AppColors.textSecondary,
             labelFontSize: 12,

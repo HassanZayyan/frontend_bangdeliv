@@ -25,7 +25,7 @@ class ShoppingInlineInfoPanel extends StatelessWidget {
         color: isError
             ? AppColors.error.withValues(alpha: 0.06)
             : AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: isError
               ? AppColors.error.withValues(alpha: 0.22)

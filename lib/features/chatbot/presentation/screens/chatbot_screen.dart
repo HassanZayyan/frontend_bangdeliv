@@ -15,6 +15,7 @@ import '../../../../models/route_location_picker_result.dart';
 import '../../../../models/user_profile_model.dart';
 import '../../../../services/customer_order_api_service.dart';
 import '../../../../utils/currency_formatter.dart';
+import '../../../../widgets/bang_chat_bubble.dart';
 import '../../../auth/application/auth_session_provider.dart';
 import '../../../orders/application/customer_order_providers.dart';
 import '../../application/chatbot_conversation_provider.dart';
@@ -22,7 +23,7 @@ import '../../../../utils/address_readiness.dart';
 import '../../../shopping/presentation/screens/shopping_merchant_map_picker_screen.dart';
 import '../widgets/chatbot_menu_selector.dart';
 
-const double _chatbotButtonRadius = 8;
+const double _chatbotButtonRadius = 10;
 
 class ChatbotScreen extends ConsumerStatefulWidget {
   const ChatbotScreen({super.key, this.launchArgs});
@@ -720,7 +721,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             decoration: const BoxDecoration(
               color: AppColors.white,
               border: Border(top: BorderSide(color: AppColors.border)),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
             ),
             child: SafeArea(
               child: Column(
@@ -776,19 +777,19 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                               ),
                             ),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
+                              borderRadius: BorderRadius.circular(10),
                               borderSide: const BorderSide(
                                 color: AppColors.border,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
+                              borderRadius: BorderRadius.circular(10),
                               borderSide: const BorderSide(
                                 color: AppColors.border,
                               ),
                             ),
                             focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
+                              borderRadius: BorderRadius.circular(10),
                               borderSide: const BorderSide(
                                 color: AppColors.primary,
                                 width: 1.2,
@@ -803,7 +804,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                       ),
                       const SizedBox(width: 12),
                       InkWell(
-                        borderRadius: BorderRadius.circular(25),
+                        borderRadius: BorderRadius.circular(10),
                         onTap: inputEnabled ? _sendMessage : null,
                         child: Container(
                           width: AppTextScaling.adaptive(
@@ -969,7 +970,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           decoration: BoxDecoration(
             color: AppColors.white,
             border: Border.all(color: AppColors.border),
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(10),
           ),
           child: child,
         ),
@@ -995,26 +996,23 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             ? CrossAxisAlignment.end
             : CrossAxisAlignment.start,
         children: [
-          Container(
+          BangChatBubble(
+            side: isUser ? BangChatBubbleSide.right : BangChatBubbleSide.left,
+            color: bubbleColor,
+            borderColor: isUser ? null : AppColors.border,
             margin: EdgeInsets.only(
               left: isUser ? 50 : 0,
               right: isUser ? 0 : 50,
               bottom: 6,
             ),
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: bubbleColor,
-              border: isUser
-                  ? null
-                  : Border.all(color: AppColors.border, width: 1),
-              borderRadius: BorderRadius.circular(16).copyWith(
-                topLeft: isUser
-                    ? const Radius.circular(16)
-                    : const Radius.circular(4),
-                topRight: isUser
-                    ? const Radius.circular(4)
-                    : const Radius.circular(16),
-              ),
+            borderRadius: BorderRadius.circular(10).copyWith(
+              topLeft: isUser
+                  ? const Radius.circular(10)
+                  : const Radius.circular(4),
+              topRight: isUser
+                  ? const Radius.circular(4)
+                  : const Radius.circular(10),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1860,15 +1858,66 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         ),
         if (parts.instructionLine.isNotEmpty) ...[
           const SizedBox(height: 10),
-          _buildAssistantInstructionText(
-            parts.instructionLine,
-            fontSize: 14.5,
-            height: 1.45,
-            fontWeight: FontWeight.w500,
-          ),
+          _buildSimplePromptInstruction(parts.instructionLine),
         ],
       ],
     );
+  }
+
+  Widget _buildSimplePromptInstruction(String text) {
+    final lines = _splitSimplePromptInstruction(text);
+    if (lines.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var index = 0; index < lines.length; index += 1) ...[
+          Text(
+            lines[index],
+            style: TextStyle(
+              color: _isExampleInstructionLine(lines[index])
+                  ? AppColors.textSecondary
+                  : AppColors.textPrimary,
+              fontSize: 14.5,
+              height: 1.45,
+              fontWeight: _isExampleInstructionLine(lines[index])
+                  ? FontWeight.w500
+                  : FontWeight.w600,
+            ),
+          ),
+          if (index < lines.length - 1) const SizedBox(height: 4),
+        ],
+      ],
+    );
+  }
+
+  List<String> _splitSimplePromptInstruction(String text) {
+    final lines = text
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
+
+    if (lines.length != 1) {
+      return lines;
+    }
+
+    final line = lines.single;
+    final exampleIndex = line.toLowerCase().indexOf(' contoh:');
+    if (exampleIndex <= 0) {
+      return lines;
+    }
+
+    return [
+      line.substring(0, exampleIndex).trim(),
+      line.substring(exampleIndex + 1).trim(),
+    ].where((line) => line.isNotEmpty).toList(growable: false);
+  }
+
+  bool _isExampleInstructionLine(String line) {
+    return line.trim().toLowerCase().startsWith('contoh:');
   }
 
   Widget _buildAssistantNotice(String text) {
@@ -2337,9 +2386,10 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   }
 
   _SimplePromptMessageParts? _tryParseCourierRouteSavedPrompt(String raw) {
-    final normalized = raw.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final normalized = raw.replaceAll('\r\n', '\n').trim();
+    final compact = normalized.replaceAll(RegExp(r'\s+'), ' ').trim();
     const headline = 'Titik ambil dan tujuan sudah saya simpan.';
-    if (!normalized.toLowerCase().startsWith(headline.toLowerCase())) {
+    if (!compact.toLowerCase().startsWith(headline.toLowerCase())) {
       return null;
     }
 

@@ -30,14 +30,14 @@ class NearbyMerchantCard extends StatelessWidget {
       color: AppColors.white,
       elevation: 2,
       shadowColor: AppColors.black.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(10),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Ink(
           decoration: BoxDecoration(
             color: AppColors.white,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(color: AppColors.border.withValues(alpha: 0.72)),
           ),
           child: Padding(
@@ -48,7 +48,7 @@ class NearbyMerchantCard extends StatelessWidget {
                 AspectRatio(
                   aspectRatio: imageAspectRatio,
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                     child: _MerchantImage(imageUrl: merchant.imageUrl),
                   ),
                 ),

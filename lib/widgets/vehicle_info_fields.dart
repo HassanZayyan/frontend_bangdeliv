@@ -27,7 +27,7 @@ class VehicleInfoFields extends StatelessWidget {
     this.labelFontWeight = FontWeight.w700,
     this.labelBottomSpacing = 6,
     this.fieldSpacing = 16,
-    this.borderRadius = 12,
+    this.borderRadius = 10,
     this.contentPadding = const EdgeInsets.symmetric(
       horizontal: 14,
       vertical: 13,
@@ -137,11 +137,11 @@ class VehicleInfoFields extends StatelessWidget {
             textInputAction: TextInputAction.next,
             style: fieldTextStyle,
             textCapitalization: capitalizeVehicleModel
-                ? TextCapitalization.characters
+                ? TextCapitalization.words
                 : TextCapitalization.none,
             keyboardType: TextInputType.text,
             inputFormatters: capitalizeVehicleModel
-                ? const [_UpperCaseTextFormatter()]
+                ? const [_VehicleModelTitleCaseFormatter()]
                 : null,
             decoration: _decoration(
               labelText: showLabels ? 'Tipe Motor' : null,
@@ -220,14 +220,27 @@ class VehicleInfoFields extends StatelessWidget {
   );
 }
 
-class _UpperCaseTextFormatter extends TextInputFormatter {
-  const _UpperCaseTextFormatter();
+class _VehicleModelTitleCaseFormatter extends TextInputFormatter {
+  const _VehicleModelTitleCaseFormatter();
 
   @override
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    return newValue.copyWith(text: newValue.text.toUpperCase());
+    final formatted = newValue.text.splitMapJoin(
+      RegExp(r'[A-Za-z]+'),
+      onMatch: (match) {
+        final word = match.group(0) ?? '';
+        if (word.isEmpty) {
+          return word;
+        }
+
+        return word[0].toUpperCase() + word.substring(1).toLowerCase();
+      },
+      onNonMatch: (text) => text,
+    );
+
+    return newValue.copyWith(text: formatted);
   }
 }

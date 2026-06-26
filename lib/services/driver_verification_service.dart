@@ -107,6 +107,39 @@ class DriverVerificationService {
     }
   }
 
+  static Future<void> cancelApplication() async {
+    final uri = Uri.parse('${AppEnv.apiBaseUrl}/v1/driver/verification');
+
+    try {
+      final response = await http
+          .delete(uri, headers: await AuthService.authorizedHeaders())
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return;
+      }
+
+      throw DriverVerificationException(
+        AuthService.extractErrorMessage(
+          response,
+          fallback: 'Gagal membatalkan pengajuan driver.',
+        ),
+      );
+    } on TimeoutException {
+      throw const DriverVerificationException(
+        'Koneksi ke server timeout. Silakan coba lagi.',
+      );
+    } on AuthException catch (e) {
+      throw DriverVerificationException(e.message);
+    } on DriverVerificationException {
+      rethrow;
+    } catch (_) {
+      throw const DriverVerificationException(
+        'Terjadi kesalahan saat membatalkan pengajuan driver.',
+      );
+    }
+  }
+
   static DriverVerificationStatusModel _parseStatus(http.Response response) {
     final dynamic decoded = response.body.isEmpty
         ? const <String, dynamic>{}

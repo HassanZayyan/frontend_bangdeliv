@@ -38,7 +38,7 @@ class BangShoppingMerchantRequestSummary extends StatelessWidget {
       padding: EdgeInsets.all(compact ? 10 : 12),
       decoration: BoxDecoration(
         color: AppColors.background,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -152,7 +152,7 @@ class BangShoppingMerchantRequestSummary extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: AppColors.primary.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
         label,

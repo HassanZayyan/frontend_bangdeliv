@@ -22,7 +22,7 @@ class BangSelectField extends StatelessWidget {
     this.labelBottomSpacing = 4,
     this.fieldFontSize = 14,
     this.hintFontSize = 14,
-    this.borderRadius = 12,
+    this.borderRadius = 10,
     this.contentPadding = const EdgeInsets.symmetric(
       horizontal: 14,
       vertical: 13,
@@ -244,7 +244,7 @@ class BangSelectField extends StatelessWidget {
         maxWidth: fieldWidth,
         maxHeight: menuMaxHeight,
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       items: items
           .map(
             (item) => PopupMenuItem<String>(

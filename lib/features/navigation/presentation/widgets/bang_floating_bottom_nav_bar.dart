@@ -123,7 +123,7 @@ class BangFloatingBottomNavOverlayTheme extends StatelessWidget {
       ),
       shape:
           theme.snackBarTheme.shape ??
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     );
 
     return Theme(

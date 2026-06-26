@@ -141,7 +141,7 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
               ),
               style: ElevatedButton.styleFrom(
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
             ),
@@ -288,14 +288,14 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
 
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(10),
       child: InkWell(
         onTap: widget.selectionMode ? () => _selectAddress(address) : null,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(color: AppColors.border),
           ),
           child: _buildAddressCardContent(address, isSelecting: isSelecting),
@@ -503,7 +503,7 @@ class _DefaultAddressBadge extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
         decoration: BoxDecoration(
           color: AppColors.white,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.primary, width: 1),
         ),
         child: const Text(

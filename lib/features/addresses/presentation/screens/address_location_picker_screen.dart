@@ -138,7 +138,7 @@ class _AddressLocationPickerScreenState
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(10),
                   child: Stack(
                     children: [
                       GoogleMap(
@@ -235,7 +235,7 @@ class _AddressLocationPickerScreenState
                             style:
                                 OutlinedButton.styleFrom(
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.circular(10),
                                   ),
                                   side: BorderSide(
                                     color: AppColors.primary.withValues(
@@ -282,7 +282,7 @@ class _AddressLocationPickerScreenState
                               backgroundColor: AppColors.primary,
                               foregroundColor: AppColors.white,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(10),
                               ),
                               elevation: 0,
                               padding: EdgeInsets.zero,
@@ -361,7 +361,7 @@ class _AddressLocationPickerScreenState
             return const BorderSide(color: AppColors.border);
           }),
           shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
           backgroundColor: const WidgetStatePropertyAll(AppColors.surface),
           surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),

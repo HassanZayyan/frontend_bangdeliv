@@ -242,7 +242,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                     }),
                     shape: WidgetStatePropertyAll(
                       RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                     backgroundColor: const WidgetStatePropertyAll(
@@ -306,7 +306,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(10),
                     child: Stack(
                       children: [
                         GoogleMap(
@@ -447,7 +447,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                       foregroundColor: AppColors.textPrimary,
                       side: const BorderSide(color: AppColors.border),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                     icon: _showLocationButtonLoading
@@ -500,7 +500,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                       alignment: Alignment.center,
                       textStyle: actionButtonTextStyle,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                     child: Text(
@@ -1078,7 +1078,7 @@ class _PointCard extends StatelessWidget {
       fontSize: 12,
     );
     return InkWell(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(10),
       onTap: onTap,
       child: ConstrainedBox(
         constraints: BoxConstraints(
@@ -1088,7 +1088,7 @@ class _PointCard extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: isActive ? color.withValues(alpha: 0.08) : AppColors.white,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isActive ? color : AppColors.border,
               width: isActive ? 1.4 : 1,
