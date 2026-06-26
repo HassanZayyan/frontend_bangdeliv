@@ -86,7 +86,7 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: _SummaryCard(
-                        title: 'Pendapatan Bersih',
+                        title: 'Pendapatan',
                         value: formatCurrency(totalIncome),
                         icon: Icons.payments_outlined,
                       ),
@@ -154,7 +154,7 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
           _selectedFilter = filter;
         });
       },
-      selectedColor: AppColors.primary.withValues(alpha: 0.2),
+      selectedColor: AppColors.white,
       labelStyle: TextStyle(
         color: selected ? AppColors.primaryDark : AppColors.textSecondary,
         fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
@@ -162,6 +162,7 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
       side: BorderSide(color: selected ? AppColors.primary : AppColors.border),
       showCheckmark: false,
       backgroundColor: AppColors.white,
+      surfaceTintColor: AppColors.white,
     );
   }
 

@@ -87,7 +87,7 @@ class AppTheme {
         centerTitle: false,
         titleTextStyle: GoogleFonts.inter(
           color: AppColors.textPrimary,
-          fontSize: 17,
+          fontSize: 18,
           fontWeight: FontWeight.w700,
         ),
       ),

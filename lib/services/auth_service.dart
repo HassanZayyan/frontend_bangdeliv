@@ -504,12 +504,12 @@ class AuthService {
     }
   }
 
-  static Future<void> logout() async {
+  static Future<void> logout({Map<String, String>? headers}) async {
     final uri = Uri.parse('${AppEnv.apiBaseUrl}/auth/logout');
 
     try {
       await http
-          .post(uri, headers: await authorizedHeaders())
+          .post(uri, headers: headers ?? await authorizedHeaders())
           .timeout(const Duration(seconds: 20));
     } catch (_) {
       // Clear local token even if remote revoke fails.

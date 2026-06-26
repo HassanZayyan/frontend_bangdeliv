@@ -96,7 +96,7 @@ class VehicleInfoFields extends StatelessWidget {
           hintFontSize: hintFontSize,
           borderRadius: borderRadius,
           contentPadding: contentPadding,
-          selectedFontWeight: FontWeight.w600,
+          selectedFontWeight: FontWeight.w500,
         ),
         if (hasVehicleType) ...[
           SizedBox(height: fieldSpacing),
@@ -126,7 +126,7 @@ class VehicleInfoFields extends StatelessWidget {
             hintFontSize: hintFontSize,
             borderRadius: borderRadius,
             contentPadding: contentPadding,
-            selectedFontWeight: FontWeight.w600,
+            selectedFontWeight: FontWeight.w500,
           ),
         ],
         if (hasVehicleBrand) ...[
