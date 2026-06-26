@@ -10,6 +10,7 @@ import '../../../../config/app_text_scaling.dart';
 import '../../../../models/user_profile_model.dart';
 import '../../../auth/application/auth_session_provider.dart';
 import '../../../../services/auth_service.dart';
+import '../../../../widgets/bang_ui.dart';
 import '../../../../widgets/profile_avatar.dart';
 import '../../../navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
 
@@ -104,42 +105,35 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
             onRefresh: _reloadProfile,
             child: ListView(
               padding: const EdgeInsets.fromLTRB(
-                16,
-                16,
-                16,
+                20,
+                14,
+                20,
                 BangFloatingBottomNavBar.scrollClearance,
               ),
               children: [
-                _buildIdentityCard(profile),
+                _buildProfileHero(profile),
+                const SizedBox(height: 20),
+                _buildStatsCard(profile),
+                const SizedBox(height: 24),
+                _sectionTitle('Data Operasional'),
                 const SizedBox(height: 12),
                 _buildOperationalCard(profile.driverProfile),
+                const SizedBox(height: 26),
+                _sectionTitle('Akun & Pengaturan'),
                 const SizedBox(height: 12),
                 _buildQuickActionCard(context),
-                const SizedBox(height: 18),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: _handleLogout,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.error,
-                      side: BorderSide(
-                        color: AppColors.error.withValues(alpha: 0.38),
-                      ),
-                      minimumSize: const Size.fromHeight(48),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      textStyle: GoogleFonts.inter(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      backgroundColor: AppColors.white,
+                const SizedBox(height: 12),
+                _buildHelpCard(),
+                const SizedBox(height: 12),
+                _buildLogoutButton(),
+                const SizedBox(height: 12),
+                const Center(
+                  child: Text(
+                    'Versi Aplikasi 1.0.0',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12.5,
                     ),
-                    child: const Text('Keluar dari Akun'),
                   ),
                 ),
               ],
@@ -150,23 +144,24 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
     );
   }
 
-  Widget _buildIdentityCard(UserProfileModel profile) {
-    final driverProfile = profile.driverProfile;
-    final completedOrders = (driverProfile?.totalDeliveries ?? 0) > 0
-        ? driverProfile!.totalDeliveries
-        : profile.stats.totalOrders;
+  Future<void> _openEditProfile() async {
+    final updated = await context.push<bool>(AppRoutes.editProfile);
+    if (updated == true && mounted) {
+      await _reloadProfile();
+    }
+  }
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+  Widget _buildProfileHero(UserProfileModel profile) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _openEditProfile,
+        borderRadius: BorderRadius.circular(18),
+        splashFactory: NoSplash.splashFactory,
+        overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
             children: [
               ProfileAvatar(
                 name: profile.name,
@@ -210,13 +205,29 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
                   ],
                 ),
               ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.textSecondary,
+              ),
             ],
           ),
-          const SizedBox(height: 12),
-          const Divider(color: AppColors.border),
-          const SizedBox(height: 6),
-          _miniStat('Order Selesai', completedOrders.toString()),
-        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatsCard(UserProfileModel profile) {
+    final driverProfile = profile.driverProfile;
+    final completedOrders = (driverProfile?.totalDeliveries ?? 0) > 0
+        ? driverProfile!.totalDeliveries
+        : profile.stats.totalOrders;
+
+    return BangCard(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      child: _DriverStatItem(
+        icon: Icons.task_alt_rounded,
+        value: completedOrders.toString(),
+        label: 'Order Selesai',
       ),
     );
   }
@@ -230,25 +241,11 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
     final vehicleModel = (driverProfile?.vehicleModel ?? '').trim();
     final vehiclePlate = (driverProfile?.vehiclePlate ?? '').trim();
 
-    return Container(
+    return BangCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Data Operasional',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 10),
           _labelPill(
             _operationalLabel(operationalStatus),
             foreground: _operationalColor(operationalStatus),
@@ -270,23 +267,14 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
   }
 
   Widget _buildQuickActionCard(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
+    return BangCard(
+      padding: EdgeInsets.zero,
       child: Column(
         children: [
           _actionTile(
             icon: Icons.person_outline,
             title: 'Edit Profil',
-            onTap: () async {
-              final updated = await context.push<bool>(AppRoutes.editProfile);
-              if (updated == true && mounted) {
-                await _reloadProfile();
-              }
-            },
+            onTap: _openEditProfile,
           ),
           const Divider(height: 1, indent: 56, color: AppColors.border),
           _actionTile(
@@ -305,13 +293,53 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
               }
             },
           ),
-          const Divider(height: 1, indent: 56, color: AppColors.border),
-          _actionTile(
-            icon: Icons.help_outline,
-            title: 'Bantuan Driver',
-            onTap: _showHelpCenter,
-          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildHelpCard() {
+    return BangCard(
+      padding: EdgeInsets.zero,
+      child: _actionTile(
+        icon: Icons.support_agent,
+        title: 'Bantuan Driver',
+        onTap: _showHelpCenter,
+      ),
+    );
+  }
+
+  Widget _buildLogoutButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: _handleLogout,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.error,
+          side: BorderSide(color: AppColors.error.withValues(alpha: 0.38)),
+          minimumSize: const Size.fromHeight(48),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          textStyle: GoogleFonts.inter(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          backgroundColor: AppColors.white,
+        ),
+        child: const Text('Keluar'),
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String title) {
+    return Text(
+      title,
+      style: const TextStyle(
+        color: AppColors.textSecondary,
+        fontSize: 15,
+        fontWeight: FontWeight.w800,
       ),
     );
   }
@@ -391,27 +419,6 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
         ),
       ),
       trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
-    );
-  }
-
-  Widget _miniStat(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            color: AppColors.primaryDark,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-        ),
-      ],
     );
   }
 
@@ -642,5 +649,63 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
     }
 
     context.go(AppRoutes.login);
+  }
+}
+
+class _DriverStatItem extends StatelessWidget {
+  const _DriverStatItem({
+    required this.icon,
+    required this.value,
+    required this.label,
+  });
+
+  final IconData icon;
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 24,
+          child: Icon(icon, color: AppColors.primary, size: 22),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: AppTextScaling.adaptive(
+                    context,
+                    normal: 18,
+                    large: 16,
+                  ),
+                  fontWeight: FontWeight.w800,
+                  height: 1.1,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }

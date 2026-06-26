@@ -25,6 +25,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   bool _isSubmitting = false;
   bool _isPasswordVisible = false;
   bool _wasKeyboardVisible = false;
+  String? _loginErrorMessage;
 
   @override
   void initState() {
@@ -39,6 +40,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     if (mounted) {
       setState(() {});
     }
+  }
+
+  void _clearLoginError() {
+    if (_loginErrorMessage == null) {
+      return;
+    }
+
+    setState(() {
+      _loginErrorMessage = null;
+    });
   }
 
   Future<void> _prefillLastLoginEmail() async {
@@ -203,6 +214,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             focusNode: _emailFocusNode,
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.next,
+            onChanged: (_) => _clearLoginError(),
             style: const TextStyle(
               color: AppColors.textPrimary,
               fontSize: 14,
@@ -228,6 +240,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             obscureText: !_isPasswordVisible,
             textInputAction: TextInputAction.done,
             onFieldSubmitted: (_) => _handleLogin(),
+            onChanged: (_) => _clearLoginError(),
             style: const TextStyle(
               color: AppColors.textPrimary,
               fontSize: 14,
@@ -259,7 +272,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               }
               return null;
             },
-            ),
+          ),
 
           Align(
             alignment: Alignment.centerRight,
@@ -279,6 +292,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           ),
 
           SizedBox(height: isCompact ? 10 : 16),
+
+          if (_loginErrorMessage != null) ...[
+            _LoginErrorBanner(message: _loginErrorMessage!),
+            SizedBox(height: isCompact ? 10 : 12),
+          ],
 
           BangPrimaryButton(
             label: 'Masuk',
@@ -385,6 +403,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       return;
     }
 
+    FocusScope.of(context).unfocus();
+
     final currentState = _formKey.currentState;
     if (currentState == null || !currentState.validate()) {
       return;
@@ -392,6 +412,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
     setState(() {
       _isSubmitting = true;
+      _loginErrorMessage = null;
     });
 
     try {
@@ -417,12 +438,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.message),
-          backgroundColor: Colors.red.shade600,
-        ),
-      );
+      setState(() {
+        _loginErrorMessage = e.message;
+      });
     } finally {
       if (mounted) {
         setState(() {
@@ -444,5 +462,46 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+}
+
+class _LoginErrorBanner extends StatelessWidget {
+  const _LoginErrorBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.32)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.error_outline_rounded,
+            color: AppColors.error,
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: AppColors.error,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

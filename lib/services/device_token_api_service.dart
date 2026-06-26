@@ -25,12 +25,15 @@ class DeviceTokenApiService {
     }
   }
 
-  Future<void> unregisterDeviceToken({required String token}) async {
+  Future<void> unregisterDeviceToken({
+    required String token,
+    Map<String, String>? headers,
+  }) async {
     try {
       await _apiClient.delete(
         '/v1/device-tokens',
         body: <String, dynamic>{'token': token},
-        headers: await AuthService.authorizedHeaders(),
+        headers: headers ?? await AuthService.authorizedHeaders(),
         timeout: _deviceTokenTimeout,
       );
     } on AuthException catch (error) {

@@ -178,14 +178,7 @@ class _CustomerAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ProfileAvatar(
-      name: name,
-      size: 42,
-      backgroundColor: AppColors.surfaceAlt,
-      initialColor: AppColors.primaryDark,
-      borderColor: AppColors.border,
-      borderWidth: 1,
-    );
+    return ProfileAvatar(name: name, size: 42);
   }
 }
 
@@ -267,6 +260,7 @@ class DriverOrderRouteCard extends StatelessWidget {
                   if (address.isNotEmpty) address,
                   ?status,
                 ].join('\n'),
+                emphasizeFirstValueLine: true,
               ),
             );
           }),
@@ -286,7 +280,14 @@ class DriverOrderRouteCard extends StatelessWidget {
     required Color iconColor,
     required String title,
     required String value,
+    bool emphasizeFirstValueLine = false,
   }) {
+    final valueLines = value
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -310,15 +311,37 @@ class DriverOrderRouteCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 2),
-              Text(
-                value,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  height: 1.35,
+              if (emphasizeFirstValueLine && valueLines.isNotEmpty)
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: valueLines.first,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      if (valueLines.length > 1)
+                        TextSpan(
+                          text: '\n${valueLines.skip(1).join('\n')}',
+                          style: const TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                    ],
+                  ),
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    height: 1.35,
+                  ),
+                )
+              else
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    height: 1.35,
+                  ),
                 ),
-              ),
             ],
           ),
         ),

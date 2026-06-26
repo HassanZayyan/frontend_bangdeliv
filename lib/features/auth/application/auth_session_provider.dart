@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/user_profile_model.dart';
@@ -93,7 +95,10 @@ class AuthSessionState {
 }
 
 class AuthSessionNotifier extends Notifier<AuthSessionState> {
+  static const Duration _logoutCleanupTimeout = Duration(seconds: 3);
+
   bool _isInitializing = false;
+  bool _isLoggingOut = false;
 
   @override
   AuthSessionState build() {
@@ -150,16 +155,47 @@ class AuthSessionNotifier extends Notifier<AuthSessionState> {
   }
 
   Future<void> logout() async {
-    await FirebaseNotificationService.unregisterCurrentToken(
-      unregisterToken: (token) {
-        return ref
-            .read(deviceTokenApiServiceProvider)
-            .unregisterDeviceToken(token: token);
-      },
-    );
-    await AuthService.logout();
-    FirebaseNotificationService.clearBackendTokenSync();
-    state = const AuthSessionState.guest();
+    if (_isLoggingOut) {
+      return;
+    }
+
+    _isLoggingOut = true;
+    Map<String, String>? logoutHeaders;
+    try {
+      logoutHeaders = await AuthService.authorizedHeaders();
+    } catch (_) {
+      logoutHeaders = null;
+    }
+
+    try {
+      state = const AuthSessionState.guest();
+      await AuthService.clearLocalSession();
+      FirebaseNotificationService.clearBackendTokenSync();
+
+      unawaited(_cleanupRemoteLogout(headers: logoutHeaders));
+    } finally {
+      _isLoggingOut = false;
+    }
+  }
+
+  Future<void> _cleanupRemoteLogout({Map<String, String>? headers}) async {
+    try {
+      await FirebaseNotificationService.unregisterCurrentToken(
+        unregisterToken: (token) {
+          return ref
+              .read(deviceTokenApiServiceProvider)
+              .unregisterDeviceToken(token: token, headers: headers);
+        },
+      ).timeout(_logoutCleanupTimeout);
+    } catch (_) {
+      // Local logout has already completed. Remote token cleanup is best effort.
+    }
+
+    try {
+      await AuthService.logout(headers: headers).timeout(_logoutCleanupTimeout);
+    } catch (_) {
+      // Local logout has already completed. Remote session revoke is best effort.
+    }
   }
 }
 
