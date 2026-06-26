@@ -1484,19 +1484,13 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
   List<ChatbotMessageActionHint> _orderCreatedActionHints(
     ChatbotResult result,
   ) {
-    final hints = <ChatbotMessageActionHint>[
+    return <ChatbotMessageActionHint>[
       ChatbotMessageActionHint(
         type: ChatbotMessageActionType.openTrackOrder,
         label: 'Lacak Pesanan',
         orderId: result.createdOrderId,
       ),
-      const ChatbotMessageActionHint(
-        type: ChatbotMessageActionType.openActivity,
-        label: 'Lihat Aktivitas',
-      ),
     ];
-
-    return hints;
   }
 
   ChatbotMessageActionHint _presetMessageHintFromPayload(

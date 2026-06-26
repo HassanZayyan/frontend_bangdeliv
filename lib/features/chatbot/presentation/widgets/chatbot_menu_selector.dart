@@ -4,6 +4,8 @@ import '../../../../config/app_colors.dart';
 import '../../../../config/app_text_scaling.dart';
 import '../../../../models/chatbot_launch_args.dart';
 
+const double _chatbotButtonRadius = 8;
+
 class ChatbotMenuSelector extends StatefulWidget {
   const ChatbotMenuSelector({
     super.key,
@@ -110,7 +112,7 @@ class _ChatbotMenuSelectorState extends State<ChatbotMenuSelector> {
                     foregroundColor: AppColors.white,
                     disabledForegroundColor: AppColors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(_chatbotButtonRadius),
                     ),
                   ),
                   child: Text(
@@ -185,7 +187,9 @@ class _MenuSelectorHeader extends StatelessWidget {
         side: const BorderSide(color: AppColors.primary, width: 1.2),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         visualDensity: VisualDensity.compact,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_chatbotButtonRadius),
+        ),
       ),
     );
 
@@ -366,7 +370,7 @@ class _QuantityStepper extends StatelessWidget {
       height: 34,
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(_chatbotButtonRadius),
         border: Border.all(color: AppColors.border),
       ),
       clipBehavior: Clip.antiAlias,

@@ -210,7 +210,7 @@ class _MerchantDetailView extends StatelessWidget {
             'Detail Toko & Resto',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
           ),
           backgroundColor: AppColors.white,
           elevation: 0,
@@ -679,7 +679,11 @@ class _MerchantInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final distance = (displayDistance ?? merchant.distance).trim();
-    final hasDistance = distance.isNotEmpty && distance != '-';
+    final metadata = <String>[
+      if (menuCount > 0) '$menuCount menu tersedia' else 'Menu',
+      if (merchant.merchantType.trim().isNotEmpty)
+        _merchantTypeLabel(merchant.merchantType),
+    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -695,26 +699,8 @@ class _MerchantInfo extends StatelessWidget {
             height: 1.18,
           ),
         ),
-        if (hasDistance) ...[
-          const SizedBox(height: 12),
-          _InfoRow(icon: Icons.near_me_outlined, text: distance),
-        ],
         const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _InfoPill(
-              icon: Icons.restaurant_menu_outlined,
-              label: menuCount > 0 ? '$menuCount menu tersedia' : 'Menu',
-            ),
-            if (merchant.merchantType.trim().isNotEmpty)
-              _InfoPill(
-                icon: Icons.storefront_outlined,
-                label: _merchantTypeLabel(merchant.merchantType),
-              ),
-          ],
-        ),
+        _MerchantMetadataLine(distance: distance, items: metadata),
       ],
     );
   }
@@ -729,65 +715,60 @@ class _MerchantInfo extends StatelessWidget {
   }
 }
 
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.icon, required this.text});
+class _MerchantMetadataLine extends StatelessWidget {
+  const _MerchantMetadataLine({required this.distance, required this.items});
 
-  final IconData icon;
-  final String text;
+  final String distance;
+  final List<String> items;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 18, color: AppColors.textSecondary),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text.trim().isEmpty ? '-' : text,
-            style: const TextStyle(
-              fontSize: 13.5,
-              color: AppColors.textSecondary,
-              height: 1.35,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      ],
+    final hasDistance = distance.isNotEmpty && distance != '-';
+    final visibleItems = items
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+
+    if (!hasDistance && visibleItems.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final textStyle = TextStyle(
+      fontSize: AppTextScaling.adaptive(context, normal: 13.5, large: 12.8),
+      color: AppColors.textSecondary,
+      height: 1.35,
+      fontWeight: FontWeight.w600,
     );
-  }
-}
 
-class _InfoPill extends StatelessWidget {
-  const _InfoPill({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 15, color: AppColors.primary),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 11.5,
-              fontWeight: FontWeight.w700,
-            ),
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 7,
+      runSpacing: 5,
+      children: [
+        if (hasDistance)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.near_me_outlined,
+                size: 17,
+                color: AppColors.textSecondary,
+              ),
+              const SizedBox(width: 6),
+              Text(distance, style: textStyle),
+            ],
           ),
+        for (final item in visibleItems) ...[
+          if (hasDistance || item != visibleItems.first)
+            Text(
+              '•',
+              style: textStyle.copyWith(
+                color: AppColors.textSecondary.withValues(alpha: 0.72),
+              ),
+            ),
+          Text(item, style: textStyle),
         ],
-      ),
+      ],
     );
   }
 }
@@ -993,7 +974,7 @@ class _MerchantDetailLoadingState extends StatelessWidget {
       appBar: AppBar(
         title: const Text(
           'Detail Toko & Resto',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
         ),
         backgroundColor: AppColors.white,
         elevation: 0,
@@ -1026,7 +1007,7 @@ class _MerchantDetailErrorState extends StatelessWidget {
           'Detail Toko & Resto',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
         ),
         backgroundColor: AppColors.white,
         elevation: 0,

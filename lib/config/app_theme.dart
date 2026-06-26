@@ -3,6 +3,25 @@ import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 
 class AppTheme {
+  static WidgetStateProperty<Color?> get _brandButtonOverlay {
+    return WidgetStateProperty.resolveWith((states) {
+      if (states.contains(WidgetState.disabled)) {
+        return Colors.transparent;
+      }
+      if (states.contains(WidgetState.pressed)) {
+        return AppColors.primary.withValues(alpha: 0.10);
+      }
+      if (states.contains(WidgetState.hovered) ||
+          states.contains(WidgetState.focused)) {
+        return AppColors.primary.withValues(alpha: 0.06);
+      }
+      return Colors.transparent;
+    });
+  }
+
+  static const WidgetStateProperty<Color?> _transparentOverlay =
+      WidgetStatePropertyAll<Color?>(Colors.transparent);
+
   static ThemeData get lightTheme {
     final baseTextTheme = GoogleFonts.interTextTheme();
 
@@ -17,6 +36,11 @@ class AppTheme {
       ),
       scaffoldBackgroundColor: AppColors.background,
       dividerColor: AppColors.divider,
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      hoverColor: Colors.transparent,
+      focusColor: Colors.transparent,
+      splashFactory: NoSplash.splashFactory,
 
       textTheme: baseTextTheme.copyWith(
         displayLarge: GoogleFonts.inter(
@@ -91,7 +115,7 @@ class AppTheme {
             fontSize: 16,
             fontWeight: FontWeight.w600,
           ),
-        ),
+        ).copyWith(overlayColor: _brandButtonOverlay),
       ),
 
       filledButtonTheme: FilledButtonThemeData(
@@ -107,7 +131,7 @@ class AppTheme {
             fontSize: 14,
             fontWeight: FontWeight.w700,
           ),
-        ),
+        ).copyWith(overlayColor: _brandButtonOverlay),
       ),
 
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -122,8 +146,20 @@ class AppTheme {
             fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
-        ),
+        ).copyWith(overlayColor: _brandButtonOverlay),
       ),
+
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.primary,
+        ).copyWith(overlayColor: _brandButtonOverlay),
+      ),
+
+      iconButtonTheme: const IconButtonThemeData(
+        style: ButtonStyle(overlayColor: _transparentOverlay),
+      ),
+
+      listTileTheme: const ListTileThemeData(enableFeedback: false),
 
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: AppColors.surface,

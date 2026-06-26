@@ -24,6 +24,7 @@ class AddAddressScreen extends ConsumerStatefulWidget {
 class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
     with WidgetsBindingObserver {
   static const String _fixedProvince = 'Jawa Tengah';
+  static const double _buttonRadius = 8;
   static const Map<String, Map<String, Map<String, List<String>>>>
   _coverageData = {
     'Kota Salatiga': {
@@ -673,7 +674,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
             _isEditMode ? 'Ubah Alamat' : 'Tambah Alamat',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
           ),
           backgroundColor: AppColors.white,
           elevation: 0,
@@ -753,7 +754,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
                                 label: 'Detail Alamat',
                                 controller: _fullAddressController,
                                 focusNode: _fullAddressFocusNode,
-                                hintText: 'Jalan, RT/RW, patokan',
+                                hintText: 'Jalan, no rumah, RT/RW, patokan',
                                 maxLines: isCompact ? 2 : 3,
                                 validator: (value) {
                                   final text = value?.trim() ?? '';
@@ -769,89 +770,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
                               _buildAddressSettingsSection(),
                               SizedBox(height: isCompact ? 10 : 14),
                               if (_isEditMode)
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: SizedBox(
-                                        height: buttonHeight,
-                                        child: OutlinedButton(
-                                          onPressed:
-                                              (_isSubmitting || _isDeleting)
-                                              ? null
-                                              : _handleDeleteAddress,
-                                          style: OutlinedButton.styleFrom(
-                                            side: const BorderSide(
-                                              color: AppColors.error,
-                                            ),
-                                            foregroundColor: AppColors.error,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                            ),
-                                          ),
-                                          child: _isDeleting
-                                              ? const SizedBox(
-                                                  width: 18,
-                                                  height: 18,
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                        strokeWidth: 2,
-                                                        color: AppColors.error,
-                                                      ),
-                                                )
-                                              : const Text(
-                                                  'Hapus Alamat',
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: SizedBox(
-                                        height: buttonHeight,
-                                        child: ElevatedButton(
-                                          onPressed:
-                                              (_isSubmitting || _isDeleting)
-                                              ? null
-                                              : _handleSave,
-                                          style: ElevatedButton.styleFrom(
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                            ),
-                                            padding: EdgeInsets.zero,
-                                            minimumSize: Size.zero,
-                                            tapTargetSize: MaterialTapTargetSize
-                                                .shrinkWrap,
-                                          ),
-                                          child: _isSubmitting
-                                              ? const SizedBox(
-                                                  width: 18,
-                                                  height: 18,
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                        strokeWidth: 2,
-                                                        color: AppColors.white,
-                                                      ),
-                                                )
-                                              : const Text(
-                                                  'Simpan',
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: TextStyle(
-                                                    fontSize: 15,
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                )
+                                _buildEditAddressActions(buttonHeight)
                               else
                                 SizedBox(
                                   width: double.infinity,
@@ -862,7 +781,9 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
                                         : _handleSave,
                                     style: ElevatedButton.styleFrom(
                                       shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
+                                        borderRadius: BorderRadius.circular(
+                                          _buttonRadius,
+                                        ),
                                       ),
                                       padding: EdgeInsets.zero,
                                       minimumSize: Size.zero,
@@ -898,6 +819,85 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
                 ),
               ),
       ),
+    );
+  }
+
+  Widget _buildEditAddressActions(double buttonHeight) {
+    final effectiveButtonHeight = (buttonHeight - 6).clamp(44.0, buttonHeight);
+
+    return Row(
+      children: [
+        Expanded(
+          child: SizedBox(
+            height: effectiveButtonHeight,
+            child: OutlinedButton(
+              onPressed: (_isSubmitting || _isDeleting)
+                  ? null
+                  : _handleDeleteAddress,
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.error),
+                foregroundColor: AppColors.error,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(_buttonRadius),
+                ),
+              ),
+              child: _isDeleting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.error,
+                      ),
+                    )
+                  : const Text(
+                      'Hapus Alamat',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: SizedBox(
+            height: effectiveButtonHeight,
+            child: ElevatedButton(
+              onPressed: (_isSubmitting || _isDeleting) ? null : _handleSave,
+              style: ElevatedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(_buttonRadius),
+                ),
+                padding: EdgeInsets.zero,
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: _isSubmitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.white,
+                      ),
+                    )
+                  : const Text(
+                      'Simpan',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1427,7 +1427,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
         style: const TextStyle(
           color: AppColors.textPrimary,
           fontSize: 14,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w500,
         ),
       ),
     );
@@ -1455,7 +1455,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
       hintFontSize: 14,
       borderRadius: 10,
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      selectedFontWeight: FontWeight.w600,
+      selectedFontWeight: FontWeight.w500,
     );
   }
 
@@ -1503,7 +1503,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
                       color: AppColors.primary.withValues(alpha: 0.55),
                     ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(_buttonRadius),
                     ),
                   ).copyWith(
                     overlayColor: WidgetStatePropertyAll(
@@ -1616,7 +1616,7 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(_buttonRadius),
         onTap: () {
           if (_isSubmitting || _isDeleting) {
             return;
@@ -1632,19 +1632,22 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
           decoration: BoxDecoration(
-            color: isSelected ? AppColors.primaryLight : AppColors.white,
-            borderRadius: BorderRadius.circular(8),
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(_buttonRadius),
             border: Border.all(
               color: isSelected ? AppColors.primary : AppColors.border,
+              width: isSelected ? 1.3 : 1,
             ),
           ),
           alignment: Alignment.center,
           child: Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: isSelected ? AppColors.primaryDark : AppColors.textPrimary,
               fontSize: 12,
-              fontWeight: FontWeight.w600,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
             ),
           ),
         ),

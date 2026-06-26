@@ -567,7 +567,7 @@ class _ShoppingMerchantMapPickerScreenState
           'Pilih Toko/Resto',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
         ),
       ),
       body: SafeArea(

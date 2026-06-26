@@ -145,12 +145,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _buildProfileHero(BuildContext context, UserProfileModel profile) {
-
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: _openEditProfile,
         borderRadius: BorderRadius.circular(18),
+        splashFactory: NoSplash.splashFactory,
+        overlayColor: const WidgetStatePropertyAll(Colors.transparent),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(
@@ -170,10 +171,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.displayMedium
-                          ?.copyWith(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          ?.copyWith(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -274,10 +272,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           textStyle: GoogleFonts.inter(
             fontSize: 15,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w700,
           ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(10),
           ),
           backgroundColor: AppColors.white,
         ),
@@ -361,6 +359,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
                     onTap: () => sheetContext.pop(true),
+                    splashFactory: NoSplash.splashFactory,
+                    overlayColor: const WidgetStatePropertyAll(
+                      Colors.transparent,
+                    ),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 14,
@@ -438,6 +440,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }) {
     return ListTile(
       onTap: onTap,
+      enableFeedback: false,
       leading: Icon(icon, color: AppColors.primary),
       title: Text(
         title,

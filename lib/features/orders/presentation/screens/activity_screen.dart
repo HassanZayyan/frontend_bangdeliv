@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../config/app_colors.dart';
@@ -114,9 +113,15 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
   }
 
   Future<String?> _askCancelReason() async {
-    return showDialog<String>(
+    return showModalBottomSheet<String>(
       context: context,
-      builder: (dialogContext) => const _CancelOrderDialog(),
+      isScrollControlled: true,
+      useRootNavigator: true,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      builder: (sheetContext) => const _CancelOrderSheet(),
     );
   }
 
@@ -292,14 +297,14 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
 
           return CustomerOrderCard(
             order: order,
-            showTrackAction: isOngoing && order.canTrack,
+            showTrackAction: false,
             showCancelAction: canCancelBeforeDriver,
-            showDetailHint: !isOngoing,
+            showDetailHint: isOngoing && order.canTrack,
             showPaymentInfo: isOngoing,
             showInlinePrice: !isOngoing,
             isCancelling: _isCancelling(order.id),
             onTap: openTracking,
-            onTrack: isOngoing ? openTracking : null,
+            onTrack: null,
             onCancel: canCancelBeforeDriver ? () => _cancelOrder(order) : null,
           );
         },
@@ -310,14 +315,14 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
 
 enum _ActivityOrderListMode { ongoing, history }
 
-class _CancelOrderDialog extends StatefulWidget {
-  const _CancelOrderDialog();
+class _CancelOrderSheet extends StatefulWidget {
+  const _CancelOrderSheet();
 
   @override
-  State<_CancelOrderDialog> createState() => _CancelOrderDialogState();
+  State<_CancelOrderSheet> createState() => _CancelOrderSheetState();
 }
 
-class _CancelOrderDialogState extends State<_CancelOrderDialog> {
+class _CancelOrderSheetState extends State<_CancelOrderSheet> {
   static const List<String> _quickReasons = [
     'Berubah pikiran',
     'Alamat salah',
@@ -377,116 +382,95 @@ class _CancelOrderDialogState extends State<_CancelOrderDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
     final viewportHeight = MediaQuery.sizeOf(context).height;
-    final buttonTextStyle = GoogleFonts.inter(
-      fontSize: 13,
-      fontWeight: FontWeight.w700,
-      height: 1.1,
-    );
 
-    return Dialog(
-      backgroundColor: AppColors.white,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: 360,
-          maxHeight: viewportHeight * 0.78,
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(22),
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: bottomInset),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: viewportHeight * 0.86),
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 18),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
                 const Text(
                   'Batalkan pesanan?',
                   style: TextStyle(
                     color: AppColors.textPrimary,
-                    fontSize: 17.5,
-                    fontWeight: FontWeight.w800,
-                    height: 1.2,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    height: 1.18,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 const Text(
-                  'Pilih alasan pembatalan sebelum melanjutkan.',
+                  'Pesanan akan dibatalkan setelah kamu memilih alasan.',
                   style: TextStyle(
                     color: AppColors.textSecondary,
-                    fontSize: 12.5,
-                    height: 1.35,
+                    fontSize: 13,
+                    height: 1.42,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
                 const Text(
                   'Alasan pembatalan',
                   style: TextStyle(
                     color: AppColors.textPrimary,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 7,
-                  runSpacing: 7,
-                  children: [
-                    for (final reason in _quickReasons)
-                      ChoiceChip(
-                        label: Text(reason),
-                        selected: _selectedReason == reason,
-                        onSelected: (selected) {
-                          setState(() {
-                            _selectedReason = selected ? reason : null;
-                            if (reason != 'Lainnya') {
-                              _controller.clear();
-                            }
-                          });
-                        },
-                        showCheckmark: false,
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        visualDensity: const VisualDensity(
-                          horizontal: -3,
-                          vertical: -4,
+                const SizedBox(height: 10),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    children: [
+                      for (var index = 0; index < _quickReasons.length; index++)
+                        _CancelReasonTile(
+                          label: _quickReasons[index],
+                          selected: _selectedReason == _quickReasons[index],
+                          showDivider: index < _quickReasons.length - 1,
+                          onTap: () {
+                            setState(() {
+                              final reason = _quickReasons[index];
+                              _selectedReason = reason;
+                              if (reason != 'Lainnya') {
+                                _controller.clear();
+                              }
+                            });
+                          },
                         ),
-                        labelPadding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 0,
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 0,
-                          vertical: 1,
-                        ),
-                        labelStyle: TextStyle(
-                          color: _selectedReason == reason
-                              ? AppColors.primaryDark
-                              : AppColors.textPrimary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        selectedColor: AppColors.primary.withValues(
-                          alpha: 0.12,
-                        ),
-                        backgroundColor: AppColors.background,
-                        side: BorderSide(
-                          color: _selectedReason == reason
-                              ? AppColors.primary.withValues(alpha: 0.45)
-                              : AppColors.border,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
                 if (_isOtherReason) ...[
                   const SizedBox(height: 14),
                   TextField(
                     controller: _controller,
+                    autofocus: true,
                     minLines: 2,
                     maxLines: 3,
+                    textInputAction: TextInputAction.done,
                     style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 13,
@@ -498,8 +482,8 @@ class _CancelOrderDialogState extends State<_CancelOrderDialog> {
                       filled: true,
                       fillColor: AppColors.white,
                       contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 11,
+                        horizontal: 14,
+                        vertical: 12,
                       ),
                       labelStyle: const TextStyle(
                         color: AppColors.textSecondary,
@@ -509,50 +493,34 @@ class _CancelOrderDialogState extends State<_CancelOrderDialog> {
                         color: AppColors.textMuted,
                         fontSize: 12.5,
                       ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: AppColors.border),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: AppColors.border),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: AppColors.primary,
-                          width: 1.4,
-                        ),
-                      ),
                     ),
                   ),
                 ],
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
                 Row(
                   children: [
                     Expanded(
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minHeight: AppTextScaling.adaptive(
-                            context,
-                            normal: 42,
-                            large: 46,
-                          ),
+                      child: SizedBox(
+                        height: AppTextScaling.adaptive(
+                          context,
+                          normal: 48,
+                          large: 52,
                         ),
                         child: TextButton(
                           onPressed: () => Navigator.of(context).pop(),
                           style: TextButton.styleFrom(
                             foregroundColor: AppColors.textSecondary,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(14),
                             ),
                           ),
-                          child: Text(
+                          child: const Text(
                             'Kembali',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: buttonTextStyle.copyWith(
-                              color: AppColors.textSecondary,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
                         ),
@@ -561,13 +529,11 @@ class _CancelOrderDialogState extends State<_CancelOrderDialog> {
                     const SizedBox(width: 12),
                     Expanded(
                       flex: 2,
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minHeight: AppTextScaling.adaptive(
-                            context,
-                            normal: 40,
-                            large: 46,
-                          ),
+                      child: SizedBox(
+                        height: AppTextScaling.adaptive(
+                          context,
+                          normal: 48,
+                          large: 52,
                         ),
                         child: ElevatedButton(
                           onPressed: _canSubmit
@@ -576,29 +542,24 @@ class _CancelOrderDialogState extends State<_CancelOrderDialog> {
                               : null,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.error,
-                            disabledBackgroundColor: AppColors.border,
+                            disabledBackgroundColor: AppColors.surfaceAlt,
                             foregroundColor: AppColors.white,
                             disabledForegroundColor: AppColors.textMuted,
                             elevation: 0,
-                            minimumSize: const Size(0, 40),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 8,
-                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(14),
                             ),
                           ),
-                          child: FittedBox(
+                          child: const FittedBox(
                             fit: BoxFit.scaleDown,
                             child: Text(
-                              'Batalkan',
+                              'Batalkan Pesanan',
                               maxLines: 1,
                               softWrap: false,
-                              style: buttonTextStyle.copyWith(
-                                color: _canSubmit
-                                    ? AppColors.white
-                                    : AppColors.textMuted,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
                               ),
                             ),
                           ),
@@ -612,6 +573,67 @@ class _CancelOrderDialogState extends State<_CancelOrderDialog> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _CancelReasonTile extends StatelessWidget {
+  const _CancelReasonTile({
+    required this.label,
+    required this.selected,
+    required this.showDivider,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final bool showDivider;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            child: Row(
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: selected ? AppColors.primary : AppColors.border,
+                      width: selected ? 5.5 : 1.4,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selected
+                          ? AppColors.textPrimary
+                          : AppColors.textSecondary,
+                      fontSize: 14,
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (showDivider)
+          const Divider(height: 1, indent: 46, color: AppColors.border),
+      ],
     );
   }
 }

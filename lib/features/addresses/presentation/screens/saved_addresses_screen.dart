@@ -51,7 +51,7 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
           widget.selectionMode ? 'Pilih Alamat' : 'Alamat Saya',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
         ),
         backgroundColor: AppColors.white,
         elevation: 0,
@@ -103,9 +103,9 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
           }
 
           return ListView.separated(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
             itemCount: addresses.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 16),
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
             itemBuilder: (context, index) {
               final address = addresses[index];
               return _buildAddressCard(address);
@@ -314,21 +314,12 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
         children: [
           _buildSelectionIndicator(address, isSelecting: isSelecting),
           const SizedBox(width: 12),
-          Expanded(child: _buildAddressSummary(address)),
-          const SizedBox(width: 8),
-          _buildEditTextButton(address),
+          Expanded(child: _buildAddressSummaryWithAction(address)),
         ],
       );
     }
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: _buildAddressSummary(address, addressMaxLines: 2)),
-        const SizedBox(width: 8),
-        _buildEditTextButton(address),
-      ],
-    );
+    return _buildAddressSummaryWithAction(address);
   }
 
   Widget _buildSelectionIndicator(
@@ -348,81 +339,92 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
     );
   }
 
-  Widget _buildAddressSummary(
-    SavedAddressModel address, {
-    int addressMaxLines = 2,
-  }) {
+  Widget _buildAddressSummaryWithAction(SavedAddressModel address) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Flexible(
-              child: Text(
-                address.label.isEmpty ? 'Alamat' : address.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
-                  height: 1.2,
-                ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          address.label.isEmpty ? 'Alamat' : address.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                            height: 1.2,
+                          ),
+                        ),
+                      ),
+                      if (address.isDefault) ...[
+                        const SizedBox(width: 8),
+                        _DefaultAddressBadge(),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          address.recipientName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            height: 1.2,
+                          ),
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 6),
+                        child: Text(
+                          '|',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11.5,
+                            height: 1.2,
+                          ),
+                        ),
+                      ),
+                      Flexible(
+                        child: Text(
+                          address.phone,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11.5,
+                            height: 1.2,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            if (address.isDefault) ...[
-              const SizedBox(width: 8),
-              _DefaultAddressBadge(),
-            ],
-          ],
-        ),
-        const SizedBox(height: 6),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Flexible(
-              child: Text(
-                address.recipientName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w700,
-                  height: 1.2,
-                ),
-              ),
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 6),
-              child: Text(
-                '|',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 11.5,
-                  height: 1.2,
-                ),
-              ),
-            ),
-            Flexible(
-              child: Text(
-                address.phone,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 11.5,
-                  height: 1.2,
-                ),
-              ),
-            ),
+            const SizedBox(width: 10),
+            _buildEditTextButton(address),
           ],
         ),
         const SizedBox(height: 6),
         Text(
           address.displayAddress,
-          maxLines: addressMaxLines,
+          maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
             color: AppColors.textSecondary,
@@ -449,7 +451,7 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontSize: 12.5,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w500,
           height: 1,
         ),
       ),

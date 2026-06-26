@@ -22,6 +22,8 @@ import '../../../../utils/address_readiness.dart';
 import '../../../shopping/presentation/screens/shopping_merchant_map_picker_screen.dart';
 import '../widgets/chatbot_menu_selector.dart';
 
+const double _chatbotButtonRadius = 8;
+
 class ChatbotScreen extends ConsumerStatefulWidget {
   const ChatbotScreen({super.key, this.launchArgs});
 
@@ -42,6 +44,11 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   int _menuSelectorRequestId = 0;
   int? _scheduledResolvedResetOrderId;
   bool _didAutoOpenAddressBook = false;
+  Timer? _pendingScrollTimer;
+  final GlobalKey _menuSelectorSurfaceKey = GlobalKey(
+    debugLabel: 'chatbot_menu_selector_surface',
+  );
+  final Map<int, GlobalKey> _messageKeys = <int, GlobalKey>{};
 
   @override
   void initState() {
@@ -78,6 +85,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
   @override
   void dispose() {
+    _pendingScrollTimer?.cancel();
     _inputController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -222,7 +230,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       merchantMode: 'select',
     );
 
-    _scrollToBottom();
+    _scrollToMenuSelectorSurface();
   }
 
   Future<void> _sendMessage([String? presetText]) async {
@@ -250,8 +258,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       raw,
       serviceType: _serviceContext.serviceType,
     );
-
-    _scrollToBottom();
   }
 
   Future<void> _handleMenuAction(_ChatbotMenuAction action) async {
@@ -272,17 +278,103 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     _scrollToBottom();
   }
 
-  void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) {
-        return;
-      }
+  bool _isNearBottom({double threshold = 160}) {
+    if (!_scrollController.hasClients) {
+      return true;
+    }
 
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent + 120,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-      );
+    final position = _scrollController.position;
+    return position.maxScrollExtent - position.pixels <= threshold;
+  }
+
+  GlobalKey _messageKeyFor(int index) {
+    return _messageKeys.putIfAbsent(
+      index,
+      () => GlobalKey(debugLabel: 'chatbot_message_$index'),
+    );
+  }
+
+  void _pruneMessageKeys(int messageCount) {
+    _messageKeys.removeWhere((index, _) => index >= messageCount);
+  }
+
+  void _scrollToBottom({bool force = true}) {
+    if (!force && !_isNearBottom()) {
+      return;
+    }
+
+    _pendingScrollTimer?.cancel();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _pendingScrollTimer?.cancel();
+      _pendingScrollTimer = Timer(const Duration(milliseconds: 40), () {
+        if (!mounted || !_scrollController.hasClients) {
+          return;
+        }
+
+        final target = _scrollController.position.maxScrollExtent;
+        if ((_scrollController.position.pixels - target).abs() < 1) {
+          return;
+        }
+
+        _scrollController.animateTo(
+          target,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+        );
+      });
+    });
+  }
+
+  void _scrollToMessage(int index, {bool force = true}) {
+    if (!force && !_isNearBottom()) {
+      return;
+    }
+
+    _pendingScrollTimer?.cancel();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _pendingScrollTimer?.cancel();
+      _pendingScrollTimer = Timer(const Duration(milliseconds: 60), () {
+        if (!mounted) {
+          return;
+        }
+
+        final targetContext = _messageKeys[index]?.currentContext;
+        if (targetContext == null) {
+          _scrollToBottom(force: force);
+          return;
+        }
+
+        Scrollable.ensureVisible(
+          targetContext,
+          alignment: 0.06,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+        );
+      });
+    });
+  }
+
+  void _scrollToMenuSelectorSurface() {
+    _pendingScrollTimer?.cancel();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _pendingScrollTimer?.cancel();
+      _pendingScrollTimer = Timer(const Duration(milliseconds: 80), () {
+        if (!mounted) {
+          return;
+        }
+
+        final targetContext = _menuSelectorSurfaceKey.currentContext;
+        if (targetContext == null) {
+          return;
+        }
+
+        Scrollable.ensureVisible(
+          targetContext,
+          alignment: 0.06,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+        );
+      });
     });
   }
 
@@ -453,16 +545,31 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     final latestActionMessageIndex = state.messages.lastIndexWhere(
       (message) => !message.isUser && message.actionHints.isNotEmpty,
     );
-    final showStaticSuggestions =
-        latestActionMessageIndex < 0 && !_hasMenuSelectorSurface(state);
+    final showStaticSuggestions = _shouldShowStaticSuggestions(state);
 
     // Auto-scroll whenever the message list grows (new send / map-pin response)
     ref.listen<ChatbotConversationState>(conversationProvider, (
       previous,
       next,
     ) {
-      if ((previous?.messages.length ?? 0) < next.messages.length) {
-        _scrollToBottom();
+      final previousMessageCount = previous?.messages.length ?? 0;
+      if (previousMessageCount < next.messages.length) {
+        final latestMessageIndex = next.messages.length - 1;
+        final latestMessage = next.messages[latestMessageIndex];
+        final latestMessageIsFromUser = latestMessage.isUser;
+        final wasWaitingForBotReply = previous?.isSending ?? false;
+        final wasApplyingAction = previous?.isApplyingAction ?? false;
+        final shouldFollowNewMessage =
+            latestMessageIsFromUser ||
+            wasWaitingForBotReply ||
+            wasApplyingAction ||
+            _isNearBottom();
+
+        if (latestMessageIsFromUser) {
+          _scrollToBottom(force: shouldFollowNewMessage);
+        } else {
+          _scrollToMessage(latestMessageIndex, force: shouldFollowNewMessage);
+        }
       }
       if ((previous?.activeOrderId ?? 0) != (next.activeOrderId ?? 0) &&
           next.hasActiveOrder) {
@@ -476,6 +583,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       final ordersAsync = ref.watch(customerOrdersProvider);
       _resetConversationIfOrderResolved(state, ordersAsync);
     }
+    _pruneMessageKeys(state.messages.length);
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -507,7 +615,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                   style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
@@ -589,15 +697,21 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                     children: [
                       ...List.generate(state.messages.length, (index) {
                         final message = state.messages[index];
-                        return _buildMessageItem(
-                          message,
-                          actionsEnabled:
-                              !effectiveBusy &&
-                              index == latestActionMessageIndex,
+                        return KeyedSubtree(
+                          key: _messageKeyFor(index),
+                          child: _buildMessageItem(
+                            message,
+                            actionsEnabled:
+                                !effectiveBusy &&
+                                index == latestActionMessageIndex,
+                          ),
                         );
                       }),
                       if (_hasMenuSelectorSurface(state))
-                        _buildMenuSelectorSurface(state),
+                        KeyedSubtree(
+                          key: _menuSelectorSurfaceKey,
+                          child: _buildMenuSelectorSurface(state),
+                        ),
                     ],
                   ),
           ),
@@ -735,13 +849,13 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       context: context,
       maxScaleFactor: AppTextScaling.compactComponentMaxScaleFactor,
       child: InkWell(
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(_chatbotButtonRadius),
         onTap: enabled ? () => _sendMessage(label) : null,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
             color: AppColors.primary.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(30),
+            borderRadius: BorderRadius.circular(_chatbotButtonRadius),
             border: Border.all(
               color: AppColors.primary.withValues(alpha: 0.24),
             ),
@@ -759,6 +873,17 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         ),
       ),
     );
+  }
+
+  bool _shouldShowStaticSuggestions(ChatbotConversationState state) {
+    if (state.isBootstrapping ||
+        state.isSending ||
+        state.isApplyingAction ||
+        _hasMenuSelectorSurface(state)) {
+      return false;
+    }
+
+    return !state.messages.any((message) => message.isUser);
   }
 
   Widget _buildMenuSelectorSurface(ChatbotConversationState state) {
@@ -960,6 +1085,16 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         );
       }
 
+      final incompleteShoppingParts = _tryParseIncompleteShoppingDraftMessage(
+        message.text,
+      );
+      if (incompleteShoppingParts != null) {
+        return _buildIncompleteShoppingDraftContent(
+          parts: incompleteShoppingParts,
+          textColor: textColor,
+        );
+      }
+
       final resetParts = _tryParseResetDestinationMessage(message.text);
       if (resetParts != null) {
         return _buildResetDestinationContent(
@@ -1072,11 +1207,15 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           (actionHint) =>
               _isLocationSetupActionHint(actionHint) &&
               !_isDestinationResetActionHint(actionHint) &&
-              !_isRouteEditActionHint(actionHint),
+              !_isRouteEditActionHint(actionHint) &&
+              !_isAddMerchantActionHint(actionHint),
         )
         .toList(growable: false);
     final confirmationActions = actionHints
         .where(_isConfirmationActionHint)
+        .toList(growable: false);
+    final addMerchantActions = actionHints
+        .where(_isAddMerchantActionHint)
         .toList(growable: false);
     final otherActions = actionHints
         .where(
@@ -1085,7 +1224,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
               !_isDestinationResetActionHint(actionHint) &&
               !_isRouteEditActionHint(actionHint) &&
               !_isLocationSetupActionHint(actionHint) &&
-              !_isConfirmationActionHint(actionHint),
+              !_isConfirmationActionHint(actionHint) &&
+              !_isAddMerchantActionHint(actionHint),
         )
         .toList(growable: false);
 
@@ -1148,11 +1288,22 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                 destinationResetActions.isNotEmpty ||
                 routeEditActions.isNotEmpty,
           ),
+          _buildAddMerchantActionGroup(
+            actions: addMerchantActions,
+            actionsEnabled: actionsEnabled,
+            isUser: isUser,
+            hasPreviousGroup:
+                locationSetupActions.isNotEmpty ||
+                destinationResetActions.isNotEmpty ||
+                routeEditActions.isNotEmpty ||
+                confirmationActions.isNotEmpty,
+          ),
           if (otherActions.isNotEmpty) ...[
             if (locationSetupActions.isNotEmpty ||
                 destinationResetActions.isNotEmpty ||
                 routeEditActions.isNotEmpty ||
-                confirmationActions.isNotEmpty)
+                confirmationActions.isNotEmpty ||
+                addMerchantActions.isNotEmpty)
               const SizedBox(height: 14),
             _buildActionGroupTitle('Lanjutkan'),
             const SizedBox(height: 8),
@@ -1242,6 +1393,12 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           isPrimaryChoice: true,
           hasPreviousGroup: true,
         ),
+        _buildAddMerchantActionGroup(
+          actions: addMerchantActions,
+          actionsEnabled: actionsEnabled,
+          isUser: isUser,
+          hasPreviousGroup: true,
+        ),
         if (otherActions.isNotEmpty) ...[
           const SizedBox(height: 14),
           _buildActionGroupTitle('Lanjutkan'),
@@ -1267,6 +1424,61 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     return _serviceContext.serviceType == 'nitip'
         ? 'Atur pesanan'
         : 'Atur lokasi';
+  }
+
+  Widget _buildAddMerchantActionGroup({
+    required List<ChatbotMessageActionHint> actions,
+    required bool actionsEnabled,
+    required bool isUser,
+    bool hasPreviousGroup = false,
+  }) {
+    if (actions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (hasPreviousGroup) const SizedBox(height: 14),
+        _buildActionGroupTitle('Tambah toko/resto lain'),
+        const SizedBox(height: 6),
+        _buildAssistantInstructionLines(
+          const [
+            'Pilih toko/resto dari daftar atau peta agar lokasinya tepat.',
+            'Setelah toko dipilih, menu akan muncul di chat.',
+          ],
+          fontSize: 12.5,
+          height: 1.4,
+          fontWeight: FontWeight.w600,
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final actionHint in actions)
+              _buildActionHintButton(
+                actionHint: actionHint,
+                actionsEnabled: actionsEnabled,
+                isUser: isUser,
+                isPrimaryChoice: true,
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _buildAssistantInstructionLines(
+          const [
+            'Kalau menu tidak ada, ketik barangnya saja.',
+            'Contoh:',
+            '- susu 1',
+            '- roti tawar 2',
+          ],
+          fontSize: 12.5,
+          height: 1.4,
+          fontWeight: FontWeight.w600,
+        ),
+      ],
+    );
   }
 
   Widget _buildActionHintGroup({
@@ -1345,6 +1557,9 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           vertical: isPrimaryChoice ? 9 : 8,
         ),
         textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_chatbotButtonRadius),
+        ),
       ),
     );
   }
@@ -1464,6 +1679,16 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         (mode == 'maps' || mode == 'maps_add');
   }
 
+  bool _isAddMerchantActionHint(ChatbotMessageActionHint actionHint) {
+    final mode = (actionHint.merchantMode ?? '').trim().toLowerCase();
+    final label = actionHint.label.trim().toLowerCase();
+    return actionHint.type == ChatbotMessageActionType.openMerchantPicker &&
+        (mode == 'add' ||
+            mode == 'maps_add' ||
+            label.contains('tambah toko') ||
+            label.contains('tambah resto'));
+  }
+
   bool _isConfirmationActionHint(ChatbotMessageActionHint actionHint) {
     final label = actionHint.label.trim().toLowerCase();
     final message = (actionHint.presetMessage ?? '').trim().toLowerCase();
@@ -1530,6 +1755,88 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             fontSize: 12.5,
             height: 1.4,
             fontWeight: FontWeight.w500,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildIncompleteShoppingDraftContent({
+    required _IncompleteShoppingDraftMessageParts parts,
+    required Color textColor,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          parts.headline,
+          style: TextStyle(
+            color: textColor,
+            height: 1.45,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 10),
+        _buildDraftField(
+          label: parts.merchantLabel,
+          value: parts.merchantName,
+          textColor: textColor,
+        ),
+        if (parts.instructionLines.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          _buildAssistantInstructionLines(
+            parts.instructionLines,
+            fontSize: 13,
+            height: 1.45,
+            fontWeight: FontWeight.w600,
+          ),
+        ],
+        if (parts.examples.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Contoh',
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final example in parts.examples)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 4,
+                        height: 4,
+                        margin: const EdgeInsets.only(top: 9),
+                        decoration: BoxDecoration(
+                          color: textColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          example,
+                          style: TextStyle(
+                            color: textColor,
+                            fontSize: 13.5,
+                            height: 1.45,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ),
         ],
       ],
@@ -1954,6 +2261,81 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     );
   }
 
+  _IncompleteShoppingDraftMessageParts? _tryParseIncompleteShoppingDraftMessage(
+    String raw,
+  ) {
+    final normalized = raw.replaceAll('\r\n', '\n').trim();
+    if (normalized.isEmpty) {
+      return null;
+    }
+
+    final lines = normalized
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
+    if (lines.length < 6) {
+      return null;
+    }
+
+    final headline = lines.first;
+    final lowerHeadline = headline.toLowerCase();
+    if (!lowerHeadline.startsWith('draft nitip belum lengkap') ||
+        !lowerHeadline.contains('items')) {
+      return null;
+    }
+
+    final merchantLabelIndex = lines.indexWhere(
+      (line) => line.toLowerCase() == 'tempat',
+    );
+    final exampleLabelIndex = lines.indexWhere(
+      (line) => line.toLowerCase() == 'contoh:',
+    );
+    if (merchantLabelIndex < 0 ||
+        exampleLabelIndex < 0 ||
+        merchantLabelIndex + 1 >= exampleLabelIndex) {
+      return null;
+    }
+
+    final instructionStartIndex = lines.indexWhere(
+      (line) => line.toLowerCase().startsWith('tulis item'),
+      merchantLabelIndex + 1,
+    );
+    if (instructionStartIndex < 0 ||
+        instructionStartIndex >= exampleLabelIndex) {
+      return null;
+    }
+
+    final merchantName = lines
+        .sublist(merchantLabelIndex + 1, instructionStartIndex)
+        .join(' ')
+        .trim();
+    if (merchantName.isEmpty) {
+      return null;
+    }
+
+    final instructionLines = lines
+        .sublist(instructionStartIndex, exampleLabelIndex)
+        .where((line) => line.trim().isNotEmpty)
+        .toList(growable: false);
+    final examples = lines
+        .skip(exampleLabelIndex + 1)
+        .map((line) => line.replaceFirst(RegExp(r'^-\s*'), '').trim())
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
+    if (instructionLines.isEmpty || examples.isEmpty) {
+      return null;
+    }
+
+    return _IncompleteShoppingDraftMessageParts(
+      headline: headline,
+      merchantLabel: lines[merchantLabelIndex],
+      merchantName: merchantName,
+      instructionLines: instructionLines,
+      examples: examples,
+    );
+  }
+
   _SimplePromptMessageParts? _tryParseCourierRouteSavedPrompt(String raw) {
     final normalized = raw.replaceAll(RegExp(r'\s+'), ' ').trim();
     const headline = 'Titik ambil dan tujuan sudah saya simpan.';
@@ -2277,6 +2659,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   ) {
     final instructions = <String>[];
     var hasSeenFee = false;
+    var skippingAddMerchantExample = false;
 
     for (final line in lines.skip(startIndex)) {
       if (_isShoppingEstimateLine(line)) {
@@ -2286,6 +2669,31 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       if (!hasSeenFee) {
         continue;
       }
+
+      final lower = line.toLowerCase();
+      final isAddMerchantPrompt =
+          lower.contains('mau tambah tempat') ||
+          lower.contains('mau tambah toko') ||
+          lower.contains('mau tambah resto') ||
+          lower.contains('tambah pesanan dari toko') ||
+          lower.contains('tambah pesanan dari resto') ||
+          lower.contains('contoh setelah tempat berikutnya') ||
+          lower.contains('contoh isi pesan') ||
+          lower.contains('contoh:');
+
+      if (isAddMerchantPrompt) {
+        skippingAddMerchantExample = true;
+        continue;
+      }
+
+      if (skippingAddMerchantExample) {
+        final looksLikeExampleItem = RegExp(r'^[-•]\s*').hasMatch(line);
+        if (looksLikeExampleItem) {
+          continue;
+        }
+        skippingAddMerchantExample = false;
+      }
+
       instructions.add(line);
     }
 
@@ -2541,8 +2949,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       longitude: result.longitude,
       address: null,
     );
-
-    _scrollToBottom();
   }
 
   Future<void> _handleOpenMerchantPickerAction(
@@ -2594,8 +3000,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       );
       return;
     }
-
-    _scrollToBottom();
   }
 
   Future<void> _loadOfficialMerchantMenus({
@@ -2610,7 +3014,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     setState(() {
       _isLoadingMenuSelector = true;
     });
-    _scrollToBottom();
+    _scrollToMenuSelectorSurface();
 
     try {
       final menus = await ref
@@ -2652,7 +3056,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       );
     }
 
-    _scrollToBottom();
+    _scrollToMenuSelectorSurface();
   }
 
   Future<void> _handleOpenRoutePickerAction(
@@ -2732,8 +3136,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     await _conversationNotifier(
       serviceType,
     ).applyRoutePickerAction(serviceType: serviceType, locations: locations);
-
-    _scrollToBottom();
   }
 
   Future<void> _handleOpenTrackOrderAction(
@@ -2835,6 +3237,22 @@ class _ShoppingSuccessMessageParts {
   final String headline;
   final String deliveryFeeLine;
   final String instructionLine;
+}
+
+class _IncompleteShoppingDraftMessageParts {
+  const _IncompleteShoppingDraftMessageParts({
+    required this.headline,
+    required this.merchantLabel,
+    required this.merchantName,
+    required this.instructionLines,
+    required this.examples,
+  });
+
+  final String headline;
+  final String merchantLabel;
+  final String merchantName;
+  final List<String> instructionLines;
+  final List<String> examples;
 }
 
 class _SimplePromptMessageParts {

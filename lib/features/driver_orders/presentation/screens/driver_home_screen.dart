@@ -42,7 +42,7 @@ class DriverHomeScreen extends ConsumerWidget {
           'Beranda Driver',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17),
         ),
         backgroundColor: AppColors.white,
         elevation: 0,
