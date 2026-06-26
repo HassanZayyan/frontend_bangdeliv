@@ -25,7 +25,7 @@ class DriverOrderTimelineCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
         boxShadow: [
           BoxShadow(
@@ -102,7 +102,7 @@ class DriverOrderTimelineCard extends StatelessWidget {
                               color: AppColors.textSecondary.withValues(
                                 alpha: 0.2,
                               ),
-                              borderRadius: BorderRadius.circular(2),
+                              borderRadius: BorderRadius.circular(10),
                             ),
                           ),
                       ],
@@ -164,7 +164,7 @@ class DriverOrderActionCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
         boxShadow: [
           BoxShadow(
@@ -313,7 +313,7 @@ class _DriverOrderActionControls extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: AppColors.surfaceAlt,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: AppColors.border.withValues(alpha: 0.5),
               ),
@@ -356,7 +356,7 @@ class _DriverOrderActionControls extends StatelessWidget {
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     textStyle: GoogleFonts.inter(
                       fontWeight: FontWeight.w700,

@@ -35,7 +35,7 @@ class DriverOrderProofChecklistCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
         boxShadow: [
           BoxShadow(
@@ -69,11 +69,13 @@ class DriverOrderProofChecklistCard extends StatelessWidget {
             for (var i = 0; i < requirements.length; i++) {
               widgets.add(_proofRow(context, requirements[i]));
               if (i < requirements.length - 1) {
-                widgets.add(const Divider(
-                  height: 1,
-                  thickness: 0.5,
-                  color: Color(0xFFEEEEEE),
-                ));
+                widgets.add(
+                  const Divider(
+                    height: 1,
+                    thickness: 0.5,
+                    color: Color(0xFFEEEEEE),
+                  ),
+                );
               }
             }
             return widgets;
@@ -133,9 +135,9 @@ class DriverOrderProofChecklistCard extends StatelessWidget {
           if (proofPhotoUrl != null) ...[
             InkWell(
               onTap: () => _showProofPreview(context, proof!),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
                 child: Image.network(
                   proofPhotoUrl,
                   width: 44,
@@ -191,7 +193,7 @@ class DriverOrderProofChecklistCard extends StatelessWidget {
       builder: (context) => Dialog(
         insetPadding: const EdgeInsets.all(18),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           child: InteractiveViewer(
             child: Image.network(
               url,

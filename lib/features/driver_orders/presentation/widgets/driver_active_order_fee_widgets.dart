@@ -94,7 +94,7 @@ class _ManualDeliveryFeeDialogState extends State<_ManualDeliveryFeeDialog> {
             constraints: const BoxConstraints(maxWidth: 420),
             child: Material(
               color: AppColors.white,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(10),
               clipBehavior: Clip.antiAlias,
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),

@@ -11,7 +11,7 @@ InputDecoration driverDialogInputDecoration({
   String? errorText,
 }) {
   final border = OutlineInputBorder(
-    borderRadius: BorderRadius.circular(12),
+    borderRadius: BorderRadius.circular(10),
     borderSide: const BorderSide(color: AppColors.border),
   );
 
@@ -35,7 +35,7 @@ InputDecoration driverDialogInputDecoration({
     border: border,
     enabledBorder: border,
     focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(10),
       borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
     ),
   );
@@ -51,7 +51,7 @@ Future<XFile?> pickDriverOrderImage(BuildContext context) async {
     useRootNavigator: true,
     backgroundColor: AppColors.white,
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
     ),
     builder: (context) {
       return SafeArea(

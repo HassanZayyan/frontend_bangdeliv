@@ -22,7 +22,7 @@ Future<String?> showBangNegotiationCancelSheet(
     context: context,
     backgroundColor: AppColors.white,
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
     ),
     builder: (sheetContext) {
       return SafeArea(

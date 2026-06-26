@@ -156,7 +156,7 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
       color: Colors.transparent,
       child: InkWell(
         onTap: _openEditProfile,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(10),
         splashFactory: NoSplash.splashFactory,
         overlayColor: const WidgetStatePropertyAll(Colors.transparent),
         child: Padding(
@@ -352,7 +352,7 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
           color: AppColors.surfaceAlt,
-          borderRadius: BorderRadius.circular(100),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.border),
         ),
         child: Text(
@@ -452,7 +452,7 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
       useRootNavigator: true,
       backgroundColor: AppColors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
       ),
       builder: (sheetContext) {
         return SafeArea(
@@ -504,7 +504,7 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
                 Material(
                   color: AppColors.surfaceAlt,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(10),
                     side: const BorderSide(color: AppColors.border),
                   ),
                   clipBehavior: Clip.antiAlias,
@@ -592,7 +592,7 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
           backgroundColor: AppColors.white,
           surfaceTintColor: AppColors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(10),
           ),
           title: const Text(
             'Keluar dari BangDeliv',

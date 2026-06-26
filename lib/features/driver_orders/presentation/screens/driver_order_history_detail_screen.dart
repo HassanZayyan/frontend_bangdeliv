@@ -293,7 +293,7 @@ class _HistoryProofsCard extends StatelessWidget {
       builder: (context) => Dialog(
         insetPadding: const EdgeInsets.all(18),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           child: InteractiveViewer(
             child: Image.network(
               url,
@@ -322,7 +322,7 @@ class _HistoryCardShell extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),

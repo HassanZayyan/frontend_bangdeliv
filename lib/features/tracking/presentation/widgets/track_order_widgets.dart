@@ -51,7 +51,7 @@ class _TrackShoppingOrderItemsCardState
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -145,7 +145,7 @@ class _TrackShoppingOrderItemsCardState
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.error.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.error.withValues(alpha: 0.22)),
       ),
       child: Column(
@@ -190,7 +190,7 @@ class _TrackShoppingOrderItemsCardState
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.primary.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
       ),
       child: Column(
@@ -238,7 +238,7 @@ class _TrackShoppingOrderItemsCardState
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.error.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.error.withValues(alpha: 0.20)),
       ),
       child: Row(
@@ -282,7 +282,7 @@ class _TrackShoppingOrderItemsCardState
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: AppColors.primary.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
         ),
         child: Column(
@@ -637,7 +637,7 @@ class _TrackShoppingOrderItemsCardState
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: AppColors.error.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
         label,
@@ -1074,7 +1074,7 @@ class TrackWaitingDriverHeroCard extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: AppColors.white,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: AppColors.primary.withValues(alpha: 0.16),
             ),
@@ -1114,7 +1114,7 @@ class TrackWaitingDriverHeroCard extends StatelessWidget {
                         'Menunggu Driver',
                         style: TextStyle(
                           color: AppColors.primaryDark,
-                          fontSize: 20,
+                          fontSize: 18,
                           fontWeight: FontWeight.w900,
                           height: 1.15,
                         ),
@@ -1155,7 +1155,7 @@ class TrackDeliveryFeeNotice extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.primary.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
       ),
       child: Row(

@@ -62,7 +62,7 @@ class CustomerOrderCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -77,7 +77,7 @@ class CustomerOrderCard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(10),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -115,7 +115,7 @@ class CustomerOrderCard extends StatelessWidget {
                       frameSize: 42,
                       iconWidth: 58,
                       iconHeight: 46,
-                      frameRadius: 12,
+                      frameRadius: 10,
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -313,7 +313,7 @@ class CustomerOrderCard extends StatelessWidget {
             minimumSize: Size(0, trackButtonHeight),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
             ),
           ),
           child: FittedBox(
@@ -344,7 +344,7 @@ class CustomerOrderCard extends StatelessWidget {
             minimumSize: Size(0, buttonHeight),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
             ),
           ),
           child: isCancelling
@@ -389,7 +389,7 @@ class CustomerOrderCard extends StatelessWidget {
             minimumSize: Size(0, buttonHeight),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
             ),
           ),
         ),

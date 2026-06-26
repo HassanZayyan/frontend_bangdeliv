@@ -30,6 +30,7 @@ class _DriverVerificationStatusScreenState
   String? _errorMessage;
   bool _isLoading = true;
   bool _isSubmitting = false;
+  bool _isCancelling = false;
 
   final Map<String, XFile?> _selectedDocuments = {
     'ktp': null,
@@ -78,6 +79,7 @@ class _DriverVerificationStatusScreenState
         .toLowerCase();
     final isActive = registrationStatus == 'active';
     final canUpload = _canUpload(registrationStatus);
+    final canCancel = _canCancel(registrationStatus);
 
     return _withProfileBackHandling(
       Scaffold(
@@ -143,7 +145,7 @@ class _DriverVerificationStatusScreenState
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
                       _errorMessage!,
@@ -174,9 +176,34 @@ class _DriverVerificationStatusScreenState
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: _isLoading ? null : _loadStatus,
+                    onPressed: _isLoading || _isCancelling ? null : _loadStatus,
                     icon: const Icon(Icons.refresh),
                     label: const Text('Refresh Status'),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
+              if (canCancel) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _isSubmitting || _isCancelling
+                        ? null
+                        : _confirmCancelApplication,
+                    icon: _isCancelling
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.close_rounded),
+                    label: Text(
+                      _isCancelling ? 'Membatalkan...' : 'Batalkan Pengajuan',
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.error,
+                      side: const BorderSide(color: AppColors.error),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -272,7 +299,7 @@ class _DriverVerificationStatusScreenState
       context: context,
       backgroundColor: AppColors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
       ),
       clipBehavior: Clip.antiAlias,
       builder: (context) {
@@ -412,8 +439,83 @@ class _DriverVerificationStatusScreenState
     }
   }
 
+  Future<void> _confirmCancelApplication() async {
+    final shouldCancel = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Batalkan Pengajuan?'),
+          content: const Text(
+            'Pengajuan driver akan dibatalkan. Anda tetap bisa memakai BangDeliv sebagai customer dan dapat mengajukan driver lagi nanti.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => dialogContext.pop(false),
+              child: const Text('Tetap Lanjut'),
+            ),
+            FilledButton(
+              onPressed: () => dialogContext.pop(true),
+              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+              child: const Text('Batalkan'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldCancel == true) {
+      await _cancelApplication();
+    }
+  }
+
+  Future<void> _cancelApplication() async {
+    if (_isCancelling) {
+      return;
+    }
+
+    setState(() {
+      _isCancelling = true;
+      _errorMessage = null;
+    });
+
+    try {
+      await DriverVerificationService.cancelApplication();
+      await ref.read(authSessionProvider.notifier).refreshSession();
+
+      if (!mounted) {
+        return;
+      }
+
+      context.go(AppRoutes.profile);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Pengajuan driver berhasil dibatalkan.'),
+          backgroundColor: Colors.green.shade600,
+        ),
+      );
+    } on DriverVerificationException catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _errorMessage = e.message;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCancelling = false;
+        });
+      }
+    }
+  }
+
   bool _canUpload(String registrationStatus) {
     return registrationStatus != 'active' && registrationStatus != 'suspended';
+  }
+
+  bool _canCancel(String registrationStatus) {
+    return registrationStatus == 'pending' || registrationStatus == 'rejected';
   }
 
   String _titleFor(String registrationStatus) {
@@ -467,7 +569,7 @@ class _StatusCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -575,7 +677,7 @@ class _DocumentCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         decoration: BoxDecoration(
           color: AppColors.white,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.border),
         ),
         child: Row(
@@ -607,7 +709,7 @@ class _DocumentCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -727,7 +829,7 @@ class _InlineStatusLabel extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
       child: Text(
@@ -769,7 +871,7 @@ class _DocumentFileInfo extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Row(

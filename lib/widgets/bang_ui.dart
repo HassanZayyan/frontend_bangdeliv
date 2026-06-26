@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../config/app_colors.dart';
 import '../config/app_text_scaling.dart';
@@ -59,7 +60,7 @@ class BangCard extends StatelessWidget {
     return Material(
       color: AppColors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         side: BorderSide(color: borderColor),
       ),
       clipBehavior: Clip.antiAlias,
@@ -173,7 +174,7 @@ class BangStatusChip extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: color.withValues(alpha: compact ? 0.08 : 0.10),
-          borderRadius: BorderRadius.circular(compact ? 8 : 999),
+          borderRadius: BorderRadius.circular(10),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -279,58 +280,68 @@ class AuthKeyboardSafeScaffold extends StatelessWidget {
   final Widget? topBar;
   final double topBarHeight;
 
+  static const _brandStatusBarStyle = SystemUiOverlayStyle(
+    statusBarColor: AppColors.primary,
+    statusBarIconBrightness: Brightness.light,
+    statusBarBrightness: Brightness.dark,
+  );
+
   @override
   Widget build(BuildContext context) {
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     final isKeyboardOpen = keyboardInset > 0;
     final headerHeight = headerHeightBuilder(context, isKeyboardOpen);
 
-    return Scaffold(
-      resizeToAvoidBottomInset: false,
-      backgroundColor: AppColors.primary,
-      body: SafeArea(
-        bottom: false,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final cardMinHeight = math.max(
-              0.0,
-              constraints.maxHeight - topBarHeight - headerHeight,
-            );
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: _brandStatusBarStyle,
+      child: Scaffold(
+        resizeToAvoidBottomInset: false,
+        backgroundColor: AppColors.primary,
+        body: SafeArea(
+          bottom: false,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final cardMinHeight = math.max(
+                0.0,
+                constraints.maxHeight - topBarHeight - headerHeight,
+              );
 
-            return SingleChildScrollView(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              padding: EdgeInsets.only(bottom: keyboardInset),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (topBar != null)
-                      SizedBox(height: topBarHeight, child: topBar),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      curve: Curves.easeOutCubic,
-                      height: headerHeight,
-                      child: ClipRect(child: header),
-                    ),
-                    Container(
-                      width: double.infinity,
-                      constraints: BoxConstraints(minHeight: cardMinHeight),
-                      padding: cardPaddingBuilder(context, isKeyboardOpen),
-                      decoration: const BoxDecoration(
-                        color: AppColors.white,
-                        borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(30),
-                          topRight: Radius.circular(30),
-                        ),
+              return SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: EdgeInsets.only(bottom: keyboardInset),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (topBar != null)
+                        SizedBox(height: topBarHeight, child: topBar),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        curve: Curves.easeOutCubic,
+                        height: headerHeight,
+                        child: ClipRect(child: header),
                       ),
-                      child: child,
-                    ),
-                  ],
+                      Container(
+                        width: double.infinity,
+                        constraints: BoxConstraints(minHeight: cardMinHeight),
+                        padding: cardPaddingBuilder(context, isKeyboardOpen),
+                        decoration: const BoxDecoration(
+                          color: AppColors.white,
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(10),
+                            topRight: Radius.circular(10),
+                          ),
+                        ),
+                        child: child,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
@@ -380,15 +391,15 @@ class BangSearchField extends StatelessWidget {
         filled: true,
         fillColor: AppColors.surface,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: AppColors.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
         ),
         contentPadding: const EdgeInsets.symmetric(
@@ -575,7 +586,7 @@ class BangLoadingSkeleton extends StatelessWidget {
       height: height,
       decoration: BoxDecoration(
         color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
     );

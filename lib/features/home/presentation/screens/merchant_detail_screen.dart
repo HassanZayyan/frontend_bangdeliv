@@ -287,7 +287,7 @@ class _MerchantHeroState extends State<_MerchantHero> {
     final imageUrls = _imageUrls;
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(10),
       child: AspectRatio(
         aspectRatio: 4 / 3,
         child: imageUrls.isEmpty
@@ -332,7 +332,7 @@ class _MerchantHeroState extends State<_MerchantHero> {
                         child: DecoratedBox(
                           decoration: BoxDecoration(
                             color: AppColors.black.withValues(alpha: 0.28),
-                            borderRadius: BorderRadius.circular(999),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
@@ -361,7 +361,7 @@ class _MerchantHeroState extends State<_MerchantHero> {
                                           : AppColors.white.withValues(
                                               alpha: 0.58,
                                             ),
-                                      borderRadius: BorderRadius.circular(999),
+                                      borderRadius: BorderRadius.circular(10),
                                     ),
                                   ),
                               ],
@@ -578,7 +578,7 @@ class _MerchantPhotoPreviewState extends State<_MerchantPhotoPreview>
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       color: AppColors.black.withValues(alpha: 0.46),
-                      borderRadius: BorderRadius.circular(999),
+                      borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: AppColors.white.withValues(alpha: 0.18),
                       ),
@@ -839,7 +839,7 @@ class _MenuTile extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Row(
@@ -914,7 +914,7 @@ class _MenuInfoCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
       child: Row(
@@ -951,7 +951,7 @@ class _MenuLoadingList extends StatelessWidget {
             height: 86,
             decoration: BoxDecoration(
               color: AppColors.white,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(color: AppColors.border),
             ),
           ),

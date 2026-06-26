@@ -488,7 +488,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                     decoration: BoxDecoration(
                       color: AppColors.background,
                       borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(24),
+                        top: Radius.circular(10),
                       ),
                       boxShadow: [
                         BoxShadow(
@@ -506,7 +506,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                           height: 4,
                           decoration: BoxDecoration(
                             color: AppColors.border,
-                            borderRadius: BorderRadius.circular(999),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -917,7 +917,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
       padding: const EdgeInsets.fromLTRB(8, 14, 8, 14),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -975,7 +975,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -1007,9 +1007,9 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: AppColors.primaryDark,
-                fontSize: 20,
+                fontSize: 18,
                 fontWeight: FontWeight.w900,
-                height: 1.1,
+                height: 1.15,
               ),
             ),
           ],
@@ -1038,7 +1038,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.primary.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
       ),
       child: Row(
@@ -1124,7 +1124,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
       padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -1596,7 +1596,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
       builder: (context) => Dialog(
         insetPadding: const EdgeInsets.all(18),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           child: InteractiveViewer(
             child: Image.network(
               url,
@@ -1743,7 +1743,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.primary.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.primary.withValues(alpha: 0.12)),
       ),
       child: Row(
@@ -1857,7 +1857,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.11),
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: color.withValues(alpha: 0.18)),
         ),
         child: Text(
@@ -1906,7 +1906,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.primary.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.primary.withValues(alpha: 0.14)),
       ),
       child: Row(
@@ -2191,7 +2191,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                             margin: const EdgeInsets.symmetric(vertical: 4),
                             decoration: BoxDecoration(
                               color: AppColors.border,
-                              borderRadius: BorderRadius.circular(1),
+                              borderRadius: BorderRadius.circular(10),
                             ),
                           ),
                       ],
@@ -2257,7 +2257,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),

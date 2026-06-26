@@ -76,7 +76,7 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
         height: 220,
         decoration: BoxDecoration(
           color: AppColors.white,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
         ),
         child: const Center(
@@ -119,7 +119,7 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
     };
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(10),
       child: SizedBox(
         height: 230,
         child: Stack(
@@ -382,7 +382,7 @@ class _MapDistanceBadge extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
           color: AppColors.white.withValues(alpha: 0.94),
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
         ),
         child: Row(
@@ -420,7 +420,7 @@ class _RouteUnavailableBadge extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
           color: AppColors.white.withValues(alpha: 0.94),
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
         ),
         child: const Text(

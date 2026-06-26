@@ -12,7 +12,7 @@ class ServiceVisualIcon extends StatelessWidget {
     this.frameSize = 54,
     this.iconWidth = 76,
     this.iconHeight = 60,
-    this.frameRadius = 16,
+    this.frameRadius = 10,
   });
 
   final String serviceCode;

@@ -29,7 +29,7 @@ class OrderChatBadgeIcon extends StatelessWidget {
               constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
               decoration: BoxDecoration(
                 color: AppColors.error,
-                borderRadius: BorderRadius.circular(999),
+                borderRadius: BorderRadius.circular(10),
               ),
               alignment: Alignment.center,
               child: Text(

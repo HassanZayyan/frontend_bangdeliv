@@ -21,13 +21,13 @@ import '../../../../utils/order_ui_helpers.dart';
 import '../../../../widgets/app_content_background.dart';
 import '../../../../widgets/bang_ui.dart';
 import '../../../../widgets/service_visual_icon.dart';
-import '../../../navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
 import '../widgets/nearby_merchant_card.dart';
 
 typedef _HomeDataRequest = ({double? latitude, double? longitude});
 
 const int _homeNearbyMerchantLimit = 6;
 const double _homeHorizontalPadding = 20;
+const double _homeBottomNavClearance = 88;
 
 final _homeScreenDataProvider = FutureProvider.autoDispose
     .family<HomeDataModel, _HomeDataRequest>((ref, request) async {
@@ -178,12 +178,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final addressText = activeAddress?.displayAddress.trim() ?? '';
 
     return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: AppColors.white,
-        border: Border(bottom: BorderSide(color: AppColors.border)),
-      ),
+      decoration: const BoxDecoration(color: AppColors.white),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
         child: Column(
           children: [
             Row(
@@ -193,7 +190,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     color: Colors.transparent,
                     child: InkWell(
                       onTap: _openAddressPicker,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Row(
@@ -388,10 +385,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: ExcludeSemantics(
           child: Material(
             color: Colors.transparent,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(10),
             child: InkWell(
               onTap: handleTap,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(10),
               child: SizedBox(
                 height: height,
                 child: Column(
@@ -447,7 +444,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           padding: EdgeInsets.symmetric(horizontal: _homeHorizontalPadding),
           child: BangLoadingSkeleton(height: 96),
         ),
-        const SizedBox(height: BangFloatingBottomNavBar.scrollClearance),
+        const SizedBox(height: _homeBottomNavClearance),
       ],
     );
   }
@@ -468,7 +465,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onRetry: () => unawaited(_refreshHomeData()),
           ),
         ),
-        const SizedBox(height: BangFloatingBottomNavBar.scrollClearance),
+        const SizedBox(height: _homeBottomNavClearance),
       ],
     );
   }
@@ -496,7 +493,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         const SizedBox(height: 12),
         _buildNearbyMerchants(data),
-        const SizedBox(height: BangFloatingBottomNavBar.scrollClearance),
+        const SizedBox(height: _homeBottomNavClearance),
       ],
     );
   }
@@ -583,7 +580,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         vertical: 6,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                     child: FittedBox(

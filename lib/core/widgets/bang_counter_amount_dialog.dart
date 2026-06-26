@@ -15,7 +15,7 @@ Future<double?> showBangCounterAmountDialog(
     isScrollControlled: true,
     backgroundColor: AppColors.white,
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
     ),
     builder: (dialogContext) => _BangCounterAmountSheet(
       title: title,
@@ -78,7 +78,7 @@ class _BangCounterAmountSheetState extends State<_BangCounterAmountSheet> {
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
                 color: AppColors.border,
-                borderRadius: BorderRadius.circular(999),
+                borderRadius: BorderRadius.circular(10),
               ),
             ),
             Text(

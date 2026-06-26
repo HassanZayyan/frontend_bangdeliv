@@ -16,6 +16,7 @@ import '../../application/customer_order_providers.dart';
 import '../../application/order_chat_provider.dart';
 import '../../application/order_chat_unread_provider.dart';
 import '../../../../utils/order_formatters.dart';
+import '../../../../widgets/bang_chat_bubble.dart';
 import '../../../../widgets/profile_avatar.dart';
 
 class OrderChatScreen extends ConsumerStatefulWidget {
@@ -92,7 +93,7 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
       context: context,
       backgroundColor: AppColors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
       ),
       builder: (context) {
         return SafeArea(
@@ -254,7 +255,6 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
 
             return Column(
               children: [
-                if (chat.realtimeUnavailable) const _SyncStatusPill(),
                 if ((chat.errorMessage ?? '').isNotEmpty)
                   _InfoBanner(text: chat.errorMessage!),
                 Expanded(
@@ -418,20 +418,19 @@ class _MessageBubble extends StatelessWidget {
 
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
+      child: BangChatBubble(
+        side: isMine ? BangChatBubbleSide.right : BangChatBubbleSide.left,
+        color: bubbleColor,
+        borderColor: isMine ? null : AppColors.border,
         margin: EdgeInsets.only(
           left: isMine ? 54 : 0,
           right: isMine ? 0 : 54,
           bottom: 10,
         ),
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 9),
-        decoration: BoxDecoration(
-          color: bubbleColor,
-          borderRadius: BorderRadius.circular(16).copyWith(
-            topLeft: Radius.circular(isMine ? 16 : 4),
-            topRight: Radius.circular(isMine ? 4 : 16),
-          ),
-          border: isMine ? null : Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(10).copyWith(
+          topLeft: Radius.circular(isMine ? 10 : 4),
+          topRight: Radius.circular(isMine ? 4 : 10),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -501,7 +500,7 @@ class _MessageAttachment extends StatelessWidget {
         normalized.startsWith('http://') || normalized.startsWith('https://');
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(10),
       child: Container(
         constraints: const BoxConstraints(maxWidth: 220, maxHeight: 220),
         color: isMine
@@ -575,7 +574,7 @@ class _Composer extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: AppColors.background,
-              borderRadius: BorderRadius.circular(22),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: const Text(
               'Sesi chat dengan driver berakhir',
@@ -624,7 +623,7 @@ class _Composer extends StatelessWidget {
                     fontSize: 13,
                   ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(22),
+                    borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide.none,
                   ),
                   contentPadding: const EdgeInsets.symmetric(
@@ -656,49 +655,6 @@ class _Composer extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SyncStatusPill extends StatelessWidget {
-  const _SyncStatusPill();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      color: AppColors.background,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: 10,
-                height: 10,
-                child: CircularProgressIndicator(strokeWidth: 1.6),
-              ),
-              SizedBox(width: 6),
-              Text(
-                'Menyinkronkan berkala',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );

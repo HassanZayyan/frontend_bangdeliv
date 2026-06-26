@@ -119,7 +119,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
       useRootNavigator: true,
       backgroundColor: AppColors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
       ),
       builder: (sheetContext) => const _CancelOrderSheet(),
     );
@@ -403,7 +403,7 @@ class _CancelOrderSheetState extends State<_CancelOrderSheet> {
                     height: 4,
                     decoration: BoxDecoration(
                       color: AppColors.border,
-                      borderRadius: BorderRadius.circular(999),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                 ),
@@ -440,7 +440,7 @@ class _CancelOrderSheetState extends State<_CancelOrderSheet> {
                 DecoratedBox(
                   decoration: BoxDecoration(
                     color: AppColors.white,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: AppColors.border),
                   ),
                   child: Column(
@@ -511,7 +511,7 @@ class _CancelOrderSheetState extends State<_CancelOrderSheet> {
                           style: TextButton.styleFrom(
                             foregroundColor: AppColors.textSecondary,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(10),
                             ),
                           ),
                           child: const Text(
@@ -548,7 +548,7 @@ class _CancelOrderSheetState extends State<_CancelOrderSheet> {
                             elevation: 0,
                             padding: const EdgeInsets.symmetric(horizontal: 12),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(10),
                             ),
                           ),
                           child: const FittedBox(

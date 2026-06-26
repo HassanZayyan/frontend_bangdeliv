@@ -149,7 +149,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       color: Colors.transparent,
       child: InkWell(
         onTap: _openEditProfile,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(10),
         splashFactory: NoSplash.splashFactory,
         overlayColor: const WidgetStatePropertyAll(Colors.transparent),
         child: Padding(
@@ -301,7 +301,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       useRootNavigator: true,
       backgroundColor: AppColors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
       ),
       builder: (sheetContext) {
         return SafeArea(
@@ -353,7 +353,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 Material(
                   color: AppColors.surfaceAlt,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(10),
                     side: const BorderSide(color: AppColors.border),
                   ),
                   clipBehavior: Clip.antiAlias,
@@ -498,7 +498,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           backgroundColor: AppColors.white,
           surfaceTintColor: AppColors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(10),
           ),
           title: const Text(
             'Keluar dari BangDeliv',
