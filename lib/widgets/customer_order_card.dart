@@ -130,7 +130,7 @@ class CustomerOrderCard extends StatelessWidget {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: GoogleFonts.inter(
-                                    fontWeight: FontWeight.w700,
+                                    fontWeight: FontWeight.w600,
                                     fontSize: titleFontSize,
                                     color: AppColors.textPrimary,
                                   ),

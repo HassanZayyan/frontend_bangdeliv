@@ -4,6 +4,7 @@ import '../utils/order_formatters.dart';
 import '../utils/service_type.dart' as service_type;
 import 'delivery_fee_negotiation_model.dart';
 import 'order_route_model.dart';
+import 'payment_proof_feedback_model.dart';
 import 'shopping_order_capability_model.dart';
 import 'shopping_negotiation_model.dart';
 
@@ -555,6 +556,7 @@ class CustomerOrderDetailModel {
   final OrderRouteModel? route;
   final CustomerShoppingPricingModel? shoppingPricing;
   final List<CustomerOrderProofModel> proofs;
+  final PaymentProofFeedbackModel? paymentProofFeedback;
   final DriverEtaModel? driverEta;
   final DeliveryFeeNegotiationModel? deliveryFeeNegotiation;
   final ShoppingNegotiationModel? shoppingNegotiation;
@@ -593,6 +595,7 @@ class CustomerOrderDetailModel {
     OrderRouteModel? shoppingRoute,
     this.shoppingPricing,
     this.proofs = const <CustomerOrderProofModel>[],
+    this.paymentProofFeedback,
     this.driverEta,
     this.deliveryFeeNegotiation,
     this.shoppingNegotiation,
@@ -682,11 +685,17 @@ class CustomerOrderDetailModel {
       return false;
     }
 
-    if (canEditShoppingItems) {
-      return true;
+    final activeStopCount = shoppingStops.where((stop) => stop.isActive).length;
+    if (activeStopCount >= 3) {
+      return false;
     }
 
-    return false;
+    if (!shoppingCapabilities.isExplicit) {
+      return canEditShoppingItems;
+    }
+
+    return canEditShoppingItems &&
+        shoppingCapabilities.canCustomerAddShoppingMerchant;
   }
 
   CustomerOrderDetailModel copyWith({
@@ -721,6 +730,7 @@ class CustomerOrderDetailModel {
     OrderRouteModel? shoppingRoute,
     CustomerShoppingPricingModel? shoppingPricing,
     List<CustomerOrderProofModel>? proofs,
+    PaymentProofFeedbackModel? paymentProofFeedback,
     DriverEtaModel? driverEta,
     DeliveryFeeNegotiationModel? deliveryFeeNegotiation,
     ShoppingNegotiationModel? shoppingNegotiation,
@@ -762,6 +772,7 @@ class CustomerOrderDetailModel {
       route: route ?? shoppingRoute ?? this.route,
       shoppingPricing: shoppingPricing ?? this.shoppingPricing,
       proofs: proofs ?? this.proofs,
+      paymentProofFeedback: paymentProofFeedback ?? this.paymentProofFeedback,
       driverEta: clearDriverEta ? null : (driverEta ?? this.driverEta),
       deliveryFeeNegotiation:
           deliveryFeeNegotiation ?? this.deliveryFeeNegotiation,
@@ -1005,6 +1016,9 @@ class CustomerOrderDetailModel {
       ),
       proofs: CustomerOrderProofModel.parseList(
         json['proofs'] ?? json['order_proofs'] ?? json['attachments'],
+      ),
+      paymentProofFeedback: PaymentProofFeedbackModel.fromRaw(
+        json['payment_proof_feedback'] ?? json['paymentProofFeedback'],
       ),
       driverEta: DriverEtaModel.fromRaw(
         json['driver_eta'] ?? json['driverEta'],

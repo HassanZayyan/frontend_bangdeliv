@@ -13,6 +13,7 @@ import '../../application/driver_order_providers.dart';
 import '../../../../utils/order_formatters.dart';
 import '../../../../utils/order_ui_helpers.dart';
 import '../../../../utils/service_type.dart';
+import '../../application/driver_earnings_summary.dart';
 
 class DriverHomeScreen extends ConsumerWidget {
   const DriverHomeScreen({super.key});
@@ -21,9 +22,14 @@ class DriverHomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final activeOrder = ref.watch(driverActiveOrderProvider);
     final session = ref.watch(authSessionProvider);
+    final historyState = ref.watch(driverHistoryProvider);
+    final historySummary = historyState.asData == null
+        ? null
+        : DriverEarningsSummary.fromHistory(historyState.asData!.value);
     final stats = session.profile?.stats;
-    final totalPaid = stats?.totalPaid ?? 0;
-    final totalOrders = stats?.totalOrders ?? 0;
+    final totalPaid = historySummary?.netIncomeTotal ?? stats?.totalPaid ?? 0;
+    final totalOrders =
+        historySummary?.completedCount ?? stats?.totalOrders ?? 0;
     final availabilityAsync = ref.watch(driverAvailabilityProvider);
     final availability = availabilityAsync.asData?.value;
     final availabilityStatus = availability?.status ?? 'offline';
@@ -54,10 +60,12 @@ class DriverHomeScreen extends ConsumerWidget {
         onRefresh: () async {
           ref.invalidate(driverOrdersProvider);
           ref.invalidate(driverAvailabilityProvider);
+          ref.invalidate(driverHistoryProvider);
           try {
             await Future.wait([
               ref.read(driverOrdersProvider.future),
               ref.read(driverAvailabilityProvider.future),
+              ref.read(driverHistoryProvider.future),
             ]);
           } catch (_) {
             // Provider states render errors independently.

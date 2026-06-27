@@ -30,7 +30,11 @@ class FoodModel {
   }
 
   String get formattedPrice {
-    return formatRupiah(price);
+    return formatMenuPriceOrPending(price);
+  }
+
+  bool get hasReferencePrice {
+    return hasMenuReferencePrice(price);
   }
 
   static double _toDouble(dynamic value) {

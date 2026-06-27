@@ -707,13 +707,13 @@ class _MerchantInfo extends StatelessWidget {
           maxLines: 3,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            fontSize: AppTextScaling.adaptive(context, normal: 21, large: 19),
+            fontSize: AppTextScaling.adaptive(context, normal: 18, large: 17),
             fontWeight: FontWeight.w800,
             color: AppColors.textPrimary,
             height: 1.18,
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         _MerchantMetadataLine(distance: distance, items: metadata),
       ],
     );
@@ -748,16 +748,14 @@ class _MerchantMetadataLine extends StatelessWidget {
     }
 
     final textStyle = TextStyle(
-      fontSize: AppTextScaling.adaptive(context, normal: 13.5, large: 12.8),
+      fontSize: AppTextScaling.adaptive(context, normal: 11.5, large: 11),
       color: AppColors.textSecondary,
-      height: 1.35,
+      height: 1.25,
       fontWeight: FontWeight.w600,
     );
 
-    return Wrap(
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 7,
-      runSpacing: 5,
+    final metadataLine = Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         if (hasDistance)
           Row(
@@ -765,24 +763,44 @@ class _MerchantMetadataLine extends StatelessWidget {
             children: [
               const Icon(
                 Icons.near_me_outlined,
-                size: 17,
+                size: 14,
                 color: AppColors.textSecondary,
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 4),
               Text(distance, style: textStyle),
             ],
           ),
         for (final item in visibleItems) ...[
-          if (hasDistance || item != visibleItems.first)
+          if (hasDistance || item != visibleItems.first) ...[
+            const SizedBox(width: 5),
             Text(
               '•',
               style: textStyle.copyWith(
                 color: AppColors.textSecondary.withValues(alpha: 0.72),
               ),
             ),
+            const SizedBox(width: 5),
+          ],
           Text(item, style: textStyle),
         ],
       ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (!constraints.hasBoundedWidth) {
+          return metadataLine;
+        }
+
+        return SizedBox(
+          width: constraints.maxWidth,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: metadataLine,
+          ),
+        );
+      },
     );
   }
 }
@@ -800,6 +818,8 @@ class _MenuSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasPendingMenuPrices = menus.any((menu) => !menu.hasReferencePrice);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -807,11 +827,11 @@ class _MenuSection extends StatelessWidget {
           'Menu Restoran',
           style: TextStyle(
             color: AppColors.textPrimary,
-            fontSize: 17,
+            fontSize: 15,
             fontWeight: FontWeight.w800,
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         if (isLoading)
           const _MenuLoadingList()
         else if ((errorText ?? '').trim().isNotEmpty)
@@ -821,7 +841,15 @@ class _MenuSection extends StatelessWidget {
             icon: Icons.restaurant_menu_outlined,
             message: 'Menu resmi tempat ini belum tersedia.',
           )
-        else
+        else ...[
+          if (hasPendingMenuPrices) ...[
+            const _MenuInfoCard(
+              icon: Icons.receipt_long_outlined,
+              message:
+                  'Sebagian harga menu belum tersedia. Driver akan mengirim total barang sesuai nota.',
+            ),
+            const SizedBox(height: 10),
+          ],
           ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -831,6 +859,7 @@ class _MenuSection extends StatelessWidget {
               return _MenuTile(menu: menus[index]);
             },
           ),
+        ],
       ],
     );
   }
@@ -845,6 +874,7 @@ class _MenuTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final imageUrl = menu.imageUrl.trim();
     final hasImage = imageUrl.isNotEmpty;
+    final hasReferencePrice = menu.hasReferencePrice;
 
     return Container(
       padding: EdgeInsets.symmetric(
@@ -900,10 +930,14 @@ class _MenuTile extends StatelessWidget {
                   menu.formattedPrice,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.primary,
+                  style: TextStyle(
+                    color: hasReferencePrice
+                        ? AppColors.primary
+                        : AppColors.textSecondary,
                     fontSize: 14,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: hasReferencePrice
+                        ? FontWeight.w800
+                        : FontWeight.w600,
                   ),
                 ),
               ],

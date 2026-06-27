@@ -70,6 +70,7 @@ void main() {
     expect(paymentCard, contains("'Total'"));
     expect(paymentCard, contains('_paymentActionMessage'));
     expect(paymentCard, contains('!hasPendingTransferProof'));
+    expect(paymentCard, isNot(contains('Icons.payments_outlined')));
   });
 
   test('shopping item card does not duplicate COD payment instruction', () {
@@ -105,4 +106,26 @@ void main() {
       expect(failedStopNotice, isNot(contains('Lanjut tanpa ini')));
     },
   );
+
+  test('driver manual delivery fee notice uses customer-friendly copy', () {
+    final source = File(_trackOrderSourcePath).readAsStringSync();
+
+    expect(
+      source,
+      contains(r"return 'Ongkir diperbarui menjadi $amountText.';"),
+    );
+    expect(source, isNot(contains('Ongkir diperbarui driver')));
+    expect(source, contains('reason: deliveryFeeNoticeReason'));
+
+    final noticeReason = source.substring(
+      source.indexOf('String? _deliveryFeeNoticeReason('),
+      source.indexOf('String _paymentMessage('),
+    );
+    expect(noticeReason, contains('detail.deliveryFeeChangeNote'));
+    expect(noticeReason, contains('order.deliveryFeeChangeNote'));
+    expect(
+      noticeReason,
+      isNot(contains('detail.deliveryFeeNegotiation?.note')),
+    );
+  });
 }

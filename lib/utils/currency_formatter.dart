@@ -15,3 +15,15 @@ String formatRupiah(num amount) {
   final prefix = isNegative ? '-Rp' : 'Rp';
   return '$prefix$buffer';
 }
+
+const shoppingPendingPriceLabel = 'Harga sesuai nota';
+
+bool hasMenuReferencePrice(num? amount) {
+  return amount != null && amount > 0;
+}
+
+String formatMenuPriceOrPending(num? amount) {
+  return hasMenuReferencePrice(amount)
+      ? formatRupiah(amount!)
+      : shoppingPendingPriceLabel;
+}

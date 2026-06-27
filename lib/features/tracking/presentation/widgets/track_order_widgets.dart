@@ -5,7 +5,9 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
+import '../../../../core/widgets/bang_amount_negotiation_card.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../../../core/widgets/bang_confirmation_dialog.dart';
 import '../../../../core/widgets/bang_shopping_merchant_request_summary.dart';
 import '../../../../models/customer_order_model.dart';
 import '../../../../models/shopping_order_capability_model.dart';
@@ -140,39 +142,11 @@ class _TrackShoppingOrderItemsCardState
   }
 
   Widget _failedStopNotice(CustomerShoppingStopModel stop) {
-    return Container(
+    return _TrackNotice(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.error.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.error.withValues(alpha: 0.22)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.storefront_outlined,
-                color: AppColors.error,
-                size: 18,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '${stop.merchant.name} - Tempat tutup/order batal',
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+      tone: _TrackNoticeTone.danger,
+      icon: Icons.storefront_outlined,
+      text: '${stop.merchant.name} - Tempat tutup/order batal',
     );
   }
 
@@ -186,42 +160,13 @@ class _TrackShoppingOrderItemsCardState
         ? 'ubah item'
         : 'tambah item';
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.pending_actions_outlined,
-                color: AppColors.primary,
-                size: 18,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Request $actionLabel menunggu persetujuan driver.',
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (request.requestedStops.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            BangShoppingMerchantRequestSummary(request: request, compact: true),
-          ],
-        ],
-      ),
+    return _TrackNotice(
+      tone: _TrackNoticeTone.info,
+      icon: Icons.pending_actions_outlined,
+      text: 'Request $actionLabel menunggu persetujuan driver.',
+      child: request.requestedStops.isEmpty
+          ? null
+          : BangShoppingMerchantRequestSummary(request: request, compact: true),
     );
   }
 
@@ -234,35 +179,11 @@ class _TrackShoppingOrderItemsCardState
   }
 
   Widget _unavailableItemsNotice(List<CustomerShoppingItemModel> items) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.error.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.error.withValues(alpha: 0.20)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
-            Icons.inventory_2_outlined,
-            color: AppColors.error,
-            size: 18,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Item tidak tersedia: ${items.map((item) => item.name).join(', ')}.',
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
-                height: 1.3,
-              ),
-            ),
-          ),
-        ],
-      ),
+    return _TrackNotice(
+      tone: _TrackNoticeTone.danger,
+      icon: Icons.inventory_2_outlined,
+      text:
+          'Item tidak tersedia: ${items.map((item) => item.name).join(', ')}.',
     );
   }
 
@@ -278,76 +199,34 @@ class _TrackShoppingOrderItemsCardState
 
     return KeyedSubtree(
       key: widget.shoppingPriceFocusKeyFor?.call(stop.pickupLocationId),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppColors.primary.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
+      child: BangAmountNegotiationCard(
+        label: 'Konfirmasi harga barang',
+        subtitle: stop.merchant.name,
+        amount: quotedAmount,
+        amountLabel: 'Harga dari driver',
+        reasonLabel: 'Catatan',
+        reason: quote?.amount.note,
+        supportingText: 'Harga barang mengikuti struk/tempat.',
+        icon: Icons.receipt_long_outlined,
+        approveLabel: 'Setujui harga',
+        counterLabel: 'Batalkan tempat',
+        counterIsDestructive: true,
+        showCancelAction: false,
+        onApprove: () => _respondShoppingQuote(
+          context,
+          ref,
+          detail,
+          action: 'APPROVE',
+          pickupLocationId: stop.pickupLocationId,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Harga ${stop.merchant.name}',
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              formatCurrency(quotedAmount),
-              style: const TextStyle(
-                color: AppColors.primaryDark,
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            if ((quote?.amount.note ?? '').trim().isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                quote!.amount.note!.trim(),
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
-                  height: 1.35,
-                ),
-              ),
-            ],
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _respondShoppingQuote(
-                      context,
-                      ref,
-                      detail,
-                      action: 'CANCEL_MERCHANT',
-                      pickupLocationId: stop.pickupLocationId,
-                    ),
-                    child: const Text('Batalkan tempat ini'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () => _respondShoppingQuote(
-                      context,
-                      ref,
-                      detail,
-                      action: 'APPROVE',
-                      pickupLocationId: stop.pickupLocationId,
-                    ),
-                    child: const Text('Iya'),
-                  ),
-                ),
-              ],
-            ),
-          ],
+        onCounter: () => _respondShoppingQuote(
+          context,
+          ref,
+          detail,
+          action: 'CANCEL_MERCHANT',
+          pickupLocationId: stop.pickupLocationId,
         ),
+        onCancel: () {},
       ),
     );
   }
@@ -896,28 +775,13 @@ class _TrackShoppingOrderItemsCardState
     required String confirmLabel,
     bool isDestructive = false,
   }) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Kembali'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: isDestructive
-                ? FilledButton.styleFrom(backgroundColor: AppColors.error)
-                : null,
-            child: Text(confirmLabel),
-          ),
-        ],
-      ),
+    return showBangConfirmationDialog(
+      context,
+      title: title,
+      message: message,
+      confirmLabel: confirmLabel,
+      isDestructive: isDestructive,
     );
-
-    return confirmed == true;
   }
 
   Future<void> _submitUnavailableDecision(
@@ -1111,36 +975,107 @@ class TrackWaitingDriverHeroCard extends StatelessWidget {
 }
 
 class TrackDeliveryFeeNotice extends StatelessWidget {
-  const TrackDeliveryFeeNotice({super.key, required this.text});
+  const TrackDeliveryFeeNotice({super.key, required this.text, this.reason});
 
   final String text;
+  final String? reason;
 
   @override
   Widget build(BuildContext context) {
+    final normalizedReason = reason?.trim();
+
+    return _TrackNotice(
+      tone: _TrackNoticeTone.info,
+      icon: Icons.info_outline,
+      text: text,
+      secondaryText: normalizedReason == null || normalizedReason.isEmpty
+          ? null
+          : 'Alasan: $normalizedReason',
+    );
+  }
+}
+
+enum _TrackNoticeTone { info, danger }
+
+class _TrackNotice extends StatelessWidget {
+  const _TrackNotice({
+    required this.tone,
+    required this.icon,
+    required this.text,
+    this.secondaryText,
+    this.child,
+    this.margin,
+  });
+
+  final _TrackNoticeTone tone;
+  final IconData icon;
+  final String text;
+  final String? secondaryText;
+  final Widget? child;
+  final EdgeInsetsGeometry? margin;
+
+  Color get _accentColor {
+    return switch (tone) {
+      _TrackNoticeTone.info => AppColors.primary,
+      _TrackNoticeTone.danger => AppColors.error,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = _accentColor;
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      margin: margin,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.08),
+        color: accent.withValues(alpha: 0.045),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
+        border: Border.all(color: accent.withValues(alpha: 0.14)),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline, color: AppColors.primary, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 12.5,
-                height: 1.4,
-                fontWeight: FontWeight.w600,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 3),
+                child: Icon(icon, color: accent, size: 16),
               ),
-            ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      text,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        height: 1.34,
+                      ),
+                    ),
+                    if ((secondaryText ?? '').trim().isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        secondaryText!.trim(),
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          height: 1.32,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
+          if (child != null) ...[const SizedBox(height: 10), child!],
         ],
       ),
     );

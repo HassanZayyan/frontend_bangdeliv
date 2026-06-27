@@ -11,6 +11,8 @@ import '../utils/order_ui_helpers.dart';
 
 typedef DriverTransferPaymentCallback =
     Future<void> Function({required double amount});
+typedef DriverTransferRejectCallback =
+    Future<void> Function({required String reason});
 
 class DriverTransferPaymentCard extends StatelessWidget {
   const DriverTransferPaymentCard({
@@ -18,17 +20,23 @@ class DriverTransferPaymentCard extends StatelessWidget {
     required this.order,
     required this.isOrderBusy,
     required this.isConfirmingQris,
+    this.isRejectingQris = false,
     required this.onConfirmTransfer,
+    this.onRejectTransfer,
   });
 
   final DriverOrderModel order;
   final bool isOrderBusy;
   final bool isConfirmingQris;
+  final bool isRejectingQris;
   final DriverTransferPaymentCallback? onConfirmTransfer;
+  final DriverTransferRejectCallback? onRejectTransfer;
 
   static bool shouldShow(DriverOrderModel order) {
     final method = order.paymentMethod.trim().toUpperCase();
-    return method == 'TRANSFER' || _hasTransferProof(order);
+    return method == 'TRANSFER' ||
+        _hasTransferProof(order) ||
+        order.paymentProofFeedback?.isRejected == true;
   }
 
   @override
@@ -36,6 +44,12 @@ class DriverTransferPaymentCard extends StatelessWidget {
     final proof = _transferProof(order);
     final isPaid = isPaymentPaid(order.paymentStatus);
     final hasProof = proof != null && (proof.photoUrl ?? '').trim().isNotEmpty;
+    final hasPendingProof =
+        hasProof && (proof.status ?? '').trim().toLowerCase() == 'pending';
+    final isRejectedWithoutNewProof =
+        !isPaid &&
+        order.paymentProofFeedback?.isRejected == true &&
+        !hasPendingProof;
 
     if (!shouldShow(order)) {
       return const SizedBox.shrink();
@@ -72,7 +86,11 @@ class DriverTransferPaymentCard extends StatelessWidget {
               ),
               const SizedBox(height: 3),
               Text(
-                _statusMessage(isPaid: isPaid, hasProof: hasProof),
+                _statusMessage(
+                  isPaid: isPaid,
+                  hasProof: hasProof,
+                  isRejectedWithoutNewProof: isRejectedWithoutNewProof,
+                ),
                 style: const TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 12.5,
@@ -94,10 +112,18 @@ class DriverTransferPaymentCard extends StatelessWidget {
                 borderColor: AppColors.primary.withValues(alpha: 0.16),
               ),
               _chip(
-                paymentStatusLabel(order.paymentStatus),
-                foreground: _statusColor(),
-                background: _statusColor().withValues(alpha: 0.08),
-                borderColor: _statusColor().withValues(alpha: 0.14),
+                isRejectedWithoutNewProof
+                    ? 'Ditolak'
+                    : paymentStatusLabel(order.paymentStatus),
+                foreground: _statusColor(
+                  isRejectedWithoutNewProof: isRejectedWithoutNewProof,
+                ),
+                background: _statusColor(
+                  isRejectedWithoutNewProof: isRejectedWithoutNewProof,
+                ).withValues(alpha: 0.08),
+                borderColor: _statusColor(
+                  isRejectedWithoutNewProof: isRejectedWithoutNewProof,
+                ).withValues(alpha: 0.14),
               ),
               _chip(
                 formatRupiah(order.totalPrice),
@@ -108,11 +134,15 @@ class DriverTransferPaymentCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          if (hasProof)
+          if (isRejectedWithoutNewProof)
+            _RejectedProofState(
+              reason: order.paymentProofFeedback?.displayReason,
+            )
+          else if (hasProof)
             _proofPreview(context, proof)
           else
             const _WaitingProofState(),
-          if (!isPaid) ...[
+          if (!isPaid && !isRejectedWithoutNewProof) ...[
             const SizedBox(height: 14),
             _actions(context, hasProof: hasProof),
           ],
@@ -194,11 +224,11 @@ class DriverTransferPaymentCard extends StatelessWidget {
         width: double.infinity,
         child: BangActionButton(
           label: 'Verifikasi QRIS',
-          isLoading: isConfirmingQris,
-          isEnabled: !isOrderBusy || isConfirmingQris,
+          isLoading: isConfirmingQris || isRejectingQris,
+          isEnabled: !isOrderBusy || isConfirmingQris || isRejectingQris,
           onPressed: onConfirmTransfer == null
               ? null
-              : () => onConfirmTransfer?.call(amount: order.totalPrice),
+              : () => _openReviewDialog(context),
         ),
       );
     }
@@ -226,6 +256,36 @@ class DriverTransferPaymentCard extends StatelessWidget {
               },
       ),
     );
+  }
+
+  Future<void> _openReviewDialog(BuildContext context) async {
+    final proof = _transferProof(order);
+    if (proof == null) {
+      return;
+    }
+
+    final decision = await showDialog<_TransferProofReviewDecision>(
+      context: context,
+      builder: (context) => _TransferProofReviewDialog(
+        proof: proof,
+        amount: order.totalPrice,
+        canReject: onRejectTransfer != null,
+      ),
+    );
+    if (decision == null) {
+      return;
+    }
+
+    if (decision.isApproved) {
+      await onConfirmTransfer?.call(amount: order.totalPrice);
+      return;
+    }
+
+    final reason = decision.rejectionReason?.trim() ?? '';
+    if (reason.isEmpty) {
+      return;
+    }
+    await onRejectTransfer?.call(reason: reason);
   }
 
   Widget _chip(
@@ -275,15 +335,25 @@ class DriverTransferPaymentCard extends StatelessWidget {
     );
   }
 
-  Color _statusColor() {
-    return isPaymentPaid(order.paymentStatus)
-        ? AppColors.success
-        : AppColors.primaryDark;
+  Color _statusColor({required bool isRejectedWithoutNewProof}) {
+    if (isPaymentPaid(order.paymentStatus)) {
+      return AppColors.success;
+    }
+
+    return isRejectedWithoutNewProof ? AppColors.error : AppColors.primaryDark;
   }
 
-  String _statusMessage({required bool isPaid, required bool hasProof}) {
+  String _statusMessage({
+    required bool isPaid,
+    required bool hasProof,
+    required bool isRejectedWithoutNewProof,
+  }) {
     if (isPaid) {
       return 'Pembayaran QRIS sudah diverifikasi.';
+    }
+
+    if (isRejectedWithoutNewProof) {
+      return 'Bukti QRIS ditolak. Menunggu customer mengirim bukti baru.';
     }
 
     if (hasProof) {
@@ -365,6 +435,282 @@ class DriverTransferPaymentCard extends StatelessWidget {
   }
 }
 
+class _TransferProofReviewDecision {
+  const _TransferProofReviewDecision.approve()
+    : isApproved = true,
+      rejectionReason = null;
+
+  const _TransferProofReviewDecision.reject(this.rejectionReason)
+    : isApproved = false;
+
+  final bool isApproved;
+  final String? rejectionReason;
+}
+
+class _TransferProofReviewDialog extends StatefulWidget {
+  const _TransferProofReviewDialog({
+    required this.proof,
+    required this.amount,
+    required this.canReject,
+  });
+
+  final DriverOrderProofModel proof;
+  final double amount;
+  final bool canReject;
+
+  @override
+  State<_TransferProofReviewDialog> createState() =>
+      _TransferProofReviewDialogState();
+}
+
+class _TransferProofReviewDialogState
+    extends State<_TransferProofReviewDialog> {
+  final TextEditingController _reasonController = TextEditingController();
+  bool _isRejecting = false;
+  String? _reasonError;
+
+  @override
+  void dispose() {
+    _reasonController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+
+    return SafeArea(
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          bottom: viewInsets.bottom + 16,
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Material(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(10),
+              clipBehavior: Clip.antiAlias,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Verifikasi Bukti QRIS',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Pastikan nominal dan bukti pembayaran sudah sesuai.',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    _reviewSummary(context),
+                    if (_isRejecting) ...[
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: _reasonController,
+                        maxLength: 1000,
+                        maxLines: 3,
+                        textInputAction: TextInputAction.done,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        decoration:
+                            _transferDialogInputDecoration(
+                              labelText: 'Alasan penolakan',
+                            ).copyWith(
+                              errorText: _reasonError,
+                              alignLabelWithHint: true,
+                            ),
+                        onChanged: (_) {
+                          if (_reasonError != null) {
+                            setState(() => _reasonError = null);
+                          }
+                        },
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    _actions(context),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _reviewSummary(BuildContext context) {
+    final url = widget.proof.photoUrl;
+    final note = widget.proof.note?.trim() ?? '';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (url != null && url.isNotEmpty)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                url,
+                width: 58,
+                height: 58,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => Container(
+                  width: 58,
+                  height: 58,
+                  color: AppColors.background,
+                  child: const Icon(
+                    Icons.image_not_supported_outlined,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+          if (url != null && url.isNotEmpty) const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _summaryLine('Nominal', formatRupiah(widget.amount)),
+                const SizedBox(height: 4),
+                _summaryLine(
+                  'Upload',
+                  formatDateMonthTime(widget.proof.createdAt),
+                ),
+                if (note.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    note,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryLine(String label, String value) {
+    return RichText(
+      text: TextSpan(
+        style: const TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          height: 1.35,
+        ),
+        children: [
+          TextSpan(text: '$label: '),
+          TextSpan(
+            text: value,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _actions(BuildContext context) {
+    if (_isRejecting) {
+      return Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () => setState(() {
+                _isRejecting = false;
+                _reasonError = null;
+              }),
+              child: const Text('Kembali'),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: FilledButton(
+              onPressed: _submitReject,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.error,
+                foregroundColor: AppColors.white,
+              ),
+              child: const Text('Tolak Bukti'),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        if (widget.canReject) ...[
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () => setState(() => _isRejecting = true),
+              child: const Text('Tolak'),
+            ),
+          ),
+          const SizedBox(width: 10),
+        ],
+        Expanded(
+          child: FilledButton(
+            onPressed: () => Navigator.of(
+              context,
+            ).pop(const _TransferProofReviewDecision.approve()),
+            child: const Text('Setujui'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _submitReject() {
+    final reason = _reasonController.text.trim();
+    if (reason.isEmpty) {
+      setState(() => _reasonError = 'Alasan penolakan wajib diisi.');
+      return;
+    }
+
+    Navigator.of(context).pop(_TransferProofReviewDecision.reject(reason));
+  }
+}
+
 class _WaitingProofState extends StatelessWidget {
   const _WaitingProofState();
 
@@ -377,6 +723,53 @@ class _WaitingProofState extends StatelessWidget {
         fontSize: 12.5,
         fontWeight: FontWeight.w700,
         height: 1.35,
+      ),
+    );
+  }
+}
+
+class _RejectedProofState extends StatelessWidget {
+  const _RejectedProofState({required this.reason});
+
+  final String? reason;
+
+  @override
+  Widget build(BuildContext context) {
+    final cleanReason = reason?.trim() ?? '';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.14)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Menunggu customer mengirim bukti baru.',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w800,
+              height: 1.35,
+            ),
+          ),
+          if (cleanReason.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              cleanReason,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

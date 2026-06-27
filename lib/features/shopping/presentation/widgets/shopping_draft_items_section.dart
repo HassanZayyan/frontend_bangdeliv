@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../services/customer_order_api_service.dart';
+import '../../../../utils/currency_formatter.dart';
 import '../../../../utils/order_formatters.dart';
 import '../../application/shopping_item_draft.dart';
 import 'shopping_widget_helpers.dart';
@@ -147,7 +148,7 @@ class _DraftItemTile extends StatelessWidget {
     final priceLabel = item.isFromMenu
         ? hasReferencePrice
               ? 'Referensi ${formatCurrency(unitPrice)}'
-              : 'Harga belum tersedia'
+              : shoppingPendingPriceLabel
         : 'Harga menunggu input driver';
 
     return Padding(

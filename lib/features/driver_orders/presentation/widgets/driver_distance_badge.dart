@@ -15,7 +15,7 @@ class DriverDistanceBadge extends StatelessWidget {
     final colors = _colorsFor(viewData.bucket);
 
     return Semantics(
-      label: 'Jarak driver ke titik jemput ${viewData.label}',
+      label: 'Jarak driver ${viewData.label}',
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(

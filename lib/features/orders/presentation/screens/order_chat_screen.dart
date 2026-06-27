@@ -277,48 +277,69 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
                           )
                           .markReadThrough(_latestServerMessageId(messages));
                     },
-                    child: ListView(
-                      controller: _scrollController,
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
-                      children: [
-                        if (chat.hasMore)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Center(
-                              child: OutlinedButton.icon(
-                                onPressed: chat.isLoadingOlder
-                                    ? null
-                                    : () => ref
-                                          .read(
-                                            orderChatProvider(
-                                              widget.orderId,
-                                            ).notifier,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final availableEmptyHeight =
+                            constraints.hasBoundedHeight
+                            ? constraints.maxHeight - 30
+                            : 240.0;
+                        final emptyStateHeight = availableEmptyHeight < 180
+                            ? 180.0
+                            : availableEmptyHeight;
+
+                        return ListView(
+                          controller: _scrollController,
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+                          children: [
+                            if (chat.hasMore)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: Center(
+                                  child: OutlinedButton.icon(
+                                    onPressed: chat.isLoadingOlder
+                                        ? null
+                                        : () => ref
+                                              .read(
+                                                orderChatProvider(
+                                                  widget.orderId,
+                                                ).notifier,
+                                              )
+                                              .loadOlder(),
+                                    icon: chat.isLoadingOlder
+                                        ? const SizedBox(
+                                            width: 14,
+                                            height: 14,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
                                           )
-                                          .loadOlder(),
-                                icon: chat.isLoadingOlder
-                                    ? const SizedBox(
-                                        width: 14,
-                                        height: 14,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : const Icon(Icons.history, size: 16),
-                                label: const Text('Muat pesan lama'),
+                                        : const Icon(Icons.history, size: 16),
+                                    label: const Text('Muat pesan lama'),
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                        if (chat.messages.isEmpty)
-                          const _EmptyChat()
-                        else
-                          ...chat.messages.map(
-                            (message) => _MessageBubble(
-                              message: message,
-                              isMine: message.senderUserId == currentUserId,
-                            ),
-                          ),
-                      ],
+                            if (chat.messages.isEmpty)
+                              _EmptyChat(height: emptyStateHeight)
+                            else
+                              for (
+                                var index = 0;
+                                index < chat.messages.length;
+                                index += 1
+                              )
+                                _MessageBubble(
+                                  message: chat.messages[index],
+                                  isMine:
+                                      chat.messages[index].senderUserId ==
+                                      currentUserId,
+                                  showTail: _startsSenderRun(
+                                    chat.messages,
+                                    index,
+                                  ),
+                                ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -335,6 +356,22 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
         ),
       ),
     );
+  }
+
+  bool _startsSenderRun(List<OrderChatMessageModel> messages, int index) {
+    if (index <= 0 || index >= messages.length) {
+      return true;
+    }
+
+    final current = messages[index];
+    final previous = messages[index - 1];
+
+    if (current.senderUserId > 0 && previous.senderUserId > 0) {
+      return current.senderUserId != previous.senderUserId;
+    }
+
+    return current.senderRole != previous.senderRole ||
+        current.senderName != previous.senderName;
   }
 
   String _participantNameFromMessages(
@@ -403,10 +440,15 @@ class _ChatParticipantTitle extends StatelessWidget {
 }
 
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.message, required this.isMine});
+  const _MessageBubble({
+    required this.message,
+    required this.isMine,
+    required this.showTail,
+  });
 
   final OrderChatMessageModel message;
   final bool isMine;
+  final bool showTail;
 
   @override
   Widget build(BuildContext context) {
@@ -422,6 +464,7 @@ class _MessageBubble extends StatelessWidget {
         side: isMine ? BangChatBubbleSide.right : BangChatBubbleSide.left,
         color: bubbleColor,
         borderColor: isMine ? null : AppColors.border,
+        showTail: showTail,
         margin: EdgeInsets.only(
           left: isMine ? 54 : 0,
           right: isMine ? 0 : 54,
@@ -429,8 +472,8 @@ class _MessageBubble extends StatelessWidget {
         ),
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 9),
         borderRadius: BorderRadius.circular(10).copyWith(
-          topLeft: Radius.circular(isMine ? 10 : 4),
-          topRight: Radius.circular(isMine ? 4 : 10),
+          topLeft: Radius.circular(!isMine && showTail ? 4 : 10),
+          topRight: Radius.circular(isMine && showTail ? 4 : 10),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -678,7 +721,10 @@ class _MessageAttachment extends StatelessWidget {
       width: size.width,
       height: size.height,
       child: const Center(
-        child: Icon(Icons.broken_image_outlined, color: AppColors.textSecondary),
+        child: Icon(
+          Icons.broken_image_outlined,
+          color: AppColors.textSecondary,
+        ),
       ),
     );
   }
@@ -828,21 +874,26 @@ class _InfoBanner extends StatelessWidget {
 }
 
 class _EmptyChat extends StatelessWidget {
-  const _EmptyChat();
+  const _EmptyChat({required this.height});
+
+  final double height;
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.only(top: 80),
-      child: Column(
-        children: [
-          Icon(Icons.sms_outlined, color: AppColors.textSecondary),
-          SizedBox(height: 10),
-          Text(
-            'Belum ada pesan.',
-            style: TextStyle(color: AppColors.textSecondary),
-          ),
-        ],
+    return SizedBox(
+      height: height,
+      child: const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.sms_outlined, color: AppColors.textSecondary),
+            SizedBox(height: 10),
+            Text(
+              'Belum ada pesan.',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -81,10 +81,16 @@ class DriverOrderActionKeys {
 
   static String confirmQris(String orderId) => _build(orderId, 'confirmQris');
 
+  static String rejectQris(String orderId) => _build(orderId, 'rejectQris');
+
   static String updateFee(String orderId) => _build(orderId, 'updateFee');
 
   static String acceptDeliveryFeeCounter(String orderId) {
     return _build(orderId, 'acceptDeliveryFeeCounter');
+  }
+
+  static String bypassDeliveryFee(String orderId) {
+    return _build(orderId, 'bypassDeliveryFee');
   }
 
   static String uploadProof(String orderId, String proofType) {
@@ -801,6 +807,18 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     );
   }
 
+  Future<String?> rejectTransferPayment({
+    required String orderId,
+    required String reason,
+  }) async {
+    return _mutateRunningOrder(
+      orderId: orderId,
+      actionKey: DriverOrderActionKeys.rejectQris(orderId),
+      request: (service) =>
+          service.rejectTransferPayment(orderId: orderId, reason: reason),
+    );
+  }
+
   Future<String?> updateDeliveryFeeOverride({
     required String orderId,
     required double amount,
@@ -828,6 +846,18 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         orderId: orderId,
         note: note,
       ),
+    );
+  }
+
+  Future<String?> bypassDeliveryFeeOverride({
+    required String orderId,
+    String? note,
+  }) async {
+    return _mutateRunningOrder(
+      orderId: orderId,
+      actionKey: DriverOrderActionKeys.bypassDeliveryFee(orderId),
+      request: (repository) =>
+          repository.bypassDeliveryFeeOverride(orderId: orderId, note: note),
     );
   }
 

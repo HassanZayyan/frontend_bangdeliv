@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_text_scaling.dart';
 import '../../../../models/chatbot_launch_args.dart';
+import '../../../../utils/currency_formatter.dart';
 
 const double _chatbotButtonRadius = 10;
 
@@ -314,6 +315,8 @@ class _MenuDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isPendingPrice = priceLabel == shoppingPendingPriceLabel;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -336,13 +339,15 @@ class _MenuDetails extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: AppColors.primary,
+              color: isPendingPrice
+                  ? AppColors.textSecondary
+                  : AppColors.primary,
               fontSize: AppTextScaling.adaptive(
                 context,
                 normal: 12,
                 large: 11.4,
               ),
-              fontWeight: FontWeight.w700,
+              fontWeight: isPendingPrice ? FontWeight.w600 : FontWeight.w700,
             ),
           ),
         ],

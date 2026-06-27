@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
 import '../../../../config/app_text_scaling.dart';
+import '../../../../core/widgets/bang_confirmation_dialog.dart';
 import '../../../../models/address_location_picker_result.dart';
 import '../../../../models/user_profile_model.dart';
 import '../../../auth/application/auth_session_provider.dart';
@@ -1083,32 +1084,19 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
       return;
     }
 
-    final shouldDelete = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Hapus Alamat'),
-          content: const Text('Yakin ingin menghapus alamat ini?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Batal'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              style: TextButton.styleFrom(foregroundColor: AppColors.error),
-              child: const Text('Hapus'),
-            ),
-          ],
-        );
-      },
+    final shouldDelete = await showBangConfirmationDialog(
+      context,
+      title: 'Hapus Alamat',
+      message: 'Yakin ingin menghapus alamat ini?',
+      confirmLabel: 'Hapus',
+      isDestructive: true,
     );
 
     if (!mounted) {
       return;
     }
 
-    if (shouldDelete != true) {
+    if (!shouldDelete) {
       return;
     }
 
@@ -1494,11 +1482,18 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
+            height: 44,
             child: OutlinedButton(
               onPressed: _openLocationPicker,
               style:
                   OutlinedButton.styleFrom(
                     foregroundColor: AppColors.primaryDark,
+                    minimumSize: Size.zero,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     side: BorderSide(
                       color: AppColors.primary.withValues(alpha: 0.55),
                     ),
@@ -1514,6 +1509,12 @@ class _AddAddressScreenState extends ConsumerState<AddAddressScreen>
                 hasPinnedLocation
                     ? 'Ubah Titik di Peta'
                     : 'Pilih Titik di Peta',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ),

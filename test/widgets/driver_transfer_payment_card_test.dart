@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend_bangdeliv/models/driver_order_model.dart';
+import 'package:frontend_bangdeliv/models/payment_proof_feedback_model.dart';
 import 'package:frontend_bangdeliv/utils/service_type.dart';
 import 'package:frontend_bangdeliv/widgets/driver_transfer_payment_card.dart';
 
@@ -34,6 +35,7 @@ void main() {
           onConfirmTransfer: ({required amount}) async {
             verifiedAmount = amount;
           },
+          onRejectTransfer: ({required reason}) async {},
         );
 
         expect(find.text('Bukti QRIS Customer'), findsOneWidget);
@@ -50,10 +52,64 @@ void main() {
         await tester.tap(find.text('Verifikasi QRIS'));
         await tester.pumpAndSettle();
 
+        expect(find.text('Verifikasi Bukti QRIS'), findsOneWidget);
+        expect(find.text('Setujui'), findsOneWidget);
+        expect(find.text('Tolak'), findsOneWidget);
+
+        await tester.tap(find.text('Setujui'));
+        await tester.pumpAndSettle();
+
         expect(verifiedAmount, 18000);
       }
     },
   );
+
+  testWidgets('requires reason before rejecting transfer proof', (
+    tester,
+  ) async {
+    String? rejectionReason;
+
+    await _pumpCard(
+      tester,
+      order: _order(
+        proofs: [
+          DriverOrderProofModel(
+            id: 1,
+            type: 'payment_transfer',
+            label: 'Bukti QRIS',
+            photoUrl: 'https://example.com/transfer.jpg',
+            status: 'pending',
+            note: 'Bukti QRIS customer.',
+            createdAt: DateTime.parse('2026-06-06T14:30:00Z'),
+          ),
+        ],
+      ),
+      onConfirmTransfer: ({required amount}) async {},
+      onRejectTransfer: ({required reason}) async {
+        rejectionReason = reason;
+      },
+    );
+
+    await tester.tap(find.text('Verifikasi QRIS'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Tolak'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alasan penolakan'), findsOneWidget);
+
+    await tester.tap(find.text('Tolak Bukti'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alasan penolakan wajib diisi.'), findsOneWidget);
+    expect(rejectionReason, isNull);
+
+    await tester.enterText(find.byType(TextField), 'Nominal tidak sesuai.');
+    await tester.tap(find.text('Tolak Bukti'));
+    await tester.pumpAndSettle();
+
+    expect(rejectionReason, 'Nominal tidak sesuai.');
+  });
 
   testWidgets('shows waiting state and manual fallback without proof', (
     tester,
@@ -84,6 +140,37 @@ void main() {
     expect(recordedAmount, 18000);
   });
 
+  testWidgets('shows rejected QRIS feedback without verification action', (
+    tester,
+  ) async {
+    bool called = false;
+
+    await _pumpCard(
+      tester,
+      order: _order(
+        proofs: const [],
+        paymentProofFeedback: const PaymentProofFeedbackModel(
+          status: 'rejected',
+          reason: 'Nominal tidak sesuai.',
+        ),
+      ),
+      onConfirmTransfer: ({required amount}) async {
+        called = true;
+      },
+    );
+
+    expect(find.text('Ditolak'), findsOneWidget);
+    expect(
+      find.text('Bukti QRIS ditolak. Menunggu customer mengirim bukti baru.'),
+      findsOneWidget,
+    );
+    expect(find.text('Menunggu customer mengirim bukti baru.'), findsOneWidget);
+    expect(find.text('Nominal tidak sesuai.'), findsOneWidget);
+    expect(find.text('Verifikasi QRIS'), findsNothing);
+    expect(find.text('Catat Pembayaran QRIS Manual'), findsNothing);
+    expect(called, isFalse);
+  });
+
   testWidgets('shows QRIS loading only on verification action', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -105,6 +192,7 @@ void main() {
               ),
               isOrderBusy: true,
               isConfirmingQris: true,
+              isRejectingQris: false,
               onConfirmTransfer: ({required amount}) async {},
             ),
           ),
@@ -133,6 +221,7 @@ Future<void> _pumpCard(
   WidgetTester tester, {
   required DriverOrderModel order,
   required DriverTransferPaymentCallback onConfirmTransfer,
+  DriverTransferRejectCallback? onRejectTransfer,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -143,7 +232,9 @@ Future<void> _pumpCard(
             order: order,
             isOrderBusy: false,
             isConfirmingQris: false,
+            isRejectingQris: false,
             onConfirmTransfer: onConfirmTransfer,
+            onRejectTransfer: onRejectTransfer,
           ),
         ),
       ),
@@ -155,6 +246,7 @@ DriverOrderModel _order({
   String serviceTypeCode = ServiceTypeCodes.ride,
   String paymentMethod = 'TRANSFER',
   List<DriverOrderProofModel> proofs = const <DriverOrderProofModel>[],
+  PaymentProofFeedbackModel? paymentProofFeedback,
 }) {
   return DriverOrderModel(
     id: 'ORD-$serviceTypeCode',
@@ -169,5 +261,6 @@ DriverOrderModel _order({
     paymentMethod: paymentMethod,
     paymentStatus: 'unpaid',
     proofs: proofs,
+    paymentProofFeedback: paymentProofFeedback,
   );
 }

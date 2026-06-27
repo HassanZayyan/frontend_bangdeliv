@@ -118,10 +118,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
               'Halo! Saya BangBot untuk layanan Antar Jemput. Kamu bisa kirim tujuan lewat chat atau atur titik jemput dan tujuan di map.',
           addressRequiredMessage:
               'Sebelum pesan Antar Jemput, isi Alamat Saya dulu supaya titik jemput utama kamu siap dipakai.',
-          suggestions: [
-            'Antar ke Ramayana Salatiga',
-            'Saya mau ke Alun-Alun Salatiga',
-          ],
+          suggestions: [],
         );
       case 'kurir':
         return const _ServiceContext(
@@ -133,7 +130,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
               'Halo! Saya BangBot untuk layanan Kurir. Kirim barang seperti laundry, dokumen, skincare, atau paket kecil. Tulis tujuan dan isi paket lewat chat, atau atur titik ambil dan tujuan di map.',
           addressRequiredMessage:
               'Sebelum pesan Kurir, isi Alamat Saya dulu supaya titik ambil utama kamu siap dipakai.',
-          suggestions: ['Kirim laundry', 'Kirim skincare', 'Kirim dokumen'],
+          suggestions: [],
         );
       default:
         return const _ServiceContext(
@@ -144,12 +141,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           welcomeMessage:
               'Halo! Saya BangBot untuk layanan Nitip. Tulis nama toko/resto dan barang yang ingin dibeli, atau pilih toko/resto dari daftar.\n\nContoh:\nBeli di Nasgor Gajah:\n- Nasi Goreng 1\n- Es Teh 1\n\nKamu bisa tambah sampai 3 toko/resto dalam satu pesanan.',
           addressRequiredMessage:
-              'Sebelum pesan Nitip, isi Alamat Saya dulu supaya titik antar pesanan kamu siap dipakai.',
-          suggestions: [
-            'Beli ayam geprek',
-            'Beli sembako',
-            'Belanja minimarket',
-          ],
+              'Sebelum pesan Nitip, pilih alamat antar dulu supaya ongkir bisa dihitung. Setelah itu kamu bisa pilih toko/resto atau tulis pesanan lewat chat.',
+          suggestions: [],
         );
     }
   }
@@ -913,6 +906,10 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   }
 
   bool _shouldShowStaticSuggestions(ChatbotConversationState state) {
+    if (_serviceContext.suggestions.isEmpty) {
+      return false;
+    }
+
     if (state.isBootstrapping ||
         state.isSending ||
         state.isApplyingAction ||
@@ -2043,7 +2040,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   List<_AssistantNoticeRow> _parseAssistantNoticeRows(String text) {
     final rows = <_AssistantNoticeRow>[];
     final rowPattern = RegExp(
-      r'^(.+?):\s*(Rp\s*[\d.]+(?:,\d+)?)(?:\s*(\(.+\)))?\.?$',
+      r'^(.+?):\s*(Rp\s*[\d.]+(?:,\d+)?|Sesuai nota|Menunggu harga barang)(?:\s*(\(.+\)))?\.?$',
       caseSensitive: false,
     );
 
@@ -2076,6 +2073,10 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
     if (lower == 'estimasi ongkir sementara' || lower == 'ongkir') {
       return 'Estimasi ongkir';
+    }
+
+    if (lower == 'harga barang') {
+      return 'Harga barang';
     }
 
     if (lower == 'estimasi total sementara') {
@@ -2683,6 +2684,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   bool _isShoppingEstimateLine(String line) {
     final lower = line.toLowerCase();
     return lower.startsWith('estimasi ongkir sementara:') ||
+        lower.startsWith('harga barang:') ||
         lower.startsWith('estimasi total sementara:');
   }
 
@@ -2994,13 +2996,12 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
     var resolvedCurrentService = false;
     for (final serviceType in _chatbotOrderingServiceTypes) {
-      final didResolve = _conversationNotifier(
-        serviceType,
-      ).resolveDriverVerificationGuard(
-        serviceType: serviceType,
-        assistantMessage:
-            'Pengajuan driver Anda sudah dibatalkan. Sekarang Anda bisa kembali membuat pesanan sebagai customer.',
-      );
+      final didResolve = _conversationNotifier(serviceType)
+          .resolveDriverVerificationGuard(
+            serviceType: serviceType,
+            assistantMessage:
+                'Pengajuan driver Anda sudah dibatalkan. Sekarang Anda bisa kembali membuat pesanan sebagai customer.',
+          );
       if (didResolve && serviceType == _serviceContext.serviceType) {
         resolvedCurrentService = true;
       }
@@ -3231,7 +3232,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             (menu) => ChatbotMenuSuggestion(
               name: menu.name.trim(),
               presetMessage: '${menu.name.trim()} 1',
-              priceLabel: formatRupiah(menu.price),
+              priceLabel: formatMenuPriceOrPending(menu.price),
               imageUrl: menu.imageUrl,
             ),
           )

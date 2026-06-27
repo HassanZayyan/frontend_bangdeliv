@@ -14,6 +14,7 @@ import 'package:frontend_bangdeliv/features/orders/presentation/screens/order_ch
 import 'package:frontend_bangdeliv/services/api_client.dart';
 import 'package:frontend_bangdeliv/services/api_exception.dart';
 import 'package:frontend_bangdeliv/services/order_chat_api_service.dart';
+import 'package:frontend_bangdeliv/widgets/bang_chat_bubble.dart';
 import '../fakes/fake_order_realtime_client.dart';
 
 ProviderSubscription<AsyncValue<OrderChatState>> _keepChatProviderAlive(
@@ -825,8 +826,61 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.text('Order sudah saya ambil.'), findsOneWidget);
+    expect(
+      find.textContaining('Order sudah saya ambil', findRichText: true),
+      findsOneWidget,
+    );
     expect(find.text('Sesi chat dengan driver berakhir'), findsOneWidget);
+  });
+
+  testWidgets('OrderChatScreen only shows tail on first bubble in a run', (
+    tester,
+  ) async {
+    final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
+    final fakeService = _FakeOrderChatApiService(
+      initialPage: OrderChatMessagesPage(
+        messages: <OrderChatMessageModel>[
+          _message(id: 10, senderUserId: 7, body: 'tes'),
+          _message(id: 11, senderUserId: 7, body: 'p'),
+          _message(id: 12, senderUserId: 8, body: 'siap'),
+          _message(id: 13, senderUserId: 8, body: 'otw'),
+          _message(id: 14, senderUserId: 7, body: 'oke'),
+        ],
+        canSend: true,
+        hasMore: false,
+        nextBeforeId: null,
+        unreadCount: 0,
+        lastReadMessageId: 0,
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          orderChatApiServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(
+            FakeOrderRealtimeClient(),
+          ),
+        ],
+        child: const MaterialApp(home: OrderChatScreen(orderId: 99)),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final bubbles = tester.widgetList<BangChatBubble>(
+      find.byType(BangChatBubble),
+    );
+
+    expect(bubbles.map((bubble) => bubble.showTail), [
+      true,
+      false,
+      true,
+      false,
+      true,
+    ]);
   });
 }
 

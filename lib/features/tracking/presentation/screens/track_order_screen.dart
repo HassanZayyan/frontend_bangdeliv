@@ -8,11 +8,12 @@ import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
 import '../../../../config/payment_assets.dart';
 import '../../../../core/widgets/bang_amount_negotiation_card.dart';
+import '../../../../core/widgets/bang_confirmation_dialog.dart';
 import '../../../../core/widgets/bang_counter_amount_dialog.dart';
 import '../../../../core/widgets/bang_image_preview.dart';
-import '../../../../core/widgets/bang_negotiation_cancel_sheet.dart';
 import '../../../../services/qris_download_service.dart';
 import '../../../../models/customer_order_model.dart';
+import '../../../../models/payment_proof_feedback_model.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../orders/application/customer_order_providers.dart';
 import '../../../orders/application/order_chat_unread_provider.dart';
@@ -1226,6 +1227,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     CustomerOrderDetailModel detail,
   ) {
     final deliveryFeeNotice = _deliveryFeeNotice(order, detail);
+    final deliveryFeeNoticeReason = _deliveryFeeNoticeReason(order, detail);
     final serviceCode = normalizeServiceTypeCode(order.serviceTypeCode);
     final isShopping = serviceCode == ServiceTypeCodes.shopping;
     final isPaid = isPaymentPaid(detail.paymentStatus);
@@ -1278,7 +1280,10 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
           ],
           if (deliveryFeeNotice != null) ...[
             const SizedBox(height: 12),
-            TrackDeliveryFeeNotice(text: deliveryFeeNotice),
+            TrackDeliveryFeeNotice(
+              text: deliveryFeeNotice,
+              reason: deliveryFeeNoticeReason,
+            ),
           ],
           if (detail.deliveryFeeNegotiation?.canCustomerRespond == true) ...[
             const SizedBox(height: 12),
@@ -1300,11 +1305,18 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     return KeyedSubtree(
       key: _deliveryFeeFocusKey,
       child: BangAmountNegotiationCard(
-        label: 'Revisi ongkir',
+        label: 'Konfirmasi revisi ongkir',
         amount: amount,
+        amountLabel: 'Ongkir baru',
         previousAmount: negotiation?.oldDeliveryFee,
+        previousAmountLabel: 'Ongkir awal',
+        reasonLabel: 'Alasan',
         reason: negotiation?.note,
-        icon: Icons.edit_road_outlined,
+        approveLabel: 'Setujui',
+        counterLabel: 'Tawar',
+        cancelLabel: 'Batalkan pesanan',
+        showIcon: false,
+        embedded: true,
         onApprove: () => _respondDeliveryFeeOverride(
           context,
           ref,
@@ -1376,22 +1388,25 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     WidgetRef ref,
     CustomerOrderDetailModel detail,
   ) async {
-    final action = await showBangNegotiationCancelSheet(
+    final confirmed = await showBangConfirmationDialog(
       context,
-      options: const [
-        BangNegotiationCancelOption(
-          action: 'CANCEL_ORDER',
-          label: 'Batalkan pesanan',
-          icon: Icons.cancel_outlined,
-        ),
-      ],
+      title: 'Batalkan pesanan?',
+      message:
+          'Pesanan akan dibatalkan dan revisi ongkir tidak dilanjutkan. Tindakan ini tidak bisa dibatalkan.',
+      confirmLabel: 'Batalkan',
+      isDestructive: true,
     );
 
-    if (action == null || !context.mounted) {
+    if (!confirmed || !context.mounted) {
       return;
     }
 
-    await _respondDeliveryFeeOverride(context, ref, detail, action: action);
+    await _respondDeliveryFeeOverride(
+      context,
+      ref,
+      detail,
+      action: 'CANCEL_ORDER',
+    );
   }
 
   Future<void> _respondDeliveryFeeOverride(
@@ -1449,16 +1464,25 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
       return null;
     }
 
-    final reason =
-        (detail.deliveryFeeChangeNote ?? order.deliveryFeeChangeNote ?? '')
-            .trim();
-
     final amountText = formatCurrency(deliveryFee);
-    if (reason.isEmpty) {
-      return 'Ongkir diperbarui driver menjadi $amountText.';
+    return 'Ongkir diperbarui menjadi $amountText.';
+  }
+
+  String? _deliveryFeeNoticeReason(
+    CustomerOrderSummaryModel order,
+    CustomerOrderDetailModel detail,
+  ) {
+    for (final rawReason in [
+      detail.deliveryFeeChangeNote,
+      order.deliveryFeeChangeNote,
+    ]) {
+      final reason = rawReason?.trim();
+      if (reason != null && reason.isNotEmpty) {
+        return reason;
+      }
     }
 
-    return 'Ongkir diperbarui driver menjadi $amountText.\nAlasan: $reason.';
+    return null;
   }
 
   String _paymentMessage(
@@ -1636,13 +1660,22 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
           proof.type == 'payment_transfer' &&
           (proof.status ?? '').trim().toLowerCase() == 'pending',
     );
-    final paymentStatusText = hasPendingTransferProof && !isPaid
+    final paymentProofFeedback = detail.paymentProofFeedback;
+    final isTransferProofRejected =
+        isTransfer &&
+        !isPaid &&
+        paymentProofFeedback?.isRejected == true &&
+        !hasPendingTransferProof;
+    final paymentStatusText = isTransferProofRejected
+        ? 'Ditolak'
+        : hasPendingTransferProof && !isPaid
         ? 'Menunggu verifikasi'
         : paymentStatusLabel(detail.paymentStatus);
     final paymentStatusColor = _paymentStatusColor(
       detail.paymentStatus,
       isPaid: isPaid,
       hasPendingTransferProof: hasPendingTransferProof,
+      isTransferProofRejected: isTransferProofRejected,
     );
     final paymentMessage = _paymentActionMessage(
       order: order,
@@ -1651,13 +1684,13 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
       isCourier: isCourier,
       isCancelledWithFee: isCancelledWithFee,
       hasPendingTransferProof: hasPendingTransferProof,
+      isTransferProofRejected: isTransferProofRejected,
     );
 
     return KeyedSubtree(
       key: _paymentFocusKey,
       child: _buildCard(
         title: 'Pembayaran',
-        icon: Icons.payments_outlined,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1694,6 +1727,10 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                 height: 1.45,
               ),
             ),
+            if (isTransferProofRejected) ...[
+              const SizedBox(height: 10),
+              _buildRejectedPaymentProofNotice(paymentProofFeedback),
+            ],
             if (!isPaid) ...[
               const SizedBox(height: 12),
               if (isTransfer && !hasPendingTransferProof) ...[
@@ -1709,7 +1746,11 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                       onRefresh,
                     ),
                     icon: const Icon(Icons.upload_file_outlined),
-                    label: const Text('Upload Bukti QRIS'),
+                    label: Text(
+                      isTransferProofRejected
+                          ? 'Upload Ulang Bukti QRIS'
+                          : 'Upload Bukti QRIS',
+                    ),
                   ),
                 ),
               ],
@@ -1880,9 +1921,14 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     String? rawStatus, {
     required bool isPaid,
     required bool hasPendingTransferProof,
+    required bool isTransferProofRejected,
   }) {
     if (isPaid) {
       return AppColors.success;
+    }
+
+    if (isTransferProofRejected) {
+      return AppColors.error;
     }
 
     final normalizedStatus = (rawStatus ?? '').trim().toLowerCase();
@@ -1898,6 +1944,46 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     }
 
     return AppColors.primary;
+  }
+
+  Widget _buildRejectedPaymentProofNotice(PaymentProofFeedbackModel? feedback) {
+    final reason = feedback?.displayReason;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.14)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Bukti QRIS ditolak',
+            style: TextStyle(
+              color: AppColors.error,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w800,
+              height: 1.25,
+            ),
+          ),
+          if (reason != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              reason,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   Widget _buildTrackingInfoBanner(String message) {
@@ -1937,6 +2023,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     required bool isCourier,
     required bool isCancelledWithFee,
     required bool hasPendingTransferProof,
+    required bool isTransferProofRejected,
   }) {
     if (isCancelledWithFee) {
       if (isPaid) {
@@ -1948,6 +2035,9 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     if (isTransfer) {
       if (isPaid) {
         return 'Pembayaran QRIS sudah diverifikasi.';
+      }
+      if (isTransferProofRejected) {
+        return 'Upload ulang bukti QRIS agar pembayaran bisa dicek kembali.';
       }
       return hasPendingTransferProof
           ? 'Bukti QRIS menunggu verifikasi driver/admin.'

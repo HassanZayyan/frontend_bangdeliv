@@ -9,6 +9,7 @@ import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
 import '../../../../config/app_text_scaling.dart';
 import '../../../../core/widgets/bang_async_state.dart';
+import '../../../../core/widgets/bang_confirmation_dialog.dart';
 import '../../../../models/driver_verification_model.dart';
 import '../../../auth/application/auth_session_provider.dart';
 import '../../../../services/driver_verification_service.dart';
@@ -462,63 +463,16 @@ class _DriverVerificationStatusScreenState
   }
 
   Future<void> _confirmCancelApplication() async {
-    final shouldCancel = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: AppColors.white,
-          surfaceTintColor: AppColors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          title: const Text(
-            'Batalkan Pengajuan',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Pengajuan driver akan dibatalkan. Anda tetap bisa memakai BangDeliv sebagai customer dan dapat mengajukan driver lagi nanti.',
-                style: TextStyle(color: AppColors.textSecondary, height: 1.4),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => dialogContext.pop(false),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primary,
-                        side: const BorderSide(color: AppColors.primary),
-                      ),
-                      child: const Text('Batal'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () => dialogContext.pop(true),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.error,
-                      ),
-                      child: const Text('Batalkan'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
+    final shouldCancel = await showBangConfirmationDialog(
+      context,
+      title: 'Batalkan Pengajuan',
+      message:
+          'Pengajuan driver akan dibatalkan. Anda tetap bisa memakai BangDeliv sebagai customer dan dapat mengajukan driver lagi nanti.',
+      confirmLabel: 'Batalkan',
+      isDestructive: true,
     );
 
-    if (shouldCancel == true) {
+    if (shouldCancel) {
       await _cancelApplication();
     }
   }
