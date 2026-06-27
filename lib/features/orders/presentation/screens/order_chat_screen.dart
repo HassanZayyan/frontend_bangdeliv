@@ -452,28 +452,24 @@ class _MessageBubble extends StatelessWidget {
               if (message.body.trim().isNotEmpty) const SizedBox(height: 8),
             ],
             if (message.body.trim().isNotEmpty)
-              Text(
-                message.body,
-                style: TextStyle(color: textColor, height: 1.42, fontSize: 14),
-              ),
-            const SizedBox(height: 5),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  formatTime(message.createdAt, includeZone: false),
-                  style: TextStyle(color: metaColor, fontSize: 10.5),
+              _MessageTextWithInlineMeta(
+                body: message.body,
+                textColor: textColor,
+                metaColor: metaColor,
+                createdAt: message.createdAt,
+                isPending: message.isPending,
+                isFailed: message.isFailed,
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.only(top: 5),
+                child: _MessageMeta(
+                  color: metaColor,
+                  createdAt: message.createdAt,
+                  isPending: message.isPending,
+                  isFailed: message.isFailed,
                 ),
-                if (message.isPending) ...[
-                  const SizedBox(width: 5),
-                  Icon(Icons.schedule, size: 11, color: metaColor),
-                ],
-                if (message.isFailed) ...[
-                  const SizedBox(width: 5),
-                  const Icon(Icons.error_outline, size: 12, color: Colors.red),
-                ],
-              ],
-            ),
+              ),
           ],
         ),
       ),
@@ -484,6 +480,91 @@ class _MessageBubble extends StatelessWidget {
     final name = message.senderName.trim();
     final role = message.senderRole == 'driver' ? 'Driver' : 'Customer';
     return name.isEmpty ? role : '$role - $name';
+  }
+}
+
+class _MessageTextWithInlineMeta extends StatelessWidget {
+  const _MessageTextWithInlineMeta({
+    required this.body,
+    required this.textColor,
+    required this.metaColor,
+    required this.createdAt,
+    required this.isPending,
+    required this.isFailed,
+  });
+
+  final String body;
+  final Color textColor;
+  final Color metaColor;
+  final DateTime? createdAt;
+  final bool isPending;
+  final bool isFailed;
+
+  @override
+  Widget build(BuildContext context) {
+    final textStyle = DefaultTextStyle.of(
+      context,
+    ).style.copyWith(color: textColor, height: 1.5);
+
+    return RichText(
+      text: TextSpan(
+        style: textStyle,
+        children: [
+          TextSpan(text: body.trim()),
+          WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Transform.translate(
+                offset: const Offset(0, 1.5),
+                child: _MessageMeta(
+                  color: metaColor,
+                  createdAt: createdAt,
+                  isPending: isPending,
+                  isFailed: isFailed,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MessageMeta extends StatelessWidget {
+  const _MessageMeta({
+    required this.color,
+    required this.createdAt,
+    required this.isPending,
+    required this.isFailed,
+  });
+
+  final Color color;
+  final DateTime? createdAt;
+  final bool isPending;
+  final bool isFailed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          formatTime(createdAt, includeZone: false),
+          style: TextStyle(color: color, fontSize: 10.5),
+        ),
+        if (isPending) ...[
+          const SizedBox(width: 5),
+          Icon(Icons.schedule, size: 11, color: color),
+        ],
+        if (isFailed) ...[
+          const SizedBox(width: 5),
+          const Icon(Icons.error_outline, size: 12, color: Colors.red),
+        ],
+      ],
+    );
   }
 }
 
@@ -499,43 +580,105 @@ class _MessageAttachment extends StatelessWidget {
     final isRemote =
         normalized.startsWith('http://') || normalized.startsWith('https://');
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 220, maxHeight: 220),
-        color: isMine
-            ? Colors.white.withValues(alpha: 0.18)
-            : AppColors.background,
-        child: isRemote
-            ? Image.network(
-                url,
+    return Semantics(
+      button: true,
+      label: 'Lihat foto chat',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () => _openPreview(context, isRemote: isRemote),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 220, maxHeight: 220),
+              color: isMine
+                  ? Colors.white.withValues(alpha: 0.18)
+                  : AppColors.background,
+              child: _attachmentImage(
+                isRemote: isRemote,
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => _attachmentFallback(),
-              )
-            : _localImageOrFallback(url),
+                fallbackSize: const Size(180, 120),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
 
-  Widget _localImageOrFallback(String path) {
-    final file = File(path);
+  void _openPreview(BuildContext context, {required bool isRemote}) {
+    showDialog<void>(
+      context: context,
+      barrierColor: AppColors.black,
+      builder: (context) {
+        return Dialog.fullscreen(
+          backgroundColor: AppColors.black,
+          child: SafeArea(
+            child: Stack(
+              children: [
+                Center(
+                  child: InteractiveViewer(
+                    minScale: 1,
+                    maxScale: 4,
+                    child: _attachmentImage(
+                      isRemote: isRemote,
+                      fit: BoxFit.contain,
+                      fallbackSize: const Size(220, 160),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: AppColors.white,
+                    ),
+                    tooltip: 'Tutup',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _attachmentImage({
+    required bool isRemote,
+    required BoxFit fit,
+    required Size fallbackSize,
+  }) {
+    if (isRemote) {
+      return Image.network(
+        url,
+        fit: fit,
+        errorBuilder: (_, _, _) => _attachmentFallback(fallbackSize),
+      );
+    }
+
+    final file = File(url);
     if (!file.existsSync()) {
-      return _attachmentFallback();
+      return _attachmentFallback(fallbackSize);
     }
 
     return Image.file(
       file,
-      fit: BoxFit.cover,
-      errorBuilder: (_, _, _) => _attachmentFallback(),
+      fit: fit,
+      errorBuilder: (_, _, _) => _attachmentFallback(fallbackSize),
     );
   }
 
-  Widget _attachmentFallback() {
-    return const SizedBox(
-      width: 180,
-      height: 120,
-      child: Center(
-        child: Icon(Icons.image_outlined, color: AppColors.textSecondary),
+  Widget _attachmentFallback(Size size) {
+    return SizedBox(
+      width: size.width,
+      height: size.height,
+      child: const Center(
+        child: Icon(Icons.broken_image_outlined, color: AppColors.textSecondary),
       ),
     );
   }
