@@ -381,7 +381,6 @@ class _TrackShoppingOrderItemsCardState
     final canCancelUnavailableMerchant =
         !stop.hasExplicitUnavailableItemActions ||
         stop.canCancelUnavailableMerchant;
-    final address = _displayMerchantAddress(stop.merchant.address);
     final activeStopCount = widget.detail.shoppingStops
         .where((item) => item.isActive)
         .length;
@@ -392,7 +391,6 @@ class _TrackShoppingOrderItemsCardState
     final showStopQuoteCard =
         stopQuote?.amount.canCustomerRespond == true &&
         (stopQuote?.amount.quotedAmount ?? 0) > 0;
-    final stopTextIndent = activeStopCount > 1 ? 30.0 : 0.0;
 
     return Padding(
       padding: EdgeInsets.only(top: showDivider ? 12 : 8),
@@ -435,20 +433,6 @@ class _TrackShoppingOrderItemsCardState
                         ),
                       ],
                     ),
-                    if (address != null) ...[
-                      const SizedBox(height: 3),
-                      Padding(
-                        padding: EdgeInsets.only(left: stopTextIndent),
-                        child: Text(
-                          address,
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 11.5,
-                            height: 1.35,
-                          ),
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -613,23 +597,6 @@ class _TrackShoppingOrderItemsCardState
         ),
       ),
     );
-  }
-
-  String? _displayMerchantAddress(String? rawAddress) {
-    final address = (rawAddress ?? '').trim();
-    if (address.isEmpty || address == '-') {
-      return null;
-    }
-
-    final lower = address.toLowerCase();
-    final looksLikeCoordinate = RegExp(
-      r'-?\d+\.\d+,\s*-?\d+\.\d+',
-    ).hasMatch(address);
-    if (looksLikeCoordinate || lower.contains('dummy')) {
-      return null;
-    }
-
-    return address;
   }
 
   Widget _stopStatusChip(String label) {

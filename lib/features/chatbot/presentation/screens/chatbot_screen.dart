@@ -24,6 +24,12 @@ import '../../../shopping/presentation/screens/shopping_merchant_map_picker_scre
 import '../widgets/chatbot_menu_selector.dart';
 
 const double _chatbotButtonRadius = 10;
+const double _chatbotBubbleTailWidth = 10;
+const List<String> _chatbotOrderingServiceTypes = <String>[
+  'antar_jemput',
+  'kurir',
+  'nitip',
+];
 
 class ChatbotScreen extends ConsumerStatefulWidget {
   const ChatbotScreen({super.key, this.launchArgs});
@@ -66,7 +72,11 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       // Already bootstrapped for this service type — just scroll to the
       // bottom so the user lands at the latest message on re-entry.
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _scrollToBottom();
+        if (!mounted) {
+          return;
+        }
+        _maybeResolveDriverVerificationGuard();
+        _scrollToBottom();
       });
       return;
     }
@@ -166,6 +176,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       serviceType: _serviceContext.serviceType,
       welcomeMessage: welcomeMessage,
     );
+
+    _maybeResolveDriverVerificationGuard();
 
     if (!_isCustomerOrderingBlocked() && !hasSavedAddress) {
       _conversationNotifier().ensureAddressGuardMessage(
@@ -594,6 +606,14 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           ref.read(customerOrdersProvider.notifier).refresh(showLoading: false),
         );
       }
+    });
+    ref.listen<AuthSessionState>(authSessionProvider, (previous, next) {
+      if (previous == null ||
+          previous.driverAccessState == next.driverAccessState) {
+        return;
+      }
+
+      _maybeResolveDriverVerificationGuard(next);
     });
     if (state.hasActiveOrder) {
       ref.watch(customerOrdersAutoRefreshProvider);
@@ -1056,7 +1076,11 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.only(bottom: 8),
+            padding: EdgeInsets.only(
+              left: isUser ? 0 : _chatbotBubbleTailWidth,
+              right: isUser ? _chatbotBubbleTailWidth : 0,
+              bottom: 8,
+            ),
             child: Text(
               message.timestamp,
               style: const TextStyle(
@@ -2960,18 +2984,57 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     ];
   }
 
+  void _maybeResolveDriverVerificationGuard([AuthSessionState? session]) {
+    final AuthSessionState effectiveSession =
+        session ?? ref.read(authSessionProvider);
+    if (effectiveSession.role == SessionUserRole.driver &&
+        effectiveSession.driverAccessState != DriverAccessState.none) {
+      return;
+    }
+
+    var resolvedCurrentService = false;
+    for (final serviceType in _chatbotOrderingServiceTypes) {
+      final didResolve = _conversationNotifier(
+        serviceType,
+      ).resolveDriverVerificationGuard(
+        serviceType: serviceType,
+        assistantMessage:
+            'Pengajuan driver Anda sudah dibatalkan. Sekarang Anda bisa kembali membuat pesanan sebagai customer.',
+      );
+      if (didResolve && serviceType == _serviceContext.serviceType) {
+        resolvedCurrentService = true;
+      }
+    }
+
+    if (resolvedCurrentService) {
+      _scrollToBottom();
+    }
+  }
+
   Future<void> _handleActionHint(ChatbotMessageActionHint actionHint) async {
     switch (actionHint.type) {
       case ChatbotMessageActionType.openAddresses:
+        if (_handleBlockedOrderingAction(actionHint)) {
+          return;
+        }
         await _handleOpenAddressesAction();
         return;
       case ChatbotMessageActionType.openMapPicker:
+        if (_handleBlockedOrderingAction(actionHint)) {
+          return;
+        }
         await _handleOpenMapPickerAction(actionHint);
         return;
       case ChatbotMessageActionType.openMerchantPicker:
+        if (_handleBlockedOrderingAction(actionHint)) {
+          return;
+        }
         await _handleOpenMerchantPickerAction(actionHint);
         return;
       case ChatbotMessageActionType.openRoutePicker:
+        if (_handleBlockedOrderingAction(actionHint)) {
+          return;
+        }
         await _handleOpenRoutePickerAction(actionHint);
         return;
       case ChatbotMessageActionType.sendPresetMessage:
@@ -2989,8 +3052,33 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     }
   }
 
+  bool _handleBlockedOrderingAction(ChatbotMessageActionHint actionHint) {
+    final orderingBlockMessage = _customerOrderingBlockMessage();
+    if (orderingBlockMessage == null) {
+      return false;
+    }
+
+    _inputController.clear();
+    _clearMenuSelector();
+    _conversationNotifier().addLocalGuardResponse(
+      rawMessage: _displayLabelForActionHint(actionHint),
+      serviceType: _serviceContext.serviceType,
+      assistantMessage: orderingBlockMessage,
+      actionHints: _customerOrderingBlockActionHints(),
+    );
+    _scrollToBottom();
+
+    return true;
+  }
+
   Future<void> _handleOpenDriverVerificationStatusAction() async {
     await context.push(AppRoutes.driverVerificationStatus);
+    if (!mounted) {
+      return;
+    }
+
+    await ref.read(authSessionProvider.notifier).refreshSession();
+    _maybeResolveDriverVerificationGuard();
   }
 
   Future<void> _handleSendPresetMessageAction(

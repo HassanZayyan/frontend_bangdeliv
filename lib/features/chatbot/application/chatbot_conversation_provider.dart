@@ -420,6 +420,49 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     );
   }
 
+  bool resolveDriverVerificationGuard({
+    required String serviceType,
+    required String assistantMessage,
+  }) {
+    _ensureService(serviceType);
+
+    if (state.isBootstrapping || state.isSending || state.isApplyingAction) {
+      return false;
+    }
+
+    final hasDriverVerificationAction = state.messages.any(
+      (message) => message.actionHints.any(
+        (hint) =>
+            hint.type == ChatbotMessageActionType.openDriverVerificationStatus,
+      ),
+    );
+    if (!hasDriverVerificationAction) {
+      return false;
+    }
+
+    var sessionId = state.sessionId?.trim();
+    if (sessionId == null || sessionId.isEmpty) {
+      sessionId = _generateSessionId(serviceType);
+    }
+
+    state = state.copyWith(
+      serviceType: serviceType,
+      sessionId: sessionId,
+      messages: <ChatbotConversationMessage>[
+        ..._clearActionHints(state.messages),
+        _botMessage(
+          text: assistantMessage,
+          timestamp: _nowLabel(),
+          actionHints: _bootstrapActionHints(serviceType),
+        ),
+      ],
+      clearErrorMessage: true,
+      clearMenuSelectorSurface: true,
+    );
+
+    return true;
+  }
+
   Future<void> applyMapPinAction({
     required String serviceType,
     required String target,
