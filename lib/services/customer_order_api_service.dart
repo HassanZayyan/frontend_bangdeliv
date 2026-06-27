@@ -124,9 +124,9 @@ class CustomerOrderApiService {
     } on AuthException catch (error) {
       throw ApiException(error.message);
     } on TimeoutException {
-      throw const ApiException('Upload timeout. Coba lagi.');
+      throw const ApiException(ApiException.uploadTimeoutMessage);
     } on http.ClientException {
-      throw const ApiException('Tidak dapat terhubung ke server API.');
+      throw const ApiException(ApiException.noInternetMessage);
     } on FormatException {
       throw const ApiException('Format respons server tidak valid.');
     }

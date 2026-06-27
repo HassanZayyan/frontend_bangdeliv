@@ -20,6 +20,7 @@ import '../../../../utils/order_formatters.dart';
 import '../../../../utils/order_ui_helpers.dart';
 import '../../../../widgets/app_content_background.dart';
 import '../../../../widgets/bang_ui.dart';
+import '../../../auth/presentation/widgets/guest_login_prompt.dart';
 import '../../../../widgets/service_visual_icon.dart';
 import '../widgets/nearby_merchant_card.dart';
 
@@ -168,6 +169,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _openAddressPicker() async {
+    final session = ref.read(authSessionProvider);
+    if (isGuestSession(session)) {
+      await showGuestLoginPrompt(
+        context,
+        title: 'Masuk untuk mengatur lokasi',
+        message:
+            'Alamat tersimpan dipakai untuk estimasi jarak dan titik antar pesanan Anda.',
+        returnTo: AppRoutes.addressPicker,
+      );
+      return;
+    }
+
     final changed = await context.push<bool>(AppRoutes.addressPicker);
     if (changed == true && mounted) {
       await ref.read(authSessionProvider.notifier).refreshSession();
@@ -261,6 +274,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void _openServiceChat(BuildContext context, String serviceType) {
     final target =
         '${AppRoutes.chatbot}?service_type=${Uri.encodeComponent(serviceType)}';
+
+    final session = ref.read(authSessionProvider);
+    if (isGuestSession(session)) {
+      showGuestLoginPrompt(
+        context,
+        title: 'Masuk untuk mulai memesan',
+        message:
+            'Anda tetap bisa melihat toko dan menu sebagai tamu. Untuk membuat pesanan, kami perlu akun agar alamat, pembayaran, dan status pesanan tersimpan.',
+        returnTo: target,
+      );
+      return;
+    }
+
     context.push(target);
   }
 
@@ -451,13 +477,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildErrorContent(String message) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildServiceSection(context),
-        const SizedBox(height: 20),
         Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: _homeHorizontalPadding,
+          padding: const EdgeInsets.fromLTRB(
+            _homeHorizontalPadding,
+            40,
+            _homeHorizontalPadding,
+            0,
           ),
           child: BangErrorState(
             title: 'Gagal memuat data beranda',
@@ -465,7 +492,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onRetry: () => unawaited(_refreshHomeData()),
           ),
         ),
-        const SizedBox(height: _homeBottomNavClearance),
+        const SizedBox(height: _homeBottomNavClearance + 24),
       ],
     );
   }

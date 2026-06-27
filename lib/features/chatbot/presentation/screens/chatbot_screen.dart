@@ -167,7 +167,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       welcomeMessage: welcomeMessage,
     );
 
-    if (!hasSavedAddress) {
+    if (!_isCustomerOrderingBlocked() && !hasSavedAddress) {
       _conversationNotifier().ensureAddressGuardMessage(
         serviceType: _serviceContext.serviceType,
         message: _serviceContext.addressRequiredMessage,
@@ -176,7 +176,9 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
     _scrollToBottom();
 
-    if (!_didAutoOpenAddressBook && !_hasSavedAddressInProfile()) {
+    if (!_isCustomerOrderingBlocked() &&
+        !_didAutoOpenAddressBook &&
+        !_hasSavedAddressInProfile()) {
       _didAutoOpenAddressBook = true;
       await _handleOpenAddressesAction();
     }
@@ -244,6 +246,20 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       _inputController.clear();
       _clearMenuSelector();
       await _handleRestartConversation();
+      return;
+    }
+
+    final orderingBlockMessage = _customerOrderingBlockMessage();
+    if (orderingBlockMessage != null) {
+      _inputController.clear();
+      _clearMenuSelector();
+      _conversationNotifier().addLocalGuardResponse(
+        rawMessage: raw,
+        serviceType: _serviceContext.serviceType,
+        assistantMessage: orderingBlockMessage,
+        actionHints: _customerOrderingBlockActionHints(),
+      );
+      _scrollToBottom();
       return;
     }
 
@@ -1587,6 +1603,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       ChatbotMessageActionType.sendPresetMessage => Icons.bolt_rounded,
       ChatbotMessageActionType.openTrackOrder => Icons.map_outlined,
       ChatbotMessageActionType.openActivity => Icons.receipt_long_outlined,
+      ChatbotMessageActionType.openDriverVerificationStatus =>
+        Icons.badge_outlined,
     };
   }
 
@@ -2904,6 +2922,44 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     return hasUsableSavedAddress(addresses);
   }
 
+  bool _isCustomerOrderingBlocked() {
+    return _customerOrderingBlockMessage() != null;
+  }
+
+  String? _customerOrderingBlockMessage() {
+    final session = ref.read(authSessionProvider);
+    if (session.role != SessionUserRole.driver) {
+      return null;
+    }
+
+    switch (session.driverAccessState) {
+      case DriverAccessState.pending:
+      case DriverAccessState.rejected:
+      case DriverAccessState.suspended:
+      case DriverAccessState.unknown:
+        return 'Pengajuan driver Anda masih berlangsung. Selesaikan verifikasi atau batalkan pengajuan terlebih dahulu untuk kembali membuat pesanan sebagai customer.';
+      case DriverAccessState.active:
+        return 'Akun Anda sedang aktif sebagai driver. Gunakan akun customer untuk membuat pesanan.';
+      case DriverAccessState.none:
+        return null;
+    }
+  }
+
+  List<ChatbotMessageActionHint> _customerOrderingBlockActionHints() {
+    final session = ref.read(authSessionProvider);
+    if (session.role != SessionUserRole.driver ||
+        session.driverAccessState == DriverAccessState.active) {
+      return const <ChatbotMessageActionHint>[];
+    }
+
+    return const <ChatbotMessageActionHint>[
+      ChatbotMessageActionHint(
+        type: ChatbotMessageActionType.openDriverVerificationStatus,
+        label: 'Lihat Status Verifikasi',
+      ),
+    ];
+  }
+
   Future<void> _handleActionHint(ChatbotMessageActionHint actionHint) async {
     switch (actionHint.type) {
       case ChatbotMessageActionType.openAddresses:
@@ -2927,7 +2983,14 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       case ChatbotMessageActionType.openActivity:
         await _handleOpenActivityAction();
         return;
+      case ChatbotMessageActionType.openDriverVerificationStatus:
+        await _handleOpenDriverVerificationStatusAction();
+        return;
     }
+  }
+
+  Future<void> _handleOpenDriverVerificationStatusAction() async {
+    await context.push(AppRoutes.driverVerificationStatus);
   }
 
   Future<void> _handleSendPresetMessageAction(

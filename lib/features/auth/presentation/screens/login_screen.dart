@@ -385,17 +385,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       return null;
     }
 
-    if (_shouldRedirectHomeAfterLogin(decoded)) {
-      return AppRoutes.home;
-    }
-
     return decoded;
-  }
-
-  bool _shouldRedirectHomeAfterLogin(String route) {
-    return route == AppRoutes.activity ||
-        route == AppRoutes.history ||
-        route == AppRoutes.profile;
   }
 
   Future<void> _handleLogin() async {

@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import '../config/app_env.dart';
 import '../models/driver_order_model.dart';
 import '../utils/app_time.dart';
+import 'api_exception.dart';
 import 'auth_service.dart';
 
 class DriverOrderService {
@@ -490,12 +491,12 @@ class DriverOrderService {
       return await _get(path, query: query, timeout: timeout);
     } on TimeoutException {
       throw const DriverOrderApiException(
-        'Koneksi timeout. Pastikan backend aktif dan API_BASE_URL benar.',
+        ApiException.timeoutMessage,
         statusCode: 408,
       );
     } on http.ClientException {
       throw const DriverOrderApiException(
-        'Gagal terhubung ke server. Cek API_BASE_URL dan jaringan perangkat.',
+        ApiException.noInternetMessage,
         statusCode: 0,
       );
     } on FormatException {
@@ -523,12 +524,12 @@ class DriverOrderService {
           .timeout(timeout);
     } on TimeoutException {
       throw const DriverOrderApiException(
-        'Koneksi timeout. Pastikan backend aktif dan API_BASE_URL benar.',
+        ApiException.timeoutMessage,
         statusCode: 408,
       );
     } on http.ClientException {
       throw const DriverOrderApiException(
-        'Gagal terhubung ke server. Cek API_BASE_URL dan jaringan perangkat.',
+        ApiException.noInternetMessage,
         statusCode: 0,
       );
     } on FormatException {
@@ -575,12 +576,12 @@ class DriverOrderService {
           .timeout(timeout);
     } on TimeoutException {
       throw const DriverOrderApiException(
-        'Koneksi timeout. Pastikan backend aktif dan API_BASE_URL benar.',
+        ApiException.timeoutMessage,
         statusCode: 408,
       );
     } on http.ClientException {
       throw const DriverOrderApiException(
-        'Gagal terhubung ke server. Cek API_BASE_URL dan jaringan perangkat.',
+        ApiException.noInternetMessage,
         statusCode: 0,
       );
     } on FormatException {
@@ -654,12 +655,12 @@ class DriverOrderService {
       );
     } on TimeoutException {
       throw const DriverOrderApiException(
-        'Upload timeout. Pastikan koneksi perangkat stabil.',
+        ApiException.uploadTimeoutMessage,
         statusCode: 408,
       );
     } on http.ClientException {
       throw const DriverOrderApiException(
-        'Gagal terhubung ke server. Cek API_BASE_URL dan jaringan perangkat.',
+        ApiException.noInternetMessage,
         statusCode: 0,
       );
     } on FormatException {

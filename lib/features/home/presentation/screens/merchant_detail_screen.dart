@@ -10,6 +10,8 @@ import '../../../../models/chatbot_launch_args.dart';
 import '../../../../models/food_model.dart';
 import '../../../../models/merchant_detail_model.dart';
 import '../../../../models/merchant_model.dart';
+import '../../../auth/application/auth_session_provider.dart';
+import '../../../auth/presentation/widgets/guest_login_prompt.dart';
 
 final _merchantDetailProvider = FutureProvider.autoDispose
     .family<MerchantDetailModel, String>((ref, merchantId) {
@@ -132,7 +134,7 @@ class MerchantDetailScreen extends ConsumerWidget {
   }
 }
 
-class _MerchantDetailView extends StatelessWidget {
+class _MerchantDetailView extends ConsumerWidget {
   const _MerchantDetailView({
     required this.merchant,
     required this.menus,
@@ -164,7 +166,7 @@ class _MerchantDetailView extends StatelessWidget {
     context.go(AppRoutes.home);
   }
 
-  void _openNitipChatbot(BuildContext context) {
+  void _openNitipChatbot(BuildContext context, WidgetRef ref) {
     final merchantId = int.tryParse(merchant.id.trim());
     final menuSuggestions = menus
         .map(
@@ -181,6 +183,18 @@ class _MerchantDetailView extends StatelessWidget {
       queryParameters: const <String, String>{'service_type': 'nitip'},
     ).toString();
 
+    final session = ref.read(authSessionProvider);
+    if (isGuestSession(session)) {
+      showGuestLoginPrompt(
+        context,
+        title: 'Masuk untuk pesan dari toko ini',
+        message:
+            'Detail toko dan menu bisa dilihat sebagai tamu. Untuk membuat pesanan, masuk dulu agar alamat dan status pesanan tersimpan.',
+        returnTo: GoRouterState.of(context).uri.toString(),
+      );
+      return;
+    }
+
     context.push(
       target,
       extra: ChatbotLaunchArgs(
@@ -193,7 +207,7 @@ class _MerchantDetailView extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return PopScope<void>(
       canPop: returnPath == null || returnPath!.isEmpty,
       onPopInvokedWithResult: (didPop, result) {
@@ -226,7 +240,7 @@ class _MerchantDetailView extends StatelessWidget {
           child: SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () => _openNitipChatbot(context),
+              onPressed: () => _openNitipChatbot(context, ref),
               icon: const Icon(Icons.sms_outlined),
               label: const Text('Pesan di chatbot'),
             ),

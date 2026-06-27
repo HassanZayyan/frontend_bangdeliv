@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../config/app_env.dart';
 import '../models/driver_verification_model.dart';
+import 'api_exception.dart';
 import 'auth_service.dart';
 
 class DriverVerificationService {
@@ -28,17 +29,13 @@ class DriverVerificationService {
         ),
       );
     } on TimeoutException {
-      throw const DriverVerificationException(
-        'Koneksi ke server timeout. Silakan coba lagi.',
-      );
+      throw const DriverVerificationException(ApiException.timeoutMessage);
     } on AuthException catch (e) {
       throw DriverVerificationException(e.message);
     } on DriverVerificationException {
       rethrow;
     } catch (_) {
-      throw const DriverVerificationException(
-        'Gagal terhubung ke server verifikasi driver.',
-      );
+      throw const DriverVerificationException(ApiException.noInternetMessage);
     }
   }
 
@@ -94,16 +91,14 @@ class DriverVerificationService {
       );
     } on TimeoutException {
       throw const DriverVerificationException(
-        'Upload dokumen timeout. Silakan coba lagi.',
+        ApiException.uploadTimeoutMessage,
       );
     } on AuthException catch (e) {
       throw DriverVerificationException(e.message);
     } on DriverVerificationException {
       rethrow;
     } catch (_) {
-      throw const DriverVerificationException(
-        'Terjadi kesalahan saat mengunggah dokumen.',
-      );
+      throw const DriverVerificationException(ApiException.noInternetMessage);
     }
   }
 
@@ -126,17 +121,13 @@ class DriverVerificationService {
         ),
       );
     } on TimeoutException {
-      throw const DriverVerificationException(
-        'Koneksi ke server timeout. Silakan coba lagi.',
-      );
+      throw const DriverVerificationException(ApiException.timeoutMessage);
     } on AuthException catch (e) {
       throw DriverVerificationException(e.message);
     } on DriverVerificationException {
       rethrow;
     } catch (_) {
-      throw const DriverVerificationException(
-        'Terjadi kesalahan saat membatalkan pengajuan driver.',
-      );
+      throw const DriverVerificationException(ApiException.noInternetMessage);
     }
   }
 

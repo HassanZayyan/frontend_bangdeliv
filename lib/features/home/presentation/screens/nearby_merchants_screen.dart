@@ -14,6 +14,7 @@ import '../../../auth/application/auth_session_provider.dart';
 import '../../../navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
 import '../../../../utils/map_picker_helpers.dart';
 import '../../../../widgets/bang_ui.dart';
+import '../../../auth/presentation/widgets/guest_login_prompt.dart';
 import 'merchant_detail_screen.dart';
 import '../widgets/nearby_merchant_card.dart';
 
@@ -162,6 +163,18 @@ class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen>
   }
 
   Future<void> _openAddressPicker() async {
+    final session = ref.read(authSessionProvider);
+    if (isGuestSession(session)) {
+      await showGuestLoginPrompt(
+        context,
+        title: 'Masuk untuk mengatur lokasi',
+        message:
+            'Alamat tersimpan membantu BangDeliv menampilkan toko/resto terdekat dengan lebih akurat.',
+        returnTo: AppRoutes.addressPicker,
+      );
+      return;
+    }
+
     final changed = await context.push<bool>(AppRoutes.addressPicker);
     if (!mounted) {
       return;

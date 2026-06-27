@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_env.dart';
 import '../models/user_profile_model.dart';
+import 'api_exception.dart';
 
 class AuthService {
   static const String _tokenStorageKey = 'access_token';
@@ -46,16 +47,12 @@ class AuthService {
       );
     } on TimeoutException catch (error) {
       _logNetworkFailure('POST', uri, error);
-      throw const AuthException(
-        'Koneksi ke server timeout. Coba cek backend kamu berjalan.',
-      );
+      throw const AuthException(ApiException.timeoutMessage);
     } on AuthException {
       rethrow;
     } catch (error) {
       _logNetworkFailure('POST', uri, error);
-      throw const AuthException(
-        'Gagal terhubung ke server. Periksa API_BASE_URL dan koneksi jaringan.',
-      );
+      throw const AuthException(ApiException.noInternetMessage);
     }
   }
 
@@ -93,16 +90,12 @@ class AuthService {
       );
     } on TimeoutException catch (error) {
       _logNetworkFailure('POST', uri, error);
-      throw const AuthException(
-        'Koneksi ke server timeout. Coba cek backend kamu berjalan.',
-      );
+      throw const AuthException(ApiException.timeoutMessage);
     } on AuthException {
       rethrow;
     } catch (error) {
       _logNetworkFailure('POST', uri, error);
-      throw const AuthException(
-        'Gagal terhubung ke server. Periksa API_BASE_URL dan koneksi jaringan.',
-      );
+      throw const AuthException(ApiException.noInternetMessage);
     }
   }
 
@@ -131,16 +124,12 @@ class AuthService {
       throw AuthException(_normalizeLoginErrorMessage(message));
     } on TimeoutException catch (error) {
       _logNetworkFailure('POST', uri, error);
-      throw const AuthException(
-        'Koneksi ke server timeout. Coba cek backend kamu berjalan.',
-      );
+      throw const AuthException(ApiException.timeoutMessage);
     } on AuthException {
       rethrow;
     } catch (error) {
       _logNetworkFailure('POST', uri, error);
-      throw const AuthException(
-        'Gagal terhubung ke server. Periksa API_BASE_URL dan koneksi jaringan.',
-      );
+      throw const AuthException(ApiException.noInternetMessage);
     }
   }
 
@@ -171,15 +160,11 @@ class AuthService {
         _extractErrorMessage(response, fallback: 'Gagal mengambil profil.'),
       );
     } on TimeoutException {
-      throw const AuthException(
-        'Koneksi ke server timeout. Coba cek backend kamu berjalan.',
-      );
+      throw const AuthException(ApiException.timeoutMessage);
     } on AuthException {
       rethrow;
     } catch (_) {
-      throw const AuthException(
-        'Gagal terhubung ke server. Periksa API_BASE_URL dan koneksi jaringan.',
-      );
+      throw const AuthException(ApiException.noInternetMessage);
     }
   }
 
@@ -260,15 +245,11 @@ class AuthService {
         _extractErrorMessage(response, fallback: 'Gagal memperbarui profil.'),
       );
     } on TimeoutException {
-      throw const AuthException(
-        'Koneksi ke server timeout. Coba cek backend kamu berjalan.',
-      );
+      throw const AuthException(ApiException.timeoutMessage);
     } on AuthException {
       rethrow;
     } catch (_) {
-      throw const AuthException(
-        'Gagal terhubung ke server. Periksa API_BASE_URL dan koneksi jaringan.',
-      );
+      throw const AuthException(ApiException.noInternetMessage);
     }
   }
 
@@ -304,15 +285,11 @@ class AuthService {
         _extractErrorMessage(response, fallback: 'Gagal memvalidasi alamat.'),
       );
     } on TimeoutException {
-      throw const AuthException(
-        'Koneksi ke server timeout. Coba cek backend kamu berjalan.',
-      );
+      throw const AuthException(ApiException.timeoutMessage);
     } on AuthException {
       rethrow;
     } catch (_) {
-      throw const AuthException(
-        'Gagal terhubung ke server. Periksa API_BASE_URL dan koneksi jaringan.',
-      );
+      throw const AuthException(ApiException.noInternetMessage);
     }
   }
 
@@ -363,15 +340,11 @@ class AuthService {
         _extractErrorMessage(response, fallback: 'Gagal menyimpan alamat.'),
       );
     } on TimeoutException {
-      throw const AuthException(
-        'Koneksi ke server timeout. Coba cek backend kamu berjalan.',
-      );
+      throw const AuthException(ApiException.timeoutMessage);
     } on AuthException {
       rethrow;
     } catch (_) {
-      throw const AuthException(
-        'Gagal terhubung ke server. Periksa API_BASE_URL dan koneksi jaringan.',
-      );
+      throw const AuthException(ApiException.noInternetMessage);
     }
   }
 
@@ -423,15 +396,11 @@ class AuthService {
         _extractErrorMessage(response, fallback: 'Gagal memperbarui alamat.'),
       );
     } on TimeoutException {
-      throw const AuthException(
-        'Koneksi ke server timeout. Coba cek backend kamu berjalan.',
-      );
+      throw const AuthException(ApiException.timeoutMessage);
     } on AuthException {
       rethrow;
     } catch (_) {
-      throw const AuthException(
-        'Gagal terhubung ke server. Periksa API_BASE_URL dan koneksi jaringan.',
-      );
+      throw const AuthException(ApiException.noInternetMessage);
     }
   }
 
@@ -451,15 +420,11 @@ class AuthService {
         _extractErrorMessage(response, fallback: 'Gagal menghapus alamat.'),
       );
     } on TimeoutException {
-      throw const AuthException(
-        'Koneksi ke server timeout. Coba cek backend kamu berjalan.',
-      );
+      throw const AuthException(ApiException.timeoutMessage);
     } on AuthException {
       rethrow;
     } catch (_) {
-      throw const AuthException(
-        'Gagal terhubung ke server. Periksa API_BASE_URL dan koneksi jaringan.',
-      );
+      throw const AuthException(ApiException.noInternetMessage);
     }
   }
 
@@ -492,15 +457,11 @@ class AuthService {
         _extractErrorMessage(response, fallback: 'Gagal mengganti password.'),
       );
     } on TimeoutException {
-      throw const AuthException(
-        'Koneksi ke server timeout. Coba cek backend kamu berjalan.',
-      );
+      throw const AuthException(ApiException.timeoutMessage);
     } on AuthException {
       rethrow;
     } catch (_) {
-      throw const AuthException(
-        'Gagal terhubung ke server. Periksa API_BASE_URL dan koneksi jaringan.',
-      );
+      throw const AuthException(ApiException.noInternetMessage);
     }
   }
 

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -26,11 +28,13 @@ class _DriverVerificationStatusScreenState
   static const TextStyle _pickerLabelStyle = TextStyle(fontSize: 14);
 
   final ImagePicker _imagePicker = ImagePicker();
+  late final AuthSessionNotifier _authSessionNotifier;
   DriverVerificationStatusModel? _status;
   String? _errorMessage;
   bool _isLoading = true;
   bool _isSubmitting = false;
   bool _isCancelling = false;
+  bool _backToDriverProfile = false;
 
   final Map<String, XFile?> _selectedDocuments = {
     'ktp': null,
@@ -41,11 +45,15 @@ class _DriverVerificationStatusScreenState
   @override
   void initState() {
     super.initState();
+    _authSessionNotifier = ref.read(authSessionProvider.notifier);
+    _syncBackTarget(ref.read(authSessionProvider));
     _loadStatus();
   }
 
   @override
   Widget build(BuildContext context) {
+    _syncBackTarget(ref.watch(authSessionProvider));
+
     if (_isLoading && _status == null) {
       return _withProfileBackHandling(
         const Scaffold(body: Center(child: CircularProgressIndicator())),
@@ -80,6 +88,7 @@ class _DriverVerificationStatusScreenState
     final isActive = registrationStatus == 'active';
     final canUpload = _canUpload(registrationStatus);
     final canCancel = _canCancel(registrationStatus);
+    final documentsComplete = _documentsComplete(status);
 
     return _withProfileBackHandling(
       Scaffold(
@@ -91,9 +100,16 @@ class _DriverVerificationStatusScreenState
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
             children: [
               _StatusCard(
-                title: _titleFor(registrationStatus),
-                description: _descriptionFor(registrationStatus),
+                title: _titleFor(
+                  registrationStatus,
+                  documentsComplete: documentsComplete,
+                ),
+                description: _descriptionFor(
+                  registrationStatus,
+                  documentsComplete: documentsComplete,
+                ),
                 registrationStatus: registrationStatus,
+                documentsComplete: documentsComplete,
               ),
               const SizedBox(height: 16),
               const Text(
@@ -111,7 +127,9 @@ class _DriverVerificationStatusScreenState
                 isActive
                     ? 'Dokumen Anda sudah selesai diverifikasi admin.'
                     : canUpload
-                    ? 'Unggah KTP, SIM, dan selfie untuk proses review admin.'
+                    ? documentsComplete
+                          ? 'Dokumen sudah lengkap. Anda tetap dapat memperbarui file jika diperlukan.'
+                          : 'Unggah KTP, SIM, dan selfie agar pengajuan dapat ditinjau admin.'
                     : 'Upload dokumen dinonaktifkan untuk status akun driver saat ini.',
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
@@ -158,6 +176,9 @@ class _DriverVerificationStatusScreenState
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: _isSubmitting ? null : _submitDocuments,
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
                     child: _isSubmitting
                         ? const SizedBox(
                             width: 16,
@@ -172,37 +193,19 @@ class _DriverVerificationStatusScreenState
                 ),
                 const SizedBox(height: 10),
               ],
-              if (!isActive) ...[
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _isLoading || _isCancelling ? null : _loadStatus,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Refresh Status'),
-                  ),
-                ),
-                const SizedBox(height: 10),
-              ],
               if (canCancel) ...[
                 SizedBox(
                   width: double.infinity,
-                  child: OutlinedButton.icon(
+                  child: OutlinedButton(
                     onPressed: _isSubmitting || _isCancelling
                         ? null
                         : _confirmCancelApplication,
-                    icon: _isCancelling
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.close_rounded),
-                    label: Text(
-                      _isCancelling ? 'Membatalkan...' : 'Batalkan Pengajuan',
-                    ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.error,
                       side: const BorderSide(color: AppColors.error),
+                    ),
+                    child: Text(
+                      _isCancelling ? 'Membatalkan...' : 'Batalkan Pengajuan',
                     ),
                   ),
                 ),
@@ -236,14 +239,25 @@ class _DriverVerificationStatusScreenState
       return;
     }
 
-    final session = ref.read(authSessionProvider);
-    final isDriverActive =
-        session.driverAccessState == DriverAccessState.active;
+    context.go(
+      _backToDriverProfile ? AppRoutes.driverProfile : AppRoutes.profile,
+    );
+  }
 
-    context.go(isDriverActive ? AppRoutes.driverProfile : AppRoutes.profile);
+  void _syncBackTarget(AuthSessionState session) {
+    _backToDriverProfile =
+        session.driverAccessState == DriverAccessState.active;
   }
 
   AppBar _buildAppBar() {
+    final registrationStatus = _status?.driver.registrationStatus
+        .trim()
+        .toLowerCase();
+    final canRefresh =
+        registrationStatus != null &&
+        registrationStatus != 'active' &&
+        !_isLoading;
+
     return AppBar(
       title: const Text(
         'Status Verifikasi Driver',
@@ -256,6 +270,14 @@ class _DriverVerificationStatusScreenState
         icon: const Icon(Icons.arrow_back),
         tooltip: 'Kembali',
       ),
+      actions: [
+        if (canRefresh)
+          IconButton(
+            onPressed: _isCancelling ? null : _loadStatus,
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Refresh status',
+          ),
+      ],
     );
   }
 
@@ -276,7 +298,7 @@ class _DriverVerificationStatusScreenState
         _status = data;
       });
 
-      await ref.read(authSessionProvider.notifier).refreshSession();
+      await _authSessionNotifier.refreshSession();
     } on DriverVerificationException catch (e) {
       if (!mounted) {
         return;
@@ -410,7 +432,7 @@ class _DriverVerificationStatusScreenState
         _selectedDocuments.updateAll((key, value) => null);
       });
 
-      await ref.read(authSessionProvider.notifier).refreshSession();
+      await _authSessionNotifier.refreshSession();
 
       if (!mounted) {
         return;
@@ -444,21 +466,54 @@ class _DriverVerificationStatusScreenState
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Batalkan Pengajuan?'),
-          content: const Text(
-            'Pengajuan driver akan dibatalkan. Anda tetap bisa memakai BangDeliv sebagai customer dan dapat mengajukan driver lagi nanti.',
+          backgroundColor: AppColors.white,
+          surfaceTintColor: AppColors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => dialogContext.pop(false),
-              child: const Text('Tetap Lanjut'),
+          title: const Text(
+            'Batalkan Pengajuan',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
             ),
-            FilledButton(
-              onPressed: () => dialogContext.pop(true),
-              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-              child: const Text('Batalkan'),
-            ),
-          ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Pengajuan driver akan dibatalkan. Anda tetap bisa memakai BangDeliv sebagai customer dan dapat mengajukan driver lagi nanti.',
+                style: TextStyle(color: AppColors.textSecondary, height: 1.4),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => dialogContext.pop(false),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: const BorderSide(color: AppColors.primary),
+                      ),
+                      child: const Text('Batal'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => dialogContext.pop(true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.error,
+                      ),
+                      child: const Text('Batalkan'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         );
       },
     );
@@ -480,7 +535,7 @@ class _DriverVerificationStatusScreenState
 
     try {
       await DriverVerificationService.cancelApplication();
-      await ref.read(authSessionProvider.notifier).refreshSession();
+      await _authSessionNotifier.refreshSession();
 
       if (!mounted) {
         return;
@@ -518,11 +573,23 @@ class _DriverVerificationStatusScreenState
     return registrationStatus == 'pending' || registrationStatus == 'rejected';
   }
 
-  String _titleFor(String registrationStatus) {
+  bool _documentsComplete(DriverVerificationStatusModel status) {
+    return _orderedDocumentTypes.every(
+      (type) => status.documentByType(type)?.isUploaded == true,
+    );
+  }
+
+  String _titleFor(
+    String registrationStatus, {
+    required bool documentsComplete,
+  }) {
     switch (registrationStatus) {
       case 'active':
         return 'Akun Driver Aktif';
       case 'pending':
+        if (!documentsComplete) {
+          return 'Lengkapi Dokumen Verifikasi';
+        }
         return 'Verifikasi Sedang Diproses';
       case 'rejected':
         return 'Perlu Perbaikan Dokumen';
@@ -533,11 +600,17 @@ class _DriverVerificationStatusScreenState
     }
   }
 
-  String _descriptionFor(String registrationStatus) {
+  String _descriptionFor(
+    String registrationStatus, {
+    required bool documentsComplete,
+  }) {
     switch (registrationStatus) {
       case 'active':
         return 'Akun driver Anda sudah aktif. Upload dokumen tidak diperlukan lagi.';
       case 'pending':
+        if (!documentsComplete) {
+          return 'Unggah KTP, SIM, dan selfie agar pengajuan driver dapat ditinjau admin.';
+        }
         return 'Pengajuan Anda sedang ditinjau admin. Anda tetap dapat memperbarui dokumen jika diperlukan.';
       case 'rejected':
         return 'Sebagian dokumen ditolak. Silakan unggah dokumen pengganti sesuai catatan admin.';
@@ -553,16 +626,21 @@ class _StatusCard extends StatelessWidget {
   final String title;
   final String description;
   final String registrationStatus;
+  final bool documentsComplete;
 
   const _StatusCard({
     required this.title,
     required this.description,
     required this.registrationStatus,
+    required this.documentsComplete,
   });
 
   @override
   Widget build(BuildContext context) {
-    final badgeColor = _badgeColor(registrationStatus);
+    final badgeColor = _badgeColor(
+      registrationStatus,
+      documentsComplete: documentsComplete,
+    );
 
     return Container(
       width: double.infinity,
@@ -590,7 +668,10 @@ class _StatusCard extends StatelessWidget {
             context: context,
             maxScaleFactor: AppTextScaling.denseComponentMaxScaleFactor,
             child: _InlineStatusLabel(
-              label: _statusLabel(registrationStatus),
+              label: _statusLabel(
+                registrationStatus,
+                documentsComplete: documentsComplete,
+              ),
               color: badgeColor,
             ),
           ),
@@ -610,11 +691,14 @@ class _StatusCard extends StatelessWidget {
     );
   }
 
-  Color _badgeColor(String status) {
+  Color _badgeColor(String status, {required bool documentsComplete}) {
     switch (status) {
       case 'active':
         return Colors.green.shade700;
       case 'pending':
+        if (!documentsComplete) {
+          return AppColors.textSecondary;
+        }
         return Colors.amber.shade800;
       case 'rejected':
         return Colors.red.shade700;
@@ -625,7 +709,7 @@ class _StatusCard extends StatelessWidget {
     }
   }
 
-  String _statusLabel(String status) {
+  String _statusLabel(String status, {required bool documentsComplete}) {
     switch (status.trim().toLowerCase()) {
       case 'active':
       case 'approved':
@@ -633,7 +717,7 @@ class _StatusCard extends StatelessWidget {
       case 'pending':
       case 'submitted':
       case 'review':
-        return 'Menunggu Verifikasi';
+        return documentsComplete ? 'Sedang ditinjau' : 'Belum lengkap';
       case 'rejected':
         return 'Perlu Revisi';
       case 'suspended':
@@ -757,6 +841,8 @@ class _DocumentCard extends StatelessWidget {
           _DocumentFileInfo(
             isUploaded: isUploaded,
             selectedFileName: selectedFile?.name,
+            selectedFilePath: selectedFile?.path,
+            uploadedFileUrl: document?.fileUrl,
           ),
           const SizedBox(height: 12),
           SizedBox(
@@ -850,15 +936,23 @@ class _DocumentFileInfo extends StatelessWidget {
   const _DocumentFileInfo({
     required this.isUploaded,
     required this.selectedFileName,
+    required this.selectedFilePath,
+    required this.uploadedFileUrl,
   });
 
   final bool isUploaded;
   final String? selectedFileName;
+  final String? selectedFilePath;
+  final String? uploadedFileUrl;
 
   @override
   Widget build(BuildContext context) {
     final hasSelectedFile =
         selectedFileName != null && selectedFileName!.isNotEmpty;
+    final previewSource = _DocumentPreviewSource.from(
+      localPath: selectedFilePath,
+      networkUrl: uploadedFileUrl,
+    );
     final label = hasSelectedFile
         ? 'File baru'
         : isUploaded
@@ -866,53 +960,218 @@ class _DocumentFileInfo extends StatelessWidget {
         : 'Belum ada file dipilih';
     final value = hasSelectedFile ? selectedFileName! : null;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+    return Material(
+      color: AppColors.surfaceAlt,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
+        side: const BorderSide(color: AppColors.border),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: previewSource == null
+            ? null
+            : () => _openDocumentPreview(context, previewSource),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _DocumentPreviewThumb(source: previewSource),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (value != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
+                    if (previewSource != null) ...[
+                      const SizedBox(height: 3),
+                      const Text(
+                        'Ketuk untuk lihat',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openDocumentPreview(
+    BuildContext context,
+    _DocumentPreviewSource source,
+  ) {
+    showDialog<void>(
+      context: context,
+      barrierColor: AppColors.black,
+      builder: (context) => _DocumentPreviewDialog(source: source),
+    );
+  }
+}
+
+class _DocumentPreviewSource {
+  const _DocumentPreviewSource.local(this.value) : isLocal = true;
+
+  const _DocumentPreviewSource.network(this.value) : isLocal = false;
+
+  final String value;
+  final bool isLocal;
+
+  static _DocumentPreviewSource? from({
+    required String? localPath,
+    required String? networkUrl,
+  }) {
+    final normalizedLocalPath = localPath?.trim() ?? '';
+    if (normalizedLocalPath.isNotEmpty) {
+      return _DocumentPreviewSource.local(normalizedLocalPath);
+    }
+
+    final normalizedNetworkUrl = networkUrl?.trim() ?? '';
+    if (normalizedNetworkUrl.isNotEmpty) {
+      return _DocumentPreviewSource.network(normalizedNetworkUrl);
+    }
+
+    return null;
+  }
+}
+
+class _DocumentPreviewThumb extends StatelessWidget {
+  const _DocumentPreviewThumb({required this.source});
+
+  final _DocumentPreviewSource? source;
+
+  @override
+  Widget build(BuildContext context) {
+    if (source == null) {
+      return const SizedBox(
+        width: 42,
+        height: 42,
+        child: Center(
+          child: Icon(
             Icons.insert_drive_file_outlined,
-            size: 18,
+            size: 22,
             color: AppColors.textSecondary,
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
+        ),
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(
+        width: 48,
+        height: 48,
+        child: _DocumentPreviewImage(source: source!, fit: BoxFit.cover),
+      ),
+    );
+  }
+}
+
+class _DocumentPreviewDialog extends StatelessWidget {
+  const _DocumentPreviewDialog({required this.source});
+
+  final _DocumentPreviewSource source;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog.fullscreen(
+      backgroundColor: AppColors.black,
+      child: SafeArea(
+        child: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                minScale: 1,
+                maxScale: 4,
+                child: _DocumentPreviewImage(
+                  source: source,
+                  fit: BoxFit.contain,
                 ),
-                if (value != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    value,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      height: 1.25,
-                    ),
-                  ),
-                ],
-              ],
+              ),
             ),
-          ),
-        ],
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close_rounded, color: AppColors.white),
+                tooltip: 'Tutup',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DocumentPreviewImage extends StatelessWidget {
+  const _DocumentPreviewImage({required this.source, required this.fit});
+
+  final _DocumentPreviewSource source;
+  final BoxFit fit;
+
+  @override
+  Widget build(BuildContext context) {
+    if (source.isLocal) {
+      return Image.file(
+        File(source.value),
+        fit: fit,
+        errorBuilder: (context, error, stackTrace) =>
+            const _DocumentPreviewFallback(),
+      );
+    }
+
+    return Image.network(
+      source.value,
+      fit: fit,
+      errorBuilder: (context, error, stackTrace) =>
+          const _DocumentPreviewFallback(),
+    );
+  }
+}
+
+class _DocumentPreviewFallback extends StatelessWidget {
+  const _DocumentPreviewFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.surfaceAlt,
+      alignment: Alignment.center,
+      child: const Icon(
+        Icons.broken_image_outlined,
+        color: AppColors.textSecondary,
       ),
     );
   }

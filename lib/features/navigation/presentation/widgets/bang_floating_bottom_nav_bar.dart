@@ -138,18 +138,43 @@ class BangFloatingBottomNavHost extends StatelessWidget {
     super.key,
     required this.child,
     required this.navigationBar,
+    this.hideNavigationBar = false,
   });
 
   final Widget child;
   final BangFloatingBottomNavBar navigationBar;
+  final bool hideNavigationBar;
 
   @override
   Widget build(BuildContext context) {
+    final shouldHideNavigationBar =
+        hideNavigationBar || MediaQuery.viewInsetsOf(context).bottom > 0;
+
     return Stack(
       fit: StackFit.expand,
       children: [
         child,
-        Positioned(left: 0, right: 0, bottom: 0, child: navigationBar),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: IgnorePointer(
+            ignoring: shouldHideNavigationBar,
+            child: AnimatedSlide(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              offset: shouldHideNavigationBar
+                  ? const Offset(0, 1.25)
+                  : Offset.zero,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 120),
+                curve: Curves.easeOut,
+                opacity: shouldHideNavigationBar ? 0 : 1,
+                child: navigationBar,
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
