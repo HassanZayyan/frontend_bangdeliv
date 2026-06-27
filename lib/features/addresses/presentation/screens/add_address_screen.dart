@@ -1765,7 +1765,7 @@ class _AddressDefaultToggle extends StatelessWidget {
       checked: value,
       enabled: enabled,
       child: InkWell(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(18),
         onTap: enabled ? () => onChanged(!value) : null,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
@@ -1777,7 +1777,7 @@ class _AddressDefaultToggle extends StatelessWidget {
             padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
               color: trackColor,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(999),
             ),
             child: AnimatedAlign(
               duration: const Duration(milliseconds: 180),
