@@ -9,24 +9,13 @@ bool isGuestSession(AuthSessionState session) {
   return !session.isAuthenticated;
 }
 
-String loginRouteWithReturnTo(String returnTo) {
-  final normalizedReturnTo = returnTo.trim();
-  if (normalizedReturnTo.isEmpty ||
-      !normalizedReturnTo.startsWith('/') ||
-      normalizedReturnTo.startsWith(AppRoutes.login)) {
-    return AppRoutes.login;
-  }
-
-  return '${AppRoutes.login}?returnTo=${Uri.encodeComponent(normalizedReturnTo)}';
-}
-
 Future<void> showGuestLoginPrompt(
   BuildContext context, {
   required String title,
   required String message,
   required String returnTo,
 }) {
-  final loginRoute = loginRouteWithReturnTo(returnTo);
+  final loginRoute = AppRoutes.login;
 
   return showModalBottomSheet<void>(
     context: context,

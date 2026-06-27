@@ -15,6 +15,7 @@ class BangChatBubble extends StatelessWidget {
     this.padding = const EdgeInsets.all(16),
     this.margin = EdgeInsets.zero,
     this.borderRadius = const BorderRadius.all(Radius.circular(10)),
+    this.showTail = true,
   });
 
   final BangChatBubbleSide side;
@@ -23,9 +24,11 @@ class BangChatBubble extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final EdgeInsetsGeometry margin;
   final BorderRadius borderRadius;
+  final bool? showTail;
   final Widget child;
 
   bool get _isRight => side == BangChatBubbleSide.right;
+  bool get _effectiveShowTail => showTail ?? true;
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +45,7 @@ class BangChatBubble extends StatelessWidget {
           color: color,
           borderColor: borderColor,
           borderRadius: borderRadius,
+          showTail: _effectiveShowTail,
         ),
         child: Padding(
           padding: tailPadding,
@@ -60,6 +64,7 @@ class _BangChatBubblePainter extends CustomPainter {
     required this.side,
     required this.color,
     required this.borderRadius,
+    required this.showTail,
     this.borderColor,
   });
 
@@ -67,6 +72,7 @@ class _BangChatBubblePainter extends CustomPainter {
   final Color color;
   final BorderRadius borderRadius;
   final Color? borderColor;
+  final bool showTail;
 
   bool get _isRight => side == BangChatBubbleSide.right;
 
@@ -81,23 +87,32 @@ class _BangChatBubblePainter extends CustomPainter {
     final bodyPath = Path()..addRRect(borderRadius.toRRect(bodyRect));
     final tailPath = Path();
 
-    if (_isRight) {
-      tailPath
-        ..moveTo(bodyRect.right - 2, 0)
-        ..lineTo(size.width, 0)
-        ..quadraticBezierTo(size.width - 2, 3, size.width - 5, 6)
-        ..quadraticBezierTo(size.width - 8, 9, bodyRect.right - 2, _tailHeight)
-        ..close();
-    } else {
-      tailPath
-        ..moveTo(bodyRect.left + 2, 0)
-        ..lineTo(0, 0)
-        ..quadraticBezierTo(2, 3, 5, 6)
-        ..quadraticBezierTo(8, 9, bodyRect.left + 2, _tailHeight)
-        ..close();
+    if (showTail) {
+      if (_isRight) {
+        tailPath
+          ..moveTo(bodyRect.right - 2, 0)
+          ..lineTo(size.width, 0)
+          ..quadraticBezierTo(size.width - 2, 3, size.width - 5, 6)
+          ..quadraticBezierTo(
+            size.width - 8,
+            9,
+            bodyRect.right - 2,
+            _tailHeight,
+          )
+          ..close();
+      } else {
+        tailPath
+          ..moveTo(bodyRect.left + 2, 0)
+          ..lineTo(0, 0)
+          ..quadraticBezierTo(2, 3, 5, 6)
+          ..quadraticBezierTo(8, 9, bodyRect.left + 2, _tailHeight)
+          ..close();
+      }
     }
 
-    final path = Path.combine(PathOperation.union, bodyPath, tailPath);
+    final path = showTail
+        ? Path.combine(PathOperation.union, bodyPath, tailPath)
+        : bodyPath;
 
     canvas.drawPath(path, Paint()..color = color);
 
@@ -118,6 +133,7 @@ class _BangChatBubblePainter extends CustomPainter {
     return oldDelegate.side != side ||
         oldDelegate.color != color ||
         oldDelegate.borderRadius != borderRadius ||
-        oldDelegate.borderColor != borderColor;
+        oldDelegate.borderColor != borderColor ||
+        oldDelegate.showTail != showTail;
   }
 }

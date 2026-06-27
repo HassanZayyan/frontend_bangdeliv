@@ -173,6 +173,8 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                     final canAcceptDeliveryFeeCounter =
                         order.deliveryFeeNegotiation?.canDriverAcceptCounter ==
                         true;
+                    final canBypassDeliveryFee =
+                        order.deliveryFeeNegotiation?.isPendingCustomer == true;
 
                     return DriverOrderPricingCard(
                       order: order,
@@ -183,6 +185,9 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                         DriverOrderActionKeys.acceptDeliveryFeeCounter(
                           order.id,
                         ),
+                      ),
+                      isBypassingDeliveryFee: isProcessingAction(
+                        DriverOrderActionKeys.bypassDeliveryFee(order.id),
                       ),
                       onEditDeliveryFee: canEditDeliveryFee
                           ? ({required amount, required reason}) async {
@@ -218,6 +223,34 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                                   content: Text(
                                     error ??
                                         'Tawaran ongkir customer disetujui.',
+                                  ),
+                                  backgroundColor: error == null
+                                      ? null
+                                      : AppColors.error,
+                                ),
+                              );
+                              if (error == null) {
+                                ref.invalidate(
+                                  driverOrderDetailProvider(order.id),
+                                );
+                              }
+                            }
+                          : null,
+                      onBypassDeliveryFee: canBypassDeliveryFee
+                          ? () async {
+                              final error = await ref
+                                  .read(driverOrdersProvider.notifier)
+                                  .bypassDeliveryFeeOverride(orderId: order.id);
+
+                              if (!context.mounted) {
+                                return;
+                              }
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    error ??
+                                        'Persetujuan ongkir customer dibypass.',
                                   ),
                                   backgroundColor: error == null
                                       ? null
@@ -449,6 +482,9 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                     isConfirmingQris: isProcessingAction(
                       DriverOrderActionKeys.confirmQris(order.id),
                     ),
+                    isRejectingQris: isProcessingAction(
+                      DriverOrderActionKeys.rejectQris(order.id),
+                    ),
                     onConfirmTransfer: ({required amount}) async {
                       final error = await ref
                           .read(driverOrdersProvider.notifier)
@@ -466,6 +502,30 @@ class DriverActiveOrderScreen extends ConsumerWidget {
                           content: Text(
                             error ?? 'Pembayaran QRIS berhasil diverifikasi.',
                           ),
+                          backgroundColor: error == null
+                              ? null
+                              : AppColors.error,
+                        ),
+                      );
+                      if (error == null) {
+                        ref.invalidate(driverOrderDetailProvider(order.id));
+                      }
+                    },
+                    onRejectTransfer: ({required reason}) async {
+                      final error = await ref
+                          .read(driverOrdersProvider.notifier)
+                          .rejectTransferPayment(
+                            orderId: order.id,
+                            reason: reason,
+                          );
+
+                      if (!context.mounted) {
+                        return;
+                      }
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(error ?? 'Bukti QRIS ditolak.'),
                           backgroundColor: error == null
                               ? null
                               : AppColors.error,

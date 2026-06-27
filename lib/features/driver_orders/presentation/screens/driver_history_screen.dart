@@ -8,6 +8,7 @@ import '../../../../config/app_text_scaling.dart';
 import '../../../../core/widgets/bang_async_state.dart';
 import '../../../../models/driver_order_model.dart';
 import '../../../navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
+import '../../application/driver_earnings_summary.dart';
 import '../../application/driver_order_providers.dart';
 import '../../../../utils/order_formatters.dart';
 
@@ -51,12 +52,7 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
         },
         data: (orders) {
           final filteredOrders = _applyFilter(orders);
-          final completedCount = filteredOrders
-              .where((order) => order.status == 'Selesai')
-              .length;
-          final totalIncome = filteredOrders
-              .where((order) => order.status == 'Selesai')
-              .fold<int>(0, (total, order) => total + order.netIncomeRounded);
+          final summary = DriverEarningsSummary.fromHistory(filteredOrders);
 
           return Column(
             children: [
@@ -79,7 +75,7 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
                     Expanded(
                       child: _SummaryCard(
                         title: 'Order Selesai',
-                        value: completedCount.toString(),
+                        value: summary.completedCount.toString(),
                         icon: Icons.task_alt_rounded,
                       ),
                     ),
@@ -87,7 +83,7 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
                     Expanded(
                       child: _SummaryCard(
                         title: 'Pendapatan',
-                        value: formatCurrency(totalIncome),
+                        value: formatCurrency(summary.netIncomeTotal),
                         icon: Icons.payments_outlined,
                       ),
                     ),

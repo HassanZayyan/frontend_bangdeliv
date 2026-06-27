@@ -49,12 +49,34 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  final ScrollController _scrollController = ScrollController();
   _HomeDataRequest? _currentLocationRequest;
+  HomeDataModel? _lastHomeData;
+  bool _isHeaderScrolled = false;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_handleScroll);
     unawaited(_hydrateCurrentUserLocation());
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_handleScroll)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _handleScroll() {
+    final nextValue =
+        _scrollController.hasClients && _scrollController.position.pixels > 2;
+    if (nextValue == _isHeaderScrolled) {
+      return;
+    }
+
+    setState(() => _isHeaderScrolled = nextValue);
   }
 
   @override
@@ -63,7 +85,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ref.watch(authSessionProvider).profile,
     );
     final homeRequest = _homeRequestFor(activeAddress);
+    ref.listen<AsyncValue<HomeDataModel>>(
+      _homeScreenDataProvider(homeRequest),
+      (_, next) {
+        final data = next.value;
+        if (data != null) {
+          _lastHomeData = data;
+        }
+      },
+    );
     final homeDataAsync = ref.watch(_homeScreenDataProvider(homeRequest));
+    final visibleHomeData = homeDataAsync.value ?? _lastHomeData;
     final activeOrder = ref.watch(customerActiveOrderProvider);
 
     return Scaffold(
@@ -72,7 +104,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         bottom: false,
         child: Column(
           children: [
-            _buildHeader(context, activeAddress),
+            _buildHeader(context, activeAddress, isScrolled: _isHeaderScrolled),
             Expanded(
               child: AppContentBackground(
                 child: RefreshIndicator(
@@ -80,18 +112,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   backgroundColor: AppColors.white,
                   onRefresh: _refreshHomeData,
                   child: SingleChildScrollView(
+                    controller: _scrollController,
                     physics: const AlwaysScrollableScrollPhysics(
                       parent: ClampingScrollPhysics(),
                     ),
-                    child: homeDataAsync.when(
-                      loading: () => _buildLoadingContent(context),
-                      error: (error, stackTrace) =>
-                          _buildErrorContent(error.toString()),
-                      data: (data) => _buildDataContent(
-                        context,
-                        data,
-                        activeOrder: activeOrder,
-                      ),
+                    child: _buildHomeContent(
+                      context,
+                      homeDataAsync: homeDataAsync,
+                      visibleData: visibleHomeData,
+                      activeOrder: activeOrder,
                     ),
                   ),
                 ),
@@ -113,6 +142,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     } catch (_) {
       // Error state is rendered by _homeScreenDataProvider.
     }
+  }
+
+  Widget _buildHomeContent(
+    BuildContext context, {
+    required AsyncValue<HomeDataModel> homeDataAsync,
+    required HomeDataModel? visibleData,
+    required CustomerOrderSummaryModel? activeOrder,
+  }) {
+    if (visibleData != null) {
+      return _buildDataContent(context, visibleData, activeOrder: activeOrder);
+    }
+
+    return homeDataAsync.when(
+      loading: () => _buildLoadingContent(context),
+      error: (error, stackTrace) => _buildErrorContent(error.toString()),
+      data: (data) =>
+          _buildDataContent(context, data, activeOrder: activeOrder),
+    );
   }
 
   Future<void> _hydrateCurrentUserLocation() async {
@@ -187,11 +234,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
-  Widget _buildHeader(BuildContext context, SavedAddressModel? activeAddress) {
+  Widget _buildHeader(
+    BuildContext context,
+    SavedAddressModel? activeAddress, {
+    required bool isScrolled,
+  }) {
     final addressText = activeAddress?.displayAddress.trim() ?? '';
 
-    return DecoratedBox(
-      decoration: const BoxDecoration(color: AppColors.white),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOutCubic,
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        border: Border(
+          bottom: BorderSide(
+            color: AppColors.border.withValues(alpha: isScrolled ? 1 : 0),
+          ),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.black.withValues(alpha: isScrolled ? 0.06 : 0),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
         child: Column(

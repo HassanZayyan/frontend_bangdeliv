@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:frontend_bangdeliv/data/repositories/realtime_order_client.dart';
 import 'package:frontend_bangdeliv/models/driver_order_model.dart';
 import 'package:frontend_bangdeliv/models/order_chat_model.dart';
+import 'package:frontend_bangdeliv/models/payment_proof_feedback_model.dart';
 import 'package:frontend_bangdeliv/models/user_profile_model.dart';
 import 'package:frontend_bangdeliv/core/di/app_providers.dart';
 import 'package:frontend_bangdeliv/features/realtime/application/app_realtime_bootstrap_provider.dart';
@@ -308,6 +309,77 @@ void main() {
 
       expect(error, isNull);
       expect(state.isProcessing('99'), isFalse);
+      expect(state.processingActionKeys, isEmpty);
+    },
+  );
+
+  test(
+    'rejectTransferPayment tracks reject qris action and updates order',
+    () async {
+      final completer = Completer<void>();
+      final fakeService = _FakeDriverOrderService(
+        payload: DriverOrdersPayload(
+          incoming: const <DriverOrderModel>[],
+          running: <DriverOrderModel>[
+            _transferOrder(
+              '99',
+              proofs: [
+                DriverOrderProofModel(
+                  id: 1,
+                  type: 'payment_transfer',
+                  label: 'Bukti QRIS',
+                  photoUrl: 'https://example.com/proof.jpg',
+                  status: 'pending',
+                ),
+              ],
+            ),
+          ],
+        ),
+        rejectTransferCompleter: completer,
+      );
+      final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+      final fakeRealtime = FakeOrderRealtimeClient();
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          driverOrderServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(driverOrdersProvider.future);
+
+      final mutation = container
+          .read(driverOrdersProvider.notifier)
+          .rejectTransferPayment(
+            orderId: '99',
+            reason: 'Nominal tidak sesuai.',
+          );
+      await Future<void>.delayed(Duration.zero);
+
+      var state = container.read(driverOrdersProvider).asData!.value;
+      expect(state.isProcessing('99'), isTrue);
+      expect(
+        state.isProcessingAction(DriverOrderActionKeys.rejectQris('99')),
+        isTrue,
+      );
+      expect(
+        state.isProcessingAction(DriverOrderActionKeys.confirmQris('99')),
+        isFalse,
+      );
+
+      completer.complete();
+      final error = await mutation;
+      state = container.read(driverOrdersProvider).asData!.value;
+
+      expect(error, isNull);
+      expect(
+        fakeService.rejectedTransferReasons['99'],
+        'Nominal tidak sesuai.',
+      );
+      expect(state.running.single.proofs, isEmpty);
+      expect(state.running.single.paymentProofFeedback?.isRejected, isTrue);
       expect(state.processingActionKeys, isEmpty);
     },
   );
@@ -1079,8 +1151,10 @@ class _FakeDriverOrderService extends DriverOrderService {
   final bool failReject;
   final Completer<void>? acceptCompleter;
   final Completer<void>? confirmTransferCompleter;
+  final Completer<void>? rejectTransferCompleter;
   final Completer<void>? transitionCompleter;
   final List<String> acceptedOrderIds = <String>[];
+  final Map<String, String> rejectedTransferReasons = <String, String>{};
   final List<DriverOrderModel> detailResponses;
   int fetchCalls = 0;
   int fetchDetailCalls = 0;
@@ -1095,6 +1169,7 @@ class _FakeDriverOrderService extends DriverOrderService {
     this.failReject = false,
     this.acceptCompleter,
     this.confirmTransferCompleter,
+    this.rejectTransferCompleter,
     this.transitionCompleter,
     List<DriverOrderModel>? detailResponses,
   }) : detailResponses = List<DriverOrderModel>.from(
@@ -1257,6 +1332,30 @@ class _FakeDriverOrderService extends DriverOrderService {
     final updated = payload.running
         .firstWhere((order) => order.id == orderId)
         .copyWith(paymentStatus: 'paid');
+    _upsertPayloadOrder(updated);
+    return updated;
+  }
+
+  @override
+  Future<DriverOrderModel> rejectTransferPayment({
+    required String orderId,
+    required String reason,
+  }) async {
+    final completer = rejectTransferCompleter;
+    if (completer != null) {
+      await completer.future;
+    }
+
+    rejectedTransferReasons[orderId] = reason;
+    final updated = payload.running
+        .firstWhere((order) => order.id == orderId)
+        .copyWith(
+          proofs: const <DriverOrderProofModel>[],
+          paymentProofFeedback: PaymentProofFeedbackModel(
+            status: 'rejected',
+            reason: reason,
+          ),
+        );
     _upsertPayloadOrder(updated);
     return updated;
   }

@@ -6,8 +6,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:frontend_bangdeliv/core/di/app_providers.dart';
 import 'package:frontend_bangdeliv/data/repositories/customer_order_repository.dart';
 import 'package:frontend_bangdeliv/features/tracking/presentation/widgets/track_order_widgets.dart';
+import 'package:frontend_bangdeliv/models/amount_negotiation_model.dart';
 import 'package:frontend_bangdeliv/models/customer_order_model.dart';
 import 'package:frontend_bangdeliv/models/shopping_order_capability_model.dart';
+import 'package:frontend_bangdeliv/models/shopping_negotiation_model.dart';
 import 'package:frontend_bangdeliv/services/customer_order_api_service.dart';
 
 void main() {
@@ -82,6 +84,58 @@ void main() {
 
     expect(find.text('Fee pembatalan'), findsOneWidget);
     expect(find.text('Biaya layanan'), findsNothing);
+  });
+
+  testWidgets('add merchant action is hidden after three active stops', (
+    tester,
+  ) async {
+    const capabilities = ShoppingOrderCapabilitiesModel(
+      isExplicit: true,
+      canCustomerDirectEditItems: true,
+      canCustomerAddShoppingMerchant: true,
+    );
+
+    await _pumpCard(
+      tester,
+      _FakeCustomerOrderRepository(),
+      detail: _shoppingDetail(
+        statusCode: 'PENDING',
+        shoppingCapabilities: capabilities,
+        shoppingStops: _shoppingStops(2),
+      ),
+    );
+    expect(find.text('Tambah'), findsOneWidget);
+
+    await _pumpCard(
+      tester,
+      _FakeCustomerOrderRepository(),
+      detail: _shoppingDetail(
+        statusCode: 'PENDING',
+        shoppingCapabilities: capabilities,
+        shoppingStops: _shoppingStops(3),
+      ),
+    );
+    expect(find.text('Tambah'), findsNothing);
+  });
+
+  testWidgets('shopping price quote uses explicit decision labels', (
+    tester,
+  ) async {
+    await _pumpCard(
+      tester,
+      _FakeCustomerOrderRepository(),
+      detail: _shoppingDetail(
+        shoppingStops: _shoppingStops(1),
+        shoppingNegotiation: _pendingShoppingQuote(pickupLocationId: 70),
+      ),
+    );
+
+    expect(find.text('Konfirmasi harga barang'), findsOneWidget);
+    expect(find.text('Harga dari driver'), findsOneWidget);
+    expect(find.text('Rp 18.000'), findsOneWidget);
+    expect(find.text('Setujui harga'), findsOneWidget);
+    expect(find.text('Batalkan tempat'), findsOneWidget);
+    expect(find.text('Iya'), findsNothing);
   });
 }
 
@@ -209,6 +263,9 @@ CustomerOrderDetailModel _shoppingDetail({
   bool canContinueWithoutUnavailableItem = true,
   String statusCode = 'ARRIVED_MERCHANT',
   CustomerShoppingPricingModel? shoppingPricing,
+  ShoppingOrderCapabilitiesModel? shoppingCapabilities,
+  List<CustomerShoppingStopModel>? shoppingStops,
+  ShoppingNegotiationModel? shoppingNegotiation,
 }) {
   const unavailableItem = CustomerShoppingItemModel(
     id: 12,
@@ -272,24 +329,28 @@ CustomerOrderDetailModel _shoppingDetail({
     deliveryDistanceText: '2 km',
     timeline: const <OrderStatusSnapshot>[],
     shoppingItems: shoppingItems,
-    shoppingStops: [
-      CustomerShoppingStopModel(
-        pickupLocationId: 77,
-        sequenceNo: 1,
-        fulfillmentStatus: 'ITEMS_PENDING_CUSTOMER',
-        hasExplicitUnavailableItemActions: hasExplicitUnavailableItemActions,
-        canEditUnavailableItems: true,
-        canContinueWithoutUnavailableItem: canContinueWithoutUnavailableItem,
-        canCancelUnavailableMerchant: true,
-        merchant: CustomerShoppingMerchantModel(
-          id: 10,
-          name: 'Kedai Tinari',
-          merchantType: 'restaurant',
-          address: 'Jl. Sawunggaling III',
-        ),
-        items: stopItems,
-      ),
-    ],
+    shoppingStops:
+        shoppingStops ??
+        [
+          CustomerShoppingStopModel(
+            pickupLocationId: 77,
+            sequenceNo: 1,
+            fulfillmentStatus: 'ITEMS_PENDING_CUSTOMER',
+            hasExplicitUnavailableItemActions:
+                hasExplicitUnavailableItemActions,
+            canEditUnavailableItems: true,
+            canContinueWithoutUnavailableItem:
+                canContinueWithoutUnavailableItem,
+            canCancelUnavailableMerchant: true,
+            merchant: CustomerShoppingMerchantModel(
+              id: 10,
+              name: 'Kedai Tinari',
+              merchantType: 'restaurant',
+              address: 'Jl. Sawunggaling III',
+            ),
+            items: stopItems,
+          ),
+        ],
     shoppingPricing:
         shoppingPricing ??
         const CustomerShoppingPricingModel(
@@ -299,9 +360,60 @@ CustomerOrderDetailModel _shoppingDetail({
           totalPrice: 9000,
           cancellationPenalty: 0,
         ),
-    shoppingCapabilities: const ShoppingOrderCapabilitiesModel(
-      isExplicit: true,
-      canCustomerEditUnavailableItems: true,
-    ),
+    shoppingCapabilities:
+        shoppingCapabilities ??
+        const ShoppingOrderCapabilitiesModel(
+          isExplicit: true,
+          canCustomerEditUnavailableItems: true,
+        ),
+    shoppingNegotiation: shoppingNegotiation,
+  );
+}
+
+List<CustomerShoppingStopModel> _shoppingStops(int count) {
+  return List<CustomerShoppingStopModel>.generate(count, (index) {
+    final id = 70 + index;
+    return CustomerShoppingStopModel(
+      pickupLocationId: id,
+      sequenceNo: index + 1,
+      fulfillmentStatus: 'PENDING',
+      merchant: CustomerShoppingMerchantModel(
+        id: id,
+        name: 'Merchant ${index + 1}',
+        merchantType: 'warung',
+        address: 'Jl. Merchant ${index + 1}',
+      ),
+      items: [
+        CustomerShoppingItemModel(
+          id: id,
+          pickupLocationId: id,
+          itemSource: 'MANUAL',
+          name: 'Item ${index + 1}',
+          quantity: 1,
+          unitPrice: 0,
+          subtotal: 0,
+          isAvailable: true,
+        ),
+      ],
+    );
+  }, growable: false);
+}
+
+ShoppingNegotiationModel _pendingShoppingQuote({
+  required int pickupLocationId,
+}) {
+  return ShoppingNegotiationModel(
+    amount: const AmountNegotiationModel(status: 'PENDING_CUSTOMER'),
+    merchantQuotes: [
+      ShoppingMerchantQuoteModel(
+        pickupLocationId: pickupLocationId,
+        merchantName: 'Merchant 1',
+        amount: const AmountNegotiationModel(
+          status: 'PENDING_CUSTOMER',
+          quotedAmount: 18000,
+          canCustomerRespond: true,
+        ),
+      ),
+    ],
   );
 }

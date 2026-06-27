@@ -151,6 +151,20 @@ class DriverOrderService {
     }
   }
 
+  Future<DriverOrderModel> rejectTransferPayment({
+    required String orderId,
+    required String reason,
+  }) async {
+    final normalizedReason = reason.trim();
+    final response = await _post(
+      '/v1/orders/$orderId/payment/transfer/reject',
+      body: <String, dynamic>{'rejection_reason': normalizedReason},
+      fallback: 'Gagal menolak bukti QRIS.',
+    );
+
+    return _orderFromMutationResponse(response, orderId);
+  }
+
   Future<DriverOrderModel> updateDeliveryFeeOverride({
     required String orderId,
     required double amount,
@@ -173,6 +187,19 @@ class DriverOrderService {
       '/v1/driver/orders/$orderId/delivery-fee-override/accept-counter',
       body: <String, dynamic>{'note': ?note?.trim()},
       fallback: 'Gagal menyetujui tawaran ongkir customer.',
+    );
+
+    return _orderFromMutationResponse(response, orderId);
+  }
+
+  Future<DriverOrderModel> bypassDeliveryFeeOverride({
+    required String orderId,
+    String? note,
+  }) async {
+    final response = await _post(
+      '/v1/driver/orders/$orderId/delivery-fee-override/bypass',
+      body: <String, dynamic>{'note': ?note?.trim()},
+      fallback: 'Gagal bypass persetujuan ongkir customer.',
     );
 
     return _orderFromMutationResponse(response, orderId);

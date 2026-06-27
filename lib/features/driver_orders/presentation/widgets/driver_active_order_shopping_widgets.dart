@@ -4,8 +4,10 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../core/widgets/bang_action_button.dart';
+import '../../../../core/widgets/bang_confirmation_dialog.dart';
 import '../../../../core/widgets/bang_negotiation_status_panel.dart';
 import '../../../../core/widgets/bang_shopping_merchant_request_summary.dart';
+import '../../../../core/widgets/bang_swipe_action_button.dart';
 import '../../../../models/driver_order_model.dart';
 import '../../../../models/shopping_negotiation_model.dart';
 import '../../../../models/shopping_order_capability_model.dart';
@@ -249,13 +251,12 @@ class _DriverShoppingMerchantQuotePanelState
               color: AppColors.textSecondary,
             ),
             const SizedBox(height: 9),
-            BangActionButton(
-              label: 'Lanjutkan tanpa respon customer',
-              variant: BangActionButtonVariant.outlined,
-              icon: Icons.double_arrow_rounded,
+            BangSwipeActionButton(
+              label: 'Geser untuk bypass harga',
+              loadingLabel: 'Memproses harga...',
               isLoading: widget.isBypassingPrice,
-              isEnabled: !widget.isOrderBusy || widget.isBypassingPrice,
-              onPressed: _bypassApproval,
+              isEnabled: !widget.isOrderBusy && !widget.isBypassingPrice,
+              onSubmit: _bypassApproval,
             ),
           ] else ...[
             if (needsRequote) ...[
@@ -872,7 +873,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     required bool isOpeningStop,
   }) {
     final closeButton = BangActionButton(
-      label: 'Tutup',
+      label: 'Tempat tutup',
       variant: BangActionButtonVariant.outlined,
       icon: Icons.cancel_outlined,
       isLoading: isClosingStop,
@@ -889,7 +890,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
       ),
     );
     final openButton = BangActionButton(
-      label: 'Buka',
+      label: 'Tempat buka',
       icon: Icons.storefront_outlined,
       isLoading: isOpeningStop,
       isEnabled: !widget.isOrderBusy || isOpeningStop,
@@ -990,26 +991,15 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
   }
 
   Future<void> _closeMerchant(DriverShoppingStopModel stop) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Tempat tutup?'),
-        content: Text(
+    final confirmed = await showBangConfirmationDialog(
+      context,
+      title: 'Tempat tutup?',
+      message:
           '${stop.merchant.name} akan dibatalkan dan itemnya tidak dihitung.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Batal'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Tutup'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Tutup',
+      isDestructive: true,
     );
-    if (confirmed != true || !mounted) {
+    if (!confirmed || !mounted) {
       return;
     }
 

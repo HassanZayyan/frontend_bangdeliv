@@ -1120,11 +1120,47 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       return false;
     }
 
+    if (_shoppingDraftHasProgress(result.shopping)) {
+      return false;
+    }
+
     return validation.nextActions.any((action) {
       final normalized = action.trim().toUpperCase();
       return normalized == 'OPEN_MERCHANT_PICKER' ||
           normalized == 'OPEN_ADD_MERCHANT_PICKER';
     });
+  }
+
+  bool _shoppingDraftHasProgress(ChatbotShoppingDraft? shopping) {
+    if (shopping == null) {
+      return false;
+    }
+
+    if (shopping.readyToConfirm || shopping.items.isNotEmpty) {
+      return true;
+    }
+
+    if (_hasNamedMerchant(shopping.merchant)) {
+      return true;
+    }
+
+    for (final stop in shopping.stops) {
+      if (stop.ready ||
+          stop.items.isNotEmpty ||
+          _hasNamedMerchant(stop.merchant)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  bool _hasNamedMerchant(Map<String, dynamic>? merchant) {
+    if (merchant == null) {
+      return false;
+    }
+
+    return (merchant['name']?.toString().trim() ?? '').isNotEmpty;
   }
 
   bool _shouldUseMerchantMapFallback(ChatbotResult result, String serviceType) {
@@ -1472,19 +1508,12 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     }
 
     if (nextActions.contains('OPEN_MAP_PICKER_DELIVERY')) {
-      final deliveryFallbackLabel =
-          serviceType == 'nitip' && nextActions.contains('CONFIRM_DRAFT')
-          ? 'Ganti Alamat Antar'
-          : 'Pilih Alamat Antar';
       add(
         _mapPickerHintFromPayload(
           actionPayloads,
           'OPEN_MAP_PICKER_DELIVERY',
           fallbackTarget: 'delivery',
-          fallbackLabel: deliveryFallbackLabel,
-          labelOverride: deliveryFallbackLabel == 'Ganti Alamat Antar'
-              ? deliveryFallbackLabel
-              : null,
+          fallbackLabel: 'Pilih Alamat Antar',
         ),
       );
     }
@@ -1894,7 +1923,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     }
 
     if (serviceType == 'nitip') {
-      return 'Alamat antar pesanan kamu sudah tersimpan. Pilih titik antar lewat tombol di bawah, atau tetap kirim lewat chat.';
+      return 'Alamat antar utama kamu sudah tersimpan. Alamat ini dipakai untuk estimasi ongkir dan bisa diganti selama pesanan masih draft.';
     }
 
     return 'Alamat jemput kamu sudah tersimpan. Atur titik jemput dan tujuan lewat tombol di bawah, atau tetap kirim lewat chat.';

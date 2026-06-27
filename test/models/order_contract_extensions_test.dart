@@ -108,6 +108,50 @@ void main() {
     expect(proof.createdAt, DateTime.parse('2026-06-06T15:38:00Z'));
   });
 
+  test('order models parse payment proof feedback', () {
+    final driverOrder = DriverOrderModel.fromJson({
+      'id': 78,
+      'customer_name': 'Courier Customer',
+      'pickup_address': 'Pickup',
+      'dropoff_address': 'Dropoff',
+      'eta_minutes': 8,
+      'fee': 5000,
+      'item_count': 1,
+      'payment_proof_feedback': {
+        'status': 'rejected',
+        'reason': 'Nominal tidak sesuai.',
+        'proof_id': 19,
+        'decided_at': '2026-06-06T15:45:00Z',
+      },
+    });
+
+    expect(driverOrder.paymentProofFeedback?.isRejected, isTrue);
+    expect(
+      driverOrder.paymentProofFeedback?.displayReason,
+      'Nominal tidak sesuai.',
+    );
+    expect(driverOrder.paymentProofFeedback?.proofId, 19);
+    expect(
+      driverOrder.paymentProofFeedback?.decidedAt,
+      DateTime.parse('2026-06-06T15:45:00Z'),
+    );
+
+    final customerDetail = CustomerOrderDetailModel.fromJson({
+      'id': 79,
+      'order_number': 'BD-260606-0079',
+      'service_type': {'code': 'RIDE', 'display_name': 'Antar Jemput'},
+      'status': 'DRIVER_ASSIGNED',
+      'total_amount': 5000,
+      'delivery_address': 'Jl. Tujuan',
+      'payment_status': 'unpaid',
+      'payment_method': 'TRANSFER',
+      'payment_proof_feedback': {'status': 'pending', 'proof_id': 20},
+    });
+
+    expect(customerDetail.paymentProofFeedback?.isPending, isTrue);
+    expect(customerDetail.paymentProofFeedback?.proofId, 20);
+  });
+
   test('customer detail parses driver location for live tracking marker', () {
     final detail = CustomerOrderDetailModel.fromJson({
       'id': 91,

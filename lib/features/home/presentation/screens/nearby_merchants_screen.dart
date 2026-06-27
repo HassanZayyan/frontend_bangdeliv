@@ -33,9 +33,11 @@ class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen>
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   Future<List<MerchantModel>>? _merchantsFuture;
+  List<MerchantModel> _lastMerchants = const <MerchantModel>[];
   Timer? _searchDebounce;
   String _query = '';
   bool _wasKeyboardVisible = false;
+  bool _hasLoadedMerchants = false;
   double? _currentUserLatitude;
   double? _currentUserLongitude;
 
@@ -270,7 +272,17 @@ class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen>
             builder: (context, snapshot) {
               final isLoading =
                   snapshot.connectionState == ConnectionState.waiting;
-              final merchants = snapshot.data ?? const <MerchantModel>[];
+              final snapshotMerchants = snapshot.data;
+              if (snapshot.hasData && snapshotMerchants != null) {
+                _lastMerchants = snapshotMerchants;
+                _hasLoadedMerchants = true;
+              }
+
+              final merchants = snapshotMerchants ?? _lastMerchants;
+              final showInitialLoading = isLoading && !_hasLoadedMerchants;
+              final showError =
+                  snapshot.hasError &&
+                  (!_hasLoadedMerchants || merchants.isEmpty);
 
               return RefreshIndicator(
                 color: AppColors.primary,
@@ -295,13 +307,13 @@ class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen>
                     const SizedBox(height: 18),
                     _buildLocationInfo(merchants.length),
                     const SizedBox(height: 14),
-                    if (snapshot.hasError)
+                    if (showError)
                       BangErrorState(
                         title: 'Gagal memuat toko/resto',
                         message: snapshot.error.toString(),
                         onRetry: _refresh,
                       )
-                    else if (isLoading)
+                    else if (showInitialLoading)
                       _buildMerchantGrid(
                         itemCount: 6,
                         itemBuilder: (context, index) =>

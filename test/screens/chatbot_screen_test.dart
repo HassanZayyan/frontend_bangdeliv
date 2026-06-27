@@ -116,8 +116,13 @@ void main() {
     );
 
     expect(find.textContaining('pilih toko/resto dari daftar'), findsOneWidget);
+    expect(find.textContaining('Alamat antar utama'), findsNothing);
+    expect(find.textContaining('masih draft'), findsNothing);
     expect(find.textContaining('sampai 3 toko/resto'), findsOneWidget);
     expect(find.textContaining('Beli di Nasgor Gajah'), findsOneWidget);
+    expect(find.text('Beli ayam geprek'), findsNothing);
+    expect(find.text('Beli sembako'), findsNothing);
+    expect(find.text('Belanja minimarket'), findsNothing);
     expect(
       find.widgetWithText(OutlinedButton, 'Pilih Toko/Resto'),
       findsOneWidget,
@@ -391,7 +396,7 @@ void main() {
       menusByMerchantId: const <int, List<ShoppingMenuOption>>{
         42: <ShoppingMenuOption>[
           ShoppingMenuOption(id: 9, name: 'Dimsum Ayam', price: 15000),
-          ShoppingMenuOption(id: 10, name: 'Es Teh', price: 3000),
+          ShoppingMenuOption(id: 10, name: 'Es Teh', price: 0),
         ],
       },
     );
@@ -431,6 +436,8 @@ void main() {
     expect(find.text('Dimsum Dan Seblak Wolu'), findsOneWidget);
     expect(find.text('Dimsum Ayam'), findsOneWidget);
     expect(find.text('Rp15.000'), findsOneWidget);
+    expect(find.text('Harga sesuai nota'), findsOneWidget);
+    expect(find.text('Rp0'), findsNothing);
 
     await tester.tap(find.byTooltip('Tambah Dimsum Ayam'));
     await tester.tap(find.byTooltip('Tambah Dimsum Ayam'));
@@ -596,7 +603,7 @@ void main() {
   });
 
   testWidgets(
-    'nitip ready first tempat offers add tempat with examples and mode add',
+    'nitip ready first tempat offers add tempat action with mode add',
     (WidgetTester tester) async {
       final fakeService = _FakeChatbotApiService();
       await _pumpChatbot(
@@ -607,14 +614,21 @@ void main() {
 
       await _sendMessage(tester, 'draft nitip merchant siap');
 
-      expect(find.textContaining('Mau tambah tempat lain?'), findsOneWidget);
-      expect(find.textContaining('- susu 1'), findsOneWidget);
+      expect(find.text('Tambah toko/resto lain'), findsOneWidget);
+      expect(
+        find.textContaining('Pilih toko/resto dari daftar atau peta'),
+        findsOneWidget,
+      );
       expect(
         find.widgetWithText(OutlinedButton, 'Tambah Toko/Resto'),
         findsOneWidget,
       );
       expect(find.text('Beli ayam geprek'), findsNothing);
 
+      await tester.ensureVisible(
+        find.widgetWithText(OutlinedButton, 'Tambah Toko/Resto'),
+      );
+      await _pumpChatbotFrame(tester);
       await tester.tap(
         find.widgetWithText(OutlinedButton, 'Tambah Toko/Resto'),
       );
@@ -869,7 +883,7 @@ void main() {
       action: 'Atur Lokasi Ambil/Tujuan',
     ),
     'nitip': (
-      message: 'Alamat antar pesanan kamu sudah tersimpan',
+      message: 'Alamat antar utama kamu sudah tersimpan',
       action: 'Pilih Alamat Antar',
     ),
   }.entries) {
@@ -948,6 +962,55 @@ void main() {
     expect(fakeService.lastPatchTarget, 'pickup');
     expect(state.messages.last.text, contains('Draft map pin diterima'));
     expect(state.errorMessage, isNull);
+  });
+
+  test('nitip delivery map patch keeps existing draft response', () async {
+    final fakeService = _FakeChatbotApiService();
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+
+    final container = ProviderContainer(
+      overrides: [
+        authSessionProvider.overrideWith(
+          () => _FakeAuthSessionNotifier(_buildAuthenticatedSession()),
+        ),
+        chatbotApiServiceProvider.overrideWithValue(fakeService),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(
+      chatbotConversationProvider('nitip').notifier,
+    );
+    await notifier.bootstrap(
+      serviceType: 'nitip',
+      welcomeMessage: 'Halo nitip',
+    );
+    await notifier.sendMessage(
+      'draft nitip merchant siap',
+      serviceType: 'nitip',
+    );
+
+    await notifier.applyMapPinAction(
+      serviceType: 'nitip',
+      target: 'delivery',
+      latitude: -7.011,
+      longitude: 110.411,
+      address: 'Alamat Antar Baru',
+    );
+
+    final state = container.read(chatbotConversationProvider('nitip'));
+    final lastMessage = state.messages.last;
+
+    expect(fakeService.patchLocationCallCount, 1);
+    expect(fakeService.lastPatchTarget, 'delivery');
+    expect(lastMessage.text, contains('Draft Nitip tempat pertama sudah aman'));
+    expect(lastMessage.text, contains('Kedai Tinari'));
+    expect(lastMessage.text, contains('Alamat Antar Baru'));
+    expect(lastMessage.text, isNot(contains('Sekarang pilih toko/resto')));
+    expect(
+      lastMessage.actionHints.map((hint) => hint.label),
+      contains('Ganti Alamat Antar'),
+    );
   });
 
   test('route picker action sends one bulk patch request', () async {
@@ -1429,12 +1492,13 @@ class _FakeChatbotApiService extends ChatbotApiService {
               'Tempat\n'
               'Kedai Tinari\n\n'
               'Daftar belanja\n'
-              '1. 1x ramen mala (harga menyusul dari nota)\n'
-              '2. 1x es jeruk (harga menyusul dari nota)\n\n'
+              '1. 1x ramen mala (harga sesuai nota)\n'
+              '2. 1x es jeruk (harga sesuai nota)\n\n'
               'Alamat antar\n'
               'FISIP UNDIP\n\n'
               'Estimasi ongkir sementara: Rp 9.000\n'
-              'Estimasi total sementara: Rp 9.000\n'
+              'Harga barang: Sesuai nota\n'
+              'Estimasi total sementara: Menunggu harga barang\n'
               'Metode pembayaran: pilih COD atau QRIS.\n\n'
               'Mau tambah tempat lain? Pilih tempatnya dulu.\n'
               'Contoh setelah tempat berikutnya dipilih:\n'
@@ -1483,7 +1547,7 @@ class _FakeChatbotApiService extends ChatbotApiService {
             },
             'OPEN_MAP_PICKER_DELIVERY': {
               'target': 'delivery',
-              'label': 'Ganti Titik Antar',
+              'label': 'Ganti Alamat Antar',
             },
             'SET_PAYMENT_COD': {'label': 'COD', 'message': 'COD'},
             'SET_PAYMENT_TRANSFER': {'label': 'QRIS', 'message': 'QRIS'},
@@ -1831,6 +1895,84 @@ class _FakeChatbotApiService extends ChatbotApiService {
     patchLocationCallCount += 1;
     lastServiceType = serviceType;
     lastPatchTarget = target;
+
+    if (serviceType == 'nitip') {
+      final deliveryAddress = address ?? 'Pin baru';
+
+      return ChatbotResult.fromApiJson({
+        'status': 'success',
+        'session_id': sessionId,
+        'service_context': {'service_type': serviceType},
+        'model_used': 'map-pin-action',
+        'data': {
+          'intent': 'shopping_order',
+          'assistant_text':
+              'Draft Nitip tempat pertama sudah aman.\n\n'
+              'Tempat\n'
+              'Kedai Tinari\n\n'
+              'Daftar belanja\n'
+              '1. 1x ramen mala (harga sesuai nota)\n'
+              '2. 1x es jeruk (harga sesuai nota)\n\n'
+              'Alamat antar\n'
+              '$deliveryAddress\n\n'
+              'Estimasi ongkir sementara: Rp 11.000\n'
+              'Harga barang: Sesuai nota\n'
+              'Estimasi total sementara: Menunggu harga barang\n'
+              'Metode pembayaran: pilih COD atau QRIS.\n\n'
+              'Mau tambah tempat lain? Pilih tempatnya dulu.\n'
+              'Contoh setelah tempat berikutnya dipilih:\n'
+              '- susu 1\n'
+              '- roti tawar 2\n\n'
+              'Ketik "konfirmasi" kalau sudah oke.',
+          'shopping': {
+            'ready_to_confirm': true,
+            'payment_method': null,
+            'merchant': {'name': 'Kedai Tinari'},
+            'delivery': {'address': deliveryAddress},
+            'items': [
+              {'name': 'ramen mala', 'quantity': 1, 'unit_price': 0},
+              {'name': 'es jeruk', 'quantity': 1, 'unit_price': 0},
+            ],
+            'stops': [
+              {
+                'index': 1,
+                'is_active': true,
+                'ready': true,
+                'merchant': {'name': 'Kedai Tinari'},
+                'items': [
+                  {'name': 'ramen mala', 'quantity': 1, 'unit_price': 0},
+                  {'name': 'es jeruk', 'quantity': 1, 'unit_price': 0},
+                ],
+              },
+            ],
+          },
+          'validation': {
+            'is_valid_order': true,
+            'rejection_reasons': [],
+            'missing_fields': [],
+            'next_actions': [
+              'OPEN_ADD_MERCHANT_PICKER',
+              'OPEN_MAP_PICKER_DELIVERY',
+              'SET_PAYMENT_COD',
+              'SET_PAYMENT_TRANSFER',
+            ],
+          },
+          'action_payloads': {
+            'OPEN_ADD_MERCHANT_PICKER': {
+              'label': 'Tambah Tempat',
+              'mode': 'add',
+            },
+            'OPEN_MAP_PICKER_DELIVERY': {
+              'target': 'delivery',
+              'label': 'Ganti Alamat Antar',
+            },
+            'SET_PAYMENT_COD': {'label': 'COD', 'message': 'COD'},
+            'SET_PAYMENT_TRANSFER': {'label': 'QRIS', 'message': 'QRIS'},
+          },
+          'order': {'created': false, 'payment_method': null},
+        },
+      });
+    }
 
     return ChatbotResult.fromApiJson({
       'status': 'success',

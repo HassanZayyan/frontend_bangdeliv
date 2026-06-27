@@ -249,13 +249,13 @@ void main() {
 
       expect(service.menuSearchCalls, 1);
       expect(find.text('Lotek'), findsOneWidget);
-      expect(find.text('Harga belum tersedia'), findsOneWidget);
+      expect(find.text('Harga sesuai nota'), findsOneWidget);
 
       await tester.tap(find.text('Lotek'));
       await tester.pumpAndSettle();
 
       expect(find.text('Daftar Item'), findsOneWidget);
-      expect(find.text('Harga belum tersedia'), findsWidgets);
+      expect(find.text('Harga sesuai nota'), findsWidgets);
 
       await _tapSubmitDrafts(tester);
 

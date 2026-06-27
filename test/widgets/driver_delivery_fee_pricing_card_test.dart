@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:frontend_bangdeliv/core/widgets/bang_swipe_action_button.dart';
 import 'package:frontend_bangdeliv/features/driver_orders/presentation/widgets/driver_active_order_meta_widgets.dart';
 import 'package:frontend_bangdeliv/models/amount_negotiation_model.dart';
 import 'package:frontend_bangdeliv/models/delivery_fee_negotiation_model.dart';
@@ -131,6 +132,74 @@ void main() {
 
     final button = tester.widget<FilledButton>(find.byType(FilledButton));
     expect(button.onPressed, isNull);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+  });
+
+  testWidgets('pricing card shows delivery fee bypass when waiting customer', (
+    tester,
+  ) async {
+    var bypassCount = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DriverOrderPricingCard(
+            order: _order(
+              deliveryFee: 15000,
+              deliveryFeeNegotiation: const DeliveryFeeNegotiationModel(
+                amount: AmountNegotiationModel(
+                  status: 'PENDING_CUSTOMER',
+                  quotedAmount: 22000,
+                ),
+              ),
+            ),
+            onBypassDeliveryFee: () async {
+              bypassCount += 1;
+            },
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Menunggu persetujuan ongkir customer'), findsOneWidget);
+    expect(find.text('Geser untuk bypass ongkir'), findsOneWidget);
+    expect(find.text('Rp22.000'), findsOneWidget);
+
+    await tester.drag(
+      find.byIcon(Icons.keyboard_double_arrow_right_rounded),
+      const Offset(800, 0),
+    );
+    await tester.pumpAndSettle();
+
+    expect(bypassCount, 1);
+  });
+
+  testWidgets('delivery fee bypass button shows loading', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DriverOrderPricingCard(
+            order: _order(
+              deliveryFee: 15000,
+              deliveryFeeNegotiation: const DeliveryFeeNegotiationModel(
+                amount: AmountNegotiationModel(
+                  status: 'PENDING_CUSTOMER',
+                  quotedAmount: 22000,
+                ),
+              ),
+            ),
+            isBypassingDeliveryFee: true,
+            onBypassDeliveryFee: () async {},
+          ),
+        ),
+      ),
+    );
+
+    final button = tester.widget<BangSwipeActionButton>(
+      find.byType(BangSwipeActionButton),
+    );
+    expect(button.isLoading, isTrue);
+    expect(find.text('Memproses bypass...'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
 

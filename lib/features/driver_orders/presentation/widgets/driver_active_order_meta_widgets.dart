@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../config/app_colors.dart';
+import '../../../../core/widgets/bang_swipe_action_button.dart';
 import '../../../../models/driver_order_model.dart';
 import '../../../../utils/courier_package_formatter.dart';
 import '../../../../utils/currency_formatter.dart';
@@ -434,7 +435,9 @@ class DriverOrderPricingCard extends StatelessWidget {
   })?
   onEditDeliveryFee;
   final Future<void> Function()? onAcceptDeliveryFeeCounter;
+  final Future<void> Function()? onBypassDeliveryFee;
   final bool isAcceptingDeliveryFeeCounter;
+  final bool isBypassingDeliveryFee;
   final bool showDriverAdminFeeBreakdown;
 
   const DriverOrderPricingCard({
@@ -443,7 +446,9 @@ class DriverOrderPricingCard extends StatelessWidget {
     this.isProcessing = false,
     this.onEditDeliveryFee,
     this.onAcceptDeliveryFeeCounter,
+    this.onBypassDeliveryFee,
     this.isAcceptingDeliveryFeeCounter = false,
+    this.isBypassingDeliveryFee = false,
     this.showDriverAdminFeeBreakdown = false,
   });
 
@@ -467,6 +472,11 @@ class DriverOrderPricingCard extends StatelessWidget {
         onAcceptDeliveryFeeCounter != null &&
         deliveryFeeNegotiation?.canDriverAcceptCounter == true &&
         counterAmount > 0;
+    final pendingCustomerAmount = deliveryFeeNegotiation?.quotedAmount ?? 0;
+    final showBypassDeliveryFee =
+        onBypassDeliveryFee != null &&
+        deliveryFeeNegotiation?.isPendingCustomer == true &&
+        pendingCustomerAmount > 0;
 
     return _buildDriverCard(
       child: Column(
@@ -545,6 +555,52 @@ class DriverOrderPricingCard extends StatelessWidget {
             const SizedBox(height: 14),
             _buildDeliveryFeeCounterOffer(counterAmount),
           ],
+          if (showBypassDeliveryFee) ...[
+            const SizedBox(height: 14),
+            _buildDeliveryFeeBypassAction(pendingCustomerAmount),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeliveryFeeBypassAction(double quotedAmount) {
+    final currentAmount =
+        order.deliveryFee ?? order.deliveryFeeNegotiation?.oldDeliveryFee;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Menunggu persetujuan ongkir customer',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _counterDetailLine('Revisi driver', formatRupiah(quotedAmount)),
+          if (currentAmount != null && currentAmount > 0) ...[
+            const SizedBox(height: 6),
+            _counterDetailLine('Ongkir saat ini', formatRupiah(currentAmount)),
+          ],
+          const SizedBox(height: 10),
+          BangSwipeActionButton(
+            label: 'Geser untuk bypass ongkir',
+            loadingLabel: 'Memproses bypass...',
+            isLoading: isBypassingDeliveryFee,
+            isEnabled: !isProcessing && !isBypassingDeliveryFee,
+            onSubmit: onBypassDeliveryFee,
+          ),
         ],
       ),
     );

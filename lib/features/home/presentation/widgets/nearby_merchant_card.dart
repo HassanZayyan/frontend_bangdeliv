@@ -19,6 +19,7 @@ class NearbyMerchantCard extends StatelessWidget {
     final distance = merchant.distance.trim();
     final scaleT = AppTextScaling.scaleProgress(context);
     final titleFontSize = 14.0 - (0.5 * scaleT);
+    final titleLineHeight = titleFontSize * 1.12;
     final distanceFontSize = 10.25 - (0.25 * scaleT);
     final imageAspectRatio = AppTextScaling.adaptive(
       context,
@@ -53,15 +54,21 @@ class NearbyMerchantCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 9),
-                Text(
-                  merchant.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: titleFontSize,
-                    fontWeight: FontWeight.w800,
-                    height: 1.12,
+                SizedBox(
+                  height: titleLineHeight * 2,
+                  child: Align(
+                    alignment: Alignment.topLeft,
+                    child: Text(
+                      merchant.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: titleFontSize,
+                        fontWeight: FontWeight.w800,
+                        height: 1.12,
+                      ),
+                    ),
                   ),
                 ),
                 if (distance.isNotEmpty && distance != '-') ...[

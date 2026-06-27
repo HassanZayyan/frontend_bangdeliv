@@ -79,6 +79,8 @@ class _MenuDetailView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final hasReferencePrice = food.hasReferencePrice;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -190,10 +192,14 @@ class _MenuDetailView extends ConsumerWidget {
                   const SizedBox(height: 6),
                   Text(
                     food.formattedPrice,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.primary,
+                      fontWeight: hasReferencePrice
+                          ? FontWeight.w800
+                          : FontWeight.w600,
+                      color: hasReferencePrice
+                          ? AppColors.primary
+                          : AppColors.textSecondary,
                     ),
                   ),
                 ],

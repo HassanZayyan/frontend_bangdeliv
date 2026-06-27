@@ -30,6 +30,11 @@ abstract class DriverOrderRepository {
     required double amount,
   });
 
+  Future<DriverOrderModel> rejectTransferPayment({
+    required String orderId,
+    required String reason,
+  });
+
   Future<DriverOrderModel> updateDeliveryFeeOverride({
     required String orderId,
     required double amount,
@@ -37,6 +42,11 @@ abstract class DriverOrderRepository {
   });
 
   Future<DriverOrderModel> acceptDeliveryFeeCounterOffer({
+    required String orderId,
+    String? note,
+  });
+
+  Future<DriverOrderModel> bypassDeliveryFeeOverride({
     required String orderId,
     String? note,
   });
@@ -165,6 +175,14 @@ class ApiDriverOrderRepository implements DriverOrderRepository {
   }
 
   @override
+  Future<DriverOrderModel> rejectTransferPayment({
+    required String orderId,
+    required String reason,
+  }) {
+    return _service.rejectTransferPayment(orderId: orderId, reason: reason);
+  }
+
+  @override
   Future<DriverOrderModel> updateDeliveryFeeOverride({
     required String orderId,
     required double amount,
@@ -183,6 +201,14 @@ class ApiDriverOrderRepository implements DriverOrderRepository {
     String? note,
   }) {
     return _service.acceptDeliveryFeeCounterOffer(orderId: orderId, note: note);
+  }
+
+  @override
+  Future<DriverOrderModel> bypassDeliveryFeeOverride({
+    required String orderId,
+    String? note,
+  }) {
+    return _service.bypassDeliveryFeeOverride(orderId: orderId, note: note);
   }
 
   @override

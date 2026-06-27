@@ -27,13 +27,13 @@ void main() {
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(find.text('Tawar'), findsOneWidget);
-    expect(find.text('Batal'), findsOneWidget);
+    expect(find.text('Batalkan pesanan'), findsOneWidget);
 
     final counterButton = tester.widget<OutlinedButton>(
       find.widgetWithText(OutlinedButton, 'Tawar'),
     );
     final cancelButton = tester.widget<TextButton>(
-      find.widgetWithText(TextButton, 'Batal'),
+      find.widgetWithText(TextButton, 'Batalkan pesanan'),
     );
 
     expect(counterButton.onPressed, isNull);
@@ -96,7 +96,41 @@ void main() {
 
     expect(find.text('Revisi ongkir'), findsOneWidget);
     expect(find.text('Rp 12.000'), findsOneWidget);
-    expect(find.text('Ongkir sebelumnya Rp 5.000'), findsOneWidget);
-    expect(find.text('Alasan driver: BBM naik.'), findsOneWidget);
+    expect(find.text('Nominal sebelumnya'), findsOneWidget);
+    expect(find.text('Rp 5.000'), findsOneWidget);
+    expect(find.text('Alasan driver'), findsOneWidget);
+    expect(find.text('BBM naik.'), findsOneWidget);
+
+    final previousAmountText = tester.widget<Text>(find.text('Rp 5.000'));
+    expect(previousAmountText.style?.fontSize, 13);
+    expect(previousAmountText.style?.fontWeight, FontWeight.w800);
+
+    final reasonText = tester.widget<Text>(find.text('BBM naik.'));
+    expect(reasonText.style?.fontSize, 13);
+    expect(reasonText.style?.fontWeight, FontWeight.w800);
+  });
+
+  testWidgets('embedded negotiation card removes leading icon', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: BangAmountNegotiationCard(
+            label: 'Konfirmasi revisi ongkir',
+            amount: 7000,
+            previousAmount: 5000,
+            approveLabel: 'Setujui',
+            showIcon: false,
+            embedded: true,
+            onApprove: () {},
+            onCounter: () {},
+            onCancel: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Konfirmasi revisi ongkir'), findsOneWidget);
+    expect(find.text('Setujui'), findsOneWidget);
+    expect(find.byIcon(Icons.request_quote_outlined), findsNothing);
   });
 }

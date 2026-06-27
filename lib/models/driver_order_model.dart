@@ -4,6 +4,7 @@ import '../utils/order_formatters.dart';
 import '../utils/service_type.dart';
 import 'delivery_fee_negotiation_model.dart';
 import 'order_route_model.dart';
+import 'payment_proof_feedback_model.dart';
 import 'shopping_order_capability_model.dart';
 import 'shopping_negotiation_model.dart';
 
@@ -53,6 +54,7 @@ class DriverOrderModel {
   final ShoppingOrderCapabilitiesModel shoppingCapabilities;
   final ShoppingItemChangeRequestModel? shoppingItemChangeRequest;
   final List<DriverOrderProofModel> proofs;
+  final PaymentProofFeedbackModel? paymentProofFeedback;
   final bool hasPendingShoppingPrices;
   final DriverDispatchModel? dispatch;
 
@@ -101,6 +103,7 @@ class DriverOrderModel {
     this.shoppingCapabilities = const ShoppingOrderCapabilitiesModel(),
     this.shoppingItemChangeRequest,
     this.proofs = const <DriverOrderProofModel>[],
+    this.paymentProofFeedback,
     this.hasPendingShoppingPrices = false,
     this.dispatch,
   }) : route = route ?? shoppingRoute;
@@ -135,6 +138,8 @@ class DriverOrderModel {
     String? statusCode,
     String? statusDisplayName,
     String? paymentStatus,
+    List<DriverOrderProofModel>? proofs,
+    PaymentProofFeedbackModel? paymentProofFeedback,
     List<DriverOrderActionModel>? availableActions,
     List<DriverOrderTimelineItemModel>? statusTimeline,
   }) {
@@ -181,7 +186,8 @@ class DriverOrderModel {
       shoppingNegotiation: shoppingNegotiation,
       shoppingCapabilities: shoppingCapabilities,
       shoppingItemChangeRequest: shoppingItemChangeRequest,
-      proofs: proofs,
+      proofs: proofs ?? this.proofs,
+      paymentProofFeedback: paymentProofFeedback ?? this.paymentProofFeedback,
       hasPendingShoppingPrices: hasPendingShoppingPrices,
       dispatch: dispatch,
     );
@@ -382,6 +388,9 @@ class DriverOrderModel {
             json['order_evidences'] ??
             json['attachments'] ??
             json['payment_attachments'],
+      ),
+      paymentProofFeedback: PaymentProofFeedbackModel.fromRaw(
+        json['payment_proof_feedback'] ?? json['paymentProofFeedback'],
       ),
       hasPendingShoppingPrices:
           json['has_pending_shopping_prices'] == true ||
@@ -865,6 +874,7 @@ class DriverHistoryOrderModel {
   final double driverIncomeNet;
   final double totalPrice;
   final String status;
+  final String statusCode;
 
   const DriverHistoryOrderModel({
     required this.id,
@@ -882,6 +892,7 @@ class DriverHistoryOrderModel {
     this.driverIncomeNet = 0,
     this.totalPrice = 0,
     required this.status,
+    this.statusCode = '',
   });
 
   String get displayOrderNumber {
@@ -958,6 +969,10 @@ class DriverHistoryOrderModel {
         json['total_price'] ?? json['totalPrice'],
       ),
       status: (json['status'] ?? 'Selesai').toString(),
+      statusCode: (json['status_code'] ?? json['statusCode'] ?? '')
+          .toString()
+          .trim()
+          .toUpperCase(),
     );
   }
 }
@@ -966,20 +981,30 @@ class DriverDispatchModel {
   final int? priorityRank;
   final int? distanceToPickupMeters;
   final double? distanceToPickupKm;
+  final int? distanceToCustomerMeters;
+  final double? distanceToCustomerKm;
   final String distanceLabel;
   final String distanceBucket;
+  final String distanceTargetRole;
+  final String? distanceTargetLabel;
+  final String? distanceTargetAddress;
   final bool locationFresh;
 
   const DriverDispatchModel({
     this.priorityRank,
     this.distanceToPickupMeters,
     this.distanceToPickupKm,
+    this.distanceToCustomerMeters,
+    this.distanceToCustomerKm,
     this.distanceLabel = 'Jarak belum tersedia',
     this.distanceBucket = 'UNKNOWN',
+    this.distanceTargetRole = 'customer',
+    this.distanceTargetLabel,
+    this.distanceTargetAddress,
     this.locationFresh = false,
   });
 
-  bool get hasDistance => distanceToPickupKm != null;
+  bool get hasDistance => (distanceToCustomerKm ?? distanceToPickupKm) != null;
 
   factory DriverDispatchModel.fromJson(Map<String, dynamic> json) {
     final bucket = (json['distance_bucket'] ?? json['distanceBucket'])
@@ -1000,8 +1025,28 @@ class DriverDispatchModel {
       distanceToPickupKm: DriverOrderModel._asDoubleOrNull(
         json['distance_to_pickup_km'] ?? json['distanceToPickupKm'],
       ),
+      distanceToCustomerMeters: DriverOrderModel._asIntOrNull(
+        json['distance_to_customer_meters'] ?? json['distanceToCustomerMeters'],
+      ),
+      distanceToCustomerKm: DriverOrderModel._asDoubleOrNull(
+        json['distance_to_customer_km'] ?? json['distanceToCustomerKm'],
+      ),
       distanceLabel: label.isEmpty ? 'Jarak belum tersedia' : label,
       distanceBucket: bucket.isEmpty ? 'UNKNOWN' : bucket,
+      distanceTargetRole:
+          (json['distance_target_role'] ?? json['distanceTargetRole'])
+              ?.toString()
+              .trim()
+              .toLowerCase() ??
+          'customer',
+      distanceTargetLabel:
+          (json['distance_target_label'] ?? json['distanceTargetLabel'])
+              ?.toString()
+              .trim(),
+      distanceTargetAddress:
+          (json['distance_target_address'] ?? json['distanceTargetAddress'])
+              ?.toString()
+              .trim(),
       locationFresh:
           json['location_fresh'] == true || json['locationFresh'] == true,
     );

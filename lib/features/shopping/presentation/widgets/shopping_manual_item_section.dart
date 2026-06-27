@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_text_scaling.dart';
 import '../../../../services/customer_order_api_service.dart';
+import '../../../../utils/currency_formatter.dart';
 import '../../../../utils/order_formatters.dart';
 import 'shopping_inline_info_panel.dart';
 import 'shopping_widget_helpers.dart';
@@ -308,7 +309,7 @@ class _MenuQuickPickTile extends StatelessWidget {
                 child: Text(
                   menu.price > 0
                       ? formatCurrency(menu.price)
-                      : 'Harga belum tersedia',
+                      : shoppingPendingPriceLabel,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.end,
