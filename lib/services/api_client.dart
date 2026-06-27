@@ -32,10 +32,10 @@ class ApiClient {
       return _decodeResponse(response);
     } on TimeoutException catch (error) {
       _logNetworkFailure('GET', uri, error);
-      throw const ApiException('Permintaan timeout. Coba lagi.');
+      throw const ApiException(ApiException.timeoutMessage);
     } on http.ClientException catch (error) {
       _logNetworkFailure('GET', uri, error);
-      throw const ApiException('Tidak dapat terhubung ke server API.');
+      throw const ApiException(ApiException.noInternetMessage);
     }
   }
 
@@ -61,10 +61,10 @@ class ApiClient {
       return _decodeResponse(response);
     } on TimeoutException catch (error) {
       _logNetworkFailure('POST', uri, error);
-      throw const ApiException('Permintaan timeout. Coba lagi.');
+      throw const ApiException(ApiException.timeoutMessage);
     } on http.ClientException catch (error) {
       _logNetworkFailure('POST', uri, error);
-      throw const ApiException('Tidak dapat terhubung ke server API.');
+      throw const ApiException(ApiException.noInternetMessage);
     }
   }
 
@@ -90,10 +90,10 @@ class ApiClient {
       return _decodeResponse(response);
     } on TimeoutException catch (error) {
       _logNetworkFailure('PATCH', uri, error);
-      throw const ApiException('Permintaan timeout. Coba lagi.');
+      throw const ApiException(ApiException.timeoutMessage);
     } on http.ClientException catch (error) {
       _logNetworkFailure('PATCH', uri, error);
-      throw const ApiException('Tidak dapat terhubung ke server API.');
+      throw const ApiException(ApiException.noInternetMessage);
     }
   }
 
@@ -119,10 +119,10 @@ class ApiClient {
       return _decodeResponse(response);
     } on TimeoutException catch (error) {
       _logNetworkFailure('DELETE', uri, error);
-      throw const ApiException('Permintaan timeout. Coba lagi.');
+      throw const ApiException(ApiException.timeoutMessage);
     } on http.ClientException catch (error) {
       _logNetworkFailure('DELETE', uri, error);
-      throw const ApiException('Tidak dapat terhubung ke server API.');
+      throw const ApiException(ApiException.noInternetMessage);
     }
   }
 

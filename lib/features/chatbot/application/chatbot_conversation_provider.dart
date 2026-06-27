@@ -29,6 +29,7 @@ enum ChatbotMessageActionType {
   sendPresetMessage,
   openTrackOrder,
   openActivity,
+  openDriverVerificationStatus,
 }
 
 enum _MessageResultContext { general, mapPin }
@@ -376,6 +377,47 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         errorMessage: 'Gagal mengirim pesan.',
       );
     }
+  }
+
+  void addLocalGuardResponse({
+    required String rawMessage,
+    required String serviceType,
+    required String assistantMessage,
+    List<ChatbotMessageActionHint> actionHints =
+        const <ChatbotMessageActionHint>[],
+  }) {
+    _ensureService(serviceType);
+
+    final message = rawMessage.trim();
+    if (message.isEmpty || state.isBootstrapping || state.isSending) {
+      return;
+    }
+
+    var sessionId = state.sessionId?.trim();
+    if (sessionId == null || sessionId.isEmpty) {
+      sessionId = _generateSessionId(serviceType);
+    }
+
+    state = state.copyWith(
+      serviceType: serviceType,
+      sessionId: sessionId,
+      messages: <ChatbotConversationMessage>[
+        ..._clearActionHints(state.messages),
+        ChatbotConversationMessage(
+          text: message,
+          timestamp: _nowLabel(),
+          isUser: true,
+          actionHints: const <ChatbotMessageActionHint>[],
+        ),
+        _botMessage(
+          text: assistantMessage,
+          timestamp: _nowLabel(),
+          actionHints: actionHints,
+        ),
+      ],
+      clearErrorMessage: true,
+      clearMenuSelectorSurface: true,
+    );
   }
 
   Future<void> applyMapPinAction({
@@ -1288,6 +1330,8 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         ChatbotMessageActionType.openTrackOrder =>
           '${hint.type.name}:${hint.orderId ?? '-'}',
         ChatbotMessageActionType.openActivity =>
+          '${hint.type.name}:${hint.label}',
+        ChatbotMessageActionType.openDriverVerificationStatus =>
           '${hint.type.name}:${hint.label}',
       };
       if (seen.add(key)) {

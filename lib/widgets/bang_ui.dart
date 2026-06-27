@@ -554,6 +554,59 @@ class BangErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                height: 1.18,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.textSecondary,
+                height: 1.45,
+              ),
+            ),
+            if (onRetry != null) ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Coba lagi'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class BangErrorPanel extends StatelessWidget {
+  const BangErrorPanel({
+    super.key,
+    required this.title,
+    required this.message,
+    this.onRetry,
+  });
+
+  final String title;
+  final String message;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
     return BangCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

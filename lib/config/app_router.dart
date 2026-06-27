@@ -482,7 +482,7 @@ String? _resolveRedirect({
   }
 
   final isPublicRoute = _publicRoutes.contains(location);
-  final isGuestAccessibleRoute = _guestAccessibleRoutes.contains(location);
+  final isGuestAccessibleRoute = _isGuestAccessibleRoute(location);
 
   if (!session.isAuthenticated) {
     if (location == AppRoutes.splash) {
@@ -599,6 +599,41 @@ const Set<String> _guestAccessibleRoutes = {
 
 const String _nearbyMerchantDetailRoute =
     '${AppRoutes.nearbyMerchants}/${AppRoutes.nearbyMerchantDetail}';
+
+bool _isGuestAccessibleRoute(String location) {
+  if (_guestAccessibleRoutes.contains(location)) {
+    return true;
+  }
+
+  return _matchesRoutePattern(location, AppRoutes.menuDetail) ||
+      _matchesRoutePattern(location, AppRoutes.merchantDetail) ||
+      _matchesRoutePattern(location, _nearbyMerchantDetailRoute);
+}
+
+bool _matchesRoutePattern(String location, String pattern) {
+  final locationSegments = Uri.parse(location).pathSegments;
+  final patternSegments = Uri.parse(pattern).pathSegments;
+  if (locationSegments.length != patternSegments.length) {
+    return false;
+  }
+
+  for (var index = 0; index < patternSegments.length; index++) {
+    final patternSegment = patternSegments[index];
+    final locationSegment = locationSegments[index];
+    if (patternSegment.startsWith(':')) {
+      if (locationSegment.isEmpty) {
+        return false;
+      }
+      continue;
+    }
+
+    if (patternSegment != locationSegment) {
+      return false;
+    }
+  }
+
+  return true;
+}
 
 const Set<String> _customerOnlyRoutes = {
   AppRoutes.home,

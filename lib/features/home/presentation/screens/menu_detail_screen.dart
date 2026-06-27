@@ -6,6 +6,8 @@ import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
 import '../../../../models/food_model.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../../auth/application/auth_session_provider.dart';
+import '../../../auth/presentation/widgets/guest_login_prompt.dart';
 
 class MenuDetailScreen extends ConsumerWidget {
   const MenuDetailScreen({super.key, required this.menuId, this.initialMenu});
@@ -49,22 +51,34 @@ class MenuDetailScreen extends ConsumerWidget {
   }
 }
 
-class _MenuDetailView extends StatelessWidget {
+class _MenuDetailView extends ConsumerWidget {
   const _MenuDetailView({required this.food});
 
   final FoodModel food;
 
-  void _openNitipChatbot(BuildContext context) {
+  void _openNitipChatbot(BuildContext context, WidgetRef ref) {
     final target = Uri(
       path: AppRoutes.chatbot,
       queryParameters: const {'service_type': 'nitip'},
     ).toString();
 
+    final session = ref.read(authSessionProvider);
+    if (isGuestSession(session)) {
+      showGuestLoginPrompt(
+        context,
+        title: 'Masuk untuk pesan menu ini',
+        message:
+            'Anda bisa melihat detail menu sebagai tamu. Untuk membuat pesanan Nitip, masuk dulu agar pesanan tersimpan ke akun Anda.',
+        returnTo: GoRouterState.of(context).uri.toString(),
+      );
+      return;
+    }
+
     context.push(target);
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -83,7 +97,7 @@ class _MenuDetailView extends StatelessWidget {
         child: SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
-            onPressed: () => _openNitipChatbot(context),
+            onPressed: () => _openNitipChatbot(context, ref),
             icon: const Icon(Icons.shopping_bag_outlined),
             label: const Text('Pesan via Nitip'),
           ),

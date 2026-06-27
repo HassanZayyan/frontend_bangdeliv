@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
 import '../config/payment_assets.dart';
+import 'api_exception.dart';
 
 class QrisDownloadException implements Exception {
   const QrisDownloadException(this.message);
@@ -26,9 +27,16 @@ class QrisDownloadService {
   static const _timeout = Duration(seconds: 20);
 
   Future<void> downloadQrisToGallery({String? fileName}) async {
-    final response = await _client
-        .get(Uri.parse(PaymentAssets.qrisUrl))
-        .timeout(_timeout);
+    late final http.Response response;
+    try {
+      response = await _client
+          .get(Uri.parse(PaymentAssets.qrisUrl))
+          .timeout(_timeout);
+    } on TimeoutException {
+      throw const QrisDownloadException(ApiException.timeoutMessage);
+    } on http.ClientException {
+      throw const QrisDownloadException(ApiException.noInternetMessage);
+    }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw const QrisDownloadException('QRIS belum bisa diunduh.');

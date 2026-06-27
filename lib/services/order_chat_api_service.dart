@@ -136,10 +136,12 @@ class OrderChatApiService {
       }
 
       return OrderChatSendResult.fromApiJson(decoded);
-    } on TimeoutException {
-      throw const ApiException('Upload foto chat timeout.', statusCode: 408);
     } on AuthException catch (error) {
       throw ApiException(error.message);
+    } on TimeoutException {
+      throw const ApiException(ApiException.uploadTimeoutMessage);
+    } on http.ClientException {
+      throw const ApiException(ApiException.noInternetMessage);
     } on FormatException {
       throw const ApiException('Format respons chat tidak valid.');
     }
