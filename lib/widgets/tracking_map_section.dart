@@ -73,12 +73,17 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
   DateTime? _lastFocusedDriverUpdatedAt;
   BitmapDescriptor? _driverMarkerIcon;
   Timer? _fitCameraDebounce;
+  Timer? _mapMountTimer;
+  bool _mapMountReady = false;
   double _cameraBearing = 0;
   CameraPosition? _lastCameraPosition;
+  String? _decodedPolylineSource;
+  List<LatLng>? _decodedPolylinePoints;
 
   static const LatLng _fallbackCenter = LatLng(-7.0503, 110.4370);
   static const double _driverFollowZoom = 16;
   static const double _markerFitPadding = 28;
+  static const Duration _mapMountDelay = Duration(milliseconds: 650);
 
   EdgeInsets get _effectiveMapPadding => widget.mapPadding ?? EdgeInsets.zero;
 
@@ -96,7 +101,20 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
   void initState() {
     super.initState();
     _isFollowingDriver = widget.followDriver;
+    _scheduleMapMount();
     unawaited(_loadDriverMarkerIcon());
+  }
+
+  void _scheduleMapMount() {
+    _mapMountTimer?.cancel();
+    _mapMountTimer = Timer(_mapMountDelay, () {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _mapMountReady = true;
+      });
+    });
   }
 
   Future<void> _loadDriverMarkerIcon() async {
@@ -162,6 +180,7 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
   @override
   void dispose() {
     _fitCameraDebounce?.cancel();
+    _mapMountTimer?.cancel();
     _mapController?.dispose();
     super.dispose();
   }
@@ -212,13 +231,17 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
   void _handleCameraMove(CameraPosition position) {
     _lastCameraPosition = position;
 
-    if ((_cameraBearing - position.bearing).abs() < 1) {
+    final previousBearing = _cameraBearing;
+    final wasShowingCompass = _shouldShowCompass;
+    _cameraBearing = position.bearing;
+    final shouldShowCompass = _shouldShowCompass;
+
+    if (wasShowingCompass == shouldShowCompass &&
+        (previousBearing - position.bearing).abs() < 8) {
       return;
     }
 
-    setState(() {
-      _cameraBearing = position.bearing;
-    });
+    setState(() {});
   }
 
   Future<void> _resetCameraBearing() async {
@@ -424,6 +447,10 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
       return _buildUnavailableMap();
     }
 
+    if (!_mapMountReady) {
+      return _buildMapLoadingPlaceholder();
+    }
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(widget.borderRadius),
       child: SizedBox(
@@ -593,6 +620,25 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
     );
   }
 
+  Widget _buildMapLoadingPlaceholder() {
+    return Container(
+      width: double.infinity,
+      height: widget.height,
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(widget.borderRadius),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: const Center(
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(strokeWidth: 2.4),
+        ),
+      ),
+    );
+  }
+
   Widget _buildTopHint() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -700,7 +746,7 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
   }
 
   Set<Polyline> _buildPolylines() {
-    final decodedPoints = _decodePolyline(widget.encodedPolyline);
+    final decodedPoints = _decodedRoutePoints();
     if (decodedPoints.length >= 2) {
       return {
         Polyline(
@@ -730,7 +776,7 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
   }
 
   bool _shouldShowRouteUnavailableHint() {
-    if (_decodePolyline(widget.encodedPolyline).length >= 2) {
+    if (_decodedRoutePoints().length >= 2) {
       return false;
     }
 
@@ -790,8 +836,19 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
     return 'Update lokasi driver terakhir ${formatTime(updatedAt)}';
   }
 
-  List<LatLng> _decodePolyline(String? encoded) {
-    final value = (encoded ?? '').trim();
+  List<LatLng> _decodedRoutePoints() {
+    final source = (widget.encodedPolyline ?? '').trim();
+    if (_decodedPolylineSource == source && _decodedPolylinePoints != null) {
+      return _decodedPolylinePoints!;
+    }
+
+    _decodedPolylineSource = source;
+    _decodedPolylinePoints = _decodePolyline(source);
+    return _decodedPolylinePoints!;
+  }
+
+  List<LatLng> _decodePolyline(String encoded) {
+    final value = encoded.trim();
     if (value.isEmpty) {
       return const <LatLng>[];
     }
@@ -801,27 +858,31 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
     var latitude = 0;
     var longitude = 0;
 
-    while (index < value.length) {
-      var shift = 0;
-      var result = 0;
-      int byte;
-      do {
-        byte = value.codeUnitAt(index++) - 63;
-        result |= (byte & 0x1f) << shift;
-        shift += 5;
-      } while (byte >= 0x20 && index < value.length);
-      latitude += (result & 1) != 0 ? ~(result >> 1) : result >> 1;
+    try {
+      while (index < value.length) {
+        var shift = 0;
+        var result = 0;
+        int byte;
+        do {
+          byte = value.codeUnitAt(index++) - 63;
+          result |= (byte & 0x1f) << shift;
+          shift += 5;
+        } while (byte >= 0x20 && index < value.length);
+        latitude += (result & 1) != 0 ? ~(result >> 1) : result >> 1;
 
-      shift = 0;
-      result = 0;
-      do {
-        byte = value.codeUnitAt(index++) - 63;
-        result |= (byte & 0x1f) << shift;
-        shift += 5;
-      } while (byte >= 0x20 && index < value.length);
-      longitude += (result & 1) != 0 ? ~(result >> 1) : result >> 1;
+        shift = 0;
+        result = 0;
+        do {
+          byte = value.codeUnitAt(index++) - 63;
+          result |= (byte & 0x1f) << shift;
+          shift += 5;
+        } while (byte >= 0x20 && index < value.length);
+        longitude += (result & 1) != 0 ? ~(result >> 1) : result >> 1;
 
-      points.add(LatLng(latitude / 1e5, longitude / 1e5));
+        points.add(LatLng(latitude / 1e5, longitude / 1e5));
+      }
+    } catch (_) {
+      return const <LatLng>[];
     }
 
     return points;

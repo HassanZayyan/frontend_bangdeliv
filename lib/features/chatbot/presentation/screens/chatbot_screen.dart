@@ -43,6 +43,25 @@ class ChatbotScreen extends ConsumerStatefulWidget {
 enum _ChatbotMenuAction { restart }
 
 class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
+  static const TextStyle _assistantNoticeLabelStyle = TextStyle(
+    color: AppColors.textPrimary,
+    fontSize: 12.5,
+    fontWeight: FontWeight.w600,
+    height: 1.35,
+  );
+  static const TextStyle _assistantNoticeAmountStyle = TextStyle(
+    color: AppColors.textPrimary,
+    fontSize: 13,
+    fontWeight: FontWeight.w700,
+    height: 1.35,
+  );
+  static const TextStyle _assistantNoticeNoteStyle = TextStyle(
+    color: AppColors.textSecondary,
+    fontSize: 10.5,
+    fontWeight: FontWeight.w500,
+    height: 1.3,
+  );
+
   late final TextEditingController _inputController;
   late final ScrollController _scrollController;
   String? _bootstrappedServiceType;
@@ -1920,13 +1939,13 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: 4,
-                        height: 4,
-                        margin: const EdgeInsets.only(top: 9),
-                        decoration: BoxDecoration(
+                      Text(
+                        '-',
+                        style: TextStyle(
                           color: textColor,
-                          shape: BoxShape.circle,
+                          fontSize: 13.5,
+                          height: 1.45,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(width: 6),
@@ -1992,9 +2011,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                   : AppColors.textPrimary,
               fontSize: 14.5,
               height: 1.45,
-              fontWeight: _isExampleInstructionLine(lines[index])
-                  ? FontWeight.w500
-                  : FontWeight.w600,
+              fontWeight: FontWeight.w500,
             ),
           ),
           if (index < lines.length - 1) const SizedBox(height: 4),
@@ -2050,62 +2067,107 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                 height: 1.4,
               ),
             )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final row in rows)
-                  Padding(
-                    padding: EdgeInsets.only(bottom: row == rows.last ? 0 : 4),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                '${row.label}:',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: AppColors.textPrimary,
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                  height: 1.35,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              row.amount,
-                              maxLines: 1,
-                              style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                height: 1.35,
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (row.note.isNotEmpty) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            row.note,
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w500,
-                              height: 1.3,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-              ],
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                final textScaler = MediaQuery.textScalerOf(context);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final row in rows)
+                      _buildAssistantNoticeRow(
+                        row: row,
+                        isLast: row == rows.last,
+                        maxWidth: constraints.maxWidth,
+                        textScaler: textScaler,
+                      ),
+                  ],
+                );
+              },
             ),
     );
+  }
+
+  Widget _buildAssistantNoticeRow({
+    required _AssistantNoticeRow row,
+    required bool isLast,
+    required double maxWidth,
+    required TextScaler textScaler,
+  }) {
+    final shouldStack = _shouldStackAssistantNoticeRow(
+      row: row,
+      maxWidth: maxWidth,
+      textScaler: textScaler,
+    );
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (shouldStack) ...[
+            Text('${row.label}:', style: _assistantNoticeLabelStyle),
+            const SizedBox(height: 2),
+            Text(row.amount, style: _assistantNoticeAmountStyle),
+          ] else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    '${row.label}:',
+                    softWrap: false,
+                    style: _assistantNoticeLabelStyle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(row.amount, style: _assistantNoticeAmountStyle),
+              ],
+            ),
+          if (row.note.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(row.note, style: _assistantNoticeNoteStyle),
+          ],
+        ],
+      ),
+    );
+  }
+
+  bool _shouldStackAssistantNoticeRow({
+    required _AssistantNoticeRow row,
+    required double maxWidth,
+    required TextScaler textScaler,
+  }) {
+    if (!maxWidth.isFinite || maxWidth <= 0) {
+      return row.amount.length >= 18;
+    }
+
+    final labelWidth = _measureAssistantNoticeText(
+      '${row.label}:',
+      _assistantNoticeLabelStyle,
+      textScaler,
+    );
+    final amountWidth = _measureAssistantNoticeText(
+      row.amount,
+      _assistantNoticeAmountStyle,
+      textScaler,
+    );
+
+    return labelWidth + 8 + amountWidth > maxWidth;
+  }
+
+  double _measureAssistantNoticeText(
+    String text,
+    TextStyle style,
+    TextScaler textScaler,
+  ) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+      textScaler: textScaler,
+    )..layout();
+
+    return painter.width;
   }
 
   List<_AssistantNoticeRow> _parseAssistantNoticeRows(String text) {

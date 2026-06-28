@@ -96,7 +96,7 @@ class DriverOrderHistoryDetailScreen extends ConsumerWidget {
                   BangFloatingBottomNavBar.scrollClearance - 42,
                 ),
                 children: [
-                  DriverOrderMetaCard(order: order),
+                  DriverOrderMetaCard(order: order, showOrderIdLabel: true),
                   const SizedBox(height: 12),
                   DriverOrderPricingCard(
                     order: order,

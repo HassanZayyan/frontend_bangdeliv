@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../../../core/application/app_lifecycle_provider.dart';
 import '../../../models/driver_order_model.dart';
 import '../../../utils/order_status.dart';
 import '../../../core/di/app_providers.dart';
@@ -117,9 +118,12 @@ class DriverLocationReporterNotifier
   DriverLocationReporterState build() {
     ref.onDispose(_dispose);
 
+    final lifecycle = ref.watch(appLifecycleStateProvider);
     final session = ref.watch(authSessionProvider);
     final orders = ref.watch(driverOrdersProvider).asData?.value;
-    final target = _trackableOrder(session, orders);
+    final target = isAppLifecycleResumed(lifecycle)
+        ? _trackableOrder(session, orders)
+        : null;
 
     scheduleMicrotask(() {
       if (ref.mounted) {

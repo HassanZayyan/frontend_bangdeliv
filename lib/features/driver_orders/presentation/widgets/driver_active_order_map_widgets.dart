@@ -27,16 +27,34 @@ class DriverActiveOrderMapCard extends StatefulWidget {
 class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
   GoogleMapController? _mapController;
   BitmapDescriptor? _driverMarkerIcon;
+  Timer? _mapMountTimer;
+  bool _mapMountReady = false;
   bool _hasFittedDriverPosition = false;
+
+  static const Duration _mapMountDelay = Duration(milliseconds: 650);
 
   @override
   void initState() {
     super.initState();
+    _scheduleMapMount();
     unawaited(_loadDriverMarkerIcon());
+  }
+
+  void _scheduleMapMount() {
+    _mapMountTimer?.cancel();
+    _mapMountTimer = Timer(_mapMountDelay, () {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _mapMountReady = true;
+      });
+    });
   }
 
   @override
   void dispose() {
+    _mapMountTimer?.cancel();
     _mapController?.dispose();
     super.dispose();
   }
@@ -118,6 +136,10 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
         ),
     };
 
+    if (!_mapMountReady) {
+      return _buildMapLoadingPlaceholder();
+    }
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: SizedBox(
@@ -163,6 +185,24 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMapLoadingPlaceholder() {
+    return Container(
+      height: 230,
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+      ),
+      child: const Center(
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(strokeWidth: 2.4),
         ),
       ),
     );

@@ -666,7 +666,10 @@ class _MessageTextWithAdaptiveMeta extends StatelessWidget {
     final metaSpacing = alignInlineMetaToEnd
         ? _opponentMetaSpacing
         : _metaSpacing;
-    final useInlineMeta = _canPlaceMetaInline(context, textStyle, metaSpacing);
+    final useInlineMeta =
+        !isPending &&
+        !isFailed &&
+        _canPlaceMetaInline(context, textStyle, metaSpacing);
 
     if (useInlineMeta) {
       return RichText(

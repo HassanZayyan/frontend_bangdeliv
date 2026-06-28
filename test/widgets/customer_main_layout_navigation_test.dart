@@ -54,6 +54,55 @@ void main() {
 
     expect(find.text('activity'), findsOneWidget);
   });
+
+  testWidgets('customer shell keeps rapid nav taps to the first route change', (
+    tester,
+  ) async {
+    final router = GoRouter(
+      initialLocation: AppRoutes.home,
+      routes: [
+        ShellRoute(
+          builder: (context, state, child) => MainLayout(child: child),
+          routes: [
+            GoRoute(
+              path: AppRoutes.home,
+              builder: (context, state) => const _ShellBody('home'),
+            ),
+            GoRoute(
+              path: AppRoutes.activity,
+              builder: (context, state) => const _ShellBody('activity'),
+            ),
+            GoRoute(
+              path: AppRoutes.profile,
+              builder: (context, state) => const _ShellBody('profile'),
+            ),
+          ],
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authSessionProvider.overrideWith(_CustomerAuthSessionNotifier.new),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Aktivitas'));
+    await tester.pump();
+    await tester.tap(find.text('Profil'));
+    await tester.pump();
+    await tester.tap(find.text('Beranda'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('activity'), findsOneWidget);
+    expect(find.text('profile'), findsNothing);
+    expect(find.text('home'), findsNothing);
+  });
 }
 
 class _CustomerAuthSessionNotifier extends AuthSessionNotifier {

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/application/app_lifecycle_provider.dart';
 import '../../../models/customer_order_model.dart';
 import '../../../utils/order_status.dart';
 import '../../../core/di/app_providers.dart';
@@ -21,8 +22,11 @@ final customerOrdersAutoRefreshProvider = Provider.autoDispose<void>((ref) {
     return;
   }
 
-  final timer = Timer.periodic(const Duration(seconds: 8), (_) {
+  final timer = Timer.periodic(const Duration(seconds: 15), (_) {
     if (!ref.mounted) {
+      return;
+    }
+    if (!isAppLifecycleResumed(ref.read(appLifecycleStateProvider))) {
       return;
     }
     unawaited(

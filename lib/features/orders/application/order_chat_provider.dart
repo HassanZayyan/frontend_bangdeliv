@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/application/app_lifecycle_provider.dart';
 import '../../../models/order_chat_model.dart';
 import '../../../services/api_exception.dart';
 import '../../../core/di/app_providers.dart';
@@ -12,7 +13,7 @@ import '../../realtime/application/order_realtime_hub_provider.dart';
 final orderChatProvider = AsyncNotifierProvider.family
     .autoDispose<OrderChatNotifier, OrderChatState, int>(OrderChatNotifier.new);
 
-Duration orderChatReconciliationInterval = const Duration(seconds: 2);
+Duration orderChatReconciliationInterval = const Duration(seconds: 8);
 
 class OrderChatState {
   const OrderChatState({
@@ -80,7 +81,7 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
   OrderChatNotifier(this.orderId);
 
   static const _fallbackActivationDelay = Duration(seconds: 4);
-  static const _fallbackPollInterval = Duration(seconds: 4);
+  static const _fallbackPollInterval = Duration(seconds: 8);
 
   final int orderId;
 
@@ -275,23 +276,24 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
         return null;
       }
 
-      state = AsyncData(
-        latest.copyWith(
-          messages: _mergeMessages(latest.messages, <OrderChatMessageModel>[
-            result.message,
-          ]),
-          canSend: result.canSend,
-          sendingCount: _decrementSending(latest.sendingCount),
-          clearErrorMessage: true,
-        ),
+      final applied = _applySentServerMessage(
+        result.message,
+        clientMessageId: clientMessageId,
+        canSend: result.canSend,
       );
+      if (!applied) {
+        final recovered = await _forceReconcileSentMessage(clientMessageId);
+        if (!recovered) {
+          throw const ApiException('Format respons pesan chat tidak valid.');
+        }
+      }
       return null;
     } catch (error) {
       if (!_isMounted) {
         return null;
       }
 
-      final recovered = await _recoverMessageAfterSendFailure(clientMessageId);
+      final recovered = await _forceReconcileSentMessage(clientMessageId);
       if (recovered) {
         return null;
       }
@@ -389,23 +391,24 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
         return null;
       }
 
-      state = AsyncData(
-        latest.copyWith(
-          messages: _mergeMessages(latest.messages, <OrderChatMessageModel>[
-            result.message,
-          ]),
-          canSend: result.canSend,
-          sendingCount: _decrementSending(latest.sendingCount),
-          clearErrorMessage: true,
-        ),
+      final applied = _applySentServerMessage(
+        result.message,
+        clientMessageId: clientMessageId,
+        canSend: result.canSend,
       );
+      if (!applied) {
+        final recovered = await _forceReconcileSentMessage(clientMessageId);
+        if (!recovered) {
+          throw const ApiException('Format respons pesan chat tidak valid.');
+        }
+      }
       return null;
     } catch (error) {
       if (!_isMounted) {
         return null;
       }
 
-      final recovered = await _recoverMessageAfterSendFailure(clientMessageId);
+      final recovered = await _forceReconcileSentMessage(clientMessageId);
       if (recovered) {
         return null;
       }
@@ -528,7 +531,9 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
 
       unawaited(_pollNewMessages());
       _degradedSyncTimer = Timer.periodic(_fallbackPollInterval, (_) {
-        unawaited(_pollNewMessages());
+        if (isAppLifecycleResumed(ref.read(appLifecycleStateProvider))) {
+          unawaited(_pollNewMessages());
+        }
       });
     });
   }
@@ -538,14 +543,17 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
       return;
     }
 
-    _reconciliationTimer = Timer.periodic(
-      orderChatReconciliationInterval,
-      (_) => unawaited(_pollNewMessages()),
-    );
+    _reconciliationTimer = Timer.periodic(orderChatReconciliationInterval, (_) {
+      if (isAppLifecycleResumed(ref.read(appLifecycleStateProvider))) {
+        unawaited(_pollNewMessages());
+      }
+    });
   }
 
   Future<void> _pollNewMessages() async {
-    if (!_isMounted || _pollInFlight) {
+    if (!_isMounted ||
+        _pollInFlight ||
+        !isAppLifecycleResumed(ref.read(appLifecycleStateProvider))) {
       return;
     }
 
@@ -601,7 +609,7 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
     }
   }
 
-  Future<bool> _recoverMessageAfterSendFailure(String clientMessageId) async {
+  Future<bool> _forceReconcileSentMessage(String clientMessageId) async {
     if (!_isMounted) {
       return false;
     }
@@ -613,7 +621,8 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
 
     final alreadyRecovered = current.messages.any(
       (message) =>
-          message.clientMessageId == clientMessageId && message.hasServerId,
+          message.clientMessageId == clientMessageId &&
+          _isValidServerMessageForCurrentOrder(message),
     );
     if (alreadyRecovered) {
       state = AsyncData(
@@ -648,8 +657,12 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
         return false;
       }
 
-      final recovered = page.messages.any(
-        (message) => message.clientMessageId == clientMessageId,
+      final validMessages = page.messages
+          .where(_isValidServerMessageForCurrentOrder)
+          .toList(growable: false);
+      final recovered = validMessages.any(
+        (message) =>
+            message.clientMessageId == clientMessageId && message.hasServerId,
       );
       if (!recovered) {
         return false;
@@ -657,7 +670,7 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
 
       state = AsyncData(
         latest.copyWith(
-          messages: _mergeMessages(latest.messages, page.messages),
+          messages: _mergeMessages(latest.messages, validMessages),
           canSend: page.canSend,
           unreadCount: page.unreadCount,
           lastReadMessageId: page.lastReadMessageId,
@@ -669,6 +682,44 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
     } catch (_) {
       return false;
     }
+  }
+
+  bool _applySentServerMessage(
+    OrderChatMessageModel message, {
+    required String clientMessageId,
+    required bool canSend,
+  }) {
+    if (!_isValidServerMessageForCurrentOrder(message)) {
+      return false;
+    }
+
+    final messageClientId = message.clientMessageId?.trim();
+    if (messageClientId != null &&
+        messageClientId.isNotEmpty &&
+        messageClientId != clientMessageId) {
+      return false;
+    }
+
+    final latest = state.asData?.value;
+    if (latest == null) {
+      return false;
+    }
+
+    final normalizedMessage = messageClientId == null || messageClientId.isEmpty
+        ? message.copyWith(clientMessageId: clientMessageId)
+        : message;
+
+    state = AsyncData(
+      latest.copyWith(
+        messages: _mergeMessages(latest.messages, <OrderChatMessageModel>[
+          normalizedMessage,
+        ]),
+        canSend: canSend,
+        sendingCount: _decrementSending(latest.sendingCount),
+        clearErrorMessage: true,
+      ),
+    );
+    return true;
   }
 
   int _latestServerMessageId(List<OrderChatMessageModel> messages) {
@@ -722,6 +773,10 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
     final next = current.toList(growable: true);
 
     for (final message in incoming) {
+      if (!_isMergeableMessage(message)) {
+        continue;
+      }
+
       final clientMessageId = message.clientMessageId?.trim();
       var index = -1;
 
@@ -744,6 +799,31 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
 
     next.sort(_compareMessages);
     return next.toList(growable: false);
+  }
+
+  bool _isMergeableMessage(OrderChatMessageModel message) {
+    if (_isValidServerMessageForCurrentOrder(message)) {
+      return true;
+    }
+
+    final clientMessageId = message.clientMessageId?.trim();
+    final hasClientMessageId =
+        clientMessageId != null && clientMessageId.isNotEmpty;
+    final hasVisibleContent =
+        message.body.trim().isNotEmpty || message.hasAttachment;
+
+    return message.orderId == orderId &&
+        message.id < 0 &&
+        hasClientMessageId &&
+        hasVisibleContent;
+  }
+
+  bool _isValidServerMessageForCurrentOrder(OrderChatMessageModel message) {
+    final hasVisibleContent =
+        message.body.trim().isNotEmpty || message.hasAttachment;
+    return message.hasServerId &&
+        message.orderId == orderId &&
+        hasVisibleContent;
   }
 
   int _compareMessages(OrderChatMessageModel a, OrderChatMessageModel b) {

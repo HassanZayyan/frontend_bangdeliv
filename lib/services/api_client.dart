@@ -15,6 +15,10 @@ class ApiClient {
 
   static const Duration _timeout = Duration(seconds: 8);
 
+  void close() {
+    _httpClient.close();
+  }
+
   Future<Map<String, dynamic>> get(
     String path, {
     Map<String, dynamic>? queryParams,

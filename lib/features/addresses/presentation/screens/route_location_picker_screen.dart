@@ -176,7 +176,6 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
         ),
-        centerTitle: true,
         backgroundColor: AppColors.white,
         elevation: 0,
       ),

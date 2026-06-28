@@ -32,4 +32,14 @@ void main() {
     expect(source, contains('newLatLngBounds(bounds, _markerFitPadding)'));
     expect(source, isNot(contains('newLatLngBounds(bounds, 64)')));
   });
+
+  test('tracking map delays platform view mount during route transitions', () {
+    final source = File(
+      'lib/widgets/tracking_map_section.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('_mapMountDelay = Duration(milliseconds: 650)'));
+    expect(source, contains('_buildMapLoadingPlaceholder()'));
+    expect(source, contains('if (!_mapMountReady)'));
+  });
 }

@@ -6,12 +6,25 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../config/app_colors.dart';
 
-Future<BitmapDescriptor> buildMotorDriverMarker({double size = 42}) async {
+final Map<String, Future<BitmapDescriptor>> _markerCache =
+    <String, Future<BitmapDescriptor>>{};
+
+Future<BitmapDescriptor> buildMotorDriverMarker({double size = 42}) {
+  final pixelRatio = _devicePixelRatio();
+  final key = 'motor:$size:$pixelRatio';
+
+  return _markerCache.putIfAbsent(
+    key,
+    () => _buildMotorDriverMarker(size: size, pixelRatio: pixelRatio),
+  );
+}
+
+Future<BitmapDescriptor> _buildMotorDriverMarker({
+  required double size,
+  required double pixelRatio,
+}) async {
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder);
-  final pixelRatio = ui.PlatformDispatcher.instance.views.isEmpty
-      ? 1.0
-      : ui.PlatformDispatcher.instance.views.first.devicePixelRatio;
   final markerSize = (size * pixelRatio).roundToDouble();
   final center = Offset(markerSize / 2, markerSize / 2);
   final radius = markerSize / 2;
@@ -71,22 +84,25 @@ Future<BitmapDescriptor> buildOfficialMerchantMarker(
   double size = 42,
 }) {
   final normalizedType = (merchantType ?? '').trim().toLowerCase();
+  final pixelRatio = _devicePixelRatio();
+  final key = 'merchant:$normalizedType:$size:$pixelRatio';
   final icon = normalizedType == 'warung'
       ? Icons.storefront_outlined
       : Icons.restaurant_outlined;
 
-  return _buildCircularIconMarker(icon, size: size);
+  return _markerCache.putIfAbsent(
+    key,
+    () => _buildCircularIconMarker(icon, size: size, pixelRatio: pixelRatio),
+  );
 }
 
 Future<BitmapDescriptor> _buildCircularIconMarker(
   IconData icon, {
   required double size,
+  required double pixelRatio,
 }) async {
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder);
-  final pixelRatio = ui.PlatformDispatcher.instance.views.isEmpty
-      ? 1.0
-      : ui.PlatformDispatcher.instance.views.first.devicePixelRatio;
   final markerSize = (size * pixelRatio).roundToDouble();
   final center = Offset(markerSize / 2, markerSize / 2);
   final radius = markerSize / 2;
@@ -139,4 +155,10 @@ Future<BitmapDescriptor> _buildCircularIconMarker(
     width: size,
     height: size,
   );
+}
+
+double _devicePixelRatio() {
+  return ui.PlatformDispatcher.instance.views.isEmpty
+      ? 1.0
+      : ui.PlatformDispatcher.instance.views.first.devicePixelRatio;
 }

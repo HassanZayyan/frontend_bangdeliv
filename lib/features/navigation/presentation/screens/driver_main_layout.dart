@@ -51,23 +51,31 @@ class _DriverMainLayoutState extends ConsumerState<DriverMainLayout> {
   void _onItemTapped(int index, BuildContext context) {
     switch (index) {
       case 0:
-        context.go(AppRoutes.driverHome);
+        _goIfLocationChanged(context, AppRoutes.driverHome);
         break;
       case 1:
         final activeOrder = ref.read(driverActiveOrderProvider);
-        if (activeOrder == null) {
-          context.go(AppRoutes.driverOrders);
-        } else {
-          context.go(AppRoutes.driverOrderActivePath(activeOrder.id));
-        }
+        final targetLocation = activeOrder == null
+            ? AppRoutes.driverOrders
+            : AppRoutes.driverOrderActivePath(activeOrder.id);
+        _goIfLocationChanged(context, targetLocation);
         break;
       case 2:
-        context.go(AppRoutes.driverHistory);
+        _goIfLocationChanged(context, AppRoutes.driverHistory);
         break;
       case 3:
-        context.go(AppRoutes.driverProfile);
+        _goIfLocationChanged(context, AppRoutes.driverProfile);
         break;
     }
+  }
+
+  void _goIfLocationChanged(BuildContext context, String targetLocation) {
+    final currentLocation = GoRouterState.of(context).uri.path;
+    if (currentLocation == targetLocation) {
+      return;
+    }
+
+    context.go(targetLocation);
   }
 
   @override

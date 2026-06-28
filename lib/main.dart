@@ -6,6 +6,7 @@ import 'config/app_env.dart';
 import 'config/app_theme.dart';
 import 'config/app_router.dart';
 import 'config/app_text_scaling.dart';
+import 'core/application/app_lifecycle_provider.dart';
 import 'features/realtime/application/app_realtime_bootstrap_provider.dart';
 import 'features/auth/application/auth_session_provider.dart';
 import 'features/driver_orders/application/driver_availability_location_reporter_provider.dart';
@@ -62,6 +63,7 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
+    ref.read(appLifecycleStateProvider.notifier).setState(state);
     if (state == AppLifecycleState.resumed) {
       _refreshSessionOnResume();
     }
@@ -89,10 +91,6 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    ref.watch(appRealtimeBootstrapProvider);
-    ref.watch(firebaseNotificationBootstrapProvider);
-    ref.watch(chatHeadsUpNotificationProvider);
-    ref.watch(driverAvailabilityLocationReporterProvider);
     final router = ref.watch(appRouterProvider);
 
     return MaterialApp.router(
@@ -105,10 +103,47 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
           color: AppColors.background,
           child: AppTextScaling.clamp(
             context: context,
-            child: child ?? const SizedBox.shrink(),
+            child: _AppRuntimeBootstrap(
+              child: child ?? const SizedBox.shrink(),
+            ),
           ),
         );
       },
     );
+  }
+}
+
+class _AppRuntimeBootstrap extends ConsumerWidget {
+  const _AppRuntimeBootstrap({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final session = ref.watch(authSessionProvider);
+    if (!session.initialized) {
+      return child;
+    }
+
+    ref.watch(firebaseNotificationBootstrapProvider);
+
+    final isCustomerOrDriver =
+        session.isAuthenticated &&
+        (session.role == SessionUserRole.customer ||
+            session.role == SessionUserRole.driver);
+    if (isCustomerOrDriver) {
+      ref.watch(chatHeadsUpNotificationProvider);
+    }
+
+    final isActiveDriver =
+        session.isAuthenticated &&
+        session.role == SessionUserRole.driver &&
+        session.driverAccessState == DriverAccessState.active;
+    if (isActiveDriver) {
+      ref.watch(appRealtimeBootstrapProvider);
+      ref.watch(driverAvailabilityLocationReporterProvider);
+    }
+
+    return child;
   }
 }

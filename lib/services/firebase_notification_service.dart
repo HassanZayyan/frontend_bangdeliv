@@ -52,19 +52,35 @@ class FirebaseNotificationService {
   static bool _notificationsInitialized = false;
   static bool _localNotificationsInitialized = false;
   static bool _localLaunchDetailsHandled = false;
+  static Future<bool>? _firebaseInitializationFuture;
+  static Future<void>? _notificationsInitializationFuture;
+  static Future<void>? _tokenSyncFuture;
   static String? _registeredToken;
   static int? _registeredUserId;
+  static int? _tokenSyncUserId;
+  static int _tokenSyncGeneration = 0;
   static FutureOr<void> Function(String route)? _openRoute;
   static bool Function(RemoteMessage message)? _shouldShowForegroundMessage;
   static Future<void> Function(String token)? _tokenRefreshHandler;
   static StreamSubscription<String>? _tokenRefreshSubscription;
   static final Set<String> _shownNotificationKeys = <String>{};
 
-  static Future<bool> initializeFirebase() async {
+  static Future<bool> initializeFirebase() {
     if (_firebaseInitialized) {
-      return true;
+      return Future<bool>.value(true);
     }
 
+    final currentInitialization = _firebaseInitializationFuture;
+    if (currentInitialization != null) {
+      return currentInitialization;
+    }
+
+    final nextInitialization = _initializeFirebase();
+    _firebaseInitializationFuture = nextInitialization;
+    return nextInitialization;
+  }
+
+  static Future<bool> _initializeFirebase() async {
     try {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
@@ -78,11 +94,13 @@ class FirebaseNotificationService {
           '[FCM] Firebase is not configured for this platform: $error',
         );
       }
+      _firebaseInitializationFuture = null;
       return false;
     } catch (error) {
       if (kDebugMode) {
         debugPrint('[FCM] Failed to initialize Firebase: $error');
       }
+      _firebaseInitializationFuture = null;
       return false;
     }
   }
@@ -102,8 +120,21 @@ class FirebaseNotificationService {
       return;
     }
 
+    final currentInitialization = _notificationsInitializationFuture;
+    if (currentInitialization != null) {
+      await currentInitialization;
+      return;
+    }
+
+    final nextInitialization = _initializeNotifications();
+    _notificationsInitializationFuture = nextInitialization;
+    await nextInitialization;
+  }
+
+  static Future<void> _initializeNotifications() async {
     final firebaseReady = await initializeFirebase();
     if (!firebaseReady) {
+      _notificationsInitializationFuture = null;
       return;
     }
 
@@ -146,19 +177,13 @@ class FirebaseNotificationService {
     }
 
     _notificationsInitialized = true;
+    _notificationsInitializationFuture = null;
   }
 
   static Future<void> syncTokenWithBackend({
     required int userId,
     required Future<void> Function(String token) registerToken,
   }) async {
-    final firebaseReady = await initializeFirebase();
-    if (!firebaseReady) {
-      return;
-    }
-
-    await _requestNotificationPermission();
-
     _tokenRefreshHandler = (token) {
       return _registerTokenForUser(
         userId: userId,
@@ -167,8 +192,60 @@ class FirebaseNotificationService {
       );
     };
 
+    if (_registeredUserId == userId &&
+        _registeredToken != null &&
+        _registeredToken!.isNotEmpty) {
+      return;
+    }
+
+    final currentSync = _tokenSyncFuture;
+    if (_tokenSyncUserId == userId && currentSync != null) {
+      await currentSync;
+      return;
+    }
+
+    final generation = _tokenSyncGeneration;
+    final nextSync = _syncTokenWithBackend(
+      userId: userId,
+      registerToken: registerToken,
+      generation: generation,
+    );
+    _tokenSyncUserId = userId;
+    _tokenSyncFuture = nextSync;
+    try {
+      await nextSync;
+    } finally {
+      if (identical(_tokenSyncFuture, nextSync)) {
+        _tokenSyncFuture = null;
+        _tokenSyncUserId = null;
+      }
+    }
+  }
+
+  static Future<void> _syncTokenWithBackend({
+    required int userId,
+    required Future<void> Function(String token) registerToken,
+    required int generation,
+  }) async {
+    final firebaseReady = await initializeFirebase();
+    if (!firebaseReady) {
+      return;
+    }
+
+    await _requestNotificationPermission();
+
+    if (generation != _tokenSyncGeneration) {
+      return;
+    }
+
     try {
       final token = await _messaging.getToken();
+      if (generation != _tokenSyncGeneration) {
+        return;
+      }
+      if (_registeredUserId == userId && _registeredToken == token) {
+        return;
+      }
       _logToken(token, label: 'Current token');
       if (token == null || token.isEmpty) {
         return;
@@ -187,7 +264,10 @@ class FirebaseNotificationService {
   }
 
   static void clearBackendTokenSync() {
+    _tokenSyncGeneration += 1;
     _tokenRefreshHandler = null;
+    _tokenSyncFuture = null;
+    _tokenSyncUserId = null;
     _registeredToken = null;
     _registeredUserId = null;
   }
