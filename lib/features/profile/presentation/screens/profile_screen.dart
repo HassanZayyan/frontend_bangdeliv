@@ -38,6 +38,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Future<UserProfileModel> _fetchProfile() async {
     final profile = await AuthService.fetchCurrentUserProfile();
     _cachedProfile = profile;
+    if (mounted) {
+      ref.read(authSessionProvider.notifier).syncProfile(profile);
+    }
+
     return profile;
   }
 

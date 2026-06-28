@@ -78,6 +78,7 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
 
   static const LatLng _fallbackCenter = LatLng(-7.0503, 110.4370);
   static const double _driverFollowZoom = 16;
+  static const double _markerFitPadding = 28;
 
   EdgeInsets get _effectiveMapPadding => widget.mapPadding ?? EdgeInsets.zero;
 
@@ -373,7 +374,9 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
       northeast: LatLng(maxLat, maxLng),
     );
 
-    await _animateCamera(CameraUpdate.newLatLngBounds(bounds, 64));
+    await _animateCamera(
+      CameraUpdate.newLatLngBounds(bounds, _markerFitPadding),
+    );
   }
 
   Future<void> _fitInitialCamera() async {

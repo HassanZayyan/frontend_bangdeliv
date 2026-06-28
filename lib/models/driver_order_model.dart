@@ -15,6 +15,7 @@ class DriverOrderModel {
   final String orderNumber;
   final String customerName;
   final String? customerPhone;
+  final String? customerAvatarUrl;
   final String serviceTypeCode;
   final String? serviceTypeName;
   final String pickupAddress;
@@ -63,6 +64,7 @@ class DriverOrderModel {
     this.orderNumber = '',
     required this.customerName,
     this.customerPhone,
+    this.customerAvatarUrl,
     this.serviceTypeCode = ServiceTypeCodes.unknown,
     this.serviceTypeName,
     required this.pickupAddress,
@@ -148,6 +150,7 @@ class DriverOrderModel {
       orderNumber: orderNumber,
       customerName: customerName,
       customerPhone: customerPhone,
+      customerAvatarUrl: customerAvatarUrl,
       serviceTypeCode: serviceTypeCode,
       serviceTypeName: serviceTypeName,
       pickupAddress: pickupAddress,
@@ -263,6 +266,22 @@ class DriverOrderModel {
               .clamp(0, double.infinity)
               .toDouble()
         : _asDouble(driverIncomeNetRaw);
+    final customer = (json['customer'] is Map<String, dynamic>)
+        ? json['customer'] as Map<String, dynamic>
+        : const <String, dynamic>{};
+    final customerUser = (customer['user'] is Map<String, dynamic>)
+        ? customer['user'] as Map<String, dynamic>
+        : const <String, dynamic>{};
+    final customerAvatar = _firstNonEmptyString([
+      json['customer_avatar_url'],
+      json['customerAvatarUrl'],
+      customer['avatar_url'],
+      customer['avatarUrl'],
+      customer['avatar'],
+      customerUser['avatar_url'],
+      customerUser['avatarUrl'],
+      customerUser['avatar'],
+    ]);
 
     return DriverOrderModel(
       id: (json['id'] ?? '').toString(),
@@ -272,6 +291,9 @@ class DriverOrderModel {
           .toString(),
       customerPhone: (json['customer_phone'] ?? json['customerPhone'])
           ?.toString(),
+      customerAvatarUrl: customerAvatar == null
+          ? null
+          : AppEnv.resolveBackendAssetUrl(customerAvatar),
       serviceTypeCode: normalizeServiceTypeCode(
         (json['service_type_code'] ?? json['serviceTypeCode'] ?? '').toString(),
       ),
@@ -403,6 +425,17 @@ class DriverOrderModel {
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
+  static String? _firstNonEmptyString(List<dynamic> values) {
+    for (final value in values) {
+      final normalized = value?.toString().trim() ?? '';
+      if (normalized.isNotEmpty) {
+        return normalized;
+      }
+    }
+
+    return null;
   }
 
   static double _asDouble(dynamic value) {

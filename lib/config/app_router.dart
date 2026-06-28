@@ -574,6 +574,19 @@ String? _resolveRedirect({
   return AppRoutes.login;
 }
 
+@visibleForTesting
+String? resolveAppRedirectForTest({
+  required AuthSessionState session,
+  required String location,
+  required String fullLocation,
+}) {
+  return _resolveRedirect(
+    session: session,
+    location: location,
+    fullLocation: fullLocation,
+  );
+}
+
 String _buildLoginRouteWithReturnTo(String targetLocation) {
   final normalizedTarget = targetLocation.trim();
   if (normalizedTarget.isEmpty ||

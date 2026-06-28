@@ -71,6 +71,48 @@ void main() {
     expect(fakeService.acceptedOrderIds, ['ORD-1']);
   });
 
+  test(
+    'acceptOrder waits for server before moving incoming to running',
+    () async {
+      final acceptCompleter = Completer<void>();
+      final fakeService = _FakeDriverOrderService(
+        payload: seededPayload(),
+        acceptCompleter: acceptCompleter,
+      );
+      final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+      final fakeRealtime = FakeOrderRealtimeClient();
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          driverOrderServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(driverOrdersProvider.future);
+      final acceptFuture = container
+          .read(driverOrdersProvider.notifier)
+          .acceptOrder('ORD-1');
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      var state = container.read(driverOrdersProvider).asData!.value;
+      expect(state.incoming.map((order) => order.id), ['ORD-1']);
+      expect(state.running, isEmpty);
+      expect(state.isProcessing('ORD-1'), isTrue);
+
+      acceptCompleter.complete();
+      final result = await acceptFuture;
+      state = container.read(driverOrdersProvider).asData!.value;
+
+      expect(result.error, isNull);
+      expect(state.incoming, isEmpty);
+      expect(state.running.map((order) => order.id), ['ORD-1']);
+      expect(state.isProcessing('ORD-1'), isFalse);
+    },
+  );
+
   test('acceptOrder failure rolls back optimistic change', () async {
     final fakeService = _FakeDriverOrderService(
       payload: seededPayload(),
@@ -98,6 +140,42 @@ void main() {
     expect(result.error, isNotNull);
     expect(state.incoming.length, 1);
     expect(state.running, isEmpty);
+  });
+
+  test('acceptOrder stale conflict removes incoming without running', () async {
+    final fakeService = _FakeDriverOrderService(
+      payload: seededPayload(),
+      failAccept: true,
+      acceptFailure: const DriverOrderApiException(
+        'Order sudah diambil driver lain.',
+        statusCode: 409,
+      ),
+    );
+    final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+    final fakeRealtime = FakeOrderRealtimeClient();
+    final container = ProviderContainer(
+      overrides: [
+        authSessionProvider.overrideWith(() => fakeAuth),
+        driverOrderServiceProvider.overrideWithValue(fakeService),
+        orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(driverOrdersProvider.future);
+
+    final result = await container
+        .read(driverOrdersProvider.notifier)
+        .acceptOrder('ORD-1');
+
+    final state = container.read(driverOrdersProvider).asData!.value;
+
+    expect(result.error, 'Order sudah diambil driver lain.');
+    expect(result.statusCode, 409);
+    expect(result.isStaleOrder, isTrue);
+    expect(state.incoming, isEmpty);
+    expect(state.running, isEmpty);
+    expect(state.isProcessing('ORD-1'), isFalse);
   });
 
   test('rejectOrder failure rolls back optimistic removal', () async {
@@ -1148,6 +1226,7 @@ void main() {
 class _FakeDriverOrderService extends DriverOrderService {
   DriverOrdersPayload payload;
   final bool failAccept;
+  final DriverOrderApiException? acceptFailure;
   final bool failReject;
   final Completer<void>? acceptCompleter;
   final Completer<void>? confirmTransferCompleter;
@@ -1166,6 +1245,7 @@ class _FakeDriverOrderService extends DriverOrderService {
   _FakeDriverOrderService({
     required this.payload,
     this.failAccept = false,
+    this.acceptFailure,
     this.failReject = false,
     this.acceptCompleter,
     this.confirmTransferCompleter,
@@ -1226,7 +1306,8 @@ class _FakeDriverOrderService extends DriverOrderService {
   @override
   Future<DriverOrderModel> acceptOrder(String orderId) async {
     if (failAccept) {
-      throw const DriverOrderApiException('accept failed', statusCode: 500);
+      throw acceptFailure ??
+          const DriverOrderApiException('accept failed', statusCode: 500);
     }
     final completer = acceptCompleter;
     if (completer != null) {

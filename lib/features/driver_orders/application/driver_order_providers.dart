@@ -6,7 +6,6 @@ import 'package:image_picker/image_picker.dart';
 import '../../../models/driver_order_model.dart';
 import '../../../data/repositories/driver_order_repository.dart';
 import '../../../services/driver_order_service.dart';
-import '../../../utils/order_formatters.dart';
 import '../../../utils/order_status.dart';
 import '../../../utils/order_ui_helpers.dart';
 import '../../../core/di/app_providers.dart';
@@ -165,10 +164,17 @@ class DriverOrderActionKeys {
 }
 
 class DriverOrderAcceptResult {
-  const DriverOrderAcceptResult({this.order, this.error});
+  const DriverOrderAcceptResult({
+    this.order,
+    this.error,
+    this.statusCode,
+    this.isStaleOrder = false,
+  });
 
   final DriverOrderModel? order;
   final String? error;
+  final int? statusCode;
+  final bool isStaleOrder;
 
   bool get isSuccess => error == null;
 }
@@ -569,23 +575,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       return const DriverOrderAcceptResult(error: 'Order tidak ditemukan.');
     }
 
-    final incoming = List<DriverOrderModel>.from(current.incoming);
-    final selected = incoming
-        .removeAt(index)
-        .copyWith(
-          acceptedAt: _currentHourMinute(),
-          statusCode: OrderStatusCodes.driverAssigned,
-          statusDisplayName: orderStatusLabel(OrderStatusCodes.driverAssigned),
-        );
-    final running = <DriverOrderModel>[selected, ...current.running];
-
-    state = AsyncData(
-      _markActionProcessing(
-        current.copyWith(incoming: incoming, running: running),
-        actionKey: actionKey,
-      ),
-    );
-    _syncRunningOrderRealtime(state.asData!.value);
+    state = AsyncData(_markActionProcessing(current, actionKey: actionKey));
 
     try {
       final syncedOrder = await ref
@@ -597,10 +587,13 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         return DriverOrderAcceptResult(order: syncedOrder);
       }
 
+      final incoming = latest.incoming
+          .where((order) => order.id != id)
+          .toList(growable: false);
       final syncedRunning = _upsertRunningOrder(latest.running, syncedOrder);
       state = AsyncData(
         _clearActionProcessing(
-          latest.copyWith(running: syncedRunning),
+          latest.copyWith(incoming: incoming, running: syncedRunning),
           actionKey: actionKey,
         ),
       );
@@ -610,11 +603,51 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       ref.invalidate(driverAvailabilityProvider);
 
       return DriverOrderAcceptResult(order: syncedOrder);
+    } on DriverOrderApiException catch (error) {
+      final latest = state.asData?.value ?? current;
+      final isStaleOrder = _isStaleAcceptFailure(error);
+      final incoming = isStaleOrder
+          ? latest.incoming
+                .where((order) => order.id != id)
+                .toList(growable: false)
+          : latest.incoming;
+      final suppressedIncomingOrderIds = isStaleOrder
+          ? <String>{...latest.suppressedIncomingOrderIds, id}
+          : latest.suppressedIncomingOrderIds;
+
+      state = AsyncData(
+        _clearActionProcessing(
+          latest.copyWith(
+            incoming: incoming,
+            suppressedIncomingOrderIds: suppressedIncomingOrderIds,
+          ),
+          actionKey: actionKey,
+        ),
+      );
+      _syncRunningOrderRealtime(state.asData!.value);
+      return DriverOrderAcceptResult(
+        error: error.message,
+        statusCode: error.statusCode,
+        isStaleOrder: isStaleOrder,
+      );
     } catch (error) {
-      state = AsyncData(_clearActionProcessing(current, actionKey: actionKey));
+      final latest = state.asData?.value ?? current;
+      state = AsyncData(_clearActionProcessing(latest, actionKey: actionKey));
       _syncRunningOrderRealtime(state.asData!.value);
       return DriverOrderAcceptResult(error: error.toString());
     }
+  }
+
+  bool _isStaleAcceptFailure(DriverOrderApiException error) {
+    if (error.statusCode != 409 && error.statusCode != 404) {
+      return false;
+    }
+
+    final message = error.message.toLowerCase();
+    return message.contains('sudah diambil') ||
+        message.contains('tidak dapat diterima pada status') ||
+        message.contains('sudah ditolak') ||
+        message.contains('tidak ditemukan');
   }
 
   Future<String?> rejectOrder(String id) async {
@@ -1317,10 +1350,6 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     } catch (_) {
       // Periodic reconciliation will catch up after transient failures.
     }
-  }
-
-  String _currentHourMinute() {
-    return currentWibHourMinute();
   }
 
   void _cancelRealtime() {
