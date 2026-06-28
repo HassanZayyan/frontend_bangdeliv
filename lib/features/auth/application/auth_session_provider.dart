@@ -127,6 +127,16 @@ class AuthSessionNotifier extends Notifier<AuthSessionState> {
   }
 
   Future<void> refreshSession() async {
+    await _refreshSession(clearLocalSessionOnFailure: true);
+  }
+
+  Future<void> refreshSessionPreservingExisting() async {
+    await _refreshSession(clearLocalSessionOnFailure: false);
+  }
+
+  Future<void> _refreshSession({
+    required bool clearLocalSessionOnFailure,
+  }) async {
     bool hasToken = false;
     try {
       hasToken = await AuthService.hasAccessToken();
@@ -144,14 +154,26 @@ class AuthSessionNotifier extends Notifier<AuthSessionState> {
       final profile = await AuthService.fetchCurrentUserProfile();
       state = AuthSessionState.fromProfile(profile);
     } on AuthException {
-      await AuthService.clearLocalSession();
-      FirebaseNotificationService.clearBackendTokenSync();
-      state = const AuthSessionState.guest();
+      await _handleRefreshFailure(
+        clearLocalSessionOnFailure: clearLocalSessionOnFailure,
+      );
     } catch (_) {
-      await AuthService.clearLocalSession();
-      FirebaseNotificationService.clearBackendTokenSync();
-      state = const AuthSessionState.guest();
+      await _handleRefreshFailure(
+        clearLocalSessionOnFailure: clearLocalSessionOnFailure,
+      );
     }
+  }
+
+  Future<void> _handleRefreshFailure({
+    required bool clearLocalSessionOnFailure,
+  }) async {
+    if (!clearLocalSessionOnFailure && state.isAuthenticated) {
+      return;
+    }
+
+    await AuthService.clearLocalSession();
+    FirebaseNotificationService.clearBackendTokenSync();
+    state = const AuthSessionState.guest();
   }
 
   Future<void> logout() async {

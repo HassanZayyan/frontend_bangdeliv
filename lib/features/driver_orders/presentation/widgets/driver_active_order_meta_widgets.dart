@@ -66,7 +66,10 @@ class DriverOrderCustomerCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              _CustomerAvatar(name: order.customerName),
+              _CustomerAvatar(
+                name: order.customerName,
+                avatarUrl: order.customerAvatarUrl,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -174,12 +177,13 @@ class DriverOrderCustomerCard extends StatelessWidget {
 
 class _CustomerAvatar extends StatelessWidget {
   final String name;
+  final String? avatarUrl;
 
-  const _CustomerAvatar({required this.name});
+  const _CustomerAvatar({required this.name, this.avatarUrl});
 
   @override
   Widget build(BuildContext context) {
-    return ProfileAvatar(name: name, size: 42);
+    return ProfileAvatar(name: name, avatarUrl: avatarUrl, size: 42);
   }
 }
 

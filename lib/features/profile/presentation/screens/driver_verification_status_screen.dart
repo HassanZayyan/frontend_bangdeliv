@@ -14,8 +14,18 @@ import '../../../../models/driver_verification_model.dart';
 import '../../../auth/application/auth_session_provider.dart';
 import '../../../../services/driver_verification_service.dart';
 
+typedef DriverVerificationStatusLoader =
+    Future<DriverVerificationStatusModel> Function();
+
 class DriverVerificationStatusScreen extends ConsumerStatefulWidget {
-  const DriverVerificationStatusScreen({super.key});
+  const DriverVerificationStatusScreen({
+    super.key,
+    this.initialStatus,
+    this.loadStatus,
+  });
+
+  final DriverVerificationStatusModel? initialStatus;
+  final DriverVerificationStatusLoader? loadStatus;
 
   @override
   ConsumerState<DriverVerificationStatusScreen> createState() =>
@@ -48,7 +58,13 @@ class _DriverVerificationStatusScreenState
     super.initState();
     _authSessionNotifier = ref.read(authSessionProvider.notifier);
     _syncBackTarget(ref.read(authSessionProvider));
-    _loadStatus();
+    final initialStatus = widget.initialStatus;
+    if (initialStatus == null) {
+      _loadStatus();
+    } else {
+      _status = initialStatus;
+      _isLoading = false;
+    }
   }
 
   @override
@@ -157,6 +173,20 @@ class _DriverVerificationStatusScreenState
                   ),
                 );
               }),
+              if (isActive) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => context.go(AppRoutes.driverHome),
+                    icon: const Icon(Icons.home_filled, size: 18),
+                    label: const Text('Buka Beranda Driver'),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
               if (_errorMessage != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
@@ -289,7 +319,9 @@ class _DriverVerificationStatusScreenState
     });
 
     try {
-      final data = await DriverVerificationService.fetchMyStatus();
+      final data =
+          await (widget.loadStatus ?? DriverVerificationService.fetchMyStatus)
+              .call();
 
       if (!mounted) {
         return;

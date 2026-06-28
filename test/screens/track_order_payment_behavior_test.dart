@@ -73,6 +73,46 @@ void main() {
     expect(paymentCard, isNot(contains('Icons.payments_outlined')));
   });
 
+  test(
+    'driver card keeps vehicle plate separate from truncated vehicle label',
+    () {
+      final source = File(_trackOrderSourcePath).readAsStringSync();
+      final vehicleLine = source.substring(
+        source.indexOf('Widget? _driverVehicleLine('),
+        source.indexOf('Widget _buildDriverCard('),
+      );
+
+      expect(vehicleLine, contains('Flexible('));
+      expect(vehicleLine, contains('flex: 5'));
+      expect(vehicleLine, contains("const Text(' - '"));
+      expect(vehicleLine, contains('flex: 4'));
+      expect(source, isNot(contains("'(driver)'")));
+    },
+  );
+
+  test('driver card vehicle label uses only vehicle model', () {
+    final source = File(_trackOrderSourcePath).readAsStringSync();
+    final vehicleLabel = source.substring(
+      source.indexOf('String? _driverVehicleLabel('),
+      source.indexOf('String? _driverVehiclePlate('),
+    );
+
+    expect(vehicleLabel, isNot(contains('driverVehicleType')));
+    expect(vehicleLabel, isNot(contains('driverVehicleBrand')));
+    expect(vehicleLabel, contains('driverVehicleModel'));
+  });
+
+  test('driver card uses compact driver name typography', () {
+    final source = File(_trackOrderSourcePath).readAsStringSync();
+    final driverCard = source.substring(
+      source.indexOf('Widget _buildDriverCard('),
+      source.indexOf('String _detailStatusTitle('),
+    );
+
+    expect(driverCard, contains('fontSize: 13.5'));
+    expect(driverCard, isNot(contains('fontSize: 16')));
+  });
+
   test('shopping item card does not duplicate COD payment instruction', () {
     final source =
         File(_trackOrderSourcePath).readAsStringSync() +

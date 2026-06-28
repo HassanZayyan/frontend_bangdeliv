@@ -22,4 +22,14 @@ void main() {
       ),
     );
   });
+
+  test('tracking map fits route markers with tight default padding', () {
+    final source = File(
+      'lib/widgets/tracking_map_section.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('_markerFitPadding = 28'));
+    expect(source, contains('newLatLngBounds(bounds, _markerFitPadding)'));
+    expect(source, isNot(contains('newLatLngBounds(bounds, 64)')));
+  });
 }

@@ -1095,13 +1095,59 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     );
   }
 
-  String? _driverVehicleSubtitle({String? vehicleLabel, String? vehiclePlate}) {
-    final parts = [
-      vehicleLabel,
-      vehiclePlate,
-    ].where((part) => part != null && part.trim().isNotEmpty);
-    final subtitle = parts.map((part) => part!.trim()).join(' - ');
-    return subtitle.isEmpty ? null : subtitle;
+  String? _driverVehiclePart(String? value) {
+    final trimmed = value?.trim();
+    return trimmed == null || trimmed.isEmpty ? null : trimmed;
+  }
+
+  Widget? _driverVehicleLine({String? vehicleLabel, String? vehiclePlate}) {
+    final label = _driverVehiclePart(vehicleLabel);
+    final plate = _driverVehiclePart(vehiclePlate);
+    if (label == null && plate == null) {
+      return null;
+    }
+
+    const style = TextStyle(
+      color: AppColors.textSecondary,
+      fontSize: 12,
+      fontWeight: FontWeight.w400,
+      height: 1.25,
+    );
+
+    if (label == null || plate == null) {
+      return Text(
+        label ?? plate!,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: style,
+      );
+    }
+
+    return Row(
+      children: [
+        Flexible(
+          flex: 5,
+          fit: FlexFit.loose,
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: style,
+          ),
+        ),
+        const Text(' - ', maxLines: 1, style: style),
+        Flexible(
+          flex: 4,
+          fit: FlexFit.loose,
+          child: Text(
+            plate,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: style,
+          ),
+        ),
+      ],
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -1116,7 +1162,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     String? vehiclePlate,
     VoidCallback? onChat,
   }) {
-    final vehicleSubtitle = _driverVehicleSubtitle(
+    final vehicleLine = _driverVehicleLine(
       vehicleLabel: vehicleLabel,
       vehiclePlate: vehiclePlate,
     );
@@ -1144,47 +1190,20 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        driverName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
-                          height: 1.15,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Text(
-                      '(driver)',
-                      maxLines: 1,
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w400,
-                        fontSize: 12.5,
-                        height: 1.2,
-                      ),
-                    ),
-                  ],
-                ),
-                if (vehicleSubtitle != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    vehicleSubtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      height: 1.25,
-                    ),
+                Text(
+                  driverName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13.5,
+                    height: 1.15,
                   ),
+                ),
+                if (vehicleLine != null) ...[
+                  const SizedBox(height: 4),
+                  vehicleLine,
                 ],
               ],
             ),
@@ -2386,24 +2405,8 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
   }
 
   String? _driverVehicleLabel(CustomerOrderDetailModel detail) {
-    final type = (detail.driverVehicleType ?? '').trim();
-    final brand = (detail.driverVehicleBrand ?? '').trim();
     final model = (detail.driverVehicleModel ?? '').trim();
-
-    final brandModel = [
-      brand,
-      model,
-    ].where((part) => part.isNotEmpty).join(' ');
-    if (brandModel.isNotEmpty) {
-      return brandModel;
-    }
-
-    final typeBrand = [type, brand].where((part) => part.isNotEmpty).join(' ');
-    if (typeBrand.isNotEmpty) {
-      return typeBrand;
-    }
-
-    return type.isNotEmpty ? type : null;
+    return model.isNotEmpty ? model : null;
   }
 
   String? _driverVehiclePlate(CustomerOrderDetailModel detail) {

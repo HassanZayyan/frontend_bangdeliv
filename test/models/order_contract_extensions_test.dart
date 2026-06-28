@@ -8,6 +8,7 @@ void main() {
     final order = DriverOrderModel.fromJson({
       'id': 42,
       'customer_name': 'Hassan',
+      'customer_avatar_url': '/storage/avatars/customer.jpg',
       'pickup_address': 'Pickup',
       'dropoff_address': 'Dropoff',
       'eta_minutes': 12,
@@ -30,6 +31,7 @@ void main() {
     });
 
     expect(order.deliveryDistanceKm, 3.7);
+    expect(order.customerAvatarUrl, endsWith('/storage/avatars/customer.jpg'));
     expect(order.deliveryDistanceLabel, '3.7 km');
     expect(order.deliveryFee, 13000);
     expect(order.deliveryFeeSource, 'driver_manual');
@@ -171,10 +173,12 @@ void main() {
         'location_updated_at': '2026-06-07T15:45:00Z',
         'user': {'name': 'Driver Satu'},
       },
+      'driver_avatar_url': '/storage/avatars/driver.jpg',
     });
 
     expect(detail.driverLatitude, -7.0561);
     expect(detail.driverLongitude, 110.4384);
+    expect(detail.driverAvatarUrl, endsWith('/storage/avatars/driver.jpg'));
     expect(detail.deliveryFeeSource, 'driver_manual');
     expect(detail.deliveryFeeChangeNote, 'BBM naik.');
     expect(detail.summary.deliveryFee, 8000);

@@ -100,6 +100,14 @@ class _IncomingOrdersList extends ConsumerWidget {
     return RegExp(r'^\d+$').hasMatch(orderId.trim());
   }
 
+  String _acceptErrorMessage(DriverOrderAcceptResult result) {
+    if (result.isStaleOrder) {
+      return 'Orderan ini sudah diambil driver lain.';
+    }
+
+    return result.error ?? 'Gagal menerima order.';
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (orders.isEmpty) {
@@ -197,7 +205,7 @@ class _IncomingOrdersList extends ConsumerWidget {
 
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text(result.error ?? 'Gagal menerima order.'),
+                        content: Text(_acceptErrorMessage(result)),
                         backgroundColor: Colors.red.shade700,
                       ),
                     );
@@ -310,7 +318,11 @@ class _OrderCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                _CustomerAvatar(name: order.customerName, size: 42),
+                _CustomerAvatar(
+                  name: order.customerName,
+                  avatarUrl: order.customerAvatarUrl,
+                  size: 42,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -471,7 +483,11 @@ class _IncomingOrderDetailSheet extends StatelessWidget {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      _CustomerAvatar(name: order.customerName, size: 44),
+                      _CustomerAvatar(
+                        name: order.customerName,
+                        avatarUrl: order.customerAvatarUrl,
+                        size: 44,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -887,14 +903,16 @@ class _FeeSummaryRow extends StatelessWidget {
 
 class _CustomerAvatar extends StatelessWidget {
   final String name;
+  final String? avatarUrl;
   final double size;
 
-  const _CustomerAvatar({required this.name, this.size = 42});
+  const _CustomerAvatar({required this.name, this.avatarUrl, this.size = 42});
 
   @override
   Widget build(BuildContext context) {
     return ProfileAvatar(
       name: name,
+      avatarUrl: avatarUrl,
       size: size,
       backgroundColor: AppColors.surfaceAlt,
       initialColor: AppColors.primaryDark,

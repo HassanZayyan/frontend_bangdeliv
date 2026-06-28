@@ -41,13 +41,50 @@ class MyApp extends ConsumerStatefulWidget {
   ConsumerState<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends ConsumerState<MyApp> {
+class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
+  bool _sessionRefreshInFlight = false;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     Future<void>.microtask(() async {
       await ref.read(authSessionProvider.notifier).initialize();
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      _refreshSessionOnResume();
+    }
+  }
+
+  Future<void> _refreshSessionOnResume() async {
+    if (_sessionRefreshInFlight || !mounted) {
+      return;
+    }
+
+    final session = ref.read(authSessionProvider);
+    if (!session.initialized || !session.isAuthenticated) {
+      return;
+    }
+
+    _sessionRefreshInFlight = true;
+    try {
+      await ref
+          .read(authSessionProvider.notifier)
+          .refreshSessionPreservingExisting();
+    } finally {
+      _sessionRefreshInFlight = false;
+    }
   }
 
   @override

@@ -833,6 +833,11 @@ class CustomerOrderDetailModel {
       json['deliveryAddress'],
     ]);
     final driverAvatar = _firstNonEmptyString([
+      json['driver_avatar_url'],
+      json['driverAvatarUrl'],
+      driver['avatar_url'],
+      driver['avatarUrl'],
+      driver['avatar'],
       driverUser['avatar_url'],
       driverUser['avatarUrl'],
       driverUser['avatar'],

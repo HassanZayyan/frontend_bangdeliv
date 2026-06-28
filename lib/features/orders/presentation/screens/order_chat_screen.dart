@@ -197,7 +197,7 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
     final participantFallback = isDriverSession ? 'Customer' : 'Driver';
     final participantRoleLabel = isDriverSession ? 'customer' : 'driver';
     final participantAvatarUrl = isDriverSession
-        ? null
+        ? driverDetail?.customerAvatarUrl?.trim()
         : customerDetail?.driverAvatarUrl?.trim();
 
     ref.listen<AsyncValue<OrderChatState>>(orderChatProvider(widget.orderId), (
@@ -286,6 +286,10 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
                         final emptyStateHeight = availableEmptyHeight < 180
                             ? 180.0
                             : availableEmptyHeight;
+                        final maxBubbleContentWidth =
+                            _MessageBubble.maxContentWidthFor(
+                              constraints.maxWidth,
+                            );
 
                         return ListView(
                           controller: _scrollController,
@@ -332,6 +336,7 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
                                   isMine:
                                       chat.messages[index].senderUserId ==
                                       currentUserId,
+                                  maxContentWidth: maxBubbleContentWidth,
                                   showTail: _startsSenderRun(
                                     chat.messages,
                                     index,
@@ -403,8 +408,8 @@ class _ChatParticipantTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        ProfileAvatar(name: participantName, avatarUrl: avatarUrl, size: 36),
-        const SizedBox(width: 10),
+        ProfileAvatar(name: participantName, avatarUrl: avatarUrl, size: 30),
+        const SizedBox(width: 8),
         Expanded(
           child: Row(
             children: [
@@ -416,7 +421,7 @@ class _ChatParticipantTitle extends StatelessWidget {
                   style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontWeight: FontWeight.w700,
-                    fontSize: 17,
+                    fontSize: 13.5,
                   ),
                 ),
               ),
@@ -427,7 +432,7 @@ class _ChatParticipantTitle extends StatelessWidget {
                 style: const TextStyle(
                   color: AppColors.textSecondary,
                   fontWeight: FontWeight.w400,
-                  fontSize: 12.5,
+                  fontSize: 11,
                   height: 1.2,
                 ),
               ),
@@ -443,12 +448,33 @@ class _MessageBubble extends StatelessWidget {
   const _MessageBubble({
     required this.message,
     required this.isMine,
+    required this.maxContentWidth,
     required this.showTail,
   });
 
+  static const double _listHorizontalPadding = 32;
+  static const double _sideRunOffset = 54;
+  static const double _bubbleTailWidth = 10;
+  static const double _horizontalPadding = 28;
+
   final OrderChatMessageModel message;
   final bool isMine;
+  final double maxContentWidth;
   final bool showTail;
+
+  static double maxContentWidthFor(double viewportWidth) {
+    if (!viewportWidth.isFinite || viewportWidth <= 0) {
+      return 240;
+    }
+
+    final width =
+        viewportWidth -
+        _listHorizontalPadding -
+        _sideRunOffset -
+        _bubbleTailWidth -
+        _horizontalPadding;
+    return width < 120 ? 120 : width;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -457,6 +483,11 @@ class _MessageBubble extends StatelessWidget {
     final metaColor = isMine
         ? Colors.white.withValues(alpha: 0.78)
         : AppColors.textSecondary;
+    final body = message.body.trim();
+    final hasBody = body.isNotEmpty;
+    final attachmentContentWidth = _MessageAttachment.contentWidthFor(
+      maxContentWidth,
+    );
 
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
@@ -475,45 +506,75 @@ class _MessageBubble extends StatelessWidget {
           topLeft: Radius.circular(!isMine && showTail ? 4 : 10),
           topRight: Radius.circular(isMine && showTail ? 4 : 10),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (!isMine)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text(
-                  _senderLabel(message),
-                  style: const TextStyle(
-                    color: AppColors.primaryDark,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxContentWidth),
+          child: IntrinsicWidth(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (!isMine)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      _senderLabel(message),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.primaryDark,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            if (message.hasAttachment) ...[
-              _MessageAttachment(url: message.attachmentUrl!, isMine: isMine),
-              if (message.body.trim().isNotEmpty) const SizedBox(height: 8),
-            ],
-            if (message.body.trim().isNotEmpty)
-              _MessageTextWithInlineMeta(
-                body: message.body,
-                textColor: textColor,
-                metaColor: metaColor,
-                createdAt: message.createdAt,
-                isPending: message.isPending,
-                isFailed: message.isFailed,
-              )
-            else
-              Padding(
-                padding: const EdgeInsets.only(top: 5),
-                child: _MessageMeta(
-                  color: metaColor,
-                  createdAt: message.createdAt,
-                  isPending: message.isPending,
-                  isFailed: message.isFailed,
-                ),
-              ),
-          ],
+                if (message.hasAttachment) ...[
+                  _MessageAttachment(
+                    url: message.attachmentUrl!,
+                    isMine: isMine,
+                    maxContentWidth: maxContentWidth,
+                  ),
+                  if (hasBody) const SizedBox(height: 8),
+                ],
+                if (hasBody && message.hasAttachment)
+                  _MessageAttachmentCaptionWithMeta(
+                    body: body,
+                    textColor: textColor,
+                    metaColor: metaColor,
+                    createdAt: message.createdAt,
+                    isPending: message.isPending,
+                    isFailed: message.isFailed,
+                    width: attachmentContentWidth,
+                  )
+                else if (hasBody)
+                  _MessageTextWithAdaptiveMeta(
+                    body: body,
+                    textColor: textColor,
+                    metaColor: metaColor,
+                    createdAt: message.createdAt,
+                    isPending: message.isPending,
+                    isFailed: message.isFailed,
+                    alignInlineMetaToEnd: !isMine,
+                    maxInlineWidth: maxContentWidth,
+                  )
+                else ...[
+                  if (message.hasAttachment) const SizedBox(height: 5),
+                  SizedBox(
+                    width: message.hasAttachment
+                        ? attachmentContentWidth
+                        : null,
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: _MessageMeta(
+                        color: metaColor,
+                        createdAt: message.createdAt,
+                        isPending: message.isPending,
+                        isFailed: message.isFailed,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -526,14 +587,15 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
-class _MessageTextWithInlineMeta extends StatelessWidget {
-  const _MessageTextWithInlineMeta({
+class _MessageAttachmentCaptionWithMeta extends StatelessWidget {
+  const _MessageAttachmentCaptionWithMeta({
     required this.body,
     required this.textColor,
     required this.metaColor,
     required this.createdAt,
     required this.isPending,
     required this.isFailed,
+    required this.width,
   });
 
   final String body;
@@ -542,37 +604,165 @@ class _MessageTextWithInlineMeta extends StatelessWidget {
   final DateTime? createdAt;
   final bool isPending;
   final bool isFailed;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    final textStyle = DefaultTextStyle.of(
+      context,
+    ).style.copyWith(color: textColor, height: 1.45);
+
+    return SizedBox(
+      width: width,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(child: Text(body, style: textStyle)),
+          const SizedBox(width: 10),
+          Transform.translate(
+            offset: const Offset(0, 1),
+            child: _MessageMeta(
+              color: metaColor,
+              createdAt: createdAt,
+              isPending: isPending,
+              isFailed: isFailed,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MessageTextWithAdaptiveMeta extends StatelessWidget {
+  const _MessageTextWithAdaptiveMeta({
+    required this.body,
+    required this.textColor,
+    required this.metaColor,
+    required this.createdAt,
+    required this.isPending,
+    required this.isFailed,
+    required this.alignInlineMetaToEnd,
+    required this.maxInlineWidth,
+  });
+
+  static const double _metaSpacing = 8;
+  static const double _opponentMetaSpacing = 20;
+
+  final String body;
+  final Color textColor;
+  final Color metaColor;
+  final DateTime? createdAt;
+  final bool isPending;
+  final bool isFailed;
+  final bool alignInlineMetaToEnd;
+  final double maxInlineWidth;
 
   @override
   Widget build(BuildContext context) {
     final textStyle = DefaultTextStyle.of(
       context,
     ).style.copyWith(color: textColor, height: 1.5);
+    final metaSpacing = alignInlineMetaToEnd
+        ? _opponentMetaSpacing
+        : _metaSpacing;
+    final useInlineMeta = _canPlaceMetaInline(context, textStyle, metaSpacing);
 
-    return RichText(
-      text: TextSpan(
-        style: textStyle,
-        children: [
-          TextSpan(text: body.trim()),
-          WidgetSpan(
-            alignment: PlaceholderAlignment.baseline,
-            baseline: TextBaseline.alphabetic,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 8),
-              child: Transform.translate(
-                offset: const Offset(0, 1.5),
-                child: _MessageMeta(
-                  color: metaColor,
-                  createdAt: createdAt,
-                  isPending: isPending,
-                  isFailed: isFailed,
+    if (useInlineMeta) {
+      return RichText(
+        text: TextSpan(
+          style: textStyle,
+          children: [
+            TextSpan(text: body),
+            WidgetSpan(
+              alignment: PlaceholderAlignment.baseline,
+              baseline: TextBaseline.alphabetic,
+              child: Padding(
+                padding: EdgeInsets.only(left: metaSpacing),
+                child: Transform.translate(
+                  offset: const Offset(0, 1.5),
+                  child: _MessageMeta(
+                    color: metaColor,
+                    createdAt: createdAt,
+                    isPending: isPending,
+                    isFailed: isFailed,
+                  ),
                 ),
               ),
             ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(body, style: textStyle),
+        const SizedBox(height: 5),
+        Align(
+          alignment: Alignment.centerRight,
+          child: _MessageMeta(
+            color: metaColor,
+            createdAt: createdAt,
+            isPending: isPending,
+            isFailed: isFailed,
           ),
-        ],
-      ),
+        ),
+      ],
     );
+  }
+
+  bool _canPlaceMetaInline(
+    BuildContext context,
+    TextStyle textStyle,
+    double metaSpacing,
+  ) {
+    if (!maxInlineWidth.isFinite || maxInlineWidth <= 0) {
+      return true;
+    }
+
+    final direction = Directionality.of(context);
+    final textScaler = MediaQuery.textScalerOf(context);
+    final bodyPainter = TextPainter(
+      text: TextSpan(text: body, style: textStyle),
+      textDirection: direction,
+      textScaler: textScaler,
+    )..layout(maxWidth: maxInlineWidth);
+    final lines = bodyPainter.computeLineMetrics();
+    if (lines.isEmpty) {
+      return true;
+    }
+
+    final lastLineWidth = lines.last.width;
+    final metaWidth = _estimatedMetaWidth(
+      textDirection: direction,
+      textScaler: textScaler,
+    );
+    return lastLineWidth + metaSpacing + metaWidth <= maxInlineWidth;
+  }
+
+  double _estimatedMetaWidth({
+    required TextDirection textDirection,
+    required TextScaler textScaler,
+  }) {
+    final metaPainter = TextPainter(
+      text: TextSpan(
+        text: formatTime(createdAt, includeZone: false),
+        style: const TextStyle(fontSize: 10.5),
+      ),
+      textDirection: textDirection,
+      textScaler: textScaler,
+    )..layout();
+
+    var width = metaPainter.width;
+    if (isPending) {
+      width += 5 + 11;
+    }
+    if (isFailed) {
+      width += 5 + 12;
+    }
+    return width;
   }
 }
 
@@ -612,16 +802,35 @@ class _MessageMeta extends StatelessWidget {
 }
 
 class _MessageAttachment extends StatelessWidget {
-  const _MessageAttachment({required this.url, required this.isMine});
+  const _MessageAttachment({
+    required this.url,
+    required this.isMine,
+    required this.maxContentWidth,
+  });
+
+  static const double maxPreviewWidth = 220;
+  static const double maxPreviewHeight = 220;
 
   final String url;
   final bool isMine;
+  final double maxContentWidth;
+
+  static double contentWidthFor(double maxContentWidth) {
+    if (!maxContentWidth.isFinite || maxContentWidth <= 0) {
+      return maxPreviewWidth;
+    }
+
+    return maxContentWidth < maxPreviewWidth
+        ? maxContentWidth
+        : maxPreviewWidth;
+  }
 
   @override
   Widget build(BuildContext context) {
     final normalized = url.trim().toLowerCase();
     final isRemote =
         normalized.startsWith('http://') || normalized.startsWith('https://');
+    final contentWidth = contentWidthFor(maxContentWidth);
 
     return Semantics(
       button: true,
@@ -634,7 +843,8 @@ class _MessageAttachment extends StatelessWidget {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: Container(
-              constraints: const BoxConstraints(maxWidth: 220, maxHeight: 220),
+              width: contentWidth,
+              constraints: const BoxConstraints(maxHeight: maxPreviewHeight),
               color: isMine
                   ? Colors.white.withValues(alpha: 0.18)
                   : AppColors.background,
