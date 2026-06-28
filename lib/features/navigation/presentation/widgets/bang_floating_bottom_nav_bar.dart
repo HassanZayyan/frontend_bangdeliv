@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../../config/app_colors.dart';
@@ -17,17 +19,19 @@ class BangFloatingNavItem {
   final int badgeCount;
 }
 
-class BangFloatingBottomNavBar extends StatelessWidget {
+class BangFloatingBottomNavBar extends StatefulWidget {
   const BangFloatingBottomNavBar({
     super.key,
     required this.items,
     required this.currentIndex,
     required this.onTap,
+    this.tapDebounceDuration = const Duration(milliseconds: 350),
   });
 
   final List<BangFloatingNavItem> items;
   final int currentIndex;
   final ValueChanged<int> onTap;
+  final Duration tapDebounceDuration;
 
   static const double scrollClearance = 120;
   static const double visualHeight = 60;
@@ -41,6 +45,44 @@ class BangFloatingBottomNavBar extends StatelessWidget {
         : _bottomMinimumPadding;
 
     return navBottomPadding + visualHeight + snackBarGap;
+  }
+
+  @override
+  State<BangFloatingBottomNavBar> createState() =>
+      _BangFloatingBottomNavBarState();
+}
+
+class _BangFloatingBottomNavBarState extends State<BangFloatingBottomNavBar> {
+  Timer? _tapUnlockTimer;
+  bool _tapLocked = false;
+
+  @override
+  void dispose() {
+    _tapUnlockTimer?.cancel();
+    super.dispose();
+  }
+
+  void _handleTap(int index) {
+    if (_tapLocked || index == widget.currentIndex) {
+      return;
+    }
+
+    if (widget.tapDebounceDuration > Duration.zero) {
+      setState(() {
+        _tapLocked = true;
+      });
+      _tapUnlockTimer?.cancel();
+      _tapUnlockTimer = Timer(widget.tapDebounceDuration, () {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _tapLocked = false;
+        });
+      });
+    }
+
+    widget.onTap(index);
   }
 
   @override
@@ -85,12 +127,12 @@ class BangFloatingBottomNavBar extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      for (var index = 0; index < items.length; index++)
+                      for (var index = 0; index < widget.items.length; index++)
                         Expanded(
                           child: _BangFloatingNavButton(
-                            item: items[index],
-                            selected: index == currentIndex,
-                            onTap: () => onTap(index),
+                            item: widget.items[index],
+                            selected: index == widget.currentIndex,
+                            onTap: () => _handleTap(index),
                           ),
                         ),
                     ],

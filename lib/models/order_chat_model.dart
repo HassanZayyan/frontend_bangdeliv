@@ -228,12 +228,18 @@ class OrderChatSendResult {
     final data = (json['data'] is Map<String, dynamic>)
         ? json['data'] as Map<String, dynamic>
         : const <String, dynamic>{};
-    final rawMessage = (data['message'] is Map<String, dynamic>)
-        ? data['message'] as Map<String, dynamic>
-        : const <String, dynamic>{};
+    final rawMessage = data['message'];
+    if (rawMessage is! Map<String, dynamic>) {
+      throw const FormatException('Format respons pesan chat tidak valid.');
+    }
+
+    final message = OrderChatMessageModel.fromJson(rawMessage);
+    if (!message.hasServerId || message.orderId <= 0) {
+      throw const FormatException('Format respons pesan chat tidak valid.');
+    }
 
     return OrderChatSendResult(
-      message: OrderChatMessageModel.fromJson(rawMessage),
+      message: message,
       canSend: data['can_send'] == true,
     );
   }

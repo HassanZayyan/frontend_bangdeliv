@@ -51,6 +51,7 @@ class PusherService implements OrderRealtimeClient {
   static const _driverOrderRemovedEvent = 'driver.order.removed';
   static const _protocolVersion = '7';
   static const _connectTimeout = Duration(seconds: 8);
+  static const _connectFailureCooldown = Duration(seconds: 15);
   static const _idleDisconnectDelay = Duration(seconds: 10);
 
   WebSocketChannel? _socket;
@@ -62,6 +63,8 @@ class PusherService implements OrderRealtimeClient {
   Timer? _reconnectTimer;
   Timer? _idleDisconnectTimer;
   int _reconnectAttempts = 0;
+  DateTime? _lastConnectFailureAt;
+  Object? _lastConnectFailure;
 
   final Map<String, StreamController<_RawRealtimeEvent>> _channelControllers =
       <String, StreamController<_RawRealtimeEvent>>{};
@@ -99,6 +102,21 @@ class PusherService implements OrderRealtimeClient {
     final currentConnect = _connectFuture;
     if (currentConnect != null) {
       return currentConnect;
+    }
+
+    final lastFailureAt = _lastConnectFailureAt;
+    if (lastFailureAt != null) {
+      final remainingCooldown =
+          _connectFailureCooldown - DateTime.now().difference(lastFailureAt);
+      if (remainingCooldown > Duration.zero) {
+        return Future<void>.error(
+          TimeoutException(
+            'Realtime connect cooldown ${remainingCooldown.inSeconds}s; '
+            'last error: ${_lastConnectFailure ?? 'unknown'}',
+            remainingCooldown,
+          ),
+        );
+      }
     }
 
     _manualDisconnect = false;
@@ -181,9 +199,13 @@ class PusherService implements OrderRealtimeClient {
       );
       _connected = true;
       _reconnectAttempts = 0;
+      _lastConnectFailureAt = null;
+      _lastConnectFailure = null;
       _log('connected as socket $_socketId');
     } catch (error, stackTrace) {
       _log(_connectFailureMessage(error));
+      _lastConnectFailureAt = DateTime.now();
+      _lastConnectFailure = error;
       await _socketSub?.cancel();
       await socket.sink.close();
       _socket = null;

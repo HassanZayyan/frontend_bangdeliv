@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/repositories/realtime_order_client.dart';
 import '../../../models/customer_order_model.dart';
 import '../../../utils/order_status.dart';
+import '../../../core/application/app_lifecycle_provider.dart';
 import '../../../core/di/app_providers.dart';
 import '../../auth/application/auth_session_provider.dart';
 import '../../realtime/application/order_realtime_hub_provider.dart';
@@ -502,8 +503,11 @@ class CustomerOrderTrackingNotifier
       return;
     }
 
-    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (!_isMounted || _autoRefreshInFlight) {
+        return;
+      }
+      if (!isAppLifecycleResumed(ref.read(appLifecycleStateProvider))) {
         return;
       }
 

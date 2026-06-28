@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -58,6 +59,7 @@ class GoogleMapsLookupService {
       '-7.7700,110.0100|-6.8700,110.9200';
   static const _nearbyEstablishmentRadiusMeters = 120;
   static const _nearbyCandidateMaxDistanceMeters = 80.0;
+  static const _timeout = Duration(seconds: 8);
 
   final http.Client? _client;
   final String? _apiKeyOverride;
@@ -645,7 +647,8 @@ class GoogleMapsLookupService {
 
   Future<http.Response> _get(Uri url) {
     final client = _client;
-    return client == null ? http.get(url) : client.get(url);
+    final request = client == null ? http.get(url) : client.get(url);
+    return request.timeout(_timeout);
   }
 
   bool _isNamedPointOfInterestResult(Map<String, dynamic> json) {

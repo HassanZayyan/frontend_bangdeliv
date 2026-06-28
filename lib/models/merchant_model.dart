@@ -37,7 +37,10 @@ class MerchantModel {
       imageUrl: imageUrl,
       galleryImageUrls: _galleryImageUrls(json['gallery_images'], imageUrl),
       merchantType: json['merchant_type']?.toString() ?? '',
-      address: json['address']?.toString() ?? '',
+      address:
+          (json['address'] ?? json['full_address'] ?? json['fullAddress'])
+              ?.toString() ??
+          '',
       phone: json['phone']?.toString() ?? '',
       latitude: _toNullableDouble(json['latitude']),
       longitude: _toNullableDouble(json['longitude']),

@@ -39,8 +39,13 @@ Widget _buildDriverCard({required Widget child}) {
 // ---------------------------------------------------------------------------
 class DriverOrderCustomerCard extends StatelessWidget {
   final DriverOrderModel order;
+  final bool showOrderIdLabel;
 
-  const DriverOrderCustomerCard({super.key, required this.order});
+  const DriverOrderCustomerCard({
+    super.key,
+    required this.order,
+    this.showOrderIdLabel = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +64,9 @@ class DriverOrderCustomerCard extends StatelessWidget {
                 child: _serviceTypeLabel(order.serviceTypeCode, serviceLabel),
               ),
               const SizedBox(width: 12),
-              _orderNumberText(orderNumber),
+              _orderNumberText(
+                showOrderIdLabel ? 'Order ID: $orderNumber' : orderNumber,
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -189,12 +196,20 @@ class _CustomerAvatar extends StatelessWidget {
 
 class DriverOrderMetaCard extends StatelessWidget {
   final DriverOrderModel order;
+  final bool showOrderIdLabel;
 
-  const DriverOrderMetaCard({super.key, required this.order});
+  const DriverOrderMetaCard({
+    super.key,
+    required this.order,
+    this.showOrderIdLabel = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return DriverOrderCustomerCard(order: order);
+    return DriverOrderCustomerCard(
+      order: order,
+      showOrderIdLabel: showOrderIdLabel,
+    );
   }
 }
 

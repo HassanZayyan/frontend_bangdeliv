@@ -69,7 +69,7 @@ class _MainLayoutState extends ConsumerState<MainLayout>
 
     switch (index) {
       case 0:
-        context.go(AppRoutes.home);
+        _goIfLocationChanged(context, AppRoutes.home);
         break;
       case 1:
         if (isGuestSession(session)) {
@@ -82,7 +82,7 @@ class _MainLayoutState extends ConsumerState<MainLayout>
           );
           return;
         }
-        context.go(AppRoutes.activity);
+        _goIfLocationChanged(context, AppRoutes.activity);
         break;
       case 2:
         if (isGuestSession(session)) {
@@ -95,9 +95,18 @@ class _MainLayoutState extends ConsumerState<MainLayout>
           );
           return;
         }
-        context.go(AppRoutes.profile);
+        _goIfLocationChanged(context, AppRoutes.profile);
         break;
     }
+  }
+
+  void _goIfLocationChanged(BuildContext context, String targetLocation) {
+    final currentLocation = GoRouterState.of(context).uri.path;
+    if (currentLocation == targetLocation) {
+      return;
+    }
+
+    context.go(targetLocation);
   }
 
   bool _shouldReturnToHome(String location) {

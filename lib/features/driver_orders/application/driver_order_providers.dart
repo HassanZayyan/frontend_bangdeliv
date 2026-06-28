@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/application/app_lifecycle_provider.dart';
 import '../../../models/driver_order_model.dart';
 import '../../../data/repositories/driver_order_repository.dart';
 import '../../../services/driver_order_service.dart';
@@ -12,8 +13,10 @@ import '../../../core/di/app_providers.dart';
 import '../../auth/application/auth_session_provider.dart';
 import '../../realtime/application/order_realtime_hub_provider.dart';
 
-Duration driverOrdersReconciliationInterval = const Duration(seconds: 2);
-Duration driverTransferProofReconciliationInterval = const Duration(seconds: 4);
+Duration driverOrdersReconciliationInterval = const Duration(seconds: 8);
+Duration driverTransferProofReconciliationInterval = const Duration(
+  seconds: 10,
+);
 
 class DriverOrdersState {
   final List<DriverOrderModel> incoming;
@@ -457,6 +460,9 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     }
 
     _degradedRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (!isAppLifecycleResumed(ref.read(appLifecycleStateProvider))) {
+        return;
+      }
       unawaited(refresh(showLoading: false));
     });
   }
@@ -471,6 +477,10 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       (_) {
         if (!_isMounted) {
           _stopIncomingReconciliation();
+          return;
+        }
+
+        if (!isAppLifecycleResumed(ref.read(appLifecycleStateProvider))) {
           return;
         }
 
@@ -1602,7 +1612,8 @@ final driverOrderTransferProofReconciliationProvider = Provider.autoDispose
       final timer = Timer.periodic(driverTransferProofReconciliationInterval, (
         _,
       ) {
-        if (ref.mounted) {
+        if (ref.mounted &&
+            isAppLifecycleResumed(ref.read(appLifecycleStateProvider))) {
           ref.invalidate(driverOrderDetailProvider(orderId));
         }
       });

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/application/app_lifecycle_provider.dart';
 import '../../../models/order_chat_model.dart';
 import '../../../core/di/app_providers.dart';
 import '../../auth/application/auth_session_provider.dart';
@@ -12,13 +13,13 @@ final orderChatUnreadCountProvider = AsyncNotifierProvider.family
       OrderChatUnreadNotifier.new,
     );
 
-Duration orderChatUnreadReconciliationInterval = const Duration(seconds: 4);
+Duration orderChatUnreadReconciliationInterval = const Duration(seconds: 12);
 
 class OrderChatUnreadNotifier extends AsyncNotifier<int> {
   OrderChatUnreadNotifier(this.orderId);
 
   static const _fallbackActivationDelay = Duration(seconds: 4);
-  static const _fallbackRefreshInterval = Duration(seconds: 8);
+  static const _fallbackRefreshInterval = Duration(seconds: 12);
 
   final int orderId;
   Timer? _fallbackActivationTimer;
@@ -212,7 +213,9 @@ class OrderChatUnreadNotifier extends AsyncNotifier<int> {
 
       unawaited(refreshUnread());
       _degradedRefreshTimer = Timer.periodic(_fallbackRefreshInterval, (_) {
-        unawaited(refreshUnread());
+        if (isAppLifecycleResumed(ref.read(appLifecycleStateProvider))) {
+          unawaited(refreshUnread());
+        }
       });
     });
   }
@@ -224,7 +227,11 @@ class OrderChatUnreadNotifier extends AsyncNotifier<int> {
 
     _reconciliationTimer = Timer.periodic(
       orderChatUnreadReconciliationInterval,
-      (_) => unawaited(refreshUnread()),
+      (_) {
+        if (isAppLifecycleResumed(ref.read(appLifecycleStateProvider))) {
+          unawaited(refreshUnread());
+        }
+      },
     );
   }
 

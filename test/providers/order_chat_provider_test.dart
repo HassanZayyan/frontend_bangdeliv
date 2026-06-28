@@ -405,6 +405,183 @@ void main() {
   );
 
   test(
+    'sendMessage keeps own bubble visible when API result is invalid',
+    () async {
+      final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
+      final fakeService = _FakeOrderChatApiService(
+        initialPage: const OrderChatMessagesPage(
+          messages: <OrderChatMessageModel>[],
+          canSend: true,
+          hasMore: false,
+          nextBeforeId: null,
+          unreadCount: 0,
+          lastReadMessageId: 0,
+        ),
+        sendResultMessage: const OrderChatMessageModel(
+          id: 0,
+          orderId: 99,
+          senderUserId: 7,
+          senderRole: 'customer',
+          senderName: 'Customer 7',
+          body: '',
+          clientMessageId: null,
+          createdAt: null,
+        ),
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          orderChatApiServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(
+            FakeOrderRealtimeClient(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(orderChatProvider(99).future);
+
+      final error = await container
+          .read(orderChatProvider(99).notifier)
+          .sendMessage('Tetap tampil');
+
+      final chat = container.read(orderChatProvider(99)).asData!.value;
+      expect(error, 'Format respons pesan chat tidak valid.');
+      expect(chat.messages, hasLength(1));
+      expect(chat.messages.single.body, 'Tetap tampil');
+      expect(chat.messages.single.isPending, isFalse);
+      expect(chat.messages.single.isFailed, isTrue);
+    },
+  );
+
+  test(
+    'sendMessage reconciles invalid API result with persisted server message',
+    () async {
+      final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
+      final fakeService = _FakeOrderChatApiService(
+        initialPage: const OrderChatMessagesPage(
+          messages: <OrderChatMessageModel>[],
+          canSend: true,
+          hasMore: false,
+          nextBeforeId: null,
+          unreadCount: 0,
+          lastReadMessageId: 0,
+        ),
+        sendResultMessage: const OrderChatMessageModel(
+          id: 0,
+          orderId: 99,
+          senderUserId: 7,
+          senderRole: 'customer',
+          senderName: 'Customer 7',
+          body: '',
+          clientMessageId: null,
+          createdAt: null,
+        ),
+        recoverFailedSend: true,
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          orderChatApiServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(
+            FakeOrderRealtimeClient(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(orderChatProvider(99).future);
+
+      final error = await container
+          .read(orderChatProvider(99).notifier)
+          .sendMessage('Tersimpan di server');
+
+      final chat = container.read(orderChatProvider(99)).asData!.value;
+      expect(error, isNull);
+      expect(chat.messages, hasLength(1));
+      expect(chat.messages.single.id, 77);
+      expect(chat.messages.single.body, 'Tersimpan di server');
+      expect(chat.messages.single.isPending, isFalse);
+      expect(chat.messages.single.isFailed, isFalse);
+    },
+  );
+
+  test(
+    'sendMessage dedupes own realtime message against optimistic item',
+    () async {
+      final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
+      final sendCompleter = Completer<OrderChatSendResult>();
+      final fakeService = _FakeOrderChatApiService(
+        initialPage: const OrderChatMessagesPage(
+          messages: <OrderChatMessageModel>[],
+          canSend: true,
+          hasMore: false,
+          nextBeforeId: null,
+          unreadCount: 0,
+          lastReadMessageId: 0,
+        ),
+        sendCompleter: sendCompleter,
+      );
+      final fakeRealtime = FakeOrderRealtimeClient();
+
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          orderChatApiServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+        ],
+      );
+      addTearDown(container.dispose);
+      final chatSubscription = _keepChatProviderAlive(container, 99);
+      addTearDown(chatSubscription.close);
+
+      await container.read(orderChatProvider(99).future);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      final sendFuture = container
+          .read(orderChatProvider(99).notifier)
+          .sendMessage('Halo realtime');
+      final clientMessageId = fakeService.lastClientMessageId!;
+
+      fakeRealtime.emitOrderChatMessage(
+        99,
+        _message(
+          id: 55,
+          senderUserId: 7,
+          body: 'Halo realtime',
+          clientMessageId: clientMessageId,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      var chat = container.read(orderChatProvider(99)).asData!.value;
+      expect(chat.messages, hasLength(1));
+      expect(chat.messages.single.id, 55);
+      expect(chat.messages.single.isPending, isFalse);
+
+      sendCompleter.complete(
+        OrderChatSendResult(
+          message: _message(
+            id: 55,
+            senderUserId: 7,
+            body: 'Halo realtime',
+            clientMessageId: clientMessageId,
+          ),
+          canSend: true,
+        ),
+      );
+
+      expect(await sendFuture, isNull);
+      chat = container.read(orderChatProvider(99)).asData!.value;
+      expect(chat.messages, hasLength(1));
+      expect(chat.messages.single.id, 55);
+    },
+  );
+
+  test(
     'sendMessage recovers persisted message after broadcast-only failure',
     () async {
       final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
@@ -833,6 +1010,63 @@ void main() {
     expect(find.text('Sesi chat dengan driver berakhir'), findsOneWidget);
   });
 
+  testWidgets('OrderChatScreen shows own message immediately after send', (
+    tester,
+  ) async {
+    final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
+    final sendCompleter = Completer<OrderChatSendResult>();
+    final fakeService = _FakeOrderChatApiService(
+      initialPage: const OrderChatMessagesPage(
+        messages: <OrderChatMessageModel>[],
+        canSend: true,
+        hasMore: false,
+        nextBeforeId: null,
+        unreadCount: 0,
+        lastReadMessageId: 0,
+      ),
+      sendCompleter: sendCompleter,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          orderChatApiServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(
+            FakeOrderRealtimeClient(),
+          ),
+        ],
+        child: const MaterialApp(home: OrderChatScreen(orderId: 99)),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.enterText(find.byType(TextField), 'Pesan sendiri');
+    await tester.tap(find.byIcon(Icons.send));
+    await tester.pump();
+
+    expect(
+      find.textContaining('Pesan sendiri', findRichText: true),
+      findsOneWidget,
+    );
+
+    final clientMessageId = fakeService.lastClientMessageId!;
+    sendCompleter.complete(
+      OrderChatSendResult(
+        message: _message(
+          id: 88,
+          senderUserId: 7,
+          body: 'Pesan sendiri',
+          clientMessageId: clientMessageId,
+        ),
+        canSend: true,
+      ),
+    );
+    await tester.pump();
+  });
+
   testWidgets('OrderChatScreen only shows tail on first bubble in a run', (
     tester,
   ) async {
@@ -889,6 +1123,7 @@ class _FakeOrderChatApiService extends OrderChatApiService {
     required this.initialPage,
     List<OrderChatMessageModel>? serverMessages,
     this.sendCompleter,
+    this.sendResultMessage,
     this.sendError,
     this.recoverFailedSend = false,
     this.unreadCount = 0,
@@ -901,6 +1136,7 @@ class _FakeOrderChatApiService extends OrderChatApiService {
   final OrderChatMessagesPage initialPage;
   List<OrderChatMessageModel> serverMessages;
   final Completer<OrderChatSendResult>? sendCompleter;
+  final OrderChatMessageModel? sendResultMessage;
   final Object? sendError;
   final bool recoverFailedSend;
   int unreadCount;
@@ -976,6 +1212,11 @@ class _FakeOrderChatApiService extends OrderChatApiService {
     final completer = sendCompleter;
     if (completer != null) {
       return completer.future;
+    }
+
+    final resultMessage = sendResultMessage;
+    if (resultMessage != null) {
+      return OrderChatSendResult(message: resultMessage, canSend: true);
     }
 
     return OrderChatSendResult(

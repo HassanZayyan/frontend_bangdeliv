@@ -73,6 +73,32 @@ void main() {
     expect(message.attachmentMimeType, 'image/jpeg');
   });
 
+  test('order chat send result rejects missing server message payload', () {
+    expect(
+      () => OrderChatSendResult.fromApiJson({
+        'success': true,
+        'data': {'can_send': true},
+      }),
+      throwsFormatException,
+    );
+
+    expect(
+      () => OrderChatSendResult.fromApiJson({
+        'success': true,
+        'data': {
+          'message': {
+            'id': 0,
+            'order_id': 99,
+            'sender_user_id': 7,
+            'body': 'Halo',
+          },
+          'can_send': true,
+        },
+      }),
+      throwsFormatException,
+    );
+  });
+
   test('driver order parses payment transfer from raw evidence payload', () {
     final order = DriverOrderModel.fromJson({
       'id': 77,

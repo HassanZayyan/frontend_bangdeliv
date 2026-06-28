@@ -85,6 +85,73 @@ void main() {
     expect(activeIndicators, hasLength(1));
   });
 
+  testWidgets('ignores taps on the currently selected item', (tester) async {
+    final tappedIndexes = <int>[];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          bottomNavigationBar: BangFloatingBottomNavBar(
+            currentIndex: 0,
+            onTap: tappedIndexes.add,
+            items: const [
+              BangFloatingNavItem(icon: Icons.home_filled, label: 'Beranda'),
+              BangFloatingNavItem(
+                icon: Icons.assignment_rounded,
+                label: 'Aktivitas',
+              ),
+              BangFloatingNavItem(icon: Icons.person_outline, label: 'Profil'),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Beranda'));
+    await tester.pump();
+
+    expect(tappedIndexes, isEmpty);
+  });
+
+  testWidgets('debounces rapid taps and accepts the next tap after unlock', (
+    tester,
+  ) async {
+    final tappedIndexes = <int>[];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          bottomNavigationBar: BangFloatingBottomNavBar(
+            currentIndex: 0,
+            tapDebounceDuration: const Duration(milliseconds: 100),
+            onTap: tappedIndexes.add,
+            items: const [
+              BangFloatingNavItem(icon: Icons.home_filled, label: 'Beranda'),
+              BangFloatingNavItem(
+                icon: Icons.assignment_rounded,
+                label: 'Aktivitas',
+              ),
+              BangFloatingNavItem(icon: Icons.person_outline, label: 'Profil'),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Aktivitas'));
+    await tester.pump();
+    await tester.tap(find.text('Profil'));
+    await tester.pump();
+
+    expect(tappedIndexes, [1]);
+
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.text('Profil'));
+    await tester.pump();
+
+    expect(tappedIndexes, [1, 2]);
+  });
+
   testWidgets('scales the selected icon without changing the nav slot', (
     tester,
   ) async {

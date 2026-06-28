@@ -351,6 +351,18 @@ class _HistoryCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
+                isCompleted ? 'Pendapatan Bersih' : 'Pendapatan',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  height: 1.2,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
                 isCompleted
                     ? formatter(order.netIncomeRounded)
                     : 'Tidak ada pendapatan',

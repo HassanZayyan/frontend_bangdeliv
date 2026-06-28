@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../../../core/application/app_lifecycle_provider.dart';
 import '../../../core/di/app_providers.dart';
 import '../../auth/application/auth_session_provider.dart';
 import 'driver_location_reporter_provider.dart';
@@ -44,6 +45,7 @@ class DriverAvailabilityLocationReporterNotifier
   DriverAvailabilityLocationReporterState build() {
     ref.onDispose(_dispose);
 
+    final lifecycle = ref.watch(appLifecycleStateProvider);
     final session = ref.watch(authSessionProvider);
     final isDriverSession =
         session.isAuthenticated &&
@@ -53,6 +55,7 @@ class DriverAvailabilityLocationReporterNotifier
         ? ref.watch(driverAvailabilityProvider).asData?.value
         : null;
     final shouldReport =
+        isAppLifecycleResumed(lifecycle) &&
         isDriverSession &&
         (availability?.status.trim().toLowerCase() == 'available');
 

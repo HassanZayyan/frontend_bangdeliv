@@ -693,6 +693,7 @@ class _MerchantInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final distance = (displayDistance ?? merchant.distance).trim();
+    final address = merchant.address.trim();
     final metadata = <String>[
       if (menuCount > 0) '$menuCount menu tersedia' else 'Menu',
       if (merchant.merchantType.trim().isNotEmpty)
@@ -715,6 +716,10 @@ class _MerchantInfo extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         _MerchantMetadataLine(distance: distance, items: metadata),
+        if (address.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _MerchantAddressLine(address: address),
+        ],
       ],
     );
   }
@@ -726,6 +731,38 @@ class _MerchantInfo extends StatelessWidget {
       'other' => 'Toko',
       _ => 'Restoran',
     };
+  }
+}
+
+class _MerchantAddressLine extends StatelessWidget {
+  const _MerchantAddressLine({required this.address});
+
+  final String address;
+
+  @override
+  Widget build(BuildContext context) {
+    final textStyle = TextStyle(
+      fontSize: AppTextScaling.adaptive(context, normal: 12, large: 11.5),
+      color: AppColors.textSecondary,
+      height: 1.35,
+      fontWeight: FontWeight.w500,
+    );
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 1.5),
+          child: Icon(
+            Icons.location_on_outlined,
+            size: 15,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(width: 5),
+        Expanded(child: Text(address, style: textStyle)),
+      ],
+    );
   }
 }
 

@@ -80,7 +80,11 @@ class OrderChatApiService {
       );
     }
 
-    return OrderChatSendResult.fromApiJson(response);
+    try {
+      return OrderChatSendResult.fromApiJson(response);
+    } on FormatException {
+      throw const ApiException('Format respons pesan chat tidak valid.');
+    }
   }
 
   Future<OrderChatSendResult> sendAttachment({

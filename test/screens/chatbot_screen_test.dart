@@ -632,6 +632,26 @@ void main() {
     expect(fakeRepository.searchMenuCallCount, 0);
     expect(find.text('Pilih menu'), findsNothing);
     expect(find.textContaining('Draft Nitip belum lengkap'), findsOneWidget);
+    expect(find.text('-'), findsNWidgets(3));
+    expect(find.text('susu 1'), findsOneWidget);
+    expect(find.text('roti tawar 2'), findsOneWidget);
+    expect(find.text('air mineral 1'), findsOneWidget);
+
+    final exampleText = tester.widget<Text>(find.text('susu 1'));
+    expect(exampleText.style?.fontWeight, FontWeight.w600);
+    expect(
+      find.byWidgetPredicate((widget) {
+        if (widget is! Container) {
+          return false;
+        }
+        final decoration = widget.decoration;
+        return widget.constraints ==
+                const BoxConstraints.tightFor(width: 4, height: 4) &&
+            decoration is BoxDecoration &&
+            decoration.shape == BoxShape.circle;
+      }),
+      findsNothing,
+    );
   });
 
   testWidgets(
@@ -674,6 +694,35 @@ void main() {
       expect(find.textContaining('air mineral 1'), findsOneWidget);
     },
   );
+
+  testWidgets('nitip estimate notice keeps long total label readable', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 760);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpChatbot(
+      tester,
+      serviceType: 'nitip',
+      chatbotApiService: _FakeChatbotApiService(),
+    );
+
+    await _sendMessage(tester, 'draft nitip merchant siap');
+    final labelFinder = find.text('Estimasi total:');
+    final amountFinder = find.text('Menunggu harga barang');
+
+    await tester.ensureVisible(amountFinder);
+    await _pumpChatbotFrame(tester);
+
+    expect(labelFinder, findsOneWidget);
+    expect(amountFinder, findsOneWidget);
+    expect(
+      tester.getTopLeft(amountFinder).dy,
+      greaterThan(tester.getTopLeft(labelFinder).dy),
+    );
+  });
 
   testWidgets('only latest chatbot action buttons stay enabled', (
     WidgetTester tester,

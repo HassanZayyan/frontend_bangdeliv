@@ -18,7 +18,9 @@ import '../../services/qris_download_service.dart';
 import '../../services/ride_order_api_service.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) {
-  return ApiClient();
+  final client = ApiClient();
+  ref.onDispose(client.close);
+  return client;
 });
 
 final homeApiServiceProvider = Provider<HomeApiService>((ref) {
@@ -58,7 +60,9 @@ final addressRepositoryProvider = Provider<AddressRepository>((ref) {
 });
 
 final driverOrderServiceProvider = Provider<DriverOrderService>((ref) {
-  return DriverOrderService();
+  final service = DriverOrderService();
+  ref.onDispose(service.close);
+  return service;
 });
 
 final driverOrderRepositoryProvider = Provider<DriverOrderRepository>((ref) {

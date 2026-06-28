@@ -21,6 +21,10 @@ class DriverOrderService {
 
   final http.Client _httpClient;
 
+  void close() {
+    _httpClient.close();
+  }
+
   Future<DriverOrderModel> acceptOrder(String orderId) async {
     final response = await _post('/v1/driver/orders/$orderId/accept');
     final data = _extractData(response);

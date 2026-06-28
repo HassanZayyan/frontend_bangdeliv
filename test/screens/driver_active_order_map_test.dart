@@ -13,4 +13,14 @@ void main() {
     expect(source, contains('unawaited(_fitCameraToMapPoints())'));
     expect(source, contains('CameraUpdate.newLatLngBounds'));
   });
+
+  test('driver active map delays platform view mount during nav churn', () {
+    final source = File(
+      'lib/features/driver_orders/presentation/widgets/driver_active_order_map_widgets.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('_mapMountDelay = Duration(milliseconds: 650)'));
+    expect(source, contains('_buildMapLoadingPlaceholder()'));
+    expect(source, contains('if (!_mapMountReady)'));
+  });
 }
