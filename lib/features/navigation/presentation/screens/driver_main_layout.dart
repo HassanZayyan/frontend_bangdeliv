@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -8,6 +9,15 @@ import '../../../auth/application/auth_session_provider.dart';
 import '../../../driver_orders/application/driver_location_reporter_provider.dart';
 import '../../../driver_orders/application/driver_order_providers.dart';
 import '../widgets/bang_floating_bottom_nav_bar.dart';
+
+const SystemUiOverlayStyle _driverMainLayoutSystemUiOverlayStyle =
+    SystemUiOverlayStyle(
+      statusBarColor: AppColors.white,
+      statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+      systemNavigationBarColor: AppColors.white,
+      systemNavigationBarIconBrightness: Brightness.dark,
+    );
 
 class DriverMainLayout extends ConsumerStatefulWidget {
   final Widget child;
@@ -105,8 +115,13 @@ class _DriverMainLayoutState extends ConsumerState<DriverMainLayout> {
           : widget.child,
     );
 
-    return isActiveDriver
+    final content = isActiveDriver
         ? BangFloatingBottomNavOverlayTheme(child: scaffold)
         : scaffold;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: _driverMainLayoutSystemUiOverlayStyle,
+      child: content,
+    );
   }
 }

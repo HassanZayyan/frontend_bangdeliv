@@ -23,6 +23,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   final _emailFocusNode = FocusNode();
   final _passwordFocusNode = FocusNode();
   bool _isSubmitting = false;
+  bool _isGoogleSubmitting = false;
   bool _isPasswordVisible = false;
   bool _wasKeyboardVisible = false;
   String? _loginErrorMessage;
@@ -145,31 +146,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Container(
-          width: 96,
-          height: 96,
-          padding: const EdgeInsets.all(6),
+          width: 76,
+          height: 76,
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
-            color: AppColors.white,
             shape: BoxShape.circle,
+            border: Border.all(
+              color: AppColors.white.withValues(alpha: 0.92),
+              width: 2,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
+                color: Colors.black.withValues(alpha: 0.10),
+                blurRadius: 14,
+                offset: const Offset(0, 6),
               ),
             ],
           ),
-          child: ClipOval(
+          child: Transform.scale(
+            scale: 1.08,
             child: Image.asset('assets/images/logo.jpg', fit: BoxFit.cover),
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
         RichText(
           text: TextSpan(
-            style: GoogleFonts.inter(
-              fontSize: 40,
-              fontWeight: FontWeight.w700,
+            style: GoogleFonts.leagueSpartan(
+              fontSize: 42,
+              fontWeight: FontWeight.w800,
               letterSpacing: 0,
+              height: 1,
             ),
             children: [
               const TextSpan(
@@ -184,11 +190,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           ),
         ),
         const SizedBox(height: 8),
-        Text(
-          'Pesan kebutuhan dan perjalananmu dengan mudah',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: AppColors.white.withValues(alpha: 0.8),
-            fontSize: 12.5,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: SizedBox(
+            width: double.infinity,
+            child: Text(
+              'Pesan kebutuhan dan perjalananmu dengan mudah',
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.white.withValues(alpha: 0.8),
+                fontSize: 12.5,
+                height: 1.25,
+              ),
+            ),
           ),
         ),
       ],
@@ -207,7 +223,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               context,
             ).textTheme.titleLarge?.copyWith(fontSize: 18),
           ),
-          SizedBox(height: isCompact ? 16 : 24),
+          SizedBox(height: isCompact ? 16 : 22),
 
           TextFormField(
             controller: _emailController,
@@ -301,10 +317,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           BangPrimaryButton(
             label: 'Masuk',
             isLoading: _isSubmitting,
-            onPressed: _handleLogin,
+            onPressed: _isGoogleSubmitting ? null : _handleLogin,
           ),
 
-          SizedBox(height: isCompact ? 16 : 22),
+          SizedBox(height: isCompact ? 12 : 16),
+
+          const _AuthDivider(label: 'atau'),
+
+          SizedBox(height: isCompact ? 12 : 16),
+
+          _GoogleSignInButton(
+            isLoading: _isGoogleSubmitting,
+            onPressed: _isSubmitting ? null : _handleGoogleLogin,
+          ),
+
+          SizedBox(height: isCompact ? 14 : 18),
 
           Center(
             child: Wrap(
@@ -315,9 +342,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 InkWell(
-                  onTap: () {
-                    context.push(AppRoutes.register);
-                  },
+                  onTap: _isSubmitting || _isGoogleSubmitting
+                      ? null
+                      : () => context.push(AppRoutes.register),
                   child: Text(
                     'Daftar Sekarang',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -389,7 +416,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   Future<void> _handleLogin() async {
-    if (_isSubmitting) {
+    if (_isSubmitting || _isGoogleSubmitting) {
       return;
     }
 
@@ -440,6 +467,49 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     }
   }
 
+  Future<void> _handleGoogleLogin() async {
+    if (_isSubmitting || _isGoogleSubmitting) {
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+
+    setState(() {
+      _isGoogleSubmitting = true;
+      _loginErrorMessage = null;
+    });
+
+    try {
+      await AuthService.loginWithGoogle();
+      await ref.read(authSessionProvider.notifier).handleLoginSuccess();
+
+      if (!mounted) {
+        return;
+      }
+
+      final intendedRoute = _resolveIntendedRoute();
+      if (intendedRoute != null) {
+        context.go(intendedRoute);
+      } else {
+        context.go(AppRoutes.splash);
+      }
+    } on AuthException catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _loginErrorMessage = e.message;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGoogleSubmitting = false;
+        });
+      }
+    }
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -452,6 +522,98 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+}
+
+class _GoogleSignInButton extends StatelessWidget {
+  const _GoogleSignInButton({required this.isLoading, required this.onPressed});
+
+  final bool isLoading;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: isLoading ? null : onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.textPrimary,
+          side: const BorderSide(color: AppColors.border),
+          minimumSize: const Size.fromHeight(50),
+          backgroundColor: AppColors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+        child: isLoading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.primary,
+                ),
+              )
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: Image.asset(
+                      'assets/images/google.png',
+                      fit: BoxFit.contain,
+                      excludeFromSemantics: true,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Flexible(
+                    child: Text(
+                      'Masuk dengan Google',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+class _AuthDivider extends StatelessWidget {
+  const _AuthDivider({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Expanded(child: Divider(color: AppColors.border, height: 1)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const Expanded(child: Divider(color: AppColors.border, height: 1)),
+      ],
+    );
   }
 }
 

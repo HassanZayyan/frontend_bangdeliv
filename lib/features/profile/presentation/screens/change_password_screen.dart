@@ -5,8 +5,12 @@ import '../../../../config/app_colors.dart';
 import '../../../../config/app_text_scaling.dart';
 import '../../../../services/auth_service.dart';
 
+enum PasswordFormMode { change, create }
+
 class ChangePasswordScreen extends StatefulWidget {
-  const ChangePasswordScreen({super.key});
+  const ChangePasswordScreen({super.key, this.mode = PasswordFormMode.change});
+
+  final PasswordFormMode mode;
 
   @override
   State<ChangePasswordScreen> createState() => _ChangePasswordScreenState();
@@ -25,6 +29,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   bool _showCurrentPassword = false;
   bool _showNewPassword = false;
   bool _showConfirmPassword = false;
+
+  bool get _isCreateMode => widget.mode == PasswordFormMode.create;
 
   @override
   void initState() {
@@ -45,11 +51,11 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(
-          'Ganti Password',
+        title: Text(
+          _isCreateMode ? 'Login & Keamanan' : 'Ganti Password',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
         ),
         backgroundColor: AppColors.white,
         elevation: 0,
@@ -71,32 +77,42 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (_isCreateMode) ...[
+                        _buildCreatePasswordIntro(),
+                        const SizedBox(height: 18),
+                      ],
+                      if (!_isCreateMode) ...[
+                        _buildPasswordField(
+                          label: 'Password Saat Ini',
+                          hintText: 'Masukkan password lama',
+                          controller: _currentPasswordController,
+                          focusNode: _currentPasswordFocusNode,
+                          isVisible: _showCurrentPassword,
+                          onToggleVisibility: () {
+                            setState(() {
+                              _showCurrentPassword = !_showCurrentPassword;
+                            });
+                          },
+                          validator: (value) {
+                            final text = value ?? '';
+                            if (text.isEmpty) {
+                              return 'Password saat ini wajib diisi';
+                            }
+                            if (text.length < 8) {
+                              return 'Password minimal 8 karakter';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                      ],
                       _buildPasswordField(
-                        label: 'Password Saat Ini',
-                        hintText: 'Masukkan password lama',
-                        controller: _currentPasswordController,
-                        focusNode: _currentPasswordFocusNode,
-                        isVisible: _showCurrentPassword,
-                        onToggleVisibility: () {
-                          setState(() {
-                            _showCurrentPassword = !_showCurrentPassword;
-                          });
-                        },
-                        validator: (value) {
-                          final text = value ?? '';
-                          if (text.isEmpty) {
-                            return 'Password saat ini wajib diisi';
-                          }
-                          if (text.length < 8) {
-                            return 'Password minimal 8 karakter';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 14),
-                      _buildPasswordField(
-                        label: 'Password Baru',
-                        hintText: 'Masukkan password baru',
+                        label: _isCreateMode
+                            ? 'Password BangDeliv'
+                            : 'Password Baru',
+                        hintText: _isCreateMode
+                            ? 'Tambah password untuk login email'
+                            : 'Masukkan password baru',
                         controller: _newPasswordController,
                         focusNode: _newPasswordFocusNode,
                         isVisible: _showNewPassword,
@@ -113,7 +129,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                           if (text.length < 8) {
                             return 'Password minimal 8 karakter';
                           }
-                          if (text == _currentPasswordController.text) {
+                          if (!_isCreateMode &&
+                              text == _currentPasswordController.text) {
                             return 'Password baru harus berbeda';
                           }
                           return null;
@@ -176,8 +193,10 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                                 color: AppColors.white,
                               ),
                             )
-                          : const Text(
-                              'Simpan Password',
+                          : Text(
+                              _isCreateMode
+                                  ? 'Tambah Password'
+                                  : 'Simpan Password',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -210,6 +229,59 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         _buildPasswordTip('Tambahkan karakter khusus seperti !@#%'),
         _buildPasswordTip('Hindari menggunakan informasi pribadi'),
       ],
+    );
+  }
+
+  Widget _buildCreatePasswordIntro() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(
+            width: 24,
+            child: Icon(
+              Icons.verified_user_outlined,
+              color: AppColors.primary,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Google sudah terhubung',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'Password BangDeliv bersifat opsional. Tambahkan hanya jika ingin bisa masuk juga dengan email dan password.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    height: 1.35,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -320,19 +392,30 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     });
 
     try {
-      await AuthService.changePassword(
-        currentPassword: _currentPasswordController.text,
-        newPassword: _newPasswordController.text,
-        newPasswordConfirmation: _confirmPasswordController.text,
-      );
+      if (_isCreateMode) {
+        await AuthService.createPassword(
+          newPassword: _newPasswordController.text,
+          newPasswordConfirmation: _confirmPasswordController.text,
+        );
+      } else {
+        await AuthService.changePassword(
+          currentPassword: _currentPasswordController.text,
+          newPassword: _newPasswordController.text,
+          newPasswordConfirmation: _confirmPasswordController.text,
+        );
+      }
 
       if (!mounted) {
         return;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password berhasil diperbarui.'),
+        SnackBar(
+          content: Text(
+            _isCreateMode
+                ? 'Password BangDeliv berhasil ditambahkan.'
+                : 'Password berhasil diperbarui.',
+          ),
           backgroundColor: AppColors.success,
         ),
       );

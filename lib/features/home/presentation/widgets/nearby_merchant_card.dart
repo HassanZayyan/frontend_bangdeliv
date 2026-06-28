@@ -4,6 +4,49 @@ import '../../../../config/app_colors.dart';
 import '../../../../config/app_text_scaling.dart';
 import '../../../../models/merchant_model.dart';
 
+const double _cardHorizontalPadding = 10;
+const double _cardTopPadding = 10;
+const double _cardBottomPadding = 8;
+const double _imageTitleGap = 9;
+const double _titleDistanceGap = 3;
+const double _titleLineHeightFactor = 1.18;
+const double _distanceLineHeightFactor = 1.12;
+const double _layoutBuffer = 6;
+
+double nearbyMerchantCardGridMainAxisExtent(
+  BuildContext context, {
+  required double gridWidth,
+  int crossAxisCount = 2,
+  double crossAxisSpacing = 12,
+}) {
+  final scaleT = AppTextScaling.scaleProgress(context);
+  final imageAspectRatio = _imageAspectRatio(context);
+  final availableGridWidth = gridWidth.isFinite && gridWidth > 0
+      ? gridWidth
+      : 320.0;
+  final totalSpacing = crossAxisSpacing * (crossAxisCount - 1);
+  final cardWidth = (availableGridWidth - totalSpacing) / crossAxisCount;
+  final imageWidth = (cardWidth - (_cardHorizontalPadding * 2)).clamp(
+    0.0,
+    double.infinity,
+  );
+  final imageHeight = imageWidth / imageAspectRatio;
+  final titleHeight = _titleBlockHeight(context, scaleT);
+  final textScaler = MediaQuery.textScalerOf(context);
+  final distanceHeight =
+      textScaler.scale(_distanceFontSize(scaleT)) * _distanceLineHeightFactor;
+
+  return (_cardTopPadding +
+          imageHeight +
+          _imageTitleGap +
+          titleHeight +
+          _titleDistanceGap +
+          distanceHeight +
+          _cardBottomPadding +
+          _layoutBuffer)
+      .ceilToDouble();
+}
+
 class NearbyMerchantCard extends StatelessWidget {
   const NearbyMerchantCard({
     super.key,
@@ -18,14 +61,10 @@ class NearbyMerchantCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final distance = merchant.distance.trim();
     final scaleT = AppTextScaling.scaleProgress(context);
-    final titleFontSize = 14.0 - (0.5 * scaleT);
-    final titleLineHeight = titleFontSize * 1.12;
-    final distanceFontSize = 10.25 - (0.25 * scaleT);
-    final imageAspectRatio = AppTextScaling.adaptive(
-      context,
-      normal: 1.32,
-      large: 1.38,
-    );
+    final titleFontSize = _titleFontSize(scaleT);
+    final distanceFontSize = _distanceFontSize(scaleT);
+    final imageAspectRatio = _imageAspectRatio(context);
+    final titleBlockHeight = _titleBlockHeight(context, scaleT);
 
     return Material(
       color: AppColors.white,
@@ -42,7 +81,12 @@ class NearbyMerchantCard extends StatelessWidget {
             border: Border.all(color: AppColors.border.withValues(alpha: 0.72)),
           ),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 10, 10, 4),
+            padding: const EdgeInsets.fromLTRB(
+              _cardHorizontalPadding,
+              _cardTopPadding,
+              _cardHorizontalPadding,
+              _cardBottomPadding,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -55,7 +99,7 @@ class NearbyMerchantCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 9),
                 SizedBox(
-                  height: titleLineHeight * 2,
+                  height: titleBlockHeight,
                   child: Align(
                     alignment: Alignment.topLeft,
                     child: Text(
@@ -66,13 +110,13 @@ class NearbyMerchantCard extends StatelessWidget {
                         color: AppColors.textPrimary,
                         fontSize: titleFontSize,
                         fontWeight: FontWeight.w800,
-                        height: 1.12,
+                        height: _titleLineHeightFactor,
                       ),
                     ),
                   ),
                 ),
                 if (distance.isNotEmpty && distance != '-') ...[
-                  const SizedBox(height: 3),
+                  const SizedBox(height: _titleDistanceGap),
                   Text(
                     distance,
                     maxLines: 1,
@@ -81,7 +125,7 @@ class NearbyMerchantCard extends StatelessWidget {
                       color: AppColors.textSecondary,
                       fontSize: distanceFontSize,
                       fontWeight: FontWeight.w600,
-                      height: 1.12,
+                      height: _distanceLineHeightFactor,
                     ),
                   ),
                 ],
@@ -92,6 +136,21 @@ class NearbyMerchantCard extends StatelessWidget {
       ),
     );
   }
+}
+
+double _titleFontSize(double scaleT) => 14.0 - (0.5 * scaleT);
+
+double _distanceFontSize(double scaleT) => 10.25 - (0.25 * scaleT);
+
+double _titleBlockHeight(BuildContext context, double scaleT) {
+  final scaledTitleSize = MediaQuery.textScalerOf(
+    context,
+  ).scale(_titleFontSize(scaleT));
+  return scaledTitleSize * _titleLineHeightFactor * 2;
+}
+
+double _imageAspectRatio(BuildContext context) {
+  return AppTextScaling.adaptive(context, normal: 1.32, large: 1.38);
 }
 
 class _MerchantImage extends StatelessWidget {

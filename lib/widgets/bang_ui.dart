@@ -290,7 +290,10 @@ class AuthKeyboardSafeScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     final isKeyboardOpen = keyboardInset > 0;
-    final headerHeight = headerHeightBuilder(context, isKeyboardOpen);
+    final headerHeight = math.max(
+      0.0,
+      headerHeightBuilder(context, isKeyboardOpen),
+    );
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: _brandStatusBarStyle,
@@ -301,6 +304,7 @@ class AuthKeyboardSafeScaffold extends StatelessWidget {
           bottom: false,
           child: LayoutBuilder(
             builder: (context, constraints) {
+              final shouldShowHeader = headerHeight > 0;
               final cardMinHeight = math.max(
                 0.0,
                 constraints.maxHeight - topBarHeight - headerHeight,
@@ -317,12 +321,13 @@ class AuthKeyboardSafeScaffold extends StatelessWidget {
                     children: [
                       if (topBar != null)
                         SizedBox(height: topBarHeight, child: topBar),
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        curve: Curves.easeOutCubic,
-                        height: headerHeight,
-                        child: ClipRect(child: header),
-                      ),
+                      if (shouldShowHeader)
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          curve: Curves.easeOutCubic,
+                          height: headerHeight,
+                          child: ClipRect(child: header),
+                        ),
                       Container(
                         width: double.infinity,
                         constraints: BoxConstraints(minHeight: cardMinHeight),

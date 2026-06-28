@@ -1,11 +1,11 @@
 {
-    "name": "frontend_bangdeliv",
-    "short_name": "frontend_bangdeliv",
+    "name": "BangDeliv",
+    "short_name": "BangDeliv",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F9FAFB",
+    "theme_color": "#F05B24",
+    "description": "BangDeliv customer and driver app.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

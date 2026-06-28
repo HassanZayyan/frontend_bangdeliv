@@ -709,27 +709,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final merchants = data.nearbyMerchants
         .take(_homeNearbyMerchantLimit)
         .toList(growable: false);
-    final textScale = _layoutTextScale(context);
-    final cardMainAxisExtent = _lerp(182, 194, textScale);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: _homeHorizontalPadding),
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: merchants.length,
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          mainAxisExtent: cardMainAxisExtent,
-        ),
-        itemBuilder: (context, index) {
-          final merchant = merchants[index];
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final cardMainAxisExtent = nearbyMerchantCardGridMainAxisExtent(
+            context,
+            gridWidth: constraints.maxWidth,
+          );
 
-          return NearbyMerchantCard(
-            merchant: merchant,
-            onTap: () => _openMerchantDetail(context, merchant),
+          return GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: merchants.length,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              mainAxisExtent: cardMainAxisExtent,
+            ),
+            itemBuilder: (context, index) {
+              final merchant = merchants[index];
+
+              return NearbyMerchantCard(
+                merchant: merchant,
+                onTap: () => _openMerchantDetail(context, merchant),
+              );
+            },
           );
         },
       ),

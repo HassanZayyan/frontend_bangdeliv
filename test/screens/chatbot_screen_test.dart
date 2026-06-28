@@ -6,9 +6,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:frontend_bangdeliv/models/address_location_picker_result.dart';
 import 'package:frontend_bangdeliv/models/chatbot_model.dart';
 import 'package:frontend_bangdeliv/models/chatbot_launch_args.dart';
 import 'package:frontend_bangdeliv/models/customer_order_model.dart';
+import 'package:frontend_bangdeliv/models/route_location_picker_result.dart';
 import 'package:frontend_bangdeliv/models/user_profile_model.dart';
 import 'package:frontend_bangdeliv/core/di/app_providers.dart';
 import 'package:frontend_bangdeliv/data/repositories/customer_order_repository.dart';
@@ -104,6 +106,36 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Atur Lokasi Jemput/Tujuan'), findsNothing);
+  });
+
+  testWidgets('ride edit location opens route picker without preset bubble', (
+    WidgetTester tester,
+  ) async {
+    final fakeService = _FakeChatbotApiService();
+    await _pumpChatbot(
+      tester,
+      serviceType: 'antar_jemput',
+      chatbotApiService: fakeService,
+    );
+
+    await _sendMessage(tester, 'draft transport payment');
+    await tester.tap(find.widgetWithText(OutlinedButton, 'QRIS'));
+    await _pumpChatbotFrame(tester);
+
+    expect(
+      find.widgetWithText(OutlinedButton, 'Ubah Lokasi Jemput/Tujuan'),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.widgetWithText(OutlinedButton, 'Ubah Lokasi Jemput/Tujuan'),
+    );
+    await _pumpChatbotFrame(tester);
+
+    expect(find.text('Atur Rute Antar Jemput'), findsOneWidget);
+    expect(fakeService.callCount, 2);
+    expect(fakeService.lastMessage, 'QRIS');
+    expect(find.text('Ubah Tujuan'), findsNothing);
   });
 
   testWidgets('nitip welcome shows concise multi tempat guidance', (
@@ -1013,6 +1045,38 @@ void main() {
     );
   });
 
+  testWidgets('nitip delivery picker forwards street address', (
+    WidgetTester tester,
+  ) async {
+    final fakeService = _FakeChatbotApiService();
+    await _pumpChatbot(
+      tester,
+      serviceType: 'nitip',
+      chatbotApiService: fakeService,
+    );
+
+    await _sendMessage(tester, 'draft nitip merchant siap');
+    final deliveryButton = find.widgetWithText(
+      OutlinedButton,
+      'Ganti Alamat Antar',
+    );
+    await tester.ensureVisible(deliveryButton);
+    await _pumpChatbotFrame(tester);
+    await tester.tap(deliveryButton);
+    await _pumpChatbotFrame(tester);
+
+    expect(find.text('Picker Alamat Antar'), findsOneWidget);
+
+    await tester.tap(find.text('Simpan Jalan Antar'));
+    await _pumpChatbotFrame(tester);
+
+    expect(fakeService.patchLocationCallCount, 1);
+    expect(fakeService.lastPatchTarget, 'delivery');
+    expect(fakeService.lastPatchAddress, 'Jl. Sraten Raya No. 10');
+    expect(find.textContaining('Jl. Sraten Raya No. 10'), findsOneWidget);
+    expect(find.textContaining('-7.011'), findsNothing);
+  });
+
   test('route picker action sends one bulk patch request', () async {
     final fakeService = _FakeChatbotApiService();
     SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -1180,6 +1244,34 @@ Future<GoRouter> _pumpChatbot(
         },
       ),
       GoRoute(
+        path: '/addresses/location-picker',
+        builder: (BuildContext context, GoRouterState state) {
+          return Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Picker Alamat Antar'),
+                  ElevatedButton(
+                    onPressed: () {
+                      context.pop(
+                        const AddressLocationPickerResult(
+                          latitude: -7.011,
+                          longitude: 110.411,
+                          source: 'map_pin',
+                          address: 'Jl. Sraten Raya No. 10',
+                        ),
+                      );
+                    },
+                    child: const Text('Simpan Jalan Antar'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+      GoRoute(
         path: '/home',
         builder: (BuildContext context, GoRouterState state) {
           return const Scaffold(body: Center(child: Text('Home Screen')));
@@ -1191,6 +1283,16 @@ Future<GoRouter> _pumpChatbot(
           return Scaffold(
             body: Center(child: Text('Track Screen ${state.extra}')),
           );
+        },
+      ),
+      GoRoute(
+        path: '/route-location-picker',
+        builder: (BuildContext context, GoRouterState state) {
+          final extra = state.extra;
+          final title = extra is RouteLocationPickerArgs
+              ? extra.title
+              : 'Route Picker';
+          return Scaffold(body: Center(child: Text(title)));
         },
       ),
       GoRoute(
@@ -1416,6 +1518,7 @@ class _FakeChatbotApiService extends ChatbotApiService {
   String? lastServiceType;
   String? lastSessionId;
   String? lastPatchTarget;
+  String? lastPatchAddress;
   String? lastMerchantMode;
   int? lastMerchantId;
   String? lastClearedSessionId;
@@ -1468,11 +1571,28 @@ class _FakeChatbotApiService extends ChatbotApiService {
             'is_valid_order': true,
             'rejection_reasons': [],
             'missing_fields': [],
-            'next_actions': ['SET_PAYMENT_COD', 'SET_PAYMENT_TRANSFER'],
+            'next_actions': [
+              'SET_PAYMENT_COD',
+              'SET_PAYMENT_TRANSFER',
+              'RESET_DESTINATION',
+              'CHANGE_PICKUP',
+            ],
           },
           'action_payloads': {
             'SET_PAYMENT_COD': {'label': 'COD', 'message': 'COD'},
             'SET_PAYMENT_TRANSFER': {'label': 'QRIS', 'message': 'QRIS'},
+            'RESET_DESTINATION': {
+              'label': 'Ubah Tujuan',
+              'message': 'Ubah Tujuan',
+            },
+            'CHANGE_PICKUP': {
+              'target': 'pickup',
+              'label': serviceType == 'kurir'
+                  ? 'Ubah Lokasi Ambil'
+                  : 'Ubah Lokasi Jemput',
+              'initial_latitude': -7.3289,
+              'initial_longitude': 110.5001,
+            },
           },
           'order': {'created': false, 'payment_method': null},
         },
@@ -1714,6 +1834,7 @@ class _FakeChatbotApiService extends ChatbotApiService {
               'SET_PAYMENT_COD',
               'SET_PAYMENT_TRANSFER',
               'RESET_DESTINATION',
+              'CHANGE_PICKUP',
             ],
           },
           'action_payloads': {
@@ -1722,6 +1843,14 @@ class _FakeChatbotApiService extends ChatbotApiService {
             'RESET_DESTINATION': {
               'label': 'Ubah Tujuan',
               'message': 'Ubah Tujuan',
+            },
+            'CHANGE_PICKUP': {
+              'target': 'pickup',
+              'label': serviceType == 'kurir'
+                  ? 'Ubah Lokasi Ambil'
+                  : 'Ubah Lokasi Jemput',
+              'initial_latitude': -7.3289,
+              'initial_longitude': 110.5001,
             },
           },
           'order': {'created': false, 'payment_method': 'TRANSFER'},
@@ -1895,6 +2024,7 @@ class _FakeChatbotApiService extends ChatbotApiService {
     patchLocationCallCount += 1;
     lastServiceType = serviceType;
     lastPatchTarget = target;
+    lastPatchAddress = address;
 
     if (serviceType == 'nitip') {
       final deliveryAddress = address ?? 'Pin baru';

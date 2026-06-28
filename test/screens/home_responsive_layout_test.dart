@@ -58,25 +58,25 @@ class _FakeHomeApiService extends HomeApiService {
       nearbyMerchants: [
         MerchantModel(
           id: '1',
-          name: 'Resto Taman Kedai Satu',
+          name: "Rendy's Chicken",
           distance: '0.1 km',
           imageUrl: '',
         ),
         MerchantModel(
           id: '2',
-          name: 'Dapur Mrican BangDeliv',
+          name: 'Nasgor Gajah',
           distance: '0.1 km',
           imageUrl: '',
         ),
         MerchantModel(
           id: '3',
-          name: 'Alfamart BangDeliv Point',
+          name: "S'B Swegerrr Krenceng",
           distance: '0.1 km',
           imageUrl: '',
         ),
         MerchantModel(
           id: '4',
-          name: 'Warung Makan Ndeso Sampangan',
+          name: 'Martabak Bangka Idola Cabang Krenceng',
           distance: '0.1 km',
           imageUrl: '',
         ),

@@ -3,9 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../features/auth/presentation/screens/login_screen.dart';
 import '../features/auth/presentation/screens/forgot_password_screen.dart';
+import '../features/auth/presentation/screens/complete_phone_screen.dart';
 import '../features/auth/presentation/screens/register_screen.dart';
-import '../features/auth/presentation/screens/register_driver_screen.dart';
 import '../features/auth/presentation/screens/register_success_screen.dart';
+import '../features/auth/presentation/screens/register_driver_screen.dart';
 import '../features/auth/presentation/screens/splash_screen.dart';
 import '../features/driver_orders/presentation/screens/driver_home_screen.dart';
 import '../features/driver_orders/presentation/screens/driver_orders_screen.dart';
@@ -121,20 +122,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const LoginScreen(),
       ),
       _rootRoute(
-        path: AppRoutes.forgotPassword,
-        builder: (context, state) => const ForgotPasswordScreen(),
-      ),
-      _rootRoute(
         path: AppRoutes.register,
         builder: (context, state) => const RegisterScreen(),
       ),
       _rootRoute(
-        path: AppRoutes.registerDriver,
-        builder: (context, state) => const RegisterDriverScreen(),
-      ),
-      _rootRoute(
         path: AppRoutes.registerSuccess,
         builder: (context, state) => const RegisterSuccessScreen(),
+      ),
+      _rootRoute(
+        path: AppRoutes.forgotPassword,
+        builder: (context, state) => const ForgotPasswordScreen(),
+      ),
+      _rootRoute(
+        path: AppRoutes.completePhone,
+        builder: (context, state) => const CompletePhoneScreen(),
+      ),
+      _rootRoute(
+        path: AppRoutes.registerDriver,
+        builder: (context, state) => const RegisterDriverScreen(),
       ),
       _rootRoute(
         path: AppRoutes.chatbot,
@@ -256,6 +261,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       _rootRoute(
         path: AppRoutes.changePassword,
         builder: (context, state) => const ChangePasswordScreen(),
+      ),
+      _rootRoute(
+        path: AppRoutes.createPassword,
+        builder: (context, state) =>
+            const ChangePasswordScreen(mode: PasswordFormMode.create),
       ),
       _rootRoute(
         path: AppRoutes.addresses,
@@ -500,6 +510,16 @@ String? _resolveRedirect({
     return _buildLoginRouteWithReturnTo(fullLocation);
   }
 
+  final requiresPhoneCompletion =
+      session.profile?.requiresPhoneCompletion == true;
+  if (requiresPhoneCompletion) {
+    return location == AppRoutes.completePhone ? null : AppRoutes.completePhone;
+  }
+
+  if (location == AppRoutes.completePhone) {
+    return _defaultRouteFor(session);
+  }
+
   if (location == AppRoutes.splash || isPublicRoute) {
     return _defaultRouteFor(session);
   }
@@ -584,9 +604,9 @@ String _defaultRouteFor(AuthSessionState session) {
 
 const Set<String> _publicRoutes = {
   AppRoutes.login,
-  AppRoutes.forgotPassword,
   AppRoutes.register,
   AppRoutes.registerSuccess,
+  AppRoutes.forgotPassword,
 };
 
 const Set<String> _guestAccessibleRoutes = {
@@ -661,6 +681,7 @@ const Set<String> _driverNonActiveAllowedRoutes = {
   AppRoutes.driverProfile,
   AppRoutes.editProfile,
   AppRoutes.changePassword,
+  AppRoutes.createPassword,
   AppRoutes.notificationSettings,
   AppRoutes.privacyMapPreview,
 };

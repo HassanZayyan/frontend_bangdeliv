@@ -8,6 +8,15 @@ import '../../../auth/application/auth_session_provider.dart';
 import '../../../auth/presentation/widgets/guest_login_prompt.dart';
 import '../widgets/bang_floating_bottom_nav_bar.dart';
 
+const SystemUiOverlayStyle _mainLayoutSystemUiOverlayStyle =
+    SystemUiOverlayStyle(
+      statusBarColor: AppColors.white,
+      statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+      systemNavigationBarColor: AppColors.white,
+      systemNavigationBarIconBrightness: Brightness.dark,
+    );
+
 class MainLayout extends ConsumerStatefulWidget {
   final Widget child;
 
@@ -132,37 +141,43 @@ class _MainLayoutState extends ConsumerState<MainLayout>
         GoRouter.of(context).canPop() && !_shouldReturnToHome(location);
     final hideNavigationBar = _isKeyboardVisible(context);
 
-    return PopScope<void>(
-      canPop: canPopRoute,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) {
-          return;
-        }
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: _mainLayoutSystemUiOverlayStyle,
+      child: PopScope<void>(
+        canPop: canPopRoute,
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) {
+            return;
+          }
 
-        _handleSystemBack(location);
-      },
-      child: BangFloatingBottomNavOverlayTheme(
-        child: Scaffold(
-          backgroundColor: AppColors.background,
-          body: BangFloatingBottomNavHost(
-            hideNavigationBar: hideNavigationBar,
-            navigationBar: BangFloatingBottomNavBar(
-              currentIndex: _calculateSelectedIndex(context),
-              onTap: (index) => _onItemTapped(index, context),
-              items: const [
-                BangFloatingNavItem(icon: Icons.home_filled, label: 'Beranda'),
-                BangFloatingNavItem(
-                  icon: Icons.assignment_rounded,
-                  label: 'Aktivitas',
-                ),
-                BangFloatingNavItem(
-                  icon: Icons.person_outline,
-                  activeIcon: Icons.person,
-                  label: 'Profil',
-                ),
-              ],
+          _handleSystemBack(location);
+        },
+        child: BangFloatingBottomNavOverlayTheme(
+          child: Scaffold(
+            backgroundColor: AppColors.background,
+            body: BangFloatingBottomNavHost(
+              hideNavigationBar: hideNavigationBar,
+              navigationBar: BangFloatingBottomNavBar(
+                currentIndex: _calculateSelectedIndex(context),
+                onTap: (index) => _onItemTapped(index, context),
+                items: const [
+                  BangFloatingNavItem(
+                    icon: Icons.home_filled,
+                    label: 'Beranda',
+                  ),
+                  BangFloatingNavItem(
+                    icon: Icons.assignment_rounded,
+                    label: 'Aktivitas',
+                  ),
+                  BangFloatingNavItem(
+                    icon: Icons.person_outline,
+                    activeIcon: Icons.person,
+                    label: 'Profil',
+                  ),
+                ],
+              ),
+              child: widget.child,
             ),
-            child: widget.child,
           ),
         ),
       ),

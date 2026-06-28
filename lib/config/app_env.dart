@@ -34,6 +34,12 @@ class AppEnv {
 
   static bool get hasGoogleMapsApiKey => googleMapsApiKey.trim().isNotEmpty;
 
+  static const String googleWebClientId = String.fromEnvironment(
+    'GOOGLE_WEB_CLIENT_ID',
+  );
+
+  static bool get hasGoogleWebClientId => googleWebClientId.trim().isNotEmpty;
+
   /// Laravel Reverb WebSocket - same host, different port.
   static String get wsHost {
     final uri = Uri.parse(apiBaseUrl);
@@ -104,6 +110,9 @@ class AppEnv {
     debugPrint('[AppEnv] BACKEND_ORIGIN=$backendOrigin');
     debugPrint('[AppEnv] WS=$normalizedWsScheme://$wsHost:$wsPort');
     debugPrint('[AppEnv] GOOGLE_MAPS_API_KEY configured=$hasGoogleMapsApiKey');
+    debugPrint(
+      '[AppEnv] GOOGLE_WEB_CLIENT_ID configured=$hasGoogleWebClientId',
+    );
     debugPrint('[AppEnv] PUSHER_APP_KEY configured=$hasPusherAppKey');
     debugPrint('[AppEnv] REALTIME_DIAGNOSTICS=$realtimeDiagnostics');
   }

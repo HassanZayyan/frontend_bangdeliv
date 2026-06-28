@@ -109,19 +109,16 @@ class _IncomingOrdersList extends ConsumerWidget {
       if (canReceiveIncomingOrders) {
         return const BangIllustrationEmptyState(
           title: 'Belum ada orderan masuk',
-          subtitle: 'Order baru akan tampil di sini saat driver sedang aktif.',
-          titleFontSize: 17,
-          titleFontWeight: FontWeight.w800,
-          titleColor: AppColors.textPrimary,
+          subtitle: '',
+          titleFontSize: 13,
+          titleFontWeight: FontWeight.w500,
+          titleColor: AppColors.textSecondary,
         );
       }
 
       return _EmptyOrderState(
         icon: isBusy ? Icons.delivery_dining : Icons.power_settings_new,
         title: isBusy ? 'Sedang menjalankan order' : 'Status kerja offline',
-        subtitle: isBusy
-            ? 'Selesaikan order berjalan sebelum menerima order baru.'
-            : 'Aktifkan status kerja untuk menerima order masuk.',
         action: isBusy
             ? null
             : FilledButton.icon(
@@ -1218,13 +1215,11 @@ class _CourierPackageSection extends StatelessWidget {
 class _EmptyOrderState extends StatelessWidget {
   final IconData icon;
   final String title;
-  final String subtitle;
   final Widget? action;
 
   const _EmptyOrderState({
     required this.icon,
     required this.title,
-    required this.subtitle,
     this.action,
   });
 
@@ -1251,19 +1246,9 @@ class _EmptyOrderState extends StatelessWidget {
               title,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w800,
-                fontSize: 17,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
                 color: AppColors.textSecondary,
-                fontSize: 14,
-                height: 1.4,
+                fontWeight: FontWeight.w500,
+                fontSize: 13,
               ),
             ),
             if (action != null) ...[const SizedBox(height: 20), action!],

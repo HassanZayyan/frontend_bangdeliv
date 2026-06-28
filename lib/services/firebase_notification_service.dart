@@ -6,6 +6,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../features/tracking/application/tracking_focus_target.dart';
 import '../firebase_options.dart';
@@ -329,7 +330,9 @@ class FirebaseNotificationService {
     }
 
     try {
-      const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const android = AndroidInitializationSettings(
+        '@drawable/ic_stat_bangdeliv',
+      );
       const darwin = DarwinInitializationSettings(
         requestAlertPermission: false,
         requestBadgePermission: false,
@@ -498,6 +501,8 @@ class FirebaseNotificationService {
         playSound: true,
         enableVibration: true,
         channelShowBadge: true,
+        color: AppColors.primary,
+        icon: 'ic_stat_bangdeliv',
         ticker: isStatusNotification
             ? 'Order diperbarui'
             : 'Pesan chat order baru',

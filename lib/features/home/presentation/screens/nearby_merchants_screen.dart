@@ -412,23 +412,26 @@ class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen>
     required int itemCount,
     required IndexedWidgetBuilder itemBuilder,
   }) {
-    final cardMainAxisExtent = AppTextScaling.adaptive(
-      context,
-      normal: 182,
-      large: 194,
-    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cardMainAxisExtent = nearbyMerchantCardGridMainAxisExtent(
+          context,
+          gridWidth: constraints.maxWidth,
+        );
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: itemCount,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        mainAxisExtent: cardMainAxisExtent,
-      ),
-      itemBuilder: itemBuilder,
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: itemCount,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            mainAxisExtent: cardMainAxisExtent,
+          ),
+          itemBuilder: itemBuilder,
+        );
+      },
     );
   }
 }

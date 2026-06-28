@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:frontend_bangdeliv/config/app_colors.dart';
 import 'package:frontend_bangdeliv/config/app_routes.dart';
 import 'package:frontend_bangdeliv/core/di/app_providers.dart';
 import 'package:frontend_bangdeliv/features/auth/application/auth_session_provider.dart';
@@ -116,6 +117,10 @@ void main() {
     );
 
     expect(find.text('Belum ada orderan masuk'), findsOneWidget);
+    final emptyText = tester.widget<Text>(find.text('Belum ada orderan masuk'));
+    expect(emptyText.style?.fontSize, 13);
+    expect(emptyText.style?.fontWeight, FontWeight.w500);
+    expect(emptyText.style?.color, AppColors.textSecondary);
     expect(find.byIcon(Icons.description_rounded), findsOneWidget);
     expect(find.byIcon(Icons.schedule_rounded), findsOneWidget);
     expect(find.byIcon(Icons.inbox_outlined), findsNothing);

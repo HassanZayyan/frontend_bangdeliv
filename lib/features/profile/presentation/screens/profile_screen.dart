@@ -61,6 +61,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  Future<void> _openPasswordScreen(UserProfileModel profile) async {
+    final updated = await context.push<bool>(
+      profile.hasPassword ? AppRoutes.changePassword : AppRoutes.createPassword,
+    );
+    if (updated == true && mounted) {
+      await _reloadProfile();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -227,8 +236,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         children: [
           _buildMenuTile(
             icon: Icons.lock_outline,
-            title: 'Ganti Password',
-            onTap: () => context.push(AppRoutes.changePassword),
+            title: _passwordMenuTitle(profile),
+            onTap: () => _openPasswordScreen(profile),
           ),
           _divider(),
           _buildMenuTile(
@@ -511,6 +520,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _shouldShowDriverRegistration(UserProfileModel profile) {
     return profile.role.trim().toLowerCase() == 'customer' &&
         profile.driverProfile == null;
+  }
+
+  String _passwordMenuTitle(UserProfileModel profile) {
+    if (profile.hasPassword) {
+      return 'Ganti Password';
+    }
+
+    return profile.authProvider.trim().toLowerCase() == 'google'
+        ? 'Login & Keamanan'
+        : 'Buat Password';
   }
 
   bool _shouldShowDriverVerificationStatus(UserProfileModel profile) {

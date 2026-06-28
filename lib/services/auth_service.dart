@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -15,46 +16,7 @@ class AuthService {
   static const String _lastEmailStorageKey = 'last_login_email';
   static const String _legacyLastPasswordStorageKey = 'last_login_password';
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
-
-  static Future<void> registerCustomer({
-    required String name,
-    required String email,
-    required String phone,
-    required String password,
-  }) async {
-    final uri = Uri.parse('${AppEnv.apiBaseUrl}/auth/register/customer');
-
-    try {
-      final response = await http
-          .post(
-            uri,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'name': name,
-              'email': email,
-              'phone': phone,
-              'password': password,
-            }),
-          )
-          .timeout(const Duration(seconds: 20));
-
-      if (response.statusCode == 201) {
-        return;
-      }
-
-      throw AuthException(
-        _extractErrorMessage(response, fallback: 'Pendaftaran gagal.'),
-      );
-    } on TimeoutException catch (error) {
-      _logNetworkFailure('POST', uri, error);
-      throw const AuthException(ApiException.timeoutMessage);
-    } on AuthException {
-      rethrow;
-    } catch (error) {
-      _logNetworkFailure('POST', uri, error);
-      throw const AuthException(ApiException.noInternetMessage);
-    }
-  }
+  static Future<void>? _googleSignInInitialization;
 
   static Future<void> upgradeToDriver({
     required String vehicleType,
@@ -122,6 +84,115 @@ class AuthService {
 
       final message = _extractErrorMessage(response, fallback: 'Login gagal.');
       throw AuthException(_normalizeLoginErrorMessage(message));
+    } on TimeoutException catch (error) {
+      _logNetworkFailure('POST', uri, error);
+      throw const AuthException(ApiException.timeoutMessage);
+    } on AuthException {
+      rethrow;
+    } catch (error) {
+      _logNetworkFailure('POST', uri, error);
+      throw const AuthException(ApiException.noInternetMessage);
+    }
+  }
+
+  static Future<void> loginWithGoogle() async {
+    if (!AppEnv.hasGoogleWebClientId) {
+      throw const AuthException(
+        'Google Sign-In belum dikonfigurasi. Isi GOOGLE_WEB_CLIENT_ID sesuai OAuth client web.',
+      );
+    }
+
+    final uri = Uri.parse('${AppEnv.apiBaseUrl}/auth/google');
+
+    try {
+      await _ensureGoogleSignInInitialized();
+
+      if (!GoogleSignIn.instance.supportsAuthenticate()) {
+        throw const AuthException(
+          'Google Sign-In belum tersedia di platform ini.',
+        );
+      }
+
+      final account = await GoogleSignIn.instance.authenticate();
+      final idToken = account.authentication.idToken?.trim() ?? '';
+      if (idToken.isEmpty) {
+        throw const AuthException(
+          'Token Google tidak ditemukan. Silakan coba masuk ulang.',
+        );
+      }
+
+      final response = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'id_token': idToken}),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 200) {
+        await _persistAccessToken(response);
+        await _persistLastLoginEmail(account.email);
+        return;
+      }
+
+      throw AuthException(
+        _extractErrorMessage(response, fallback: 'Login Google gagal.'),
+      );
+    } on TimeoutException catch (error) {
+      _logNetworkFailure('POST', uri, error);
+      throw const AuthException(ApiException.timeoutMessage);
+    } on AuthException {
+      rethrow;
+    } on GoogleSignInException catch (error) {
+      if (error.code == GoogleSignInExceptionCode.canceled) {
+        throw const AuthException('Login Google dibatalkan.');
+      }
+      if (error.code == GoogleSignInExceptionCode.uiUnavailable) {
+        throw const AuthException(
+          'Google Sign-In tidak tersedia di perangkat ini.',
+        );
+      }
+      throw AuthException(
+        error.description?.trim().isNotEmpty == true
+            ? error.description!.trim()
+            : 'Login Google gagal. Silakan coba lagi.',
+      );
+    } catch (error) {
+      _logNetworkFailure('POST', uri, error);
+      throw const AuthException(ApiException.noInternetMessage);
+    }
+  }
+
+  static Future<void> registerCustomer({
+    required String name,
+    required String email,
+    required String phone,
+    required String password,
+  }) async {
+    final uri = Uri.parse('${AppEnv.apiBaseUrl}/auth/register/customer');
+
+    try {
+      final response = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'name': name,
+              'email': email,
+              'phone': phone,
+              'password': password,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 201) {
+        await _persistLastLoginEmail(email);
+        return;
+      }
+
+      throw AuthException(
+        _extractErrorMessage(response, fallback: 'Pendaftaran gagal.'),
+      );
     } on TimeoutException catch (error) {
       _logNetworkFailure('POST', uri, error);
       throw const AuthException(ApiException.timeoutMessage);
@@ -243,6 +314,37 @@ class AuthService {
 
       throw AuthException(
         _extractErrorMessage(response, fallback: 'Gagal memperbarui profil.'),
+      );
+    } on TimeoutException {
+      throw const AuthException(ApiException.timeoutMessage);
+    } on AuthException {
+      rethrow;
+    } catch (_) {
+      throw const AuthException(ApiException.noInternetMessage);
+    }
+  }
+
+  static Future<UserProfileModel> completePhone({required String phone}) async {
+    final uri = Uri.parse('${AppEnv.apiBaseUrl}/user/phone');
+
+    try {
+      final response = await http
+          .patch(
+            uri,
+            headers: await authorizedHeaders(),
+            body: jsonEncode({'phone': phone.trim()}),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 200) {
+        return _parseProfileResponse(response);
+      }
+
+      throw AuthException(
+        _extractErrorMessage(
+          response,
+          fallback: 'Gagal menyimpan nomor telepon.',
+        ),
       );
     } on TimeoutException {
       throw const AuthException(ApiException.timeoutMessage);
@@ -465,6 +567,41 @@ class AuthService {
     }
   }
 
+  static Future<void> createPassword({
+    required String newPassword,
+    required String newPasswordConfirmation,
+  }) async {
+    final uri = Uri.parse('${AppEnv.apiBaseUrl}/user/password');
+
+    try {
+      final response = await http
+          .post(
+            uri,
+            headers: await authorizedHeaders(),
+            body: jsonEncode({
+              'new_password': newPassword,
+              'new_password_confirmation': newPasswordConfirmation,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 200) {
+        await _persistAccessToken(response);
+        return;
+      }
+
+      throw AuthException(
+        _extractErrorMessage(response, fallback: 'Gagal membuat password.'),
+      );
+    } on TimeoutException {
+      throw const AuthException(ApiException.timeoutMessage);
+    } on AuthException {
+      rethrow;
+    } catch (_) {
+      throw const AuthException(ApiException.noInternetMessage);
+    }
+  }
+
   static Future<void> logout({Map<String, String>? headers}) async {
     final uri = Uri.parse('${AppEnv.apiBaseUrl}/auth/logout');
 
@@ -487,6 +624,15 @@ class AuthService {
 
   static Future<void> clearLocalSession() async {
     await _clearAccessToken();
+  }
+
+  static Future<void> signOutFromGoogle() async {
+    try {
+      await _ensureGoogleSignInInitialized();
+      await GoogleSignIn.instance.signOut();
+    } catch (_) {
+      // Google sign-out is best-effort; BangDeliv session cleanup is separate.
+    }
   }
 
   static Future<String?> getLastLoginEmail() async {
@@ -647,6 +793,13 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_lastEmailStorageKey, email.trim());
     await prefs.remove(_legacyLastPasswordStorageKey);
+  }
+
+  static Future<void> _ensureGoogleSignInInitialized() {
+    return _googleSignInInitialization ??= GoogleSignIn.instance.initialize(
+      clientId: kIsWeb ? AppEnv.googleWebClientId : null,
+      serverClientId: AppEnv.googleWebClientId,
+    );
   }
 
   static String _normalizeLoginErrorMessage(String message) {
