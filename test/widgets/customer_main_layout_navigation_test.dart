@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend_bangdeliv/config/app_routes.dart';
+import 'package:frontend_bangdeliv/features/auth/application/auth_session_provider.dart';
 import 'package:frontend_bangdeliv/features/navigation/presentation/screens/main_layout.dart';
 import 'package:go_router/go_router.dart';
 
@@ -32,7 +34,14 @@ void main() {
     );
     addTearDown(router.dispose);
 
-    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authSessionProvider.overrideWith(_CustomerAuthSessionNotifier.new),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Beranda'), findsOneWidget);
@@ -45,6 +54,19 @@ void main() {
 
     expect(find.text('activity'), findsOneWidget);
   });
+}
+
+class _CustomerAuthSessionNotifier extends AuthSessionNotifier {
+  @override
+  AuthSessionState build() {
+    return const AuthSessionState(
+      initialized: true,
+      isAuthenticated: true,
+      role: SessionUserRole.customer,
+      driverAccessState: DriverAccessState.none,
+      profile: null,
+    );
+  }
 }
 
 class _ShellBody extends StatelessWidget {

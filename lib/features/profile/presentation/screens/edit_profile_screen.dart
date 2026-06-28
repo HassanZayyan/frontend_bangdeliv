@@ -24,6 +24,10 @@ class EditProfileScreen extends ConsumerStatefulWidget {
 class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   static const double _pickerIconSize = 20;
   static const TextStyle _pickerLabelStyle = TextStyle(fontSize: 14);
+  static const TextStyle _pickerDestructiveLabelStyle = TextStyle(
+    color: AppColors.error,
+    fontSize: 14,
+  );
 
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
@@ -492,10 +496,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       leading: const Icon(
                         Icons.delete_outline,
                         color: AppColors.error,
+                        size: _pickerIconSize,
                       ),
                       title: const Text(
                         'Hapus Foto Profil',
-                        style: TextStyle(color: AppColors.error),
+                        style: _pickerDestructiveLabelStyle,
                       ),
                       onTap: () => Navigator.of(
                         sheetContext,

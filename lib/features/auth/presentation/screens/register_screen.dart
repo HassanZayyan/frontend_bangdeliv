@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../../../config/app_routes.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../../config/app_colors.dart';
+import '../../../../config/app_routes.dart';
 import '../../../../services/auth_service.dart';
 import '../../../../widgets/bang_ui.dart';
 
@@ -188,7 +189,6 @@ class _RegisterScreenState extends State<RegisterScreen>
             ).textTheme.titleLarge?.copyWith(fontSize: 18),
           ),
           SizedBox(height: isCompact ? 16 : 24),
-
           TextFormField(
             controller: _nameController,
             focusNode: _nameFocusNode,
@@ -209,7 +209,6 @@ class _RegisterScreenState extends State<RegisterScreen>
             },
           ),
           const SizedBox(height: 16),
-
           TextFormField(
             controller: _waController,
             focusNode: _waFocusNode,
@@ -233,7 +232,6 @@ class _RegisterScreenState extends State<RegisterScreen>
             },
           ),
           const SizedBox(height: 16),
-
           TextFormField(
             controller: _emailController,
             focusNode: _emailFocusNode,
@@ -257,7 +255,6 @@ class _RegisterScreenState extends State<RegisterScreen>
             },
           ),
           const SizedBox(height: 16),
-
           TextFormField(
             controller: _passwordController,
             focusNode: _passwordFocusNode,
@@ -296,17 +293,13 @@ class _RegisterScreenState extends State<RegisterScreen>
               return null;
             },
           ),
-
           const SizedBox(height: 32),
-
           BangPrimaryButton(
             label: 'Daftar',
             isLoading: _isSubmitting,
             onPressed: _handleRegister,
           ),
-
           const SizedBox(height: 24),
-
           Center(
             child: Wrap(
               crossAxisAlignment: WrapCrossAlignment.center,

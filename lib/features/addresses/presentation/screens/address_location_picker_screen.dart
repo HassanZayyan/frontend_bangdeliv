@@ -509,12 +509,29 @@ class _AddressLocationPickerScreenState
     }
   }
 
-  void _confirmSelection() {
+  Future<void> _confirmSelection() async {
+    var selectedAddress = _mapsLookup.cleanAddress(_selectedAddress);
+    if (selectedAddress == null) {
+      await _resolveSelectedAddress(_cameraTarget);
+      if (!mounted) {
+        return;
+      }
+      selectedAddress = _mapsLookup.cleanAddress(_selectedAddress);
+    }
+
+    if (selectedAddress == null) {
+      _showMessage(
+        'Nama jalan belum terbaca. Geser titik sedikit atau cari alamatnya.',
+      );
+      return;
+    }
+
     context.pop(
       AddressLocationPickerResult(
         latitude: _cameraTarget.latitude,
         longitude: _cameraTarget.longitude,
         source: _selectedSource,
+        address: selectedAddress,
       ),
     );
   }

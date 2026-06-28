@@ -1,7 +1,10 @@
 class AppRoutes {
   static const String splash = '/splash';
   static const String login = '/login';
+  static const String register = '/register';
+  static const String registerSuccess = '/register-success';
   static const String forgotPassword = '/forgot-password';
+  static const String completePhone = '/complete-phone';
   static const String home = '/home';
   static const String driverHome = '/driver/home';
   static const String driverOrders = '/driver/orders';
@@ -17,6 +20,7 @@ class AppRoutes {
   static const String profile = '/profile';
   static const String editProfile = '/edit-profile';
   static const String changePassword = '/change-password';
+  static const String createPassword = '/create-password';
   static const String addresses = '/addresses';
   static const String addressPicker = '/addresses/select';
   static const String addAddress = '/addresses/add';
@@ -37,9 +41,7 @@ class AppRoutes {
   static const String merchantDetail = '/merchant/:merchantId';
   static const String nearbyMerchants = '/merchants/nearby';
   static const String nearbyMerchantDetail = ':merchantId';
-  static const String register = '/register';
   static const String registerDriver = '/register-driver';
-  static const String registerSuccess = '/register-success';
   static const String privacyMapPreview = '/privacy-map-preview';
 
   static String menuDetailPath(String menuId) {

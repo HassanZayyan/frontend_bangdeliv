@@ -171,6 +171,7 @@ class AuthSessionNotifier extends Notifier<AuthSessionState> {
       state = const AuthSessionState.guest();
       await AuthService.clearLocalSession();
       FirebaseNotificationService.clearBackendTokenSync();
+      unawaited(AuthService.signOutFromGoogle());
 
       unawaited(_cleanupRemoteLogout(headers: logoutHeaders));
     } finally {

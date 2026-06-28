@@ -11,6 +11,7 @@ import '../../../navigation/presentation/widgets/bang_floating_bottom_nav_bar.da
 import '../../application/driver_earnings_summary.dart';
 import '../../application/driver_order_providers.dart';
 import '../../../../utils/order_formatters.dart';
+import '../../../../widgets/bang_ui.dart' show BangIllustrationEmptyState;
 
 class DriverHistoryScreen extends ConsumerStatefulWidget {
   const DriverHistoryScreen({super.key});
@@ -92,7 +93,13 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
               ),
               Expanded(
                 child: filteredOrders.isEmpty
-                    ? const _EmptyHistoryState()
+                    ? _EmptyHistoryState(
+                        onRefresh: () async {
+                          await ref
+                              .read(driverHistoryProvider.notifier)
+                              .refresh(showLoading: false);
+                        },
+                      )
                     : RefreshIndicator(
                         onRefresh: () async {
                           await ref
@@ -422,14 +429,28 @@ class _HistoryCard extends StatelessWidget {
 }
 
 class _EmptyHistoryState extends StatelessWidget {
-  const _EmptyHistoryState();
+  const _EmptyHistoryState({required this.onRefresh});
+
+  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Text(
-        'Belum ada riwayat order pada periode ini.',
-        style: TextStyle(color: AppColors.textSecondary),
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: const CustomScrollView(
+        physics: AlwaysScrollableScrollPhysics(parent: ClampingScrollPhysics()),
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: BangIllustrationEmptyState(
+              title: 'Belum ada riwayat order',
+              subtitle: '',
+              titleFontSize: 13,
+              titleFontWeight: FontWeight.w500,
+              titleColor: AppColors.textSecondary,
+            ),
+          ),
+        ],
       ),
     );
   }

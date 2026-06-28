@@ -51,6 +51,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   int _menuSelectorRequestId = 0;
   int? _scheduledResolvedResetOrderId;
   bool _didAutoOpenAddressBook = false;
+  bool _isAddressBookRouteOpen = false;
+  bool _isRefreshingAddressContext = false;
   Timer? _pendingScrollTimer;
   final GlobalKey _menuSelectorSurfaceKey = GlobalKey(
     debugLabel: 'chatbot_menu_selector_surface',
@@ -75,6 +77,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         if (!mounted) {
           return;
         }
+        unawaited(_refreshAndSyncAddressReadiness());
         _maybeResolveDriverVerificationGuard();
         _scrollToBottom();
       });
@@ -162,6 +165,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   }
 
   Future<void> _bootstrapConversation() async {
+    final wasInitialized = _readConversation().hasInitialized;
     final hasSavedAddress = _hasSavedAddressInProfile();
     final welcomeMessage = _serviceContext.welcomeMessageFor(hasSavedAddress);
 
@@ -181,6 +185,13 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
     _scrollToBottom();
 
+    if (wasInitialized) {
+      await _refreshAndSyncAddressReadiness();
+    }
+    if (!mounted) {
+      return;
+    }
+
     if (!_isCustomerOrderingBlocked() &&
         !_didAutoOpenAddressBook &&
         !_hasSavedAddressInProfile()) {
@@ -189,6 +200,48 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     }
 
     await _maybeApplyLaunchArgs();
+  }
+
+  bool get _isOrderingService =>
+      _chatbotOrderingServiceTypes.contains(_serviceContext.serviceType);
+
+  Future<void> _refreshAddressContextIfNeeded() async {
+    if (!_isOrderingService || _isRefreshingAddressContext) {
+      return;
+    }
+
+    _isRefreshingAddressContext = true;
+    try {
+      await ref.read(authSessionProvider.notifier).refreshSession();
+    } finally {
+      _isRefreshingAddressContext = false;
+    }
+  }
+
+  Future<void> _refreshAndSyncAddressReadiness({
+    bool allowFollowUpMessage = false,
+  }) async {
+    if (_isAddressBookRouteOpen) {
+      return;
+    }
+
+    await _refreshAddressContextIfNeeded();
+    if (!mounted) {
+      return;
+    }
+
+    final changed = _conversationNotifier().syncSavedAddressReadiness(
+      serviceType: _serviceContext.serviceType,
+      readyWelcomeMessage: _serviceContext.welcomeMessage,
+      allowFollowUpMessage: allowFollowUpMessage,
+    );
+
+    if (!changed) {
+      return;
+    }
+
+    await _maybeApplyLaunchArgs();
+    _scrollToBottom();
   }
 
   Future<void> _maybeApplyLaunchArgs() async {
@@ -601,12 +654,30 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       }
     });
     ref.listen<AuthSessionState>(authSessionProvider, (previous, next) {
-      if (previous == null ||
-          previous.driverAccessState == next.driverAccessState) {
-        return;
+      if (previous != null &&
+          previous.driverAccessState != next.driverAccessState) {
+        _maybeResolveDriverVerificationGuard(next);
       }
 
-      _maybeResolveDriverVerificationGuard(next);
+      final previousHasAddress = hasUsableSavedAddress(
+        previous?.profile?.addresses ?? const <SavedAddressModel>[],
+      );
+      final nextHasAddress = hasUsableSavedAddress(
+        next.profile?.addresses ?? const <SavedAddressModel>[],
+      );
+      if (_isOrderingService &&
+          !_isRefreshingAddressContext &&
+          !previousHasAddress &&
+          nextHasAddress) {
+        final changed = _conversationNotifier().syncSavedAddressReadiness(
+          serviceType: _serviceContext.serviceType,
+          readyWelcomeMessage: _serviceContext.welcomeMessage,
+        );
+        if (changed) {
+          unawaited(_maybeApplyLaunchArgs());
+          _scrollToBottom();
+        }
+      }
     });
     if (state.hasActiveOrder) {
       ref.watch(customerOrdersAutoRefreshProvider);
@@ -3094,20 +3165,26 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   }
 
   Future<void> _handleOpenAddressesAction() async {
-    await context.push(AppRoutes.addressesForOrder());
-    if (!mounted) {
-      return;
+    _isAddressBookRouteOpen = true;
+    try {
+      await context.push(AppRoutes.addressesForOrder());
+      if (!mounted) {
+        return;
+      }
+
+      await _refreshAddressContextIfNeeded();
+
+      _conversationNotifier().syncSavedAddressReadiness(
+        serviceType: _serviceContext.serviceType,
+        readyWelcomeMessage: null,
+      );
+
+      await _maybeApplyLaunchArgs();
+
+      _scrollToBottom();
+    } finally {
+      _isAddressBookRouteOpen = false;
     }
-
-    await ref.read(authSessionProvider.notifier).refreshSession();
-
-    _conversationNotifier().onAddressBookUpdated(
-      serviceType: _serviceContext.serviceType,
-    );
-
-    await _maybeApplyLaunchArgs();
-
-    _scrollToBottom();
   }
 
   Future<void> _handleOpenMapPickerAction(
@@ -3149,7 +3226,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       target: target,
       latitude: result.latitude,
       longitude: result.longitude,
-      address: null,
+      address: result.address,
     );
   }
 

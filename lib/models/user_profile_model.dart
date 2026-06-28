@@ -6,6 +6,9 @@ class UserProfileModel {
   final String? avatar;
   final String? avatarUrl;
   final String role;
+  final String authProvider;
+  final bool hasPassword;
+  final bool requiresPhoneCompletion;
   final DriverProfileModel? driverProfile;
   final UserStatsModel stats;
   final List<SavedAddressModel> addresses;
@@ -18,6 +21,9 @@ class UserProfileModel {
     required this.avatar,
     required this.avatarUrl,
     required this.role,
+    this.authProvider = 'password',
+    this.hasPassword = true,
+    this.requiresPhoneCompletion = false,
     required this.driverProfile,
     required this.stats,
     required this.addresses,
@@ -36,6 +42,9 @@ class UserProfileModel {
       avatar: _asNullableString(json['avatar']),
       avatarUrl: _asNullableString(json['avatar_url']),
       role: (json['role'] ?? '').toString(),
+      authProvider: (json['auth_provider'] ?? 'password').toString(),
+      hasPassword: json['has_password'] != false,
+      requiresPhoneCompletion: json['requires_phone_completion'] == true,
       driverProfile: (json['driver_profile'] is Map<String, dynamic>)
           ? DriverProfileModel.fromJson(
               json['driver_profile'] as Map<String, dynamic>,

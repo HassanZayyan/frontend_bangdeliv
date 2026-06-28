@@ -940,35 +940,82 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
   void onAddressBookUpdated({required String serviceType}) {
     _ensureService(serviceType);
 
-    if (serviceType != 'antar_jemput' &&
-        serviceType != 'kurir' &&
-        serviceType != 'nitip') {
-      return;
+    syncSavedAddressReadiness(
+      serviceType: serviceType,
+      readyWelcomeMessage: null,
+    );
+  }
+
+  bool syncSavedAddressReadiness({
+    required String serviceType,
+    required String? readyWelcomeMessage,
+    bool allowFollowUpMessage = true,
+  }) {
+    _ensureService(serviceType);
+
+    if (state.isBusy ||
+        (serviceType != 'antar_jemput' &&
+            serviceType != 'kurir' &&
+            serviceType != 'nitip')) {
+      return false;
     }
 
     if (!_hasSavedAddressInProfile()) {
-      return;
+      return false;
     }
 
     final mapHints = _serviceMapActionHints(serviceType);
+    if (mapHints.isEmpty) {
+      return false;
+    }
+
     final lastAssistant = state.messages.isEmpty ? null : state.messages.last;
     if (lastAssistant != null &&
         !lastAssistant.isUser &&
         _isSameActionSet(lastAssistant.actionHints, mapHints)) {
-      return;
+      return false;
     }
 
+    var sessionId = state.sessionId?.trim();
+    if (sessionId == null || sessionId.isEmpty) {
+      sessionId = _generateSessionId(serviceType);
+    }
+
+    final shouldReplaceGuard = _isAddressGuardOnlyConversation(state.messages);
+    if (!shouldReplaceGuard && !allowFollowUpMessage) {
+      return false;
+    }
+
+    final normalizedWelcome = (readyWelcomeMessage ?? '').trim();
+    final messageText = shouldReplaceGuard && normalizedWelcome.isNotEmpty
+        ? normalizedWelcome
+        : _addressBookUpdatedMessage(serviceType);
+
     state = state.copyWith(
-      messages: <ChatbotConversationMessage>[
-        ...state.messages,
-        _botMessage(
-          text: _addressBookUpdatedMessage(serviceType),
-          timestamp: _nowLabel(),
-          actionHints: mapHints,
-        ),
-      ],
+      serviceType: serviceType,
+      sessionId: sessionId,
+      messages: shouldReplaceGuard
+          ? <ChatbotConversationMessage>[
+              _botMessage(
+                text: messageText,
+                timestamp: _nowLabel(),
+                actionHints: mapHints,
+              ),
+            ]
+          : <ChatbotConversationMessage>[
+              ..._clearActionHints(state.messages),
+              _botMessage(
+                text: messageText,
+                timestamp: _nowLabel(),
+                actionHints: mapHints,
+              ),
+            ],
+      hasInitialized: true,
       clearErrorMessage: true,
+      clearMenuSelectorSurface: true,
     );
+
+    return true;
   }
 
   void ensureAddressGuardMessage({
@@ -1005,6 +1052,24 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         ),
       ],
       clearErrorMessage: true,
+    );
+  }
+
+  bool _isAddressGuardOnlyConversation(
+    List<ChatbotConversationMessage> messages,
+  ) {
+    if (messages.isEmpty) {
+      return true;
+    }
+
+    if (messages.any((message) => message.isUser)) {
+      return false;
+    }
+
+    return messages.any(
+      (message) => message.actionHints.any(
+        (hint) => hint.type == ChatbotMessageActionType.openAddresses,
+      ),
     );
   }
 
@@ -1552,16 +1617,21 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       );
     }
 
-    final shouldUseCourierRouteEditPicker =
-        serviceType == 'kurir' &&
+    final shouldUseTransportRouteEditPicker =
+        (serviceType == 'antar_jemput' || serviceType == 'kurir') &&
         nextActions.contains('RESET_DESTINATION') &&
         nextActions.contains('CHANGE_PICKUP');
 
-    if (shouldUseCourierRouteEditPicker) {
-      add(_courierRouteEditHintFromPayload(actionPayloads));
+    if (shouldUseTransportRouteEditPicker) {
+      add(
+        _transportRouteEditHintFromPayload(
+          actionPayloads,
+          serviceType: serviceType,
+        ),
+      );
     }
 
-    if (!shouldUseCourierRouteEditPicker &&
+    if (!shouldUseTransportRouteEditPicker &&
         nextActions.contains('RESET_DESTINATION')) {
       add(
         _presetMessageHintFromPayload(
@@ -1580,7 +1650,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
 
     // Optional — shown on completed draft so user can swap pickup without
     // being forced to; backend sends this when pickup is already set.
-    if (!shouldUseCourierRouteEditPicker &&
+    if (!shouldUseTransportRouteEditPicker &&
         nextActions.contains('CHANGE_PICKUP')) {
       add(
         _mapPickerHintFromPayload(
@@ -1635,9 +1705,12 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     );
   }
 
-  ChatbotMessageActionHint _courierRouteEditHintFromPayload(
-    Map<String, dynamic>? actionPayloads,
-  ) {
+  ChatbotMessageActionHint _transportRouteEditHintFromPayload(
+    Map<String, dynamic>? actionPayloads, {
+    required String serviceType,
+  }) {
+    final isCourier = serviceType == 'kurir';
+
     ChatbotRoutePointHint pointFrom(
       String actionKey, {
       required String fallbackTarget,
@@ -1666,16 +1739,18 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
 
     return ChatbotMessageActionHint(
       type: ChatbotMessageActionType.openRoutePicker,
-      label: 'Ubah Lokasi Ambil/Tujuan',
+      label: isCourier
+          ? 'Ubah Lokasi Ambil/Tujuan'
+          : 'Ubah Lokasi Jemput/Tujuan',
       routePoints: <ChatbotRoutePointHint>[
         pointFrom(
           'CHANGE_PICKUP',
           fallbackTarget: 'pickup',
-          fallbackLabel: 'Titik Ambil',
+          fallbackLabel: isCourier ? 'Titik Ambil' : 'Titik Jemput',
         ),
         pointFrom(
           'RESET_DESTINATION',
-          fallbackTarget: 'dropoff',
+          fallbackTarget: isCourier ? 'dropoff' : 'destination',
           fallbackLabel: 'Titik Tujuan',
         ),
       ],

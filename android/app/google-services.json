@@ -12,7 +12,20 @@
           "package_name": "com.bangdeliv.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "65361848359-f49veshr7gj4bg1p6hlb9v0ni2pk2grs.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.bangdeliv.app",
+            "certificate_hash": "9608c224ee1ce309d4039fe951189ec6121fc1f4"
+          }
+        },
+        {
+          "client_id": "65361848359-brbr4c3f5udhv4c2ei25hclld80tp7ep.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCZHhGnDTTWb4juFygdsYd-3A9GpCn6UkY"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "65361848359-brbr4c3f5udhv4c2ei25hclld80tp7ep.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

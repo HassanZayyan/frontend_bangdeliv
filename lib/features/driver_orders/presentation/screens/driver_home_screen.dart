@@ -300,13 +300,81 @@ class _AvailabilityCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          Switch.adaptive(
+          _DriverAvailabilityToggle(
             value: isOnline,
-            onChanged: isUpdating ? null : onChanged,
-            activeThumbColor: AppColors.success,
-            inactiveThumbColor: AppColors.textSecondary,
+            enabled: !isUpdating,
+            onChanged: onChanged,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DriverAvailabilityToggle extends StatelessWidget {
+  const _DriverAvailabilityToggle({
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final bool value;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final trackColor = !enabled
+        ? AppColors.border.withValues(alpha: 0.72)
+        : value
+        ? AppColors.success
+        : AppColors.border.withValues(alpha: 0.82);
+    final thumbShadowColor = AppColors.black.withValues(
+      alpha: enabled ? 0.12 : 0.06,
+    );
+
+    return Semantics(
+      checked: value,
+      enabled: enabled,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: enabled ? () => onChanged(!value) : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            width: 54,
+            height: 30,
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: trackColor,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: AnimatedAlign(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+              child: Container(
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  color: enabled
+                      ? AppColors.white
+                      : AppColors.white.withValues(alpha: 0.86),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: thumbShadowColor,
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

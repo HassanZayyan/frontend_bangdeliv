@@ -122,7 +122,7 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
                 const SizedBox(height: 26),
                 _sectionTitle('Akun & Pengaturan'),
                 const SizedBox(height: 12),
-                _buildQuickActionCard(context),
+                _buildQuickActionCard(context, profile),
                 const SizedBox(height: 12),
                 _buildHelpCard(),
                 const SizedBox(height: 12),
@@ -147,6 +147,15 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
 
   Future<void> _openEditProfile() async {
     final updated = await context.push<bool>(AppRoutes.editProfile);
+    if (updated == true && mounted) {
+      await _reloadProfile();
+    }
+  }
+
+  Future<void> _openPasswordScreen(UserProfileModel profile) async {
+    final updated = await context.push<bool>(
+      profile.hasPassword ? AppRoutes.changePassword : AppRoutes.createPassword,
+    );
     if (updated == true && mounted) {
       await _reloadProfile();
     }
@@ -267,7 +276,7 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
     );
   }
 
-  Widget _buildQuickActionCard(BuildContext context) {
+  Widget _buildQuickActionCard(BuildContext context, UserProfileModel profile) {
     return BangCard(
       padding: EdgeInsets.zero,
       child: Column(
@@ -280,8 +289,8 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
           const Divider(height: 1, indent: 56, color: AppColors.border),
           _actionTile(
             icon: Icons.lock_outline,
-            title: 'Ganti Password',
-            onTap: () => context.push(AppRoutes.changePassword),
+            title: _passwordMenuTitle(profile),
+            onTap: () => _openPasswordScreen(profile),
           ),
           const Divider(height: 1, indent: 56, color: AppColors.border),
           _actionTile(
@@ -371,19 +380,28 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
   }
 
   Widget _detailRow(String label, String value) {
+    final labelWidth = AppTextScaling.adaptive(
+      context,
+      normal: 132,
+      large: 142,
+    );
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          width: AppTextScaling.adaptive(context, normal: 120, large: 104),
+          width: labelWidth,
           child: Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: AppColors.textSecondary,
               fontSize: 13,
             ),
           ),
         ),
+        const SizedBox(width: 12),
         Expanded(
           child: Text(
             value,
@@ -445,6 +463,16 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
       default:
         return 'Offline';
     }
+  }
+
+  String _passwordMenuTitle(UserProfileModel profile) {
+    if (profile.hasPassword) {
+      return 'Ganti Password';
+    }
+
+    return profile.authProvider.trim().toLowerCase() == 'google'
+        ? 'Login & Keamanan'
+        : 'Buat Password';
   }
 
   Future<void> _showHelpCenter() async {
