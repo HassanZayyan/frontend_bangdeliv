@@ -35,6 +35,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     _emailFocusNode.addListener(_handleFieldFocusChanged);
     _passwordFocusNode.addListener(_handleFieldFocusChanged);
     _prefillLastLoginEmail();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      precacheImage(const AssetImage('assets/images/google.png'), context);
+    });
   }
 
   void _handleFieldFocusChanged() {
