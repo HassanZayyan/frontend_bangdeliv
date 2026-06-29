@@ -179,7 +179,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           text: TextSpan(
             style: GoogleFonts.leagueSpartan(
               fontSize: 42,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700,
               letterSpacing: 0,
               height: 1,
             ),
