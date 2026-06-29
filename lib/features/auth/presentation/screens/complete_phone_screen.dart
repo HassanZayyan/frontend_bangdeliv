@@ -106,7 +106,7 @@ class _CompletePhoneScreenState extends ConsumerState<CompletePhoneScreen>
             child: Image.asset(
               'assets/images/logo.jpg',
               fit: BoxFit.cover,
-              semanticLabel: 'Logo BangDeliv',
+              semanticLabel: 'Logo Bang Deliv',
             ),
           ),
         ),

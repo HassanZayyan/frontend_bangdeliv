@@ -197,7 +197,7 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
             ),
             SizedBox(height: 8),
             Text(
-              'Alamat diperlukan agar BangDeliv bisa menyesuaikan layanan, rute, dan lokasi penjemputan.',
+              'Alamat diperlukan agar Bang Deliv bisa menyesuaikan layanan, rute, dan lokasi penjemputan.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: AppColors.textSecondary,

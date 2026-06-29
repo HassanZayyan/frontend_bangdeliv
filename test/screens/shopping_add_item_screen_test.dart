@@ -111,7 +111,7 @@ void main() {
                 'data': [
                   {
                     'id': 20,
-                    'name': 'Alfamart BangDeliv Point',
+                    'name': 'Alfamart Bang Deliv Point',
                     'slug': 'alfamart-bangdeliv-point',
                     'merchant_type': 'convenience_store',
                     'address': 'Jl. Alfa',
@@ -126,7 +126,7 @@ void main() {
 
       final merchants = await service.searchShoppingMerchants('alfa');
 
-      expect(merchants.single.name, 'Alfamart BangDeliv Point');
+      expect(merchants.single.name, 'Alfamart Bang Deliv Point');
       expect(capturedUri?.path, endsWith('/api/v1/restaurants'));
       expect(capturedUri?.queryParameters['sort'], 'name');
       expect(capturedUri?.queryParameters['search'], 'alfa');
@@ -236,7 +236,7 @@ void main() {
             name: 'Warung Bunda Dhia',
             slug: 'warung-bunda-dhia',
             merchantType: 'warung',
-            address: 'Lokasi BangDeliv',
+            address: 'Lokasi Bang Deliv',
           ),
         ],
         menus: const [ShoppingMenuOption(id: 88, name: 'Lotek', price: 0)],

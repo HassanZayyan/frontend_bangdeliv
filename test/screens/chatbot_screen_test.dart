@@ -443,7 +443,7 @@ void main() {
         place: ShoppingMerchantPlacePayload(
           placeId: 'official-42',
           name: 'Dimsum Dan Seblak Wolu',
-          address: 'Lokasi BangDeliv',
+          address: 'Lokasi Bang Deliv',
           latitude: -7.3178,
           longitude: 110.463,
           types: <String>['restaurant'],
@@ -504,7 +504,7 @@ void main() {
         place: ShoppingMerchantPlacePayload(
           placeId: 'official-42',
           name: 'Dimsum Dan Seblak Wolu',
-          address: 'Lokasi BangDeliv',
+          address: 'Lokasi Bang Deliv',
           latitude: -7.3178,
           longitude: 110.463,
           types: <String>['restaurant'],
@@ -567,7 +567,7 @@ void main() {
           place: ShoppingMerchantPlacePayload(
             placeId: 'official-42',
             name: 'Dimsum Dan Seblak Wolu',
-            address: 'Lokasi BangDeliv',
+            address: 'Lokasi Bang Deliv',
             latitude: -7.3178,
             longitude: 110.463,
             types: <String>['restaurant'],
@@ -578,7 +578,7 @@ void main() {
           place: ShoppingMerchantPlacePayload(
             placeId: 'official-43',
             name: 'Bakso Balungan',
-            address: 'Lokasi BangDeliv',
+            address: 'Lokasi Bang Deliv',
             latitude: -7.318,
             longitude: 110.464,
             types: <String>['restaurant'],
@@ -1610,7 +1610,7 @@ class _FakeChatbotApiService extends ChatbotApiService {
           'shopping': {
             'ready_to_confirm': true,
             'payment_method': null,
-            'merchant': {'name': 'Alfamart BangDeliv Point'},
+            'merchant': {'name': 'Alfamart Bang Deliv Point'},
             'delivery': {'address': 'FISIP UNDIP'},
             'items': [
               {'name': 'kopi', 'quantity': 1, 'unit_price': 0},
@@ -1775,7 +1775,7 @@ class _FakeChatbotApiService extends ChatbotApiService {
           'shopping': {
             'ready_to_confirm': true,
             'payment_method': 'COD',
-            'merchant': {'name': 'Alfamart BangDeliv Point'},
+            'merchant': {'name': 'Alfamart Bang Deliv Point'},
             'delivery': {'address': 'FISIP UNDIP'},
             'items': [
               {'name': 'kopi', 'quantity': 1, 'unit_price': 0},
@@ -1809,7 +1809,7 @@ class _FakeChatbotApiService extends ChatbotApiService {
           'shopping': {
             'ready_to_confirm': true,
             'payment_method': 'TRANSFER',
-            'merchant': {'name': 'Alfamart BangDeliv Point'},
+            'merchant': {'name': 'Alfamart Bang Deliv Point'},
             'delivery': {'address': 'FISIP UNDIP'},
             'items': [
               {'name': 'kopi', 'quantity': 1, 'unit_price': 0},

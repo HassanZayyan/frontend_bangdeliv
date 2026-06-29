@@ -730,7 +730,7 @@ class _SelectedPlacePanel extends StatelessWidget {
       types: place.types,
     );
     final categoryLabel = isOfficial
-        ? 'Resmi BangDeliv'
+        ? 'Resmi Bang Deliv'
         : shoppingMerchantTypeLabel(merchantType);
     final categoryColor = isOfficial
         ? AppColors.primaryDark

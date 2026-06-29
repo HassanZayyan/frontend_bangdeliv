@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend_bangdeliv/config/app_text_scaling.dart';
 
 void main() {
-  testWidgets('clamps very large text scale to BangDeliv maximum', (
+  testWidgets('clamps very large text scale to Bang Deliv maximum', (
     tester,
   ) async {
     late double scaledFontSize;

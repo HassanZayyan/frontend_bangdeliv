@@ -436,7 +436,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const _HomeSectionHeader(title: 'Layanan BangDeliv'),
+                  const _HomeSectionHeader(title: 'Layanan Bang Deliv'),
                   const SizedBox(height: 12),
                   _buildServiceCards(context),
                 ],

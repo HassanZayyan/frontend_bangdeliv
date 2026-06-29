@@ -674,7 +674,7 @@ class AuthService {
       await _ensureGoogleSignInInitialized();
       await GoogleSignIn.instance.signOut();
     } catch (_) {
-      // Google sign-out is best-effort; BangDeliv session cleanup is separate.
+      // Google sign-out is best-effort; Bang Deliv session cleanup is separate.
     }
   }
 

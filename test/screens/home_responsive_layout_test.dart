@@ -36,7 +36,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Layanan BangDeliv'), findsOneWidget);
+    expect(find.text('Layanan Bang Deliv'), findsOneWidget);
     expect(find.text('Toko & Resto Terdekat'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

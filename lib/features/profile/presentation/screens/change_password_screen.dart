@@ -108,7 +108,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                       ],
                       _buildPasswordField(
                         label: _isCreateMode
-                            ? 'Password BangDeliv'
+                            ? 'Password Bang Deliv'
                             : 'Password Baru',
                         hintText: _isCreateMode
                             ? 'Tambah password untuk login email'
@@ -269,7 +269,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 ),
                 SizedBox(height: 6),
                 Text(
-                  'Password BangDeliv bersifat opsional. Tambahkan hanya jika ingin bisa masuk juga dengan email dan password.',
+                  'Password Bang Deliv bersifat opsional. Tambahkan hanya jika ingin bisa masuk juga dengan email dan password.',
                   style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 12,
@@ -413,7 +413,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         SnackBar(
           content: Text(
             _isCreateMode
-                ? 'Password BangDeliv berhasil ditambahkan.'
+                ? 'Password Bang Deliv berhasil ditambahkan.'
                 : 'Password berhasil diperbarui.',
           ),
           backgroundColor: AppColors.success,
