@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 
@@ -14,6 +15,7 @@ import '../../../../models/customer_order_model.dart';
 import '../../../../models/user_profile_model.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../auth/application/auth_session_provider.dart';
+import '../../../location/application/current_user_location_provider.dart';
 import '../../../location/application/post_login_location_permission_provider.dart';
 import '../../../orders/application/customer_order_providers.dart';
 import '../../../../utils/map_picker_helpers.dart';
@@ -51,9 +53,9 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final ScrollController _scrollController = ScrollController();
-  _HomeDataRequest? _currentLocationRequest;
   HomeDataModel? _lastHomeData;
   bool _isHeaderScrolled = false;
+  bool _isResolvingCurrentLocation = true;
   int? _lastLocationPermissionRefreshSignal;
 
   @override
@@ -86,21 +88,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final activeAddress = _activeAddress(
       ref.watch(authSessionProvider).profile,
     );
-    final homeRequest = _homeRequestFor(activeAddress);
+    final currentUserLocation = ref.watch(currentUserLocationProvider);
+    final homeRequest = _homeRequestFor(activeAddress, currentUserLocation);
+    final shouldWaitForInitialLocation =
+        _isResolvingCurrentLocation && currentUserLocation == null;
     _handleLocationPermissionRefreshSignal(
       ref.watch(postLoginLocationPermissionRefreshProvider),
     );
-    ref.listen<AsyncValue<HomeDataModel>>(
-      _homeScreenDataProvider(homeRequest),
-      (_, next) {
-        final data = next.value;
-        if (data != null) {
-          _lastHomeData = data;
-        }
-      },
-    );
-    final homeDataAsync = ref.watch(_homeScreenDataProvider(homeRequest));
-    final visibleHomeData = homeDataAsync.value ?? _lastHomeData;
+    final AsyncValue<HomeDataModel> homeDataAsync;
+    final HomeDataModel? visibleHomeData;
+    if (shouldWaitForInitialLocation) {
+      homeDataAsync = const AsyncValue.loading();
+      visibleHomeData = _lastHomeData;
+    } else {
+      ref.listen<AsyncValue<HomeDataModel>>(
+        _homeScreenDataProvider(homeRequest),
+        (_, next) {
+          final data = next.value;
+          if (data != null) {
+            _lastHomeData = data;
+          }
+        },
+      );
+      homeDataAsync = ref.watch(_homeScreenDataProvider(homeRequest));
+      visibleHomeData = homeDataAsync.value ?? _lastHomeData;
+    }
     final activeOrder = ref.watch(customerActiveOrderProvider);
 
     return Scaffold(
@@ -144,7 +156,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
 
     final activeAddress = _activeAddress(ref.read(authSessionProvider).profile);
-    final request = _homeRequestFor(activeAddress);
+    final currentUserLocation = ref.read(currentUserLocationProvider);
+    final request = _homeRequestFor(activeAddress, currentUserLocation);
     ref.invalidate(_homeScreenDataProvider(request));
     try {
       await ref.read(_homeScreenDataProvider(request).future);
@@ -190,29 +203,45 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Future<void> _hydrateCurrentUserLocation() async {
     try {
+      final lastKnown = await MapPickerHelpers.lastKnownLocationIfPermitted();
+      if (!mounted) {
+        return;
+      }
+
+      if (lastKnown != null) {
+        _setCurrentUserLocation(lastKnown);
+      }
+
       final target = await MapPickerHelpers.currentLocationIfPermitted();
-      if (!mounted || target == null) {
+      if (!mounted) {
         return;
       }
 
-      final nextRequest = (
-        latitude: target.latitude,
-        longitude: target.longitude,
-      );
-      if (_currentLocationRequest == nextRequest) {
-        return;
+      if (target != null) {
+        _setCurrentUserLocation(target);
       }
-
-      setState(() => _currentLocationRequest = nextRequest);
     } catch (_) {
-      return;
+      // Keep the home screen usable when platform location is unavailable.
+    } finally {
+      if (mounted && _isResolvingCurrentLocation) {
+        setState(() => _isResolvingCurrentLocation = false);
+      }
     }
   }
 
-  _HomeDataRequest _homeRequestFor(SavedAddressModel? activeAddress) {
-    final currentLocationRequest = _currentLocationRequest;
-    if (currentLocationRequest != null) {
-      return currentLocationRequest;
+  void _setCurrentUserLocation(LatLng target) {
+    ref.read(currentUserLocationProvider.notifier).setLocation(target);
+  }
+
+  _HomeDataRequest _homeRequestFor(
+    SavedAddressModel? activeAddress,
+    LatLng? currentUserLocation,
+  ) {
+    if (currentUserLocation != null) {
+      return (
+        latitude: currentUserLocation.latitude,
+        longitude: currentUserLocation.longitude,
+      );
     }
 
     return (

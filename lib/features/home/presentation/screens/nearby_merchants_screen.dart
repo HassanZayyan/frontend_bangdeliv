@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../config/app_colors.dart';
@@ -11,6 +12,7 @@ import '../../../../models/merchant_model.dart';
 import '../../../../models/user_profile_model.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../auth/application/auth_session_provider.dart';
+import '../../../location/application/current_user_location_provider.dart';
 import '../../../navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
 import '../../../../utils/map_picker_helpers.dart';
 import '../../../../widgets/bang_ui.dart';
@@ -38,6 +40,7 @@ class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen>
   String _query = '';
   bool _wasKeyboardVisible = false;
   bool _hasLoadedMerchants = false;
+  bool _isResolvingCurrentLocation = true;
   double? _currentUserLatitude;
   double? _currentUserLongitude;
 
@@ -46,6 +49,11 @@ class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _searchController.addListener(_scheduleSearch);
+    final cachedLocation = ref.read(currentUserLocationProvider);
+    if (cachedLocation != null) {
+      _currentUserLatitude = cachedLocation.latitude;
+      _currentUserLongitude = cachedLocation.longitude;
+    }
     unawaited(_hydrateCurrentUserLocation());
   }
 
@@ -132,28 +140,49 @@ class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen>
 
   Future<void> _hydrateCurrentUserLocation({bool reload = true}) async {
     try {
+      final lastKnown = await MapPickerHelpers.lastKnownLocationIfPermitted();
+      if (!mounted) {
+        return;
+      }
+
+      if (lastKnown != null) {
+        _setCurrentUserLocation(lastKnown, reload: reload);
+      }
+
       final target = await MapPickerHelpers.currentLocationIfPermitted();
-      if (!mounted || target == null) {
+      if (!mounted) {
         return;
       }
 
-      final isSameTarget =
-          _currentUserLatitude == target.latitude &&
-          _currentUserLongitude == target.longitude;
-      if (isSameTarget) {
-        return;
+      if (target != null) {
+        _setCurrentUserLocation(target, reload: reload);
       }
-
-      setState(() {
-        _currentUserLatitude = target.latitude;
-        _currentUserLongitude = target.longitude;
-        if (reload) {
-          _merchantsFuture = _fetch();
-        }
-      });
     } catch (_) {
+      // Keep the merchant list usable when platform location is unavailable.
+    } finally {
+      if (mounted && _isResolvingCurrentLocation) {
+        setState(() => _isResolvingCurrentLocation = false);
+      }
+    }
+  }
+
+  void _setCurrentUserLocation(LatLng target, {required bool reload}) {
+    ref.read(currentUserLocationProvider.notifier).setLocation(target);
+
+    final isSameTarget =
+        _currentUserLatitude == target.latitude &&
+        _currentUserLongitude == target.longitude;
+    if (isSameTarget) {
       return;
     }
+
+    setState(() {
+      _currentUserLatitude = target.latitude;
+      _currentUserLongitude = target.longitude;
+      if (reload) {
+        _merchantsFuture = _fetch();
+      }
+    });
   }
 
   void _submitSearch(String value) {
@@ -236,6 +265,11 @@ class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen>
 
   @override
   Widget build(BuildContext context) {
+    final shouldWaitForInitialLocation =
+        _isResolvingCurrentLocation &&
+        _currentUserLatitude == null &&
+        _currentUserLongitude == null;
+
     return PopScope<void>(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
@@ -267,88 +301,125 @@ class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen>
         body: SafeArea(
           top: false,
           bottom: false,
-          child: FutureBuilder<List<MerchantModel>>(
-            future: _currentFuture,
-            builder: (context, snapshot) {
-              final isLoading =
-                  snapshot.connectionState == ConnectionState.waiting;
-              final snapshotMerchants = snapshot.data;
-              if (snapshot.hasData && snapshotMerchants != null) {
-                _lastMerchants = snapshotMerchants;
-                _hasLoadedMerchants = true;
-              }
+          child: shouldWaitForInitialLocation
+              ? _buildResolvingLocationContent()
+              : FutureBuilder<List<MerchantModel>>(
+                  future: _currentFuture,
+                  builder: (context, snapshot) {
+                    final isLoading =
+                        snapshot.connectionState == ConnectionState.waiting;
+                    final snapshotMerchants = snapshot.data;
+                    if (snapshot.hasData && snapshotMerchants != null) {
+                      _lastMerchants = snapshotMerchants;
+                      _hasLoadedMerchants = true;
+                    }
 
-              final merchants = snapshotMerchants ?? _lastMerchants;
-              final showInitialLoading = isLoading && !_hasLoadedMerchants;
-              final showError =
-                  snapshot.hasError &&
-                  (!_hasLoadedMerchants || merchants.isEmpty);
+                    final merchants = snapshotMerchants ?? _lastMerchants;
+                    final showInitialLoading =
+                        isLoading && !_hasLoadedMerchants;
+                    final showError =
+                        snapshot.hasError &&
+                        (!_hasLoadedMerchants || merchants.isEmpty);
 
-              return RefreshIndicator(
-                color: AppColors.primary,
-                onRefresh: _refresh,
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(
-                    parent: ClampingScrollPhysics(),
-                  ),
-                  padding: const EdgeInsets.fromLTRB(
-                    20,
-                    20,
-                    20,
-                    BangFloatingBottomNavBar.scrollClearance,
-                  ),
-                  children: [
-                    BangSearchField(
-                      controller: _searchController,
-                      focusNode: _searchFocusNode,
-                      hintText: 'Cari resto, minimarket, atau warung...',
-                      onSubmitted: _submitSearch,
-                    ),
-                    const SizedBox(height: 18),
-                    _buildLocationInfo(merchants.length),
-                    const SizedBox(height: 14),
-                    if (showError)
-                      BangErrorState(
-                        title: 'Gagal memuat toko/resto',
-                        message: snapshot.error.toString(),
-                        onRetry: _refresh,
-                      )
-                    else if (showInitialLoading)
-                      _buildMerchantGrid(
-                        itemCount: 6,
-                        itemBuilder: (context, index) =>
-                            const BangLoadingSkeleton(height: double.infinity),
-                      )
-                    else if (merchants.isEmpty)
-                      const BangEmptyState(
-                        message: 'Belum ada toko/resto terdekat.',
-                        icon: Icons.storefront_outlined,
-                      )
-                    else
-                      _buildMerchantGrid(
-                        itemCount: merchants.length,
-                        itemBuilder: (context, index) {
-                          final merchant = merchants[index];
+                    return RefreshIndicator(
+                      color: AppColors.primary,
+                      onRefresh: _refresh,
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(
+                          parent: ClampingScrollPhysics(),
+                        ),
+                        padding: const EdgeInsets.fromLTRB(
+                          20,
+                          20,
+                          20,
+                          BangFloatingBottomNavBar.scrollClearance,
+                        ),
+                        children: [
+                          BangSearchField(
+                            controller: _searchController,
+                            focusNode: _searchFocusNode,
+                            hintText: 'Cari resto, minimarket, atau warung...',
+                            onSubmitted: _submitSearch,
+                          ),
+                          const SizedBox(height: 18),
+                          _buildLocationInfo(merchants.length),
+                          const SizedBox(height: 14),
+                          if (showError)
+                            BangErrorState(
+                              title: 'Gagal memuat toko/resto',
+                              message: snapshot.error.toString(),
+                              onRetry: _refresh,
+                            )
+                          else if (showInitialLoading)
+                            _buildMerchantGrid(
+                              itemCount: 6,
+                              itemBuilder: (context, index) =>
+                                  const BangLoadingSkeleton(
+                                    height: double.infinity,
+                                  ),
+                            )
+                          else if (merchants.isEmpty)
+                            const BangEmptyState(
+                              message: 'Belum ada toko/resto terdekat.',
+                              icon: Icons.storefront_outlined,
+                            )
+                          else
+                            _buildMerchantGrid(
+                              itemCount: merchants.length,
+                              itemBuilder: (context, index) {
+                                final merchant = merchants[index];
 
-                          return NearbyMerchantCard(
-                            merchant: merchant,
-                            onTap: () => context.push(
-                              AppRoutes.nearbyMerchantDetailPath(merchant.id),
-                              extra: MerchantDetailArgs(
-                                merchant: merchant,
-                                returnPath: AppRoutes.nearbyMerchants,
-                              ),
+                                return NearbyMerchantCard(
+                                  merchant: merchant,
+                                  onTap: () => context.push(
+                                    AppRoutes.nearbyMerchantDetailPath(
+                                      merchant.id,
+                                    ),
+                                    extra: MerchantDetailArgs(
+                                      merchant: merchant,
+                                      returnPath: AppRoutes.nearbyMerchants,
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
-                          );
-                        },
+                        ],
                       ),
-                  ],
+                    );
+                  },
                 ),
-              );
-            },
-          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildResolvingLocationContent() {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: ClampingScrollPhysics(),
+      ),
+      padding: const EdgeInsets.fromLTRB(
+        20,
+        20,
+        20,
+        BangFloatingBottomNavBar.scrollClearance,
+      ),
+      children: [
+        BangSearchField(
+          controller: _searchController,
+          focusNode: _searchFocusNode,
+          hintText: 'Cari resto, minimarket, atau warung...',
+          onSubmitted: _submitSearch,
+        ),
+        const SizedBox(height: 18),
+        _buildLocationInfo(_lastMerchants.length),
+        const SizedBox(height: 14),
+        _buildMerchantGrid(
+          itemCount: 6,
+          itemBuilder: (context, index) =>
+              const BangLoadingSkeleton(height: double.infinity),
+        ),
+      ],
     );
   }
 

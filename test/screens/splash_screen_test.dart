@@ -3,35 +3,44 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend_bangdeliv/features/auth/presentation/screens/splash_screen.dart';
 
 void main() {
-  testWidgets('splash brand text stays within narrow large-font layouts', (
+  testWidgets('splash brand text stays within compact large-font layouts', (
     tester,
   ) async {
-    tester.view
-      ..physicalSize = const Size(320, 640)
-      ..devicePixelRatio = 1;
+    final scenarios = <({Size size, double textScale})>[
+      (size: Size(320, 640), textScale: 2),
+      (size: Size(280, 560), textScale: 2.4),
+      (size: Size(640, 320), textScale: 2),
+    ];
+
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(
-      MaterialApp(
-        builder: (context, child) {
-          return MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(textScaler: const TextScaler.linear(2)),
-            child: child!,
-          );
-        },
-        home: const SplashScreen(),
-      ),
-    );
+    for (final scenario in scenarios) {
+      tester.view
+        ..physicalSize = scenario.size
+        ..devicePixelRatio = 1;
 
-    expect(tester.takeException(), isNull);
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) {
+            return MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(scenario.textScale)),
+              child: child!,
+            );
+          },
+          home: const SplashScreen(),
+        ),
+      );
 
-    await tester.pump(const Duration(milliseconds: 900));
-    expect(tester.takeException(), isNull);
+      expect(tester.takeException(), isNull);
 
-    await tester.pump(const Duration(milliseconds: 900));
-    expect(tester.takeException(), isNull);
+      await tester.pump(const Duration(milliseconds: 900));
+      expect(tester.takeException(), isNull);
+
+      await tester.pump(const Duration(milliseconds: 900));
+      expect(tester.takeException(), isNull);
+    }
   });
 }
