@@ -94,7 +94,7 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
     final router = ref.watch(appRouterProvider);
 
     return MaterialApp.router(
-      title: 'BangDeliv',
+      title: 'Bang Deliv',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       routerConfig: router,

@@ -171,7 +171,7 @@ class _NearbyMerchantsScreenState extends ConsumerState<NearbyMerchantsScreen>
         context,
         title: 'Masuk untuk mengatur lokasi',
         message:
-            'Alamat tersimpan membantu BangDeliv menampilkan toko/resto terdekat dengan lebih akurat.',
+            'Alamat tersimpan membantu Bang Deliv menampilkan toko/resto terdekat dengan lebih akurat.',
         returnTo: AppRoutes.addressPicker,
       );
       return;

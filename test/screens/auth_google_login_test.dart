@@ -87,7 +87,7 @@ void main() {
     expect(find.text('Login & Keamanan'), findsOneWidget);
     expect(find.text('Google sudah terhubung'), findsOneWidget);
     expect(
-      find.textContaining('Password BangDeliv bersifat opsional'),
+      find.textContaining('Password Bang Deliv bersifat opsional'),
       findsOneWidget,
     );
     expect(find.text('Tambah Password'), findsOneWidget);

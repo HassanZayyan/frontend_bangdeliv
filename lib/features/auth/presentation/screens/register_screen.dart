@@ -153,7 +153,7 @@ class _RegisterScreenState extends State<RegisterScreen>
       children: [
         const SizedBox(height: 16),
         Text(
-          'Mulai dengan BangDeliv',
+          'Mulai dengan Bang Deliv',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
             color: AppColors.white,

@@ -499,7 +499,7 @@ class _DriverVerificationStatusScreenState
       context,
       title: 'Batalkan Pengajuan',
       message:
-          'Pengajuan driver akan dibatalkan. Anda tetap bisa memakai BangDeliv sebagai customer dan dapat mengajukan driver lagi nanti.',
+          'Pengajuan driver akan dibatalkan. Anda tetap bisa memakai Bang Deliv sebagai customer dan dapat mengajukan driver lagi nanti.',
       confirmLabel: 'Batalkan',
       isDestructive: true,
     );

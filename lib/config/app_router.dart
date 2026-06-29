@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -58,6 +60,29 @@ final GlobalKey<NavigatorState> _shellNavigatorKey =
 final GlobalKey<NavigatorState> _driverShellNavigatorKey =
     GlobalKey<NavigatorState>();
 
+const _minimumSplashDuration = Duration(milliseconds: 1700);
+
+final splashMinimumDurationProvider =
+    NotifierProvider<SplashMinimumDurationNotifier, bool>(
+      SplashMinimumDurationNotifier.new,
+    );
+
+class SplashMinimumDurationNotifier extends Notifier<bool> {
+  Timer? _timer;
+
+  @override
+  bool build() {
+    _timer = Timer(_minimumSplashDuration, () {
+      state = true;
+    });
+    ref.onDispose(() {
+      _timer?.cancel();
+    });
+
+    return false;
+  }
+}
+
 GoRoute _rootRoute({
   required String path,
   required Widget Function(BuildContext context, GoRouterState state) builder,
@@ -105,11 +130,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final session = ref.read(authSessionProvider);
       final location = state.matchedLocation;
+      final splashDurationReady = ref.read(splashMinimumDurationProvider);
 
       return _resolveRedirect(
         session: session,
         location: location,
         fullLocation: state.uri.toString(),
+        splashDurationReady: splashDurationReady,
       );
     },
     routes: [
@@ -448,6 +475,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   );
 
   ref.onDispose(router.dispose);
+  ref.listen<bool>(splashMinimumDurationProvider, (_, next) {
+    if (next) {
+      router.refresh();
+    }
+  });
   ref.listen<AuthSessionState>(authSessionProvider, (previous, next) {
     final authChanged = previous?.isAuthenticated != next.isAuthenticated;
     final roleChanged = previous?.role != next.role;
@@ -486,8 +518,9 @@ String? _resolveRedirect({
   required AuthSessionState session,
   required String location,
   required String fullLocation,
+  required bool splashDurationReady,
 }) {
-  if (!session.initialized) {
+  if (!session.initialized || !splashDurationReady) {
     return location == AppRoutes.splash ? null : AppRoutes.splash;
   }
 
@@ -579,11 +612,13 @@ String? resolveAppRedirectForTest({
   required AuthSessionState session,
   required String location,
   required String fullLocation,
+  bool splashDurationReady = true,
 }) {
   return _resolveRedirect(
     session: session,
     location: location,
     fullLocation: fullLocation,
+    splashDurationReady: splashDurationReady,
   );
 }
 

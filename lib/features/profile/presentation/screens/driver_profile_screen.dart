@@ -593,7 +593,7 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
 
   Future<void> _openSupportWhatsApp() async {
     final message = Uri.encodeComponent(
-      'Halo BangDeliv, saya butuh bantuan sebagai driver.',
+      'Halo Bang Deliv, saya butuh bantuan sebagai driver.',
     );
     final uri = Uri.parse(
       'https://wa.me/$_supportWhatsAppNumber?text=$message',
@@ -616,7 +616,7 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
   Future<void> _handleLogout() async {
     final shouldLogout = await showBangConfirmationDialog(
       context,
-      title: 'Keluar dari BangDeliv',
+      title: 'Keluar dari Bang Deliv',
       message: 'Apakah Anda yakin ingin keluar?',
       confirmLabel: 'Keluar',
     );

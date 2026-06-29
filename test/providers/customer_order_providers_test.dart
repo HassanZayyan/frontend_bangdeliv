@@ -260,7 +260,7 @@ CustomerOrderSummaryModel _order({
     orderNumber: number,
     serviceTypeCode: serviceTypeCode,
     serviceTypeLabel: serviceTypeLabel,
-    restaurantName: 'Bangdeliv',
+    restaurantName: 'Bang Deliv',
     itemsSummary: '1x Ride',
     totalAmount: 12000,
     statusCode: statusCode,

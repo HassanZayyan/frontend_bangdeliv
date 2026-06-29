@@ -940,7 +940,8 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     ).hasMatch(address);
     if (looksLikeCoordinate ||
         lower.contains('dummy') ||
-        lower.startsWith('lokasi bangdeliv')) {
+        lower.startsWith('lokasi bangdeliv') ||
+        lower.startsWith('lokasi bang deliv')) {
       return hasMapPoint ? 'Titik lokasi merchant' : null;
     }
 

@@ -119,10 +119,10 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
               Expanded(
                 flex: 44,
                 child: Semantics(
-                  label: 'Ilustrasi driver BangDeliv',
+                  label: 'Ilustrasi driver Bang Deliv',
                   image: true,
                   child: Image.asset(
-                    'assets/images/bangdeliv.png',
+                    'assets/images/Bang Deliv.png',
                     height: 96,
                     fit: BoxFit.contain,
                     alignment: Alignment.centerRight,

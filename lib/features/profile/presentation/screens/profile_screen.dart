@@ -426,7 +426,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _openSupportWhatsApp() async {
-    final message = Uri.encodeComponent('Halo BangDeliv, saya butuh bantuan.');
+    final message = Uri.encodeComponent('Halo Bang Deliv, saya butuh bantuan.');
     final uri = Uri.parse(
       'https://wa.me/$_supportWhatsAppNumber?text=$message',
     );
@@ -507,7 +507,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Future<void> _handleLogout() async {
     final shouldLogout = await showBangConfirmationDialog(
       context,
-      title: 'Keluar dari BangDeliv',
+      title: 'Keluar dari Bang Deliv',
       message: 'Apakah Anda yakin ingin keluar?',
       confirmLabel: 'Keluar',
     );

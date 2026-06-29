@@ -1811,7 +1811,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
         children: [
           Semantics(
             button: true,
-            label: 'Preview QRIS BangDeliv',
+            label: 'Preview QRIS Bang Deliv',
             child: ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: Material(
@@ -1845,7 +1845,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Bayar dengan QRIS BangDeliv',
+                  'Bayar dengan QRIS Bang Deliv',
                   style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 13,
@@ -2060,7 +2060,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
       }
       return hasPendingTransferProof
           ? 'Bukti QRIS menunggu verifikasi driver/admin.'
-          : 'Scan QRIS BangDeliv lalu upload bukti pembayaran agar driver/admin bisa memverifikasi.';
+          : 'Scan QRIS Bang Deliv lalu upload bukti pembayaran agar driver/admin bisa memverifikasi.';
     }
 
     if (isCourier) {

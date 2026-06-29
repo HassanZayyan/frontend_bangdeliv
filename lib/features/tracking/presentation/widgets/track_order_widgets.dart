@@ -923,7 +923,7 @@ class TrackWaitingDriverHeroCard extends StatelessWidget {
                 right: 12,
                 bottom: 8,
                 child: Semantics(
-                  label: 'Ilustrasi driver BangDeliv sedang dicari',
+                  label: 'Ilustrasi driver Bang Deliv sedang dicari',
                   image: true,
                   child: Image.asset(
                     'assets/images/hero.png',
