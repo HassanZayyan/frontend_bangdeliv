@@ -149,5 +149,20 @@ class MapPickerHelpers {
     return LatLng(position.latitude, position.longitude);
   }
 
+  static Future<LatLng?> lastKnownLocationIfPermitted() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return null;
+
+    final permission = await Geolocator.checkPermission();
+    if (!isLocationPermissionGranted(permission)) return null;
+
+    final position = await Geolocator.getLastKnownPosition();
+    if (position == null) {
+      return null;
+    }
+
+    return LatLng(position.latitude, position.longitude);
+  }
+
   static double _degreesToRadians(double value) => value * math.pi / 180;
 }
