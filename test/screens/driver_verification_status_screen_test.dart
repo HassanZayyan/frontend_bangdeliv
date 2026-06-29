@@ -32,6 +32,149 @@ void main() {
     expect(find.text('Kirim Dokumen'), findsNothing);
     expect(find.text('Batalkan Pengajuan'), findsNothing);
   });
+
+  testWidgets(
+    'pending verification requires all document slots before submit',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(
+              () => _FakeAuthSessionNotifier(_driverSession('pending')),
+            ),
+          ],
+          child: MaterialApp(
+            home: DriverVerificationStatusScreen(
+              initialStatus: _status(
+                'pending',
+                documents: const <DriverVerificationDocumentModel>[
+                  DriverVerificationDocumentModel(
+                    documentType: 'ktp',
+                    isUploaded: false,
+                    filePath: null,
+                    fileUrl: null,
+                    fileExists: false,
+                    verificationStatus: 'pending',
+                    rejectionReason: null,
+                    verifiedAt: null,
+                    verifiedBy: null,
+                  ),
+                  DriverVerificationDocumentModel(
+                    documentType: 'sim',
+                    isUploaded: false,
+                    filePath: null,
+                    fileUrl: null,
+                    fileExists: false,
+                    verificationStatus: 'pending',
+                    rejectionReason: null,
+                    verifiedAt: null,
+                    verifiedBy: null,
+                  ),
+                  DriverVerificationDocumentModel(
+                    documentType: 'selfie',
+                    isUploaded: false,
+                    filePath: null,
+                    fileUrl: null,
+                    fileExists: false,
+                    verificationStatus: 'pending',
+                    rejectionReason: null,
+                    verifiedAt: null,
+                    verifiedBy: null,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+
+      expect(
+        find.text('Wajib diunggah', skipOffstage: false),
+        findsNWidgets(3),
+      );
+
+      await tester.scrollUntilVisible(find.text('Kirim Dokumen'), 260);
+      await tester.tap(find.text('Kirim Dokumen'));
+      await tester.pump();
+
+      expect(
+        find.text(
+          'Unggah KTP, SIM, dan Selfie sebelum mengirim.',
+          skipOffstage: false,
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('rejected document must be replaced before submit', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authSessionProvider.overrideWith(
+            () => _FakeAuthSessionNotifier(_driverSession('rejected')),
+          ),
+        ],
+        child: MaterialApp(
+          home: DriverVerificationStatusScreen(
+            initialStatus: _status(
+              'rejected',
+              documents: const <DriverVerificationDocumentModel>[
+                DriverVerificationDocumentModel(
+                  documentType: 'ktp',
+                  isUploaded: true,
+                  filePath: 'driver-documents/1/ktp/ktp.jpg',
+                  fileUrl: null,
+                  fileExists: true,
+                  verificationStatus: 'approved',
+                  rejectionReason: null,
+                  verifiedAt: null,
+                  verifiedBy: 'Admin',
+                ),
+                DriverVerificationDocumentModel(
+                  documentType: 'sim',
+                  isUploaded: true,
+                  filePath: 'driver-documents/1/sim/sim.jpg',
+                  fileUrl: null,
+                  fileExists: true,
+                  verificationStatus: 'rejected',
+                  rejectionReason: 'SIM buram.',
+                  verifiedAt: null,
+                  verifiedBy: 'Admin',
+                ),
+                DriverVerificationDocumentModel(
+                  documentType: 'selfie',
+                  isUploaded: true,
+                  filePath: 'driver-documents/1/selfie/selfie.jpg',
+                  fileUrl: null,
+                  fileExists: true,
+                  verificationStatus: 'approved',
+                  rejectionReason: null,
+                  verifiedAt: null,
+                  verifiedBy: 'Admin',
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+
+    await tester.scrollUntilVisible(find.text('Kirim Dokumen'), 260);
+    await tester.tap(find.text('Kirim Dokumen'));
+    await tester.pump();
+
+    expect(
+      find.text('Unggah SIM sebelum mengirim.', skipOffstage: false),
+      findsOneWidget,
+    );
+  });
 }
 
 class _FakeAuthSessionNotifier extends AuthSessionNotifier {
@@ -68,7 +211,10 @@ AuthSessionState _driverSession(String registrationStatus) {
   );
 }
 
-DriverVerificationStatusModel _status(String registrationStatus) {
+DriverVerificationStatusModel _status(
+  String registrationStatus, {
+  List<DriverVerificationDocumentModel>? documents,
+}) {
   return DriverVerificationStatusModel(
     driver: DriverVerificationDriverModel(
       id: 10,
@@ -84,40 +230,42 @@ DriverVerificationStatusModel _status(String registrationStatus) {
       submittedAt: null,
       updatedAt: null,
     ),
-    documents: const <DriverVerificationDocumentModel>[
-      DriverVerificationDocumentModel(
-        documentType: 'ktp',
-        isUploaded: true,
-        filePath: null,
-        fileUrl: null,
-        fileExists: false,
-        verificationStatus: 'approved',
-        rejectionReason: null,
-        verifiedAt: null,
-        verifiedBy: 'Admin',
-      ),
-      DriverVerificationDocumentModel(
-        documentType: 'sim',
-        isUploaded: true,
-        filePath: null,
-        fileUrl: null,
-        fileExists: false,
-        verificationStatus: 'approved',
-        rejectionReason: null,
-        verifiedAt: null,
-        verifiedBy: 'Admin',
-      ),
-      DriverVerificationDocumentModel(
-        documentType: 'selfie',
-        isUploaded: true,
-        filePath: null,
-        fileUrl: null,
-        fileExists: false,
-        verificationStatus: 'approved',
-        rejectionReason: null,
-        verifiedAt: null,
-        verifiedBy: 'Admin',
-      ),
-    ],
+    documents:
+        documents ??
+        const <DriverVerificationDocumentModel>[
+          DriverVerificationDocumentModel(
+            documentType: 'ktp',
+            isUploaded: true,
+            filePath: null,
+            fileUrl: null,
+            fileExists: false,
+            verificationStatus: 'approved',
+            rejectionReason: null,
+            verifiedAt: null,
+            verifiedBy: 'Admin',
+          ),
+          DriverVerificationDocumentModel(
+            documentType: 'sim',
+            isUploaded: true,
+            filePath: null,
+            fileUrl: null,
+            fileExists: false,
+            verificationStatus: 'approved',
+            rejectionReason: null,
+            verifiedAt: null,
+            verifiedBy: 'Admin',
+          ),
+          DriverVerificationDocumentModel(
+            documentType: 'selfie',
+            isUploaded: true,
+            filePath: null,
+            fileUrl: null,
+            fileExists: false,
+            verificationStatus: 'approved',
+            rejectionReason: null,
+            verifiedAt: null,
+            verifiedBy: 'Admin',
+          ),
+        ],
   );
 }

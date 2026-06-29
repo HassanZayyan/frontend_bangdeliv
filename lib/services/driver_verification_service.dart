@@ -46,7 +46,7 @@ class DriverVerificationService {
   }) async {
     if (ktp == null && sim == null && selfie == null) {
       throw const DriverVerificationException(
-        'Pilih minimal satu dokumen untuk diunggah.',
+        'Pilih dokumen yang perlu diunggah.',
       );
     }
 
