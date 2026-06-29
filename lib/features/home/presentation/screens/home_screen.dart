@@ -14,6 +14,7 @@ import '../../../../models/customer_order_model.dart';
 import '../../../../models/user_profile_model.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../auth/application/auth_session_provider.dart';
+import '../../../location/application/post_login_location_permission_provider.dart';
 import '../../../orders/application/customer_order_providers.dart';
 import '../../../../utils/map_picker_helpers.dart';
 import '../../../../utils/order_formatters.dart';
@@ -53,6 +54,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   _HomeDataRequest? _currentLocationRequest;
   HomeDataModel? _lastHomeData;
   bool _isHeaderScrolled = false;
+  int? _lastLocationPermissionRefreshSignal;
 
   @override
   void initState() {
@@ -85,6 +87,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ref.watch(authSessionProvider).profile,
     );
     final homeRequest = _homeRequestFor(activeAddress);
+    _handleLocationPermissionRefreshSignal(
+      ref.watch(postLoginLocationPermissionRefreshProvider),
+    );
     ref.listen<AsyncValue<HomeDataModel>>(
       _homeScreenDataProvider(homeRequest),
       (_, next) {
@@ -134,6 +139,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Future<void> _refreshHomeData() async {
     await _hydrateCurrentUserLocation();
+    if (!mounted) {
+      return;
+    }
+
     final activeAddress = _activeAddress(ref.read(authSessionProvider).profile);
     final request = _homeRequestFor(activeAddress);
     ref.invalidate(_homeScreenDataProvider(request));
@@ -142,6 +151,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     } catch (_) {
       // Error state is rendered by _homeScreenDataProvider.
     }
+  }
+
+  void _handleLocationPermissionRefreshSignal(int signal) {
+    if (_lastLocationPermissionRefreshSignal == signal) {
+      return;
+    }
+
+    _lastLocationPermissionRefreshSignal = signal;
+    if (signal <= 0) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(_refreshHomeData());
+      }
+    });
   }
 
   Widget _buildHomeContent(

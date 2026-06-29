@@ -125,13 +125,13 @@ class _AppRuntimeBootstrap extends ConsumerWidget {
       return child;
     }
 
-    ref.watch(firebaseNotificationBootstrapProvider);
-
     final isCustomerOrDriver =
         session.isAuthenticated &&
+        session.profile != null &&
         (session.role == SessionUserRole.customer ||
             session.role == SessionUserRole.driver);
     if (isCustomerOrDriver) {
+      ref.watch(firebaseNotificationBootstrapProvider);
       ref.watch(chatHeadsUpNotificationProvider);
     }
 
