@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:frontend_bangdeliv/features/auth/application/auth_session_provider.dart';
 import 'package:frontend_bangdeliv/features/auth/presentation/screens/complete_phone_screen.dart';
+import 'package:frontend_bangdeliv/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:frontend_bangdeliv/features/auth/presentation/screens/login_screen.dart';
 import 'package:frontend_bangdeliv/features/profile/presentation/screens/change_password_screen.dart';
 import 'package:frontend_bangdeliv/models/user_profile_model.dart';
@@ -90,6 +91,50 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Tambah Password'), findsOneWidget);
+  });
+
+  testWidgets('forgot password validates required reset fields', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: ForgotPasswordScreen()));
+
+    await tester.ensureVisible(find.text('Atur Ulang Password'));
+    await tester.tap(find.text('Atur Ulang Password'));
+    await tester.pump();
+
+    expect(find.text('Email wajib diisi'), findsOneWidget);
+    expect(find.text('Nomor WhatsApp wajib diisi'), findsOneWidget);
+    expect(find.text('Password baru wajib diisi'), findsOneWidget);
+    expect(find.text('Konfirmasi password wajib diisi'), findsOneWidget);
+  });
+
+  testWidgets('forgot password validates confirmation mismatch before submit', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: ForgotPasswordScreen()));
+
+    await tester.enterText(
+      find.byKey(const ValueKey('forgot-password-email-field')),
+      'user@example.com',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('forgot-password-phone-field')),
+      '081234567890',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('forgot-password-new-password-field')),
+      'passwordBaru123',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('forgot-password-confirm-password-field')),
+      'passwordBeda123',
+    );
+
+    await tester.ensureVisible(find.text('Atur Ulang Password'));
+    await tester.tap(find.text('Atur Ulang Password'));
+    await tester.pump();
+
+    expect(find.text('Konfirmasi password tidak sama'), findsOneWidget);
   });
 }
 

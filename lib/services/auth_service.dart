@@ -602,6 +602,49 @@ class AuthService {
     }
   }
 
+  static Future<void> resetPassword({
+    required String email,
+    required String phone,
+    required String newPassword,
+    required String newPasswordConfirmation,
+  }) async {
+    final uri = Uri.parse('${AppEnv.apiBaseUrl}/auth/password/reset');
+
+    try {
+      final response = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'email': email.trim(),
+              'phone': phone.trim(),
+              'new_password': newPassword,
+              'new_password_confirmation': newPasswordConfirmation,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 200) {
+        return;
+      }
+
+      throw AuthException(
+        _extractErrorMessage(
+          response,
+          fallback: 'Gagal mengatur ulang password.',
+        ),
+      );
+    } on TimeoutException catch (error) {
+      _logNetworkFailure('POST', uri, error);
+      throw const AuthException(ApiException.timeoutMessage);
+    } on AuthException {
+      rethrow;
+    } catch (error) {
+      _logNetworkFailure('POST', uri, error);
+      throw const AuthException(ApiException.noInternetMessage);
+    }
+  }
+
   static Future<void> logout({Map<String, String>? headers}) async {
     final uri = Uri.parse('${AppEnv.apiBaseUrl}/auth/logout');
 

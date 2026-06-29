@@ -37,6 +37,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   String? _selectedVehicleBrand;
   final _vehicleModelController = TextEditingController();
   bool _isDriver = false;
+  bool _isGoogleLinked = false;
   final ImagePicker _imagePicker = ImagePicker();
 
   XFile? _selectedAvatar;
@@ -72,6 +73,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       _phoneController.text = profile.phone;
       _emailController.text = profile.email;
       _isDriver = profile.role.trim().toLowerCase() == 'driver';
+      _isGoogleLinked = profile.authProvider.trim().toLowerCase() == 'google';
       final currentVehicleType = (profile.driverProfile?.vehicleType ?? '')
           .trim();
       _selectedVehicleType = currentVehicleType.isEmpty
@@ -225,9 +227,21 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                             ),
                             const SizedBox(height: 20),
                             _buildTextField(
-                              label: 'Email',
+                              label: _isGoogleLinked ? 'Email Google' : 'Email',
                               controller: _emailController,
                               keyboardType: TextInputType.emailAddress,
+                              readOnly: _isGoogleLinked,
+                              suffixIcon: _isGoogleLinked
+                                  ? const Tooltip(
+                                      message:
+                                          'Email Google tidak dapat diubah',
+                                      child: Icon(
+                                        Icons.lock_outline,
+                                        color: AppColors.textSecondary,
+                                        size: 18,
+                                      ),
+                                    )
+                                  : null,
                               validator: (value) {
                                 final email = value?.trim() ?? '';
                                 if (email.isEmpty) {
@@ -385,12 +399,15 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     required TextEditingController controller,
     required TextInputType keyboardType,
     required String? Function(String?) validator,
+    bool readOnly = false,
+    Widget? suffixIcon,
   }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
+      readOnly: readOnly,
       style: TextStyle(
-        color: AppColors.textPrimary,
+        color: readOnly ? AppColors.textSecondary : AppColors.textPrimary,
         fontSize: AppTextScaling.adaptive(context, normal: 14, large: 13.4),
         fontWeight: FontWeight.w400,
       ),
@@ -404,9 +421,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           color: AppColors.textSecondary,
         ),
         hintText: label,
+        suffixIcon: suffixIcon,
         isDense: true,
         filled: true,
-        fillColor: Colors.white,
+        fillColor: readOnly ? AppColors.background : Colors.white,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,
           vertical: 13,
