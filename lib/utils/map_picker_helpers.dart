@@ -82,8 +82,21 @@ class MapPickerHelpers {
 
     final permission = await Geolocator.checkPermission();
 
+    return isLocationPermissionGranted(permission);
+  }
+
+  static bool isLocationPermissionGranted(LocationPermission permission) {
     return permission == LocationPermission.always ||
         permission == LocationPermission.whileInUse;
+  }
+
+  static Future<LocationPermission> requestLocationPermission() async {
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    return permission;
   }
 
   static Future<MapPickerCurrentLocationResult> currentLocation() async {
@@ -99,17 +112,17 @@ class MapPickerHelpers {
       permission = await Geolocator.requestPermission();
     }
 
-    if (permission == LocationPermission.denied) {
+    if (!isLocationPermissionGranted(permission)) {
+      if (permission == LocationPermission.deniedForever) {
+        await Geolocator.openAppSettings();
+
+        return const MapPickerCurrentLocationResult.failed(
+          MapPickerLocationFailure.permissionDeniedForever,
+        );
+      }
+
       return const MapPickerCurrentLocationResult.failed(
         MapPickerLocationFailure.permissionDenied,
-      );
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      await Geolocator.openAppSettings();
-
-      return const MapPickerCurrentLocationResult.failed(
-        MapPickerLocationFailure.permissionDeniedForever,
       );
     }
 
@@ -127,10 +140,7 @@ class MapPickerHelpers {
     if (!serviceEnabled) return null;
 
     final permission = await Geolocator.checkPermission();
-    final isGranted =
-        permission == LocationPermission.always ||
-        permission == LocationPermission.whileInUse;
-    if (!isGranted) return null;
+    if (!isLocationPermissionGranted(permission)) return null;
 
     final position = await Geolocator.getCurrentPosition(
       locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),

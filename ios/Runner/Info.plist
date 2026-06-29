@@ -41,6 +41,6 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Lokasi digunakan untuk membantu menentukan titik alamat secara akurat saat memilih pin di peta.</string>
+	<string>Lokasi digunakan untuk menampilkan jarak toko/resto terdekat dan membantu menentukan titik alamat secara akurat saat memilih pin di peta.</string>
 </dict>
 </plist>
