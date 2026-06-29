@@ -19,6 +19,8 @@ class RegisterDriverScreen extends ConsumerStatefulWidget {
 }
 
 class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
+  static const String _driverHeroAsset = 'assets/images/bangdeliv.png';
+
   final _formKey = GlobalKey<FormState>();
   final _platePrefixController = TextEditingController();
   final _plateNumberController = TextEditingController();
@@ -77,62 +79,111 @@ class _RegisterDriverScreenState extends ConsumerState<RegisterDriverScreen> {
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 344, minHeight: 104),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                flex: 56,
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Siap jadi mitra pengantar?',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: AppColors.darkBlue,
-                          fontSize: 17,
-                          height: 1.25,
-                          fontWeight: FontWeight.w800,
-                        ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 330;
+              final imageExtent = compact ? 82.0 : 98.0;
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    flex: compact ? 62 : 56,
+                    child: Padding(
+                      padding: EdgeInsets.only(left: compact ? 8 : 20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Siap jadi mitra pengantar?',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  color: AppColors.darkBlue,
+                                  fontSize: compact ? 16 : 17,
+                                  height: 1.25,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Lengkapi data kendaraan untuk proses verifikasi.',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: AppColors.textSecondary,
+                                  fontSize: compact ? 11.5 : 12,
+                                  height: 1.35,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Lengkapi data kendaraan untuk proses verifikasi.',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary,
-                          fontSize: 12,
-                          height: 1.35,
-                          fontWeight: FontWeight.w500,
-                        ),
+                    ),
+                  ),
+                  SizedBox(width: compact ? 6 : 10),
+                  Expanded(
+                    flex: compact ? 38 : 44,
+                    child: Semantics(
+                      label: 'Ilustrasi driver Bang Deliv',
+                      image: true,
+                      child: _driverHeroImage(
+                        assetPath: _driverHeroAsset,
+                        height: imageExtent,
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                flex: 44,
-                child: Semantics(
-                  label: 'Ilustrasi driver Bang Deliv',
-                  image: true,
-                  child: Image.asset(
-                    'assets/images/Bang Deliv.png',
-                    height: 96,
-                    fit: BoxFit.contain,
-                    alignment: Alignment.centerRight,
-                  ),
-                ),
-              ),
-            ],
+                ],
+              );
+            },
           ),
         ),
       ),
+    );
+  }
+
+  Widget _driverHeroFallback(double height) {
+    return Container(
+      height: height,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.primaryLight.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: const Icon(
+        Icons.delivery_dining_rounded,
+        color: AppColors.primary,
+        size: 34,
+      ),
+    );
+  }
+
+  Widget _driverHeroImage({required String assetPath, required double height}) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final logicalWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : height;
+        final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+        final cacheWidth = (logicalWidth * pixelRatio)
+            .clamp(96.0, 420.0)
+            .round();
+
+        return Image.asset(
+          assetPath,
+          height: height,
+          cacheWidth: cacheWidth,
+          fit: BoxFit.contain,
+          alignment: Alignment.centerRight,
+          filterQuality: FilterQuality.medium,
+          errorBuilder: (context, error, stackTrace) {
+            return _driverHeroFallback(height);
+          },
+        );
+      },
     );
   }
 

@@ -106,6 +106,7 @@ class _DriverVerificationStatusScreenState
     final canUpload = _canUpload(registrationStatus);
     final canCancel = _canCancel(registrationStatus);
     final documentsComplete = _documentsComplete(status);
+    final missingDocumentTypes = _requiredDocumentTypesToUpload(status);
 
     return _withProfileBackHandling(
       Scaffold(
@@ -168,6 +169,8 @@ class _DriverVerificationStatusScreenState
                     document: document,
                     selectedFile: selectedFile,
                     isAccountActive: isActive,
+                    isRequired: canUpload,
+                    requiresUpload: missingDocumentTypes.contains(documentType),
                     enabled: canUpload && !_isSubmitting,
                     onPickPressed: () => _openPickerSheet(documentType),
                   ),
@@ -435,10 +438,29 @@ class _DriverVerificationStatusScreenState
       return;
     }
 
+    final status = _status;
+    if (status == null) {
+      setState(() {
+        _errorMessage = 'Status verifikasi driver tidak ditemukan.';
+      });
+
+      return;
+    }
+
+    final missingDocumentTypes = _requiredDocumentTypesToUpload(status);
+    if (missingDocumentTypes.isNotEmpty) {
+      setState(() {
+        _errorMessage =
+            'Unggah ${_formatDocumentTypeList(missingDocumentTypes)} sebelum mengirim.';
+      });
+
+      return;
+    }
+
     final hasSelection = _selectedDocuments.values.any((file) => file != null);
     if (!hasSelection) {
       setState(() {
-        _errorMessage = 'Pilih minimal satu dokumen sebelum mengirim.';
+        _errorMessage = 'Tidak ada dokumen baru untuk diunggah.';
       });
 
       return;
@@ -561,8 +583,58 @@ class _DriverVerificationStatusScreenState
 
   bool _documentsComplete(DriverVerificationStatusModel status) {
     return _orderedDocumentTypes.every(
-      (type) => status.documentByType(type)?.isUploaded == true,
+      (type) => _documentSlotIsComplete(status.documentByType(type)),
     );
+  }
+
+  List<String> _requiredDocumentTypesToUpload(
+    DriverVerificationStatusModel status,
+  ) {
+    return _orderedDocumentTypes
+        .where((documentType) {
+          if (_selectedDocuments[documentType] != null) {
+            return false;
+          }
+
+          return !_documentSlotIsComplete(status.documentByType(documentType));
+        })
+        .toList(growable: false);
+  }
+
+  bool _documentSlotIsComplete(DriverVerificationDocumentModel? document) {
+    if (document?.isUploaded != true) {
+      return false;
+    }
+
+    return document!.verificationStatus.trim().toLowerCase() != 'rejected';
+  }
+
+  String _formatDocumentTypeList(List<String> documentTypes) {
+    final labels = documentTypes.map(_documentTypeLabel).toList();
+
+    if (labels.length <= 1) {
+      return labels.isEmpty ? 'dokumen verifikasi' : labels.first;
+    }
+
+    if (labels.length == 2) {
+      return '${labels[0]} dan ${labels[1]}';
+    }
+
+    final leadingLabels = labels.take(labels.length - 1).join(', ');
+    return '$leadingLabels, dan ${labels.last}';
+  }
+
+  String _documentTypeLabel(String documentType) {
+    switch (documentType.trim().toLowerCase()) {
+      case 'ktp':
+        return 'KTP';
+      case 'sim':
+        return 'SIM';
+      case 'selfie':
+        return 'Selfie';
+      default:
+        return documentType;
+    }
   }
 
   String _titleFor(
@@ -719,6 +791,8 @@ class _DocumentCard extends StatelessWidget {
   final DriverVerificationDocumentModel? document;
   final XFile? selectedFile;
   final bool isAccountActive;
+  final bool isRequired;
+  final bool requiresUpload;
   final bool enabled;
   final VoidCallback onPickPressed;
 
@@ -727,6 +801,8 @@ class _DocumentCard extends StatelessWidget {
     required this.document,
     required this.selectedFile,
     required this.isAccountActive,
+    required this.isRequired,
+    required this.requiresUpload,
     required this.enabled,
     required this.onPickPressed,
   });
@@ -785,15 +861,34 @@ class _DocumentCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            docName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-              fontSize: 15,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  docName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              if (isRequired) ...[
+                const SizedBox(width: 8),
+                AppTextScaling.clampForCompactComponent(
+                  context: context,
+                  maxScaleFactor: AppTextScaling.denseComponentMaxScaleFactor,
+                  child: _InlineStatusLabel(
+                    label: requiresUpload ? 'Wajib diunggah' : 'Wajib',
+                    color: requiresUpload
+                        ? AppColors.primaryDark
+                        : AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: 6),
           Align(

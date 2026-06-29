@@ -115,20 +115,25 @@ class _SplashScreenState extends State<SplashScreen>
                                 const SizedBox(width: 20),
                                 SizedBox(
                                   width: 214,
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        typedText,
-                                        maxLines: 1,
-                                        style: const TextStyle(
-                                          color: AppColors.primary,
-                                          fontSize: 42,
-                                          fontWeight: FontWeight.w800,
-                                          height: 1,
+                                  child: ClipRect(
+                                    child: Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        alignment: Alignment.centerLeft,
+                                        child: Text(
+                                          typedText,
+                                          maxLines: 1,
+                                          softWrap: false,
+                                          style: const TextStyle(
+                                            color: AppColors.primary,
+                                            fontSize: 42,
+                                            fontWeight: FontWeight.w800,
+                                            height: 1,
+                                          ),
                                         ),
                                       ),
-                                    ],
+                                    ),
                                   ),
                                 ),
                               ],
