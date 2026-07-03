@@ -20,6 +20,34 @@ Duration driverTransferProofReconciliationInterval = const Duration(
   seconds: 10,
 );
 
+typedef DriverOrderAvailableNotification =
+    Future<void> Function({
+      required int orderId,
+      required String title,
+      required String body,
+      required String orderNumber,
+      required String serviceTypeCode,
+    });
+
+final driverOrderAvailableNotificationProvider =
+    Provider<DriverOrderAvailableNotification>((ref) {
+      return ({
+        required int orderId,
+        required String title,
+        required String body,
+        required String orderNumber,
+        required String serviceTypeCode,
+      }) {
+        return FirebaseNotificationService.showLocalDriverOrderAvailableNotification(
+          orderId: orderId,
+          title: title,
+          body: body,
+          orderNumber: orderNumber,
+          serviceTypeCode: serviceTypeCode,
+        );
+      };
+    });
+
 class DriverOrdersState {
   final List<DriverOrderModel> incoming;
   final List<DriverOrderModel> running;
@@ -388,29 +416,40 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       return;
     }
 
+    final rawOrderId = order.id.trim();
+    if (rawOrderId.isEmpty) {
+      return;
+    }
+
     final current = state.asData?.value;
-    if (current == null || order.id.trim().isEmpty) {
-      return;
-    }
+    var shouldNotify = true;
 
-    if (current.suppressedIncomingOrderIds.contains(order.id)) {
-      return;
-    }
+    if (current != null) {
+      if (current.suppressedIncomingOrderIds.contains(order.id)) {
+        return;
+      }
 
-    if (current.running.any((item) => item.id == order.id)) {
-      return;
-    }
+      if (current.running.any((item) => item.id == order.id)) {
+        return;
+      }
 
-    final isNewIncoming = !current.incoming.any((item) => item.id == order.id);
-    state = AsyncData(
-      current.copyWith(incoming: _upsertIncomingOrder(current.incoming, order)),
-    );
+      shouldNotify = !current.incoming.any((item) => item.id == order.id);
+      state = AsyncData(
+        current.copyWith(
+          incoming: _upsertIncomingOrder(current.incoming, order),
+        ),
+      );
+    }
     _markRealtimeHealthy();
 
-    final orderId = int.tryParse(order.id.trim());
-    if (isNewIncoming && orderId != null && orderId > 0) {
+    if (shouldNotify) {
+      final orderId = int.tryParse(rawOrderId);
+      if (orderId == null || orderId <= 0) {
+        return;
+      }
+
       unawaited(
-        FirebaseNotificationService.showLocalDriverOrderAvailableNotification(
+        ref.read(driverOrderAvailableNotificationProvider)(
           orderId: orderId,
           title: 'Order masuk',
           body: _incomingOrderNotificationBody(order),

@@ -822,6 +822,141 @@ void main() {
   );
 
   test(
+    'driverOrdersProvider shows realtime heads-up while orders state is loading',
+    () async {
+      final fakeService = _FakeDriverOrderService(
+        payload: const DriverOrdersPayload(incoming: [], running: []),
+      );
+      final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+      final fakeRealtime = FakeOrderRealtimeClient();
+      final notifications = <Map<String, Object?>>[];
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          driverOrderServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+          driverOrderAvailableNotificationProvider.overrideWithValue(({
+            required int orderId,
+            required String title,
+            required String body,
+            required String orderNumber,
+            required String serviceTypeCode,
+          }) async {
+            notifications.add(<String, Object?>{
+              'orderId': orderId,
+              'title': title,
+              'body': body,
+              'orderNumber': orderNumber,
+              'serviceTypeCode': serviceTypeCode,
+            });
+          }),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(driverOrdersProvider.future);
+      expect(fakeRealtime.driverOrderSubscriptions, contains(77));
+
+      final refreshFuture = container
+          .read(driverOrdersProvider.notifier)
+          .refresh();
+      expect(container.read(driverOrdersProvider).isLoading, isTrue);
+
+      fakeRealtime.emitDriverOrderAvailable(
+        77,
+        const DriverOrderModel(
+          id: '101',
+          orderNumber: 'BD-030726-101',
+          customerName: 'Customer Realtime',
+          pickupAddress: 'Pickup',
+          dropoffAddress: 'Dropoff',
+          etaMinutes: 8,
+          fee: 9000,
+          itemCount: 1,
+          serviceTypeCode: 'RIDE',
+          serviceTypeName: 'Antar Jemput',
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(notifications, hasLength(1));
+      expect(notifications.single['orderId'], 101);
+      expect(notifications.single['title'], 'Order masuk');
+      expect(
+        notifications.single['body'],
+        'Antar Jemput baru tersedia. Estimasi ongkir Rp 9.000.',
+      );
+      expect(notifications.single['orderNumber'], 'BD-030726-101');
+      expect(notifications.single['serviceTypeCode'], 'RIDE');
+
+      await refreshFuture;
+    },
+  );
+
+  test(
+    'driverOrdersProvider does not show duplicate heads-up for existing incoming order',
+    () async {
+      final existingOrder = const DriverOrderModel(
+        id: '101',
+        customerName: 'Customer Realtime',
+        pickupAddress: 'Pickup',
+        dropoffAddress: 'Dropoff',
+        etaMinutes: 8,
+        fee: 9000,
+        itemCount: 1,
+      );
+      final fakeService = _FakeDriverOrderService(
+        payload: const DriverOrdersPayload(
+          incoming: <DriverOrderModel>[
+            DriverOrderModel(
+              id: '101',
+              customerName: 'Customer Realtime',
+              pickupAddress: 'Pickup',
+              dropoffAddress: 'Dropoff',
+              etaMinutes: 8,
+              fee: 9000,
+              itemCount: 1,
+            ),
+          ],
+          running: [],
+        ),
+      );
+      final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+      final fakeRealtime = FakeOrderRealtimeClient();
+      final notifications = <Map<String, Object?>>[];
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          driverOrderServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+          driverOrderAvailableNotificationProvider.overrideWithValue(({
+            required int orderId,
+            required String title,
+            required String body,
+            required String orderNumber,
+            required String serviceTypeCode,
+          }) async {
+            notifications.add(<String, Object?>{'orderId': orderId});
+          }),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(driverOrdersProvider.future);
+      await Future<void>.delayed(Duration.zero);
+
+      fakeRealtime.emitDriverOrderAvailable(77, existingOrder);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(notifications, isEmpty);
+      expect(
+        container.read(driverOrdersProvider).asData!.value.incoming,
+        hasLength(1),
+      );
+    },
+  );
+
+  test(
     'driverOrdersProvider reconciles missed incoming order when realtime broadcast fails',
     () async {
       final previousInterval = driverOrdersReconciliationInterval;
