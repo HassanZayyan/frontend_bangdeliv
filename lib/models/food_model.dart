@@ -5,7 +5,7 @@ class FoodModel {
   final String id;
   final String name;
   final String restaurantName;
-  final double price;
+  final double? price;
   final String imageUrl;
 
   FoodModel({
@@ -24,7 +24,7 @@ class FoodModel {
       id: (json['id'] ?? '').toString(),
       name: json['name']?.toString() ?? '-',
       restaurantName: restaurantName,
-      price: _toDouble(json['price']),
+      price: _toNullableDouble(json['price']),
       imageUrl: AppEnv.resolveBackendAssetUrl(json['image']?.toString()),
     );
   }
@@ -37,11 +37,14 @@ class FoodModel {
     return hasMenuReferencePrice(price);
   }
 
-  static double _toDouble(dynamic value) {
+  static double? _toNullableDouble(dynamic value) {
+    if (value == null) {
+      return null;
+    }
     if (value is num) {
       return value.toDouble();
     }
 
-    return double.tryParse(value?.toString() ?? '') ?? 0;
+    return double.tryParse(value.toString());
   }
 }

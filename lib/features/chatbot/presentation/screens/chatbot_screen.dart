@@ -1665,10 +1665,13 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     required bool isUser,
     bool isPrimaryChoice = false,
   }) {
-    final foregroundColor = isUser ? Colors.white : AppColors.primaryDark;
+    final isConfirmationAction = _isConfirmationActionHint(actionHint);
+    final foregroundColor = isUser
+        ? Colors.white
+        : (isConfirmationAction ? AppColors.success : AppColors.primaryDark);
     final borderColor = isUser
         ? Colors.white.withValues(alpha: 0.35)
-        : AppColors.primary;
+        : (isConfirmationAction ? AppColors.success : AppColors.primary);
 
     return OutlinedButton.icon(
       onPressed: actionsEnabled ? () => _handleActionHint(actionHint) : null,

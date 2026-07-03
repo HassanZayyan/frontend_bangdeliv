@@ -918,6 +918,7 @@ class _CustomerAvatar extends StatelessWidget {
       initialColor: AppColors.primaryDark,
       borderColor: AppColors.border,
       borderWidth: 1,
+      imageScale: 1.12,
     );
   }
 }

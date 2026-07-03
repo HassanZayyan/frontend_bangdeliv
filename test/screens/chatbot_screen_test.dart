@@ -429,6 +429,7 @@ void main() {
         42: <ShoppingMenuOption>[
           ShoppingMenuOption(id: 9, name: 'Dimsum Ayam', price: 15000),
           ShoppingMenuOption(id: 10, name: 'Es Teh', price: 0),
+          ShoppingMenuOption(id: 11, name: 'Ikan Bakar', price: null),
         ],
       },
     );
@@ -468,8 +469,8 @@ void main() {
     expect(find.text('Dimsum Dan Seblak Wolu'), findsOneWidget);
     expect(find.text('Dimsum Ayam'), findsOneWidget);
     expect(find.text('Rp15.000'), findsOneWidget);
+    expect(find.text('Rp0'), findsOneWidget);
     expect(find.text('Harga sesuai nota'), findsOneWidget);
-    expect(find.text('Rp0'), findsNothing);
 
     await tester.tap(find.byTooltip('Tambah Dimsum Ayam'));
     await tester.tap(find.byTooltip('Tambah Dimsum Ayam'));

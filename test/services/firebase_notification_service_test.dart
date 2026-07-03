@@ -81,6 +81,17 @@ void main() {
     expect(route, '/driver/orders/42/active');
   });
 
+  test('driver incoming order notification routes to incoming orders tab', () {
+    final route = FirebaseNotificationService.routeForNotificationData(
+      const <String, dynamic>{
+        'type': 'driver_order_available',
+        'order_id': '42',
+      },
+    );
+
+    expect(route, '/driver/orders');
+  });
+
   test('invalid notification data does not resolve to route', () {
     expect(
       FirebaseNotificationService.routeForNotificationData(
@@ -100,7 +111,7 @@ void main() {
     );
   });
 
-  test('explicit notification route is restricted to order chat route', () {
+  test('explicit notification route is restricted to known order routes', () {
     expect(
       FirebaseNotificationService.routeForNotificationData(
         const <String, dynamic>{
@@ -114,16 +125,16 @@ void main() {
     expect(
       FirebaseNotificationService.routeForNotificationData(
         const <String, dynamic>{
-          'type': 'order_chat_message',
+          'type': 'driver_order_available',
           'route': '/driver/orders',
         },
       ),
-      isNull,
+      '/driver/orders',
     );
   });
 
   test(
-    'notification navigation allows tracking chat and driver active routes only',
+    'notification navigation allows tracking chat and driver order routes only',
     () {
       expect(
         NotificationNavigationService.normalizeRoute(
@@ -140,6 +151,10 @@ void main() {
           '/driver/orders/42/active',
         ),
         '/driver/orders/42/active',
+      );
+      expect(
+        NotificationNavigationService.normalizeRoute('/driver/orders'),
+        '/driver/orders',
       );
       expect(
         NotificationNavigationService.normalizeRoute('/driver/history/42'),

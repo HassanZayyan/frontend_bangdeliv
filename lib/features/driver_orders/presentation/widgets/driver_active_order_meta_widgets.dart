@@ -190,7 +190,12 @@ class _CustomerAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ProfileAvatar(name: name, avatarUrl: avatarUrl, size: 42);
+    return ProfileAvatar(
+      name: name,
+      avatarUrl: avatarUrl,
+      size: 42,
+      imageScale: 1.12,
+    );
   }
 }
 

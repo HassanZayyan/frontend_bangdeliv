@@ -47,6 +47,12 @@ class FirebaseNotificationService {
   static const String _statusNotificationChannelName = 'Status Order';
   static const String _statusNotificationChannelDescription =
       'Notifikasi prioritas tinggi untuk perubahan status order.';
+  static const String driverOrderNotificationChannelId =
+      'bangdeliv_driver_order_high';
+  static const String _driverOrderNotificationChannelName =
+      'Order Masuk Driver';
+  static const String _driverOrderNotificationChannelDescription =
+      'Notifikasi prioritas tinggi untuk order baru yang tersedia untuk driver.';
 
   static bool _firebaseInitialized = false;
   static bool _notificationsInitialized = false;
@@ -301,6 +307,7 @@ class FirebaseNotificationService {
         type != 'order_status_changed' &&
         type != 'order_price_changed' &&
         type != 'payment_proof_required' &&
+        type != 'driver_order_available' &&
         type != 'shopping_item_unavailable') {
       return null;
     }
@@ -310,6 +317,10 @@ class FirebaseNotificationService {
     );
     if (explicitRoute != null) {
       return explicitRoute;
+    }
+
+    if (type == 'driver_order_available') {
+      return AppRoutes.driverOrders;
     }
 
     final orderId = int.tryParse((data['order_id'] ?? '').toString());
@@ -323,6 +334,7 @@ class FirebaseNotificationService {
         orderId,
         focus: TrackingFocusTarget.payment,
       ),
+      'driver_order_available' => AppRoutes.driverOrders,
       'order_price_changed' =>
         (data['recipient_role'] ?? '').toString().toLowerCase() == 'driver'
             ? AppRoutes.driverOrderActivePath(orderId.toString())
@@ -392,6 +404,68 @@ class FirebaseNotificationService {
     );
   }
 
+  static Future<void> showLocalOrderStatusNotification({
+    required int orderId,
+    required int historyId,
+    required String statusCode,
+    required String title,
+    required String body,
+  }) async {
+    final route = AppRoutes.orderTrackPath(orderId);
+    final normalizedStatusCode = statusCode.trim().toUpperCase();
+    final key = historyId > 0
+        ? 'order_status_changed:$orderId:$historyId'
+        : 'order_status_changed:$orderId:$normalizedStatusCode';
+    if (!_rememberNotificationKey(key)) {
+      return;
+    }
+
+    await _initializeLocalNotifications();
+    await _showLocalNotification(
+      id: _notificationId(orderId: orderId, messageId: historyId),
+      title: title,
+      body: body,
+      payload: route,
+      data: <String, dynamic>{
+        'type': 'order_status_changed',
+        'order_id': orderId.toString(),
+        'history_id': historyId > 0 ? historyId.toString() : '',
+        'status_code': normalizedStatusCode,
+        'route': route,
+      },
+    );
+  }
+
+  static Future<void> showLocalDriverOrderAvailableNotification({
+    required int orderId,
+    required String title,
+    required String body,
+    String orderNumber = '',
+    String serviceTypeCode = '',
+  }) async {
+    final route = AppRoutes.driverOrders;
+    final key = 'driver_order_available:$orderId:$orderId';
+    if (!_rememberNotificationKey(key)) {
+      return;
+    }
+
+    await _initializeLocalNotifications();
+    await _showLocalNotification(
+      id: _notificationId(orderId: orderId, messageId: orderId),
+      title: title,
+      body: body,
+      payload: route,
+      data: <String, dynamic>{
+        'type': 'driver_order_available',
+        'order_id': orderId.toString(),
+        'order_number': orderNumber,
+        'service_type_code': serviceTypeCode,
+        'event_id': orderId.toString(),
+        'route': route,
+      },
+    );
+  }
+
   static Future<NotificationSettings> _requestNotificationPermission() {
     return _messaging.requestPermission(
       alert: true,
@@ -454,6 +528,17 @@ class FirebaseNotificationService {
           statusNotificationChannelId,
           _statusNotificationChannelName,
           description: _statusNotificationChannelDescription,
+          importance: Importance.max,
+          playSound: true,
+          enableVibration: true,
+          showBadge: true,
+        ),
+      );
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          driverOrderNotificationChannelId,
+          _driverOrderNotificationChannelName,
+          description: _driverOrderNotificationChannelDescription,
           importance: Importance.max,
           playSound: true,
           enableVibration: true,
@@ -564,26 +649,38 @@ class FirebaseNotificationService {
           (data['type'] ?? '').toString() == 'order_status_changed' ||
           (data['type'] ?? '').toString() == 'order_price_changed' ||
           (data['type'] ?? '').toString() == 'shopping_item_unavailable';
+      final isDriverOrderNotification =
+          (data['type'] ?? '').toString() == 'driver_order_available';
       final android = AndroidNotificationDetails(
-        isStatusNotification
+        isDriverOrderNotification
+            ? driverOrderNotificationChannelId
+            : isStatusNotification
             ? statusNotificationChannelId
             : chatNotificationChannelId,
-        isStatusNotification
+        isDriverOrderNotification
+            ? _driverOrderNotificationChannelName
+            : isStatusNotification
             ? _statusNotificationChannelName
             : _chatNotificationChannelName,
-        channelDescription: isStatusNotification
+        channelDescription: isDriverOrderNotification
+            ? _driverOrderNotificationChannelDescription
+            : isStatusNotification
             ? _statusNotificationChannelDescription
             : _chatNotificationChannelDescription,
         importance: Importance.max,
         priority: Priority.high,
-        category: AndroidNotificationCategory.message,
+        category: isDriverOrderNotification
+            ? AndroidNotificationCategory.status
+            : AndroidNotificationCategory.message,
         visibility: NotificationVisibility.public,
         playSound: true,
         enableVibration: true,
         channelShowBadge: true,
         color: AppColors.primary,
         icon: 'ic_stat_bangdeliv',
-        ticker: isStatusNotification
+        ticker: isDriverOrderNotification
+            ? 'Order driver baru'
+            : isStatusNotification
             ? 'Order diperbarui'
             : 'Pesan chat order baru',
       );

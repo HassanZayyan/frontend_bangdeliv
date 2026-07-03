@@ -13,6 +13,7 @@ class ProfileAvatar extends StatelessWidget {
     this.borderWidth = 0,
     this.backgroundColor,
     this.initialColor,
+    this.imageScale = 1,
   });
 
   final String name;
@@ -23,59 +24,97 @@ class ProfileAvatar extends StatelessWidget {
   final double borderWidth;
   final Color? backgroundColor;
   final Color? initialColor;
+  final double imageScale;
 
   @override
   Widget build(BuildContext context) {
     final normalizedAvatarUrl = avatarUrl?.trim() ?? '';
     final normalizedName = name.trim();
+    final normalizedBorderWidth = borderWidth.clamp(0, size / 2).toDouble();
+    final effectiveImageScale = imageScale <= 0 ? 1.0 : imageScale;
+    final effectiveBackgroundColor = backgroundColor ?? AppColors.primary;
 
     return Semantics(
       image: true,
       label: normalizedName.isEmpty
           ? 'Avatar pengguna'
           : 'Avatar $normalizedName',
-      child: Container(
+      child: SizedBox(
         width: size,
         height: size,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: backgroundColor ?? AppColors.primary,
-          shape: BoxShape.circle,
-          border: borderWidth > 0
-              ? Border.all(
-                  color: borderColor ?? AppColors.primaryDark,
-                  width: borderWidth,
-                )
-              : null,
-        ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            _ProfileAvatarInitial(
-              name: normalizedName,
-              size: size,
-              color: initialColor ?? AppColors.white,
-            ),
-            if (imageProvider != null)
-              Image(
-                image: imageProvider!,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return const SizedBox.shrink();
-                },
-              )
-            else if (normalizedAvatarUrl.isNotEmpty)
-              Image.network(
-                normalizedAvatarUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return const SizedBox.shrink();
-                },
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: effectiveBackgroundColor,
+            shape: BoxShape.circle,
+            border: normalizedBorderWidth > 0
+                ? Border.all(
+                    color: borderColor ?? AppColors.primaryDark,
+                    width: normalizedBorderWidth,
+                  )
+                : null,
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(normalizedBorderWidth),
+            child: ClipOval(
+              clipBehavior: Clip.antiAlias,
+              child: ColoredBox(
+                color: effectiveBackgroundColor,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _ProfileAvatarInitial(
+                      name: normalizedName,
+                      size: size,
+                      color: initialColor ?? AppColors.white,
+                    ),
+                    if (imageProvider != null)
+                      _AvatarImage(
+                        imageScale: effectiveImageScale,
+                        child: Image(
+                          image: imageProvider!,
+                          fit: BoxFit.cover,
+                          filterQuality: FilterQuality.medium,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const SizedBox.shrink();
+                          },
+                        ),
+                      )
+                    else if (normalizedAvatarUrl.isNotEmpty)
+                      _AvatarImage(
+                        imageScale: effectiveImageScale,
+                        child: Image.network(
+                          normalizedAvatarUrl,
+                          fit: BoxFit.cover,
+                          filterQuality: FilterQuality.medium,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const SizedBox.shrink();
+                          },
+                        ),
+                      ),
+                  ],
+                ),
               ),
-          ],
+            ),
+          ),
         ),
       ),
     );
+  }
+}
+
+class _AvatarImage extends StatelessWidget {
+  const _AvatarImage({required this.child, required this.imageScale});
+
+  final Widget child;
+  final double imageScale;
+
+  @override
+  Widget build(BuildContext context) {
+    if (imageScale == 1) {
+      return child;
+    }
+
+    return Transform.scale(scale: imageScale, child: child);
   }
 }
 

@@ -307,8 +307,8 @@ class _MenuQuickPickTile extends StatelessWidget {
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
-                  menu.price > 0
-                      ? formatCurrency(menu.price)
+                  hasMenuReferencePrice(menu.price)
+                      ? formatCurrency(menu.price!)
                       : shoppingPendingPriceLabel,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

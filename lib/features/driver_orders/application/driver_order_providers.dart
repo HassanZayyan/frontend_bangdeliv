@@ -7,6 +7,8 @@ import '../../../core/application/app_lifecycle_provider.dart';
 import '../../../models/driver_order_model.dart';
 import '../../../data/repositories/driver_order_repository.dart';
 import '../../../services/driver_order_service.dart';
+import '../../../services/firebase_notification_service.dart';
+import '../../../utils/order_formatters.dart';
 import '../../../utils/order_status.dart';
 import '../../../utils/order_ui_helpers.dart';
 import '../../../core/di/app_providers.dart';
@@ -399,10 +401,24 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       return;
     }
 
+    final isNewIncoming = !current.incoming.any((item) => item.id == order.id);
     state = AsyncData(
       current.copyWith(incoming: _upsertIncomingOrder(current.incoming, order)),
     );
     _markRealtimeHealthy();
+
+    final orderId = int.tryParse(order.id.trim());
+    if (isNewIncoming && orderId != null && orderId > 0) {
+      unawaited(
+        FirebaseNotificationService.showLocalDriverOrderAvailableNotification(
+          orderId: orderId,
+          title: 'Order masuk',
+          body: _incomingOrderNotificationBody(order),
+          orderNumber: order.orderNumber,
+          serviceTypeCode: order.serviceTypeCode,
+        ),
+      );
+    }
   }
 
   void _handleRealtimeOrderRemoved(String orderId, {String? reason}) {
@@ -447,6 +463,16 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     }
 
     return next.toList(growable: false);
+  }
+
+  String _incomingOrderNotificationBody(DriverOrderModel order) {
+    final serviceName = (order.serviceTypeName ?? '').trim();
+    final feeText = formatCurrency(order.fee);
+    if (serviceName.isNotEmpty) {
+      return '$serviceName baru tersedia. Estimasi ongkir $feeText.';
+    }
+
+    return 'Order baru tersedia. Estimasi ongkir $feeText.';
   }
 
   void _markRealtimeHealthy() {
