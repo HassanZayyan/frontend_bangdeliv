@@ -16,8 +16,13 @@ Future<void>? _postLoginPermissionSequenceFuture;
 int? _postLoginPermissionSequenceUserId;
 
 final firebaseNotificationBootstrapProvider = Provider<void>((ref) {
-  final router = ref.watch(appRouterProvider);
   final session = ref.watch(authSessionProvider);
+  if (!shouldBootstrapFirebaseNotifications(session)) {
+    FirebaseNotificationService.clearBackendTokenSync();
+    return;
+  }
+
+  final router = ref.watch(appRouterProvider);
   final deviceTokenApi = ref.watch(deviceTokenApiServiceProvider);
 
   unawaited(
@@ -36,30 +41,21 @@ final firebaseNotificationBootstrapProvider = Provider<void>((ref) {
       shouldShowForegroundMessage: (message) {
         final targetRoute =
             FirebaseNotificationService.routeForNotificationData(message.data);
-        if (targetRoute == null) {
-          return false;
-        }
-
         final currentRoute = router.routeInformationProvider.value.uri
             .toString();
-        return currentRoute != targetRoute;
+        return shouldShowForegroundNotification(
+          session: ref.read(authSessionProvider),
+          data: message.data,
+          targetRoute: targetRoute,
+          currentRoute: currentRoute,
+        );
       },
     ),
   );
 
   unawaited(_drainPendingNotificationRoute(router: router, session: session));
 
-  final profile = session.profile;
-  final shouldRegisterToken =
-      session.isAuthenticated &&
-      profile != null &&
-      (session.role == SessionUserRole.customer ||
-          session.role == SessionUserRole.driver);
-
-  if (!shouldRegisterToken) {
-    FirebaseNotificationService.clearBackendTokenSync();
-    return;
-  }
+  final profile = session.profile!;
 
   unawaited(
     _syncNotificationsThenLocationPermission(
@@ -71,6 +67,42 @@ final firebaseNotificationBootstrapProvider = Provider<void>((ref) {
     ),
   );
 });
+
+bool shouldBootstrapFirebaseNotifications(AuthSessionState session) {
+  final profile = session.profile;
+
+  return session.isAuthenticated &&
+      profile != null &&
+      profile.requiresPhoneCompletion != true &&
+      (session.role == SessionUserRole.customer ||
+          session.role == SessionUserRole.driver);
+}
+
+bool shouldShowForegroundNotification({
+  required AuthSessionState session,
+  required Map<String, dynamic> data,
+  required String? targetRoute,
+  required String currentRoute,
+}) {
+  if (targetRoute == null) {
+    return false;
+  }
+
+  final type = (data['type'] ?? '').toString();
+  if (type == 'driver_order_available') {
+    return session.isAuthenticated &&
+        session.role == SessionUserRole.driver &&
+        session.driverAccessState == DriverAccessState.active;
+  }
+
+  if (type == 'order_status_changed') {
+    return session.isAuthenticated &&
+        session.role == SessionUserRole.customer &&
+        session.profile != null;
+  }
+
+  return currentRoute != targetRoute;
+}
 
 Future<void> _syncNotificationsThenLocationPermission({
   required Ref ref,

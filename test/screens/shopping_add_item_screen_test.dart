@@ -227,7 +227,7 @@ void main() {
   );
 
   testWidgets(
-    'official warung merchant loads menu list and keeps zero price pending',
+    'official warung merchant distinguishes zero and null menu prices',
     (tester) async {
       final service = _FakeCustomerOrderApiService(
         merchants: const [
@@ -239,7 +239,10 @@ void main() {
             address: 'Lokasi Bang Deliv',
           ),
         ],
-        menus: const [ShoppingMenuOption(id: 88, name: 'Lotek', price: 0)],
+        menus: const [
+          ShoppingMenuOption(id: 88, name: 'Lotek', price: 0),
+          ShoppingMenuOption(id: 89, name: 'Ikan Bakar', price: null),
+        ],
       );
 
       await _pumpScreen(tester, service);
@@ -249,13 +252,15 @@ void main() {
 
       expect(service.menuSearchCalls, 1);
       expect(find.text('Lotek'), findsOneWidget);
+      expect(find.text('Rp 0'), findsOneWidget);
+      expect(find.text('Ikan Bakar'), findsOneWidget);
       expect(find.text('Harga sesuai nota'), findsOneWidget);
 
       await tester.tap(find.text('Lotek'));
       await tester.pumpAndSettle();
 
       expect(find.text('Daftar Item'), findsOneWidget);
-      expect(find.text('Harga sesuai nota'), findsWidgets);
+      expect(find.text('Referensi Rp 0'), findsOneWidget);
 
       await _tapSubmitDrafts(tester);
 
@@ -263,6 +268,7 @@ void main() {
       expect(service.lastItems.single.merchantId, 11);
       expect(service.lastItems.single.menuId, isNull);
       expect(service.lastItems.single.itemSource, 'MANUAL');
+      expect(service.lastItems.single.unitPrice, 0);
       expect(service.lastItems.single.toJson(), isNot(contains('menu_id')));
     },
   );

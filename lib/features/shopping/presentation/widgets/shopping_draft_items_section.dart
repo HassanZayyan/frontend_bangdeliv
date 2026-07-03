@@ -143,11 +143,12 @@ class _DraftItemTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final notes = (item.notes ?? '').trim();
-    final unitPrice = item.unitPrice ?? 0;
-    final hasReferencePrice = item.isFromMenu && unitPrice > 0;
+    final unitPrice = item.unitPrice;
+    final hasReferencePrice =
+        item.isFromMenu && hasMenuReferencePrice(unitPrice);
     final priceLabel = item.isFromMenu
         ? hasReferencePrice
-              ? 'Referensi ${formatCurrency(unitPrice)}'
+              ? 'Referensi ${formatCurrency(unitPrice!)}'
               : shoppingPendingPriceLabel
         : 'Harga menunggu input driver';
 

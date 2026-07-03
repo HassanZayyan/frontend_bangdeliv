@@ -510,7 +510,7 @@ class ShoppingItemDraftPayload {
 class ShoppingMenuOption {
   final int id;
   final String name;
-  final double price;
+  final double? price;
   final String imageUrl;
 
   const ShoppingMenuOption({
@@ -524,16 +524,9 @@ class ShoppingMenuOption {
     return ShoppingMenuOption(
       id: int.tryParse(json['id']?.toString() ?? '') ?? 0,
       name: (json['name'] ?? '-').toString(),
-      price: _toDouble(json['price']),
+      price: _toNullableDouble(json['price']),
       imageUrl: AppEnv.resolveBackendAssetUrl(json['image']?.toString()),
     );
-  }
-
-  static double _toDouble(dynamic value) {
-    if (value is num) {
-      return value.toDouble();
-    }
-    return double.tryParse(value?.toString() ?? '') ?? 0;
   }
 }
 

@@ -883,7 +883,7 @@ class AuthService {
           return '$fallback (${response.statusCode}).';
         }
 
-        return message;
+        return _localizeServerMessage(message);
       }
 
       final dynamic errors = payload['errors'];
@@ -892,7 +892,7 @@ class AuthService {
         if (firstEntry is List && firstEntry.isNotEmpty) {
           final dynamic firstError = firstEntry.first;
           if (firstError is String && firstError.trim().isNotEmpty) {
-            return firstError;
+            return _localizeServerMessage(firstError);
           }
         }
       }
@@ -901,6 +901,62 @@ class AuthService {
     }
 
     return '$fallback (${response.statusCode}).';
+  }
+
+  static String _localizeServerMessage(String message) {
+    final trimmed = message.trim();
+    final normalized = trimmed.toLowerCase();
+
+    if (normalized.contains('has already been taken')) {
+      if (normalized.contains('phone') || normalized.contains('nomor')) {
+        return 'Nomor WhatsApp sudah digunakan.';
+      }
+      if (normalized.contains('email')) {
+        return 'Email sudah digunakan.';
+      }
+
+      return 'Data sudah digunakan.';
+    }
+
+    if (normalized.contains('field is required')) {
+      return '${_englishValidationAttributeLabel(normalized)} wajib diisi.';
+    }
+
+    if (normalized.contains('must be a valid email')) {
+      return 'Email harus berupa alamat email yang valid.';
+    }
+
+    if (normalized.contains('must be a string')) {
+      return '${_englishValidationAttributeLabel(normalized)} harus berupa teks.';
+    }
+
+    if (normalized.contains('may not be greater than')) {
+      return '${_englishValidationAttributeLabel(normalized)} terlalu panjang.';
+    }
+
+    if (normalized.contains('must be at least')) {
+      return '${_englishValidationAttributeLabel(normalized)} terlalu pendek.';
+    }
+
+    return trimmed;
+  }
+
+  static String _englishValidationAttributeLabel(String normalizedMessage) {
+    if (normalizedMessage.contains('phone') ||
+        normalizedMessage.contains('nomor')) {
+      return 'Nomor WhatsApp';
+    }
+    if (normalizedMessage.contains('email')) {
+      return 'Email';
+    }
+    if (normalizedMessage.contains('password')) {
+      return 'Kata sandi';
+    }
+    if (normalizedMessage.contains('name')) {
+      return 'Nama';
+    }
+
+    return 'Data';
   }
 }
 

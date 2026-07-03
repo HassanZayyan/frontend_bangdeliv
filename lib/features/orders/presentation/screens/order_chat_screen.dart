@@ -408,7 +408,12 @@ class _ChatParticipantTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        ProfileAvatar(name: participantName, avatarUrl: avatarUrl, size: 30),
+        ProfileAvatar(
+          name: participantName,
+          avatarUrl: avatarUrl,
+          size: 30,
+          imageScale: 1.14,
+        ),
         const SizedBox(width: 8),
         Expanded(
           child: Row(

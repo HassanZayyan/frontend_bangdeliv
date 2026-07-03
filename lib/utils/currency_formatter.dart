@@ -19,7 +19,7 @@ String formatRupiah(num amount) {
 const shoppingPendingPriceLabel = 'Harga sesuai nota';
 
 bool hasMenuReferencePrice(num? amount) {
-  return amount != null && amount > 0;
+  return amount != null;
 }
 
 String formatMenuPriceOrPending(num? amount) {

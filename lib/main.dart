@@ -12,6 +12,7 @@ import 'features/auth/application/auth_session_provider.dart';
 import 'features/driver_orders/application/driver_availability_location_reporter_provider.dart';
 import 'features/realtime/application/chat_heads_up_notification_provider.dart';
 import 'features/realtime/application/firebase_notification_provider.dart';
+import 'features/realtime/application/order_status_heads_up_notification_provider.dart';
 import 'services/firebase_notification_service.dart';
 
 Future<void> main() async {
@@ -125,14 +126,10 @@ class _AppRuntimeBootstrap extends ConsumerWidget {
       return child;
     }
 
-    final isCustomerOrDriver =
-        session.isAuthenticated &&
-        session.profile != null &&
-        (session.role == SessionUserRole.customer ||
-            session.role == SessionUserRole.driver);
-    if (isCustomerOrDriver) {
+    if (shouldBootstrapFirebaseNotifications(session)) {
       ref.watch(firebaseNotificationBootstrapProvider);
       ref.watch(chatHeadsUpNotificationProvider);
+      ref.watch(orderStatusHeadsUpNotificationProvider);
     }
 
     final isActiveDriver =
