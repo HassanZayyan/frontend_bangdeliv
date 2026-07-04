@@ -125,11 +125,10 @@ class DriverShoppingItemChangeRequestCard extends StatelessWidget {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error ?? 'Request item diproses.'),
-        backgroundColor: error == null ? null : AppColors.error,
-      ),
+    showDriverActiveOrderSnackBar(
+      context,
+      message: error ?? 'Request item diproses.',
+      isError: error != null,
     );
   }
 }
@@ -333,27 +332,21 @@ class _DriverShoppingMerchantQuotePanelState
   }
 
   void _showSnack(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? AppColors.error : null,
-      ),
-    );
+    showDriverActiveOrderSnackBar(context, message: message, isError: isError);
   }
 }
 
 class DriverShoppingItemsCard extends StatefulWidget {
   final DriverOrderModel order;
   final bool isOrderBusy;
-  final bool isSavingCheckout;
   final bool Function(int pickupLocationId) isSavingItems;
   final bool canEditAvailability;
   final bool canUploadReceipt;
-  final bool canCheckout;
   final bool Function(int pickupLocationId) isSubmittingQuote;
   final bool Function(int pickupLocationId) isBypassingPrice;
   final bool Function(int pickupLocationId) isMarkingMerchantOpen;
   final bool Function(int pickupLocationId) isClosingMerchant;
+  final bool isDeliveryFeeRevisionPending;
   final Future<String?> Function(XFile photo) onUploadReceipt;
   final Future<String?> Function({
     required double amount,
@@ -373,32 +366,25 @@ class DriverShoppingItemsCard extends StatefulWidget {
     int? pickupLocationId,
   )
   onSaveItems;
-  final Future<String?> Function(
-    List<Map<String, dynamic>> items,
-    XFile? receiptPhoto,
-  )
-  onSave;
 
   const DriverShoppingItemsCard({
     super.key,
     required this.order,
     required this.isOrderBusy,
-    required this.isSavingCheckout,
     required this.isSavingItems,
     required this.canEditAvailability,
     required this.canUploadReceipt,
-    required this.canCheckout,
     required this.isSubmittingQuote,
     required this.isBypassingPrice,
     required this.isMarkingMerchantOpen,
     required this.isClosingMerchant,
+    this.isDeliveryFeeRevisionPending = false,
     required this.onUploadReceipt,
     required this.onSubmitQuote,
     required this.onBypassPrice,
     required this.onMarkMerchantOpen,
     required this.onMarkMerchantClosed,
     required this.onSaveItems,
-    required this.onSave,
   });
 
   @override
@@ -410,25 +396,16 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
   final Map<int, bool> _availability = {};
   final Set<int> _dirtyAvailabilityIds = {};
   bool _isUploadingReceipt = false;
-  bool _checkoutSavedLocally = false;
 
   @override
   void initState() {
     super.initState();
-    _checkoutSavedLocally = widget.order.shoppingCapabilities.hasCheckoutSaved;
     _syncControllers();
   }
 
   @override
   void didUpdateWidget(covariant DriverShoppingItemsCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.order.id != widget.order.id) {
-      _checkoutSavedLocally =
-          widget.order.shoppingCapabilities.hasCheckoutSaved;
-    } else if (widget.order.shoppingCapabilities.hasCheckoutSaved) {
-      _checkoutSavedLocally = true;
-    }
-
     if (oldWidget.order.shoppingItems != widget.order.shoppingItems) {
       _syncControllers();
     }
@@ -461,14 +438,11 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
   @override
   Widget build(BuildContext context) {
     final checkoutAllowed =
-        widget.canCheckout &&
+        !widget.order.shoppingCapabilities.hasPendingItemChangeRequest &&
         (widget.order.shoppingNegotiation?.checkoutAllowed ?? false);
-    final checkoutSaved =
-        widget.order.shoppingCapabilities.hasCheckoutSaved ||
-        _checkoutSavedLocally;
+    final checkoutSaved = widget.order.shoppingCapabilities.hasCheckoutSaved;
     final showCheckoutFields =
         widget.canUploadReceipt && (checkoutAllowed || checkoutSaved);
-    final canSaveCheckout = checkoutAllowed && !checkoutSaved;
     final canEditAvailability =
         widget.canEditAvailability &&
         !widget.order.shoppingCapabilities.hasPendingItemChangeRequest;
@@ -550,23 +524,6 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
               isLoading: _isUploadingReceipt,
               isEnabled: !widget.isOrderBusy || _isUploadingReceipt,
               onPressed: _uploadReceiptPhoto,
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: BangActionButton(
-                label: checkoutSaved
-                    ? 'Checkout Nitip Tersimpan'
-                    : 'Simpan Checkout Nitip',
-                icon: checkoutSaved
-                    ? Icons.check_circle_outline
-                    : Icons.receipt_long,
-                isLoading: widget.isSavingCheckout,
-                isEnabled:
-                    canSaveCheckout &&
-                    (!widget.isOrderBusy || widget.isSavingCheckout),
-                onPressed: _save,
-              ),
             ),
           ],
         ],
@@ -872,16 +829,31 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     required bool isClosingStop,
     required bool isOpeningStop,
   }) {
+    final isBlockedByDeliveryFee = widget.isDeliveryFeeRevisionPending;
+    final canPressMerchantAction =
+        !isBlockedByDeliveryFee && (!widget.isOrderBusy || isClosingStop);
+    final canPressOpenAction =
+        !isBlockedByDeliveryFee && (!widget.isOrderBusy || isOpeningStop);
+    final disabledForeground = AppColors.textMuted;
+    final disabledBackground = AppColors.surfaceAlt;
+    final disabledBorder = AppColors.border;
     final closeButton = BangActionButton(
       label: 'Tempat tutup',
       variant: BangActionButtonVariant.outlined,
       icon: Icons.cancel_outlined,
       isLoading: isClosingStop,
-      isEnabled: !widget.isOrderBusy || isClosingStop,
+      isEnabled: canPressMerchantAction,
       onPressed: () => _closeMerchant(stop),
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.error,
-        side: const BorderSide(color: AppColors.error),
+        foregroundColor: isBlockedByDeliveryFee
+            ? disabledForeground
+            : AppColors.error,
+        disabledForegroundColor: disabledForeground,
+        backgroundColor: isBlockedByDeliveryFee ? AppColors.white : null,
+        disabledBackgroundColor: AppColors.white,
+        side: BorderSide(
+          color: isBlockedByDeliveryFee ? disabledBorder : AppColors.error,
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
         minimumSize: const Size(0, 44),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -893,9 +865,17 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
       label: 'Tempat buka',
       icon: Icons.storefront_outlined,
       isLoading: isOpeningStop,
-      isEnabled: !widget.isOrderBusy || isOpeningStop,
+      isEnabled: canPressOpenAction,
       onPressed: () => _openMerchant(stop),
       style: FilledButton.styleFrom(
+        backgroundColor: isBlockedByDeliveryFee
+            ? disabledBackground
+            : AppColors.primary,
+        foregroundColor: isBlockedByDeliveryFee
+            ? disabledForeground
+            : AppColors.white,
+        disabledBackgroundColor: disabledBackground,
+        disabledForegroundColor: disabledForeground,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
         minimumSize: const Size(0, 44),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -906,21 +886,40 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 240) {
-          return Column(
-            children: [
-              SizedBox(width: double.infinity, child: closeButton),
-              const SizedBox(height: 8),
-              SizedBox(width: double.infinity, child: openButton),
-            ],
-          );
+        final buttons = constraints.maxWidth < 240
+            ? Column(
+                children: [
+                  SizedBox(width: double.infinity, child: closeButton),
+                  const SizedBox(height: 8),
+                  SizedBox(width: double.infinity, child: openButton),
+                ],
+              )
+            : Row(
+                children: [
+                  Expanded(child: closeButton),
+                  const SizedBox(width: 8),
+                  Expanded(child: openButton),
+                ],
+              );
+
+        if (!isBlockedByDeliveryFee) {
+          return buttons;
         }
 
-        return Row(
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(child: closeButton),
-            const SizedBox(width: 8),
-            Expanded(child: openButton),
+            buttons,
+            const SizedBox(height: 6),
+            const Text(
+              'Revisi ongkir belum disetujui customer.',
+              style: TextStyle(
+                color: AppColors.error,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                height: 1.35,
+              ),
+            ),
           ],
         );
       },
@@ -983,11 +982,10 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error ?? '${stop.merchant.name} ditandai buka.'),
-        backgroundColor: error == null ? null : AppColors.error,
-      ),
+    showDriverActiveOrderSnackBar(
+      context,
+      message: error ?? '${stop.merchant.name} ditandai buka.',
+      isError: error != null,
     );
   }
 
@@ -1012,11 +1010,10 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error ?? '${stop.merchant.name} ditandai tutup.'),
-        backgroundColor: error == null ? null : AppColors.error,
-      ),
+    showDriverActiveOrderSnackBar(
+      context,
+      message: error ?? '${stop.merchant.name} ditandai tutup.',
+      isError: error != null,
     );
   }
 
@@ -1123,11 +1120,10 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     }
 
     setState(() => _isUploadingReceipt = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error ?? 'Foto struk berhasil diupload.'),
-        backgroundColor: error == null ? null : AppColors.error,
-      ),
+    showDriverActiveOrderSnackBar(
+      context,
+      message: error ?? 'Foto struk berhasil diupload.',
+      isError: error != null,
     );
   }
 
@@ -1161,11 +1157,10 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error ?? 'Ketersediaan item disimpan.'),
-        backgroundColor: error == null ? null : AppColors.error,
-      ),
+    showDriverActiveOrderSnackBar(
+      context,
+      message: error ?? 'Ketersediaan item disimpan.',
+      isError: error != null,
     );
 
     if (error == null) {
@@ -1173,31 +1168,6 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
         for (final item in items) {
           _dirtyAvailabilityIds.remove(item.id);
         }
-      });
-    }
-  }
-
-  Future<void> _save() async {
-    final error = await widget.onSave(
-      _itemPayload(widget.order.shoppingItems),
-      null,
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error ?? 'Checkout nitip berhasil disimpan.'),
-        backgroundColor: error == null ? null : AppColors.error,
-      ),
-    );
-
-    if (error == null) {
-      setState(() {
-        _checkoutSavedLocally = true;
-        _syncControllers();
       });
     }
   }

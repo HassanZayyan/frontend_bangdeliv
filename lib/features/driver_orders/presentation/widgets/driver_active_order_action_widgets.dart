@@ -202,12 +202,16 @@ class DriverOrderActionCard extends StatelessWidget {
 class DriverOrderStickyActionBar extends StatelessWidget {
   final DriverOrderModel order;
   final bool isProcessing;
+  final bool isSavingShoppingCheckout;
+  final Future<void> Function()? onSaveShoppingCheckout;
   final Future<void> Function(DriverOrderActionModel action) onTapAction;
 
   const DriverOrderStickyActionBar({
     super.key,
     required this.order,
     required this.isProcessing,
+    this.isSavingShoppingCheckout = false,
+    this.onSaveShoppingCheckout,
     required this.onTapAction,
   });
 
@@ -241,6 +245,8 @@ class DriverOrderStickyActionBar extends StatelessWidget {
           child: _DriverOrderActionControls(
             order: order,
             isProcessing: isProcessing,
+            isSavingShoppingCheckout: isSavingShoppingCheckout,
+            onSaveShoppingCheckout: onSaveShoppingCheckout,
             onTapAction: onTapAction,
             showEmptyState: false,
           ),
@@ -250,30 +256,46 @@ class DriverOrderStickyActionBar extends StatelessWidget {
   }
 
   bool _hasVisibleContent() {
-    if (order.availableActions.isNotEmpty) {
-      return true;
-    }
-
-    return _shouldShowShoppingClosureFeeHint(order);
+    return hasDriverOrderStickyActionBarContent(order);
   }
+}
+
+bool hasDriverOrderStickyActionBarContent(DriverOrderModel order) {
+  if (order.availableActions.isNotEmpty) {
+    return true;
+  }
+
+  return _shouldShowShoppingCheckoutAction(order) ||
+      _shouldShowShoppingClosureFeeHint(order);
 }
 
 class _DriverOrderActionControls extends StatelessWidget {
   final DriverOrderModel order;
   final bool isProcessing;
+  final bool isSavingShoppingCheckout;
+  final Future<void> Function()? onSaveShoppingCheckout;
   final Future<void> Function(DriverOrderActionModel action) onTapAction;
   final bool showEmptyState;
 
   const _DriverOrderActionControls({
     required this.order,
     required this.isProcessing,
+    this.isSavingShoppingCheckout = false,
+    this.onSaveShoppingCheckout,
     required this.onTapAction,
     required this.showEmptyState,
   });
 
   @override
   Widget build(BuildContext context) {
-    final actions = order.availableActions;
+    final showSaveShoppingCheckout =
+        _shouldShowShoppingCheckoutAction(order) &&
+        onSaveShoppingCheckout != null;
+    final actions = showSaveShoppingCheckout
+        ? order.availableActions
+              .where((action) => action.actionCode != 'CONFIRM_PICKED_UP')
+              .toList(growable: false)
+        : order.availableActions;
     final hasCodCollection = actions.any((action) => action.isCodCollection);
     final isCancelledWithFee =
         normalizeOrderStatusCode(order.statusCode) ==
@@ -330,8 +352,43 @@ class _DriverOrderActionControls extends StatelessWidget {
           ),
           const SizedBox(height: 10),
         ],
+        if (showSaveShoppingCheckout) ...[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  textStyle: GoogleFonts.inter(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+                onPressed: isProcessing ? null : onSaveShoppingCheckout,
+                icon: isSavingShoppingCheckout
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.white,
+                        ),
+                      )
+                    : const Icon(Icons.receipt_long_outlined),
+                label: const Text('Simpan Checkout Nitip'),
+              ),
+            ),
+          ),
+        ],
         if (actions.isEmpty)
-          if (showEmptyState)
+          if (showEmptyState && !showSaveShoppingCheckout)
             Text(
               isWaitingCancellationFeePayment
                   ? 'Menunggu pembayaran biaya pembatalan dari customer. Verifikasi transfer dulu, lalu selesaikan order.'
@@ -394,16 +451,33 @@ class _DriverOrderActionControls extends StatelessWidget {
 }
 
 bool _shouldShowShoppingClosureFeeHint(DriverOrderModel order) {
+  final pricing = order.shoppingPricing;
   if (normalizeServiceTypeCode(order.serviceTypeCode) !=
           ServiceTypeCodes.shopping ||
       order.shoppingStops.where((stop) => stop.isActive).isEmpty ||
-      order.shoppingPricing == null) {
+      pricing == null) {
+    return false;
+  }
+
+  final shoppingStopCount = order.shoppingStops
+      .where((stop) => !stop.isReplaced)
+      .length;
+  if (shoppingStopCount < pricing.failedAttemptThreshold) {
     return false;
   }
 
   final status = normalizeOrderStatusCode(order.statusCode);
   return status == OrderStatusCodes.driverAssigned ||
       status == OrderStatusCodes.arrivedMerchant;
+}
+
+bool _shouldShowShoppingCheckoutAction(DriverOrderModel order) {
+  return normalizeServiceTypeCode(order.serviceTypeCode) ==
+          ServiceTypeCodes.shopping &&
+      order.shoppingCapabilities.canDriverUploadReceipt &&
+      !order.shoppingCapabilities.hasCheckoutSaved &&
+      !order.shoppingCapabilities.hasPendingItemChangeRequest &&
+      (order.shoppingNegotiation?.checkoutAllowed ?? false);
 }
 
 String _shoppingClosureFeeHint(DriverShoppingPricingModel pricing) {

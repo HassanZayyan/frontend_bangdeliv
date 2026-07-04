@@ -31,11 +31,10 @@ Future<void> showDriverManualDeliveryFeeEditDialog(
     return;
   }
 
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(error ?? 'Ongkir manual berhasil disimpan.'),
-      backgroundColor: error == null ? null : AppColors.error,
-    ),
+  showDriverActiveOrderSnackBar(
+    context,
+    message: error ?? 'Ongkir manual berhasil disimpan.',
+    isError: error != null,
   );
 }
 

@@ -110,21 +110,35 @@ class _IncomingOrdersList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (orders.isEmpty) {
-      final normalizedStatus = availabilityStatus.trim().toLowerCase();
-      final isBusy = normalizedStatus == 'busy';
+    final content = orders.isEmpty
+        ? _buildEmptyRefreshContent(context)
+        : _buildIncomingOrderList(ref);
 
-      if (canReceiveIncomingOrders) {
-        return const BangIllustrationEmptyState(
+    return RefreshIndicator(
+      color: AppColors.primary,
+      onRefresh: () => ref.read(driverOrdersProvider.notifier).refresh(),
+      child: content,
+    );
+  }
+
+  Widget _buildEmptyRefreshContent(BuildContext context) {
+    final normalizedStatus = availabilityStatus.trim().toLowerCase();
+    final isBusy = normalizedStatus == 'busy';
+
+    if (canReceiveIncomingOrders) {
+      return _ScrollableEmptyOrderState(
+        child: const BangIllustrationEmptyState(
           title: 'Belum ada orderan masuk',
           subtitle: '',
           titleFontSize: 13,
           titleFontWeight: FontWeight.w500,
           titleColor: AppColors.textSecondary,
-        );
-      }
+        ),
+      );
+    }
 
-      return _EmptyOrderState(
+    return _ScrollableEmptyOrderState(
+      child: _EmptyOrderState(
         icon: isBusy ? Icons.delivery_dining : Icons.power_settings_new,
         title: isBusy ? 'Sedang menjalankan order' : 'Status kerja offline',
         action: isBusy
@@ -142,102 +156,133 @@ class _IncomingOrdersList extends ConsumerWidget {
                   ),
                 ),
               ),
-      );
-    }
-
-    return RefreshIndicator(
-      color: AppColors.primary,
-      onRefresh: () => ref.read(driverOrdersProvider.notifier).refresh(),
-      child: ListView.separated(
-        physics: const AlwaysScrollableScrollPhysics(
-          parent: ClampingScrollPhysics(),
-        ),
-        padding: const EdgeInsets.fromLTRB(
-          16,
-          12,
-          16,
-          BangFloatingBottomNavBar.scrollClearance,
-        ),
-        itemCount: orders.length,
-        separatorBuilder: (context, index) => const SizedBox(height: 14),
-        itemBuilder: (context, index) {
-          final order = orders[index];
-          final isProcessing = processingOrderIds.contains(order.id);
-
-          return _OrderCard(
-            order: order,
-            isProcessing: isProcessing,
-            onAccept: isProcessing
-                ? null
-                : () async {
-                    final result = await ref
-                        .read(driverOrdersProvider.notifier)
-                        .acceptOrder(order.id);
-
-                    if (!context.mounted) {
-                      return;
-                    }
-
-                    if (result.isSuccess) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Order diterima.')),
-                      );
-                      final acceptedOrderId = result.order?.id ?? order.id;
-                      if (_isServerOrderId(acceptedOrderId)) {
-                        context.go(
-                          AppRoutes.driverOrderActivePath(acceptedOrderId),
-                        );
-                      } else {
-                        await ref.read(driverOrdersProvider.notifier).refresh();
-                        final activeOrder = ref.read(driverActiveOrderProvider);
-                        if (!context.mounted) {
-                          return;
-                        }
-                        if (activeOrder != null &&
-                            _isServerOrderId(activeOrder.id)) {
-                          context.go(
-                            AppRoutes.driverOrderActivePath(activeOrder.id),
-                          );
-                        }
-                      }
-                      return;
-                    }
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(_acceptErrorMessage(result)),
-                        backgroundColor: Colors.red.shade700,
-                      ),
-                    );
-                  },
-            onReject: isProcessing
-                ? null
-                : () async {
-                    final error = await ref
-                        .read(driverOrdersProvider.notifier)
-                        .rejectOrder(order.id);
-
-                    if (!context.mounted) {
-                      return;
-                    }
-
-                    if (error == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Order ditolak.')),
-                      );
-                      return;
-                    }
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(error),
-                        backgroundColor: Colors.red.shade700,
-                      ),
-                    );
-                  },
-          );
-        },
       ),
+    );
+  }
+
+  Widget _buildIncomingOrderList(WidgetRef ref) {
+    return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: ClampingScrollPhysics(),
+      ),
+      padding: const EdgeInsets.fromLTRB(
+        16,
+        12,
+        16,
+        BangFloatingBottomNavBar.scrollClearance,
+      ),
+      itemCount: orders.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 14),
+      itemBuilder: (context, index) {
+        final order = orders[index];
+        final isProcessing = processingOrderIds.contains(order.id);
+
+        return _OrderCard(
+          order: order,
+          isProcessing: isProcessing,
+          onAccept: isProcessing
+              ? null
+              : () async {
+                  final result = await ref
+                      .read(driverOrdersProvider.notifier)
+                      .acceptOrder(order.id);
+
+                  if (!context.mounted) {
+                    return;
+                  }
+
+                  if (result.isSuccess) {
+                    ref
+                        .read(driverActiveOrderSnackBarMessageProvider.notifier)
+                        .show('Order diterima.');
+                    final acceptedOrderId = result.order?.id ?? order.id;
+                    if (_isServerOrderId(acceptedOrderId)) {
+                      context.go(
+                        AppRoutes.driverOrderActivePath(acceptedOrderId),
+                      );
+                    } else {
+                      await ref.read(driverOrdersProvider.notifier).refresh();
+                      final activeOrder = ref.read(driverActiveOrderProvider);
+                      if (!context.mounted) {
+                        return;
+                      }
+                      if (activeOrder != null &&
+                          _isServerOrderId(activeOrder.id)) {
+                        context.go(
+                          AppRoutes.driverOrderActivePath(activeOrder.id),
+                        );
+                      }
+                    }
+                    return;
+                  }
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(_acceptErrorMessage(result)),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                },
+          onReject: isProcessing
+              ? null
+              : () async {
+                  final error = await ref
+                      .read(driverOrdersProvider.notifier)
+                      .rejectOrder(order.id);
+
+                  if (!context.mounted) {
+                    return;
+                  }
+
+                  if (error == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Order ditolak.'),
+                        backgroundColor: AppColors.success,
+                      ),
+                    );
+                    return;
+                  }
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(error),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                },
+        );
+      },
+    );
+  }
+}
+
+class _ScrollableEmptyOrderState extends StatelessWidget {
+  const _ScrollableEmptyOrderState({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const topPadding = 12.0;
+        const bottomPadding = BangFloatingBottomNavBar.scrollClearance;
+        final contentHeight =
+            constraints.maxHeight - topPadding - bottomPadding;
+        final minHeight = contentHeight > 0 ? contentHeight : 0.0;
+
+        return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: ClampingScrollPhysics(),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, topPadding, 16, bottomPadding),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: minHeight),
+            child: child,
+          ),
+        );
+      },
     );
   }
 }

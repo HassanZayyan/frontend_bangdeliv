@@ -47,6 +47,38 @@ void main() {
     });
   });
 
+  group('MapPickerHelpers.normalizeBearing', () {
+    test('wraps values into a 0 to 360 degree range', () {
+      expect(MapPickerHelpers.normalizeBearing(0), 0);
+      expect(MapPickerHelpers.normalizeBearing(360), 0);
+      expect(MapPickerHelpers.normalizeBearing(450), 90);
+      expect(MapPickerHelpers.normalizeBearing(-90), 270);
+    });
+  });
+
+  group('MapPickerHelpers.bearingBetween', () {
+    test('calculates cardinal movement bearings', () {
+      const origin = LatLng(0, 0);
+
+      expect(
+        MapPickerHelpers.bearingBetween(origin, const LatLng(1, 0)),
+        closeTo(0, 0.001),
+      );
+      expect(
+        MapPickerHelpers.bearingBetween(origin, const LatLng(0, 1)),
+        closeTo(90, 0.001),
+      );
+      expect(
+        MapPickerHelpers.bearingBetween(origin, const LatLng(-1, 0)),
+        closeTo(180, 0.001),
+      );
+      expect(
+        MapPickerHelpers.bearingBetween(origin, const LatLng(0, -1)),
+        closeTo(270, 0.001),
+      );
+    });
+  });
+
   test('firstAddressSegment returns the first non-empty segment', () {
     expect(
       MapPickerHelpers.firstAddressSegment('  Toko A , Salatiga, Jawa Tengah '),

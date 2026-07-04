@@ -2,7 +2,76 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../config/app_colors.dart';
+import '../../../navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
 import '../../../../utils/currency_input_parser.dart';
+
+class DriverActiveOrderSnackBarScope extends InheritedWidget {
+  const DriverActiveOrderSnackBarScope({
+    super.key,
+    required this.stickyActionBarKey,
+    required super.child,
+  });
+
+  final GlobalKey stickyActionBarKey;
+
+  static DriverActiveOrderSnackBarScope? maybeOf(BuildContext context) {
+    final widget = context
+        .getElementForInheritedWidgetOfExactType<
+          DriverActiveOrderSnackBarScope
+        >()
+        ?.widget;
+
+    return widget is DriverActiveOrderSnackBarScope ? widget : null;
+  }
+
+  @override
+  bool updateShouldNotify(DriverActiveOrderSnackBarScope oldWidget) {
+    return stickyActionBarKey != oldWidget.stickyActionBarKey;
+  }
+}
+
+void showDriverActiveOrderSnackBar(
+  BuildContext context, {
+  required String message,
+  bool isError = false,
+  GlobalKey? stickyActionBarKey,
+}) {
+  final bottomInset = _driverActiveOrderSnackBarBottomInset(
+    context,
+    stickyActionBarKey: stickyActionBarKey,
+  );
+
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? AppColors.error : AppColors.success,
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.fromLTRB(16, 0, 16, bottomInset),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+}
+
+double _driverActiveOrderSnackBarBottomInset(
+  BuildContext context, {
+  GlobalKey? stickyActionBarKey,
+}) {
+  final resolvedKey =
+      stickyActionBarKey ??
+      DriverActiveOrderSnackBarScope.maybeOf(context)?.stickyActionBarKey;
+  final renderObject = resolvedKey?.currentContext?.findRenderObject();
+  final actionBarHeight = renderObject is RenderBox && renderObject.hasSize
+      ? renderObject.size.height
+      : 0.0;
+
+  if (actionBarHeight > 1) {
+    return actionBarHeight + BangFloatingBottomNavBar.snackBarGap;
+  }
+
+  return BangFloatingBottomNavBar.snackBarBottomInset(context);
+}
 
 InputDecoration driverDialogInputDecoration({
   String? labelText,

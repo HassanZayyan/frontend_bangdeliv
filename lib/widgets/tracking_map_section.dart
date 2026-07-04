@@ -8,6 +8,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../config/app_colors.dart';
 import '../utils/map_marker_icons.dart';
+import '../utils/map_picker_helpers.dart';
 import '../utils/order_formatters.dart';
 
 class TrackingMapPickupPoint {
@@ -71,11 +72,13 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
   bool _hasPerformedInitialFit = false;
   LatLng? _lastFocusedDriverPosition;
   DateTime? _lastFocusedDriverUpdatedAt;
+  LatLng? _lastDriverPositionForBearing;
   BitmapDescriptor? _driverMarkerIcon;
   Timer? _fitCameraDebounce;
   Timer? _mapMountTimer;
   bool _mapMountReady = false;
   double _cameraBearing = 0;
+  double _driverMovementBearing = 0;
   CameraPosition? _lastCameraPosition;
   String? _decodedPolylineSource;
   List<LatLng>? _decodedPolylinePoints;
@@ -83,6 +86,7 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
   static const LatLng _fallbackCenter = LatLng(-7.0503, 110.4370);
   static const double _driverFollowZoom = 16;
   static const double _markerFitPadding = 28;
+  static const double _driverBearingJitterThresholdMeters = 2;
   static const Duration _mapMountDelay = Duration(milliseconds: 650);
 
   EdgeInsets get _effectiveMapPadding => widget.mapPadding ?? EdgeInsets.zero;
@@ -97,10 +101,14 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
     return bearing > 3 && bearing < 357;
   }
 
+  double get _driverMarkerRotation =>
+      MapPickerHelpers.normalizeBearing(_driverMovementBearing - 90);
+
   @override
   void initState() {
     super.initState();
     _isFollowingDriver = widget.followDriver;
+    _lastDriverPositionForBearing = _driverPosition;
     _scheduleMapMount();
     unawaited(_loadDriverMarkerIcon());
   }
@@ -132,6 +140,13 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
     final routeChanged = _routePointsChanged(oldWidget);
     final driverChanged = _driverPositionChanged(oldWidget);
     final paddingChanged = _mapPaddingChanged(oldWidget);
+
+    if (driverChanged) {
+      _syncDriverMovementBearing(
+        _driverPositionFromWidget(oldWidget),
+        _driverPosition,
+      );
+    }
 
     if (routeChanged) {
       _hasPerformedInitialFit = false;
@@ -189,11 +204,45 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
       widget.driverLatitude != null && widget.driverLongitude != null;
 
   LatLng? get _driverPosition {
-    if (!_hasDriverCoordinates) {
+    return _driverPositionFromWidget(widget);
+  }
+
+  LatLng? _driverPositionFromWidget(TrackingMapSection value) {
+    if (value.driverLatitude == null || value.driverLongitude == null) {
       return null;
     }
 
-    return LatLng(widget.driverLatitude!, widget.driverLongitude!);
+    return LatLng(value.driverLatitude!, value.driverLongitude!);
+  }
+
+  void _syncDriverMovementBearing(
+    LatLng? previousPosition,
+    LatLng? nextPosition,
+  ) {
+    if (nextPosition == null) {
+      _lastDriverPositionForBearing = null;
+      return;
+    }
+
+    final origin = _lastDriverPositionForBearing ?? previousPosition;
+    if (origin == null) {
+      _lastDriverPositionForBearing = nextPosition;
+      return;
+    }
+
+    final distanceMeters = MapPickerHelpers.distanceMeters(
+      origin,
+      nextPosition,
+    );
+    if (distanceMeters < _driverBearingJitterThresholdMeters) {
+      return;
+    }
+
+    _driverMovementBearing = MapPickerHelpers.bearingBetween(
+      origin,
+      nextPosition,
+    );
+    _lastDriverPositionForBearing = nextPosition;
   }
 
   LatLng _initialCameraTarget(Set<Marker> markers) {
@@ -729,14 +778,18 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
       );
     }
 
-    if (widget.driverLatitude != null && widget.driverLongitude != null) {
+    final driverPosition = _driverPosition;
+    if (driverPosition != null) {
       markers.add(
         Marker(
           markerId: const MarkerId('driver'),
-          position: LatLng(widget.driverLatitude!, widget.driverLongitude!),
+          position: driverPosition,
           icon:
               _driverMarkerIcon ??
               BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+          anchor: const Offset(0.5, 0.5),
+          flat: true,
+          rotation: _driverMarkerRotation,
           infoWindow: const InfoWindow(title: 'Posisi Driver'),
         ),
       );
@@ -752,7 +805,7 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
         Polyline(
           polylineId: const PolylineId('order_route'),
           points: decodedPoints,
-          color: AppColors.primary,
+          color: AppColors.routeYellow.withValues(alpha: 0.95),
           width: 5,
           geodesic: true,
         ),
@@ -768,7 +821,7 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
       Polyline(
         polylineId: const PolylineId('order_route_fallback'),
         points: fallbackPoints,
-        color: AppColors.primary.withValues(alpha: 0.55),
+        color: AppColors.routeYellow.withValues(alpha: 0.65),
         width: 4,
         geodesic: true,
       ),

@@ -177,6 +177,48 @@ void main() {
     expect(find.byIcon(Icons.inbox_outlined), findsNothing);
   });
 
+  testWidgets('empty incoming orders can pull refresh to load new orders', (
+    tester,
+  ) async {
+    final service = _AcceptNavigationDriverOrderService(
+      incomingOrders: const <DriverOrderModel>[],
+    );
+
+    await _pumpDriverOrders(tester, service: service);
+
+    final initialFetchCount = service.fetchOrdersCallCount;
+    expect(find.text('Belum ada orderan masuk'), findsOneWidget);
+    expect(find.text('Lihat Detail'), findsNothing);
+
+    service.setIncomingOrders([
+      _AcceptNavigationDriverOrderService.defaultIncomingOrder,
+    ]);
+    await tester.drag(find.byType(Scrollable), const Offset(0, 320));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+
+    expect(service.fetchOrdersCallCount, greaterThan(initialFetchCount));
+    expect(find.text('Belum ada orderan masuk'), findsNothing);
+    expect(find.text('Lihat Detail'), findsOneWidget);
+  });
+
+  testWidgets('offline empty state stays scrollable with status action', (
+    tester,
+  ) async {
+    await _pumpDriverOrders(
+      tester,
+      service: _AcceptNavigationDriverOrderService(
+        incomingOrders: const <DriverOrderModel>[],
+        availabilityStatus: 'offline',
+      ),
+    );
+
+    expect(find.text('Status kerja offline'), findsOneWidget);
+    expect(find.text('Atur Status Kerja'), findsOneWidget);
+    expect(find.byType(Scrollable), findsOneWidget);
+  });
+
   testWidgets('incoming shopping order shows only available merchant count', (
     tester,
   ) async {
@@ -314,13 +356,25 @@ class _AcceptNavigationDriverOrderService extends DriverOrderService {
   _AcceptNavigationDriverOrderService({
     Completer<void>? acceptCompleter,
     List<DriverOrderModel>? incomingOrders,
+    List<List<DriverOrderModel>>? incomingOrderBatches,
+    this.availabilityStatus = 'available',
     this.acceptFailure,
   }) : acceptCompleter = acceptCompleter ?? Completer<void>(),
-       incomingOrders = incomingOrders ?? const [_defaultIncomingOrder];
+       incomingOrderBatches =
+           incomingOrderBatches ??
+           [
+             incomingOrders ?? const [_defaultIncomingOrder],
+           ] {
+    _latestIncomingOrders = this.incomingOrderBatches.first;
+  }
 
   final Completer<void> acceptCompleter;
-  final List<DriverOrderModel> incomingOrders;
+  final List<List<DriverOrderModel>> incomingOrderBatches;
+  final String availabilityStatus;
   final DriverOrderApiException? acceptFailure;
+  late List<DriverOrderModel> _latestIncomingOrders;
+  List<DriverOrderModel>? _manualIncomingOrders;
+  int fetchOrdersCallCount = 0;
 
   static const DriverOrderModel _defaultIncomingOrder = DriverOrderModel(
     id: '42',
@@ -335,13 +389,30 @@ class _AcceptNavigationDriverOrderService extends DriverOrderService {
     statusCode: OrderStatusCodes.pending,
   );
 
+  static DriverOrderModel get defaultIncomingOrder => _defaultIncomingOrder;
+
+  void setIncomingOrders(List<DriverOrderModel> orders) {
+    _manualIncomingOrders = orders;
+  }
+
   @override
-  Future<String> fetchAvailabilityStatus() async => 'available';
+  Future<String> fetchAvailabilityStatus() async => availabilityStatus;
 
   @override
   Future<DriverOrdersPayload> fetchOrders() async {
+    fetchOrdersCallCount += 1;
+    final manualIncomingOrders = _manualIncomingOrders;
+    if (manualIncomingOrders != null) {
+      _latestIncomingOrders = manualIncomingOrders;
+    } else {
+      final batchIndex = fetchOrdersCallCount - 1 < incomingOrderBatches.length
+          ? fetchOrdersCallCount - 1
+          : incomingOrderBatches.length - 1;
+      _latestIncomingOrders = incomingOrderBatches[batchIndex];
+    }
+
     return DriverOrdersPayload(
-      incoming: incomingOrders,
+      incoming: _latestIncomingOrders,
       running: const <DriverOrderModel>[],
     );
   }
@@ -354,9 +425,9 @@ class _AcceptNavigationDriverOrderService extends DriverOrderService {
       throw failure;
     }
 
-    final selectedOrder = incomingOrders.firstWhere(
+    final selectedOrder = _latestIncomingOrders.firstWhere(
       (order) => order.id == orderId,
-      orElse: () => incomingOrders.first,
+      orElse: () => _latestIncomingOrders.first,
     );
     return selectedOrder.copyWith(
       statusCode: OrderStatusCodes.driverAssigned,

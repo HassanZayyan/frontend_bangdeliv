@@ -10,6 +10,7 @@ class AppColors {
   static const Color darkBlue = Color(0xFF1E2140);
   static const Color info = Color(0xFF2563EB);
   static const Color warning = Color(0xFFF59E0B);
+  static const Color routeYellow = Color(0xFFF4D000);
 
   // Neutral Colors (Text, Background)
   static const Color background = Color(0xFFF9FAFB);
