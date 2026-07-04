@@ -51,11 +51,12 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
   String? _pendingMapSelectionTarget;
   _RoutePoint? _pickupPoint;
   _RoutePoint? _destinationPoint;
+  _RoutePoint? _previewPoint;
   bool _isDestinationMapVisible = false;
   bool _pickupChanged = false;
   bool _isResolvingCurrentLocation = false;
   bool _showLocationButtonLoading = false;
-  bool _isSavingManualDestination = false;
+  bool _isSavingActivePoint = false;
   int _mapAddressRequestId = 0;
   String? _mapCenterAddress;
   bool _isLocationPermissionGranted = false;
@@ -114,6 +115,10 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     _activeTarget = pickupInitial != null
         ? _destinationTarget
         : (destinationInitial != null ? _destinationTarget : _pickupTarget);
+    _isDestinationMapVisible =
+        pickupInitial != null &&
+        destinationInitial == null &&
+        _activeTarget == _destinationTarget;
     _cameraTarget = pickupInitial ?? destinationInitial ?? _fallbackCenter;
     _initialZoom = (pickupInitial ?? destinationInitial) == null ? 13.0 : 17.0;
 
@@ -160,10 +165,10 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final activeAddress = _activePoint?.displayAddress;
+    final displayPoint = _activePreviewPoint ?? _activePoint;
+    final activeAddress = displayPoint?.displayAddress;
     final displayAddress =
-        activeAddress ??
-        (_isManualDestinationSelectionMode ? _mapCenterAddress : null);
+        activeAddress ?? (_shouldShowMap ? _mapCenterAddress : null);
     final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
     final showMapPanel = _shouldShowMap && !keyboardOpen;
 
@@ -323,9 +328,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                             _mapController = controller;
                           },
                           onCameraMoveStarted: _handleMapCameraMoveStarted,
-                          onCameraMove: (position) {
-                            _cameraTarget = position.target;
-                          },
+                          onCameraMove: _handleMapCameraMove,
                           onCameraIdle: _handleMapCameraIdle,
                         ),
                         if (_isMapSelectionActive)
@@ -378,6 +381,11 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
       fontSize: 15,
       fontWeight: FontWeight.w600,
     );
+    final showConfirmButton = _canConfirmRoute;
+    final primaryButtonLabel = showConfirmButton
+        ? widget.args.confirmLabel
+        : 'Simpan';
+    final primaryActionEnabled = showConfirmButton || _canSaveActivePoint;
     return Container(
       width: double.infinity,
       padding: EdgeInsets.fromLTRB(16, showMapPanel ? 2 : 8, 16, 16),
@@ -481,10 +489,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                     ),
                   ),
                   child: ElevatedButton(
-                    onPressed:
-                        (_canConfirmRoute ||
-                            (_isManualDestinationSelectionMode &&
-                                !_isSavingManualDestination))
+                    onPressed: primaryActionEnabled
                         ? _handlePrimaryAction
                         : null,
                     style: ElevatedButton.styleFrom(
@@ -503,7 +508,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
                       ),
                     ),
                     child: Text(
-                      'Simpan',
+                      primaryButtonLabel,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
@@ -520,10 +525,7 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
   }
 
   Widget _buildPointSummary() {
-    final hasDestinationDraftSelection =
-        _destinationPoint != null ||
-        (_isManualDestinationSelectionMode &&
-            (_mapCenterAddress ?? '').trim().isNotEmpty);
+    final hasDestinationDraftSelection = _destinationPoint != null;
     return Row(
       children: [
         Expanded(
@@ -553,20 +555,30 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
   _RoutePoint? get _activePoint =>
       _activeTarget == _pickupTarget ? _pickupPoint : _destinationPoint;
 
+  _RoutePoint? get _activePreviewPoint =>
+      _previewPoint?.target == _activeTarget ? _previewPoint : null;
+
+  bool get _hasUnsavedPreview => _previewPoint != null;
+
   bool get _shouldShowMap {
     if (_activeTarget == _pickupTarget) {
       return _pickupPoint != null;
     }
-    return _destinationPoint != null || _isDestinationMapVisible;
+    return _pickupPoint != null ||
+        _destinationPoint != null ||
+        _isDestinationMapVisible;
   }
 
   bool get _canConfirmRoute =>
-      _pickupPoint != null && _destinationPoint != null;
+      _pickupPoint != null && _destinationPoint != null && !_hasUnsavedPreview;
 
-  bool get _isManualDestinationSelectionMode =>
-      _activeTarget == _destinationTarget &&
-      _shouldShowMap &&
-      _destinationPoint == null;
+  bool get _canSaveActivePoint {
+    if (!_shouldShowMap || _isSavingActivePoint) {
+      return false;
+    }
+
+    return _activePreviewPoint != null || _activePoint == null;
+  }
 
   bool get _isMapSelectionActive => _shouldShowMap;
 
@@ -581,14 +593,53 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     _pendingMapSelectionTarget ??= _activeTarget;
   }
 
+  void _handleMapCameraMove(CameraPosition position) {
+    _cameraTarget = position.target;
+    if (!_isMapSelectionActive || _isResolvingCurrentLocation) {
+      return;
+    }
+
+    final target = _pendingMapSelectionTarget ?? _activeTarget;
+    final savedPoint = _pointForTarget(target);
+    if (savedPoint != null && _samePosition(savedPoint, position.target)) {
+      if (_previewPoint?.target == target) {
+        setState(() {
+          _previewPoint = null;
+          _mapCenterAddress = null;
+        });
+      }
+      return;
+    }
+
+    if (_previewPoint?.target != target) {
+      setState(() {
+        _previewPoint = _RoutePoint(
+          target: target,
+          latitude: position.target.latitude,
+          longitude: position.target.longitude,
+          source: 'map_pin',
+        );
+        _mapCenterAddress = null;
+        _statusHint = null;
+      });
+    }
+  }
+
   void _selectTarget(String target) {
     if (target != _pickupTarget && target != _destinationTarget) {
       return;
     }
 
+    final targetChanged = target != _activeTarget;
     setState(() {
       _activeTarget = target;
       _statusHint = null;
+      if (targetChanged) {
+        _clearPreviewForSetState();
+      }
+      if (target == _destinationTarget && _pickupPoint != null) {
+        _isDestinationMapVisible = true;
+      }
     });
     _searchController.clear();
     if (_searchController.isOpen) {
@@ -637,6 +688,9 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
 
     final latLng = LatLng(point.latitude, point.longitude);
     _cameraTarget = latLng;
+    if (_previewPoint?.target == target) {
+      setState(() => _clearPreviewForSetState());
+    }
     final hasStableAddress = (point.address ?? '').trim().isNotEmpty;
     _skipNextCameraIdleGeocode = hasStableAddress;
     await _animateCameraSafely(latLng, 17);
@@ -704,6 +758,30 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
         a.longitude == b.longitude;
   }
 
+  _RoutePoint? _pointForTarget(String target) {
+    if (target == _pickupTarget) {
+      return _pickupPoint;
+    }
+    if (target == _destinationTarget) {
+      return _destinationPoint;
+    }
+    return null;
+  }
+
+  bool _samePosition(_RoutePoint point, LatLng target) {
+    return MapPickerHelpers.distanceMeters(
+          LatLng(point.latitude, point.longitude),
+          target,
+        ) <
+        1;
+  }
+
+  void _clearPreviewForSetState() {
+    _previewPoint = null;
+    _pendingMapSelectionTarget = null;
+    _mapCenterAddress = null;
+  }
+
   Future<void> _handleMapCameraIdle() async {
     if (!mounted) return;
     if (!_isMapSelectionActive || _isResolvingCurrentLocation) {
@@ -722,15 +800,15 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     final address = await _mapsLookup.reverseGeocode(target);
     if (!mounted || requestId != _mapAddressRequestId) return;
 
-    _cameraTarget = target;
-    _saveActivePoint('map_pin', target: saveTarget, address: address);
-
-    setState(() {
-      _mapCenterAddress = address;
-      _statusHint = address == null
+    _updatePreviewPoint(
+      target: saveTarget,
+      position: target,
+      source: 'map_pin',
+      address: address,
+      statusHint: address == null
           ? 'Alamat belum ditemukan, kamu tetap bisa gunakan titik ini.'
-          : null;
-    });
+          : null,
+    );
   }
 
   Future<void> _moveToCurrentLocation() async {
@@ -766,12 +844,15 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
       final address = await _mapsLookup.reverseGeocode(target);
       if (!mounted) return;
 
-      _saveActivePoint('gps', address: address);
-      setState(() {
-        _statusHint = address == null
+      _updatePreviewPoint(
+        target: _activeTarget,
+        position: target,
+        source: 'gps',
+        address: address,
+        statusHint: address == null
             ? 'Titik dipilih di peta untuk ${_activeLabelLower()}.'
-            : null;
-      });
+            : null,
+      );
     } catch (_) {
       _showMessage('Gagal mengambil lokasi saat ini. Coba lagi.');
       setState(() {
@@ -815,80 +896,92 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
 
   Future<void> _handlePrimaryAction() async {
     if (_canConfirmRoute) {
-      _confirmRoute();
+      await _showRouteConfirmationDialog();
       return;
     }
 
-    if (_isManualDestinationSelectionMode && !_isSavingManualDestination) {
-      await _saveDestinationFromMapCenter();
-      if (!mounted) return;
-      if (_canConfirmRoute) {
-        _confirmRoute();
-      }
+    if (_canSaveActivePoint) {
+      await _saveActiveMapPoint();
     }
   }
 
-  Future<void> _saveDestinationFromMapCenter() async {
-    if (_isSavingManualDestination || _activeTarget != _destinationTarget) {
+  Future<void> _saveActiveMapPoint() async {
+    if (_isSavingActivePoint || !_shouldShowMap) {
       return;
     }
 
-    final manualTarget = _cameraTarget;
-    setState(() => _isSavingManualDestination = true);
+    final saveTarget = _activeTarget;
+    final selectedTarget = _cameraTarget;
+    final preview = _activePreviewPoint;
+    setState(() => _isSavingActivePoint = true);
 
     try {
       final address =
-          _mapCenterAddress ?? await _mapsLookup.reverseGeocode(manualTarget);
+          preview?.address ??
+          _mapCenterAddress ??
+          await _mapsLookup.reverseGeocode(selectedTarget);
       if (!mounted) return;
 
-      _cameraTarget = manualTarget;
-      _saveActivePoint('map_pin', target: _destinationTarget, address: address);
-      setState(() => _statusHint = null);
+      final point = _RoutePoint(
+        target: saveTarget,
+        latitude: selectedTarget.latitude,
+        longitude: selectedTarget.longitude,
+        address: _mapsLookup.cleanAddress(address),
+        source: preview?.source ?? 'map_pin',
+      );
+      final nextPickup = saveTarget == _pickupTarget ? point : _pickupPoint;
+      final nextDestination = saveTarget == _destinationTarget
+          ? point
+          : _destinationPoint;
+      if (!_validateRouteDistance(nextPickup, nextDestination)) {
+        return;
+      }
+
+      _saveActivePoint(point);
     } finally {
       if (mounted) {
-        setState(() => _isSavingManualDestination = false);
+        setState(() => _isSavingActivePoint = false);
       }
     }
   }
 
-  void _saveActivePoint(String source, {String? target, String? address}) {
-    final cleanedAddress = _mapsLookup.cleanAddress(address);
-    final saveTarget = target ?? _activeTarget;
-    final point = _RoutePoint(
-      target: saveTarget,
-      latitude: _cameraTarget.latitude,
-      longitude: _cameraTarget.longitude,
-      address: cleanedAddress,
-      source: source,
-    );
-
+  void _saveActivePoint(_RoutePoint point) {
     setState(() {
-      if (saveTarget == _pickupTarget) {
+      _cameraTarget = LatLng(point.latitude, point.longitude);
+      if (point.target == _pickupTarget) {
         _pickupPoint = point;
         _pickupChanged = true;
       } else {
         _destinationPoint = point;
         _mapCenterAddress = null;
       }
+      if (_previewPoint?.target == point.target) {
+        _clearPreviewForSetState();
+      }
+      _statusHint = null;
     });
-
-    if (_pendingMapSelectionTarget == saveTarget) {
-      _pendingMapSelectionTarget = null;
-    }
   }
 
-  void _confirmRoute() {
+  bool _validateRouteReady() {
     final pickup = _pickupPoint;
     final destination = _destinationPoint;
     if (pickup == null) {
       _showMessage('${widget.args.pickupLabel} belum dipilih.');
       setState(() => _activeTarget = _pickupTarget);
-      return;
+      return false;
     }
     if (destination == null) {
       _showMessage('${widget.args.destinationLabel} belum dipilih.');
       setState(() => _activeTarget = _destinationTarget);
-      return;
+      return false;
+    }
+
+    return _validateRouteDistance(pickup, destination);
+  }
+
+  bool _validateRouteDistance(_RoutePoint? pickup, _RoutePoint? destination) {
+    if (pickup == null || destination == null) {
+      return true;
     }
 
     final routeDistanceMeters = MapPickerHelpers.distanceMeters(
@@ -901,9 +994,114 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
         _activeTarget = _destinationTarget;
         _statusHint = 'Geser peta atau cari alamat tujuan yang berbeda.';
       });
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<void> _showRouteConfirmationDialog() async {
+    if (!_validateRouteReady()) {
       return;
     }
 
+    final pickup = _pickupPoint!;
+    final destination = _destinationPoint!;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        final maxLocationHeight = MediaQuery.sizeOf(context).height * 0.38;
+        return AlertDialog(
+          backgroundColor: AppColors.white,
+          surfaceTintColor: AppColors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          title: const Text(
+            'Konfirmasi lokasi',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+              height: 1.2,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: maxLocationHeight),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _RouteConfirmationRow(
+                        label: widget.args.pickupLabel,
+                        address: pickup.displayAddress,
+                      ),
+                      const SizedBox(height: 14),
+                      _RouteConfirmationRow(
+                        label: widget.args.destinationLabel,
+                        address: destination.displayAddress,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: const BorderSide(color: AppColors.primary),
+                        minimumSize: const Size(0, 48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: const _RouteConfirmationButtonLabel('Ubah'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: AppColors.white,
+                        minimumSize: const Size(0, 48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: _RouteConfirmationButtonLabel(
+                        widget.args.confirmLabel,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || confirmed != true) {
+      return;
+    }
+
+    _popRouteResult();
+  }
+
+  void _popRouteResult() {
+    final pickup = _pickupPoint!;
+    final destination = _destinationPoint!;
     final hasDefaultPickup =
         MapPickerHelpers.validLatLng(
           widget.args.defaultPickupLatitude,
@@ -954,10 +1152,47 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
     _cameraTarget = target;
     _skipNextCameraIdleGeocode = true;
     await _animateCameraSafely(target, 18);
-    _saveActivePoint('search', address: address);
-    if (mounted) {
-      setState(() => _statusHint = null);
-    }
+    if (!mounted) return;
+    _updatePreviewPoint(
+      target: _activeTarget,
+      position: target,
+      source: 'search',
+      address: address,
+    );
+  }
+
+  void _updatePreviewPoint({
+    required String target,
+    required LatLng position,
+    required String source,
+    String? address,
+    String? statusHint,
+  }) {
+    final cleanedAddress = _mapsLookup.cleanAddress(address);
+    final savedPoint = _pointForTarget(target);
+    setState(() {
+      _cameraTarget = position;
+      _mapCenterAddress = cleanedAddress;
+      _statusHint = statusHint;
+      if (_pendingMapSelectionTarget == target) {
+        _pendingMapSelectionTarget = null;
+      }
+
+      if (savedPoint != null && _samePosition(savedPoint, position)) {
+        if (_previewPoint?.target == target) {
+          _previewPoint = null;
+        }
+        return;
+      }
+
+      _previewPoint = _RoutePoint(
+        target: target,
+        latitude: position.latitude,
+        longitude: position.longitude,
+        address: cleanedAddress,
+        source: source,
+      );
+    });
   }
 
   Future<void> _animateCameraSafely(LatLng target, double zoom) async {
@@ -1007,6 +1242,57 @@ class _RouteLocationPickerScreenState extends State<RouteLocationPickerScreen> {
         _showMessage('Izin lokasi ditolak permanen. Aktifkan dari pengaturan.');
         return;
     }
+  }
+}
+
+class _RouteConfirmationRow extends StatelessWidget {
+  const _RouteConfirmationRow({required this.label, required this.address});
+
+  final String label;
+  final String address;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          address,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w600,
+            height: 1.35,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RouteConfirmationButtonLabel extends StatelessWidget {
+  const _RouteConfirmationButtonLabel(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(
+        label,
+        maxLines: 1,
+        softWrap: false,
+        style: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+    );
   }
 }
 

@@ -3447,7 +3447,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         pickupLabel: isCourier ? 'Ambil' : 'Jemput',
         destinationLabel: 'Tujuan',
         title: isCourier ? 'Atur Rute Kurir' : 'Atur Rute Antar Jemput',
-        confirmLabel: isCourier ? 'Simpan Rute Kurir' : 'Simpan Rute',
+        confirmLabel: 'Konfirmasi',
         defaultPickupAddress: defaultPickup.fullAddress,
         defaultPickupLatitude: defaultPickup.latitude,
         defaultPickupLongitude: defaultPickup.longitude,
