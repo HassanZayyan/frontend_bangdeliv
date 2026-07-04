@@ -10,6 +10,7 @@ import '../config/app_colors.dart';
 import '../config/app_routes.dart';
 import '../features/tracking/application/tracking_focus_target.dart';
 import '../firebase_options.dart';
+import '../utils/order_formatters.dart';
 import 'notification_navigation_service.dart';
 
 @pragma('vm:entry-point')
@@ -383,8 +384,8 @@ class FirebaseNotificationService {
   }) async {
     final route = AppRoutes.orderChatPath(orderId);
     final key = messageId > 0
-        ? 'chat:$orderId:$messageId'
-        : 'realtime:$orderId:${title.hashCode}:${body.hashCode}';
+        ? 'order_chat_message:$orderId:$messageId'
+        : 'order_chat_message:$orderId:${title.hashCode}:${body.hashCode}';
     if (!_rememberNotificationKey(key)) {
       return;
     }
@@ -401,6 +402,76 @@ class FirebaseNotificationService {
         'message_id': messageId.toString(),
         'route': route,
       },
+    );
+  }
+
+  static Future<void> showLocalOrderPriceChangedNotification({
+    required int orderId,
+    required String recipientRole,
+    required String changeType,
+    int priceEventId = 0,
+    bool requiresResponse = false,
+    num? amount,
+    num? oldTotalPrice,
+    num? newTotalPrice,
+    String? focus,
+    int? pickupLocationId,
+  }) async {
+    final normalizedRole = recipientRole.trim().toLowerCase() == 'driver'
+        ? 'driver'
+        : 'customer';
+    final normalizedChangeType = changeType.trim().toUpperCase();
+    final resolvedAmount = amount ?? newTotalPrice;
+    final resolvedFocus =
+        focus ??
+        (normalizedChangeType.contains('DELIVERY_FEE') ||
+                normalizedChangeType.contains('FEE')
+            ? TrackingFocusTarget.deliveryFee
+            : TrackingFocusTarget.shoppingPrice);
+    final data = <String, dynamic>{
+      'type': 'order_price_changed',
+      'order_id': orderId.toString(),
+      'change_type': normalizedChangeType,
+      'recipient_role': normalizedRole,
+      'requires_response': requiresResponse ? '1' : '0',
+      'amount': resolvedAmount != null ? _amountData(resolvedAmount) : '',
+      'old_total_price': oldTotalPrice != null
+          ? _amountData(oldTotalPrice)
+          : '',
+      'new_total_price': newTotalPrice != null
+          ? _amountData(newTotalPrice)
+          : '',
+      'price_event_id': priceEventId > 0 ? priceEventId.toString() : '',
+      'focus': resolvedFocus,
+      'pickup_location_id': pickupLocationId != null && pickupLocationId > 0
+          ? pickupLocationId.toString()
+          : '',
+    };
+    final route =
+        routeForNotificationData(data) ?? AppRoutes.orderTrackPath(orderId);
+    data['route'] = route;
+
+    final key = priceEventId > 0
+        ? 'order_price_changed:$orderId:$priceEventId'
+        : 'order_price_changed:$orderId:$normalizedChangeType:${_amountData(resolvedAmount ?? 0)}:${pickupLocationId ?? 0}';
+    if (!_rememberNotificationKey(key)) {
+      return;
+    }
+
+    final copy = _priceNotificationCopy(
+      changeType: normalizedChangeType,
+      recipientRole: normalizedRole,
+      requiresResponse: requiresResponse,
+      amount: resolvedAmount,
+    );
+
+    await _initializeLocalNotifications();
+    await _showLocalNotification(
+      id: _notificationId(orderId: orderId, messageId: priceEventId),
+      title: copy.$1,
+      body: copy.$2,
+      payload: route,
+      data: data,
     );
   }
 
@@ -731,6 +802,87 @@ class FirebaseNotificationService {
     }
 
     return true;
+  }
+
+  static (String, String) _priceNotificationCopy({
+    required String changeType,
+    required String recipientRole,
+    required bool requiresResponse,
+    required num? amount,
+  }) {
+    final type = changeType.toUpperCase();
+    final amountText = amount != null ? formatCurrency(amount) : null;
+
+    if (type.contains('DELIVERY_FEE') || type.contains('FEE')) {
+      if (requiresResponse && recipientRole == 'customer') {
+        return (
+          'Revisi ongkir perlu persetujuan',
+          amountText == null
+              ? 'Driver mengirim revisi ongkir. Buka order untuk merespons.'
+              : 'Driver mengirim revisi ongkir $amountText. Buka order untuk merespons.',
+        );
+      }
+      if (requiresResponse && recipientRole == 'driver') {
+        return (
+          'Customer menawar ongkir',
+          amountText == null
+              ? 'Tawaran ongkir perlu kamu tanggapi.'
+              : 'Tawaran ongkir $amountText perlu kamu tanggapi.',
+        );
+      }
+
+      return (
+        'Ongkir diperbarui',
+        amountText == null
+            ? 'Buka order untuk melihat perubahan ongkir.'
+            : 'Ongkir order sekarang $amountText.',
+      );
+    }
+
+    if (type.contains('COUNTER')) {
+      return (
+        'Customer mengirim tawaran',
+        amountText == null
+            ? 'Tawaran harga perlu kamu tanggapi.'
+            : 'Tawaran harga $amountText perlu kamu tanggapi.',
+      );
+    }
+
+    if (type.contains('APPROVED')) {
+      return (
+        'Harga disetujui',
+        amountText == null
+            ? 'Harga sudah disetujui. Silakan lanjutkan order.'
+            : 'Harga $amountText sudah disetujui. Silakan lanjutkan order.',
+      );
+    }
+
+    if (type.contains('CANCEL')) {
+      return (
+        'Perubahan harga dibatalkan',
+        'Customer membatalkan bagian order terkait perubahan harga.',
+      );
+    }
+
+    if (requiresResponse && recipientRole == 'customer') {
+      return (
+        'Harga perlu persetujuan',
+        amountText == null
+            ? 'Driver mengirim harga. Buka order untuk OK, Tawar, atau Batal.'
+            : 'Driver mengirim harga $amountText. Buka order untuk OK, Tawar, atau Batal.',
+      );
+    }
+
+    return (
+      'Total order diperbarui',
+      amountText == null
+          ? 'Buka order untuk melihat total pembayaran terbaru.'
+          : 'Total pembayaran sekarang $amountText.',
+    );
+  }
+
+  static String _amountData(num amount) {
+    return amount.toStringAsFixed(2);
   }
 
   static Future<void> _registerTokenForUser({

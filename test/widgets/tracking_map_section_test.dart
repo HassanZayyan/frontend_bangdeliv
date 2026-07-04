@@ -33,6 +33,15 @@ void main() {
     expect(source, isNot(contains('newLatLngBounds(bounds, 64)')));
   });
 
+  test('tracking map uses yellow route polylines', () {
+    final source = File(
+      'lib/widgets/tracking_map_section.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('AppColors.routeYellow.withValues(alpha: 0.95)'));
+    expect(source, contains('AppColors.routeYellow.withValues(alpha: 0.65)'));
+  });
+
   test('tracking map delays platform view mount during route transitions', () {
     final source = File(
       'lib/widgets/tracking_map_section.dart',
@@ -41,5 +50,18 @@ void main() {
     expect(source, contains('_mapMountDelay = Duration(milliseconds: 650)'));
     expect(source, contains('_buildMapLoadingPlaceholder()'));
     expect(source, contains('if (!_mapMountReady)'));
+  });
+
+  test('tracking map rotates centered flat driver marker', () {
+    final source = File(
+      'lib/widgets/tracking_map_section.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('_syncDriverMovementBearing('));
+    expect(source, contains('MapPickerHelpers.bearingBetween('));
+    expect(source, contains('MapPickerHelpers.normalizeBearing('));
+    expect(source, contains('anchor: const Offset(0.5, 0.5)'));
+    expect(source, contains('flat: true'));
+    expect(source, contains('rotation: _driverMarkerRotation'));
   });
 }

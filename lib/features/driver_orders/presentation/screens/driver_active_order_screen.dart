@@ -21,6 +21,7 @@ import '../widgets/driver_active_order_map_widgets.dart';
 import '../widgets/driver_active_order_meta_widgets.dart';
 import '../widgets/driver_active_order_proof_widgets.dart';
 import '../widgets/driver_active_order_shopping_widgets.dart';
+import '../widgets/driver_active_order_widget_helpers.dart';
 
 class DriverActiveOrderScreen extends ConsumerWidget {
   final String orderId;
@@ -39,21 +40,11 @@ class DriverActiveOrderScreen extends ConsumerWidget {
     required String message,
     bool isError = false,
   }) {
-    final renderObject = _stickyActionBarKey.currentContext?.findRenderObject();
-    final actionBarHeight = renderObject is RenderBox && renderObject.hasSize
-        ? renderObject.size.height
-        : 0.0;
-    final bottomInset = actionBarHeight > 1
-        ? actionBarHeight + 12
-        : BangFloatingBottomNavBar.snackBarBottomInset(context);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? AppColors.error : null,
-        behavior: SnackBarBehavior.floating,
-        margin: EdgeInsets.fromLTRB(16, 0, 16, bottomInset),
-      ),
+    showDriverActiveOrderSnackBar(
+      context,
+      message: message,
+      isError: isError,
+      stickyActionBarKey: _stickyActionBarKey,
     );
   }
 
@@ -66,6 +57,9 @@ class DriverActiveOrderScreen extends ConsumerWidget {
     }
 
     final detailState = ref.watch(driverOrderDetailProvider(orderId));
+    final pendingSnackBarMessage = ref.watch(
+      driverActiveOrderSnackBarMessageProvider,
+    );
     ref.watch(driverOrderDetailRealtimeProvider(orderId));
     ref.watch(driverOrderTransferProofReconciliationProvider(orderId));
     final ordersState = ref.watch(driverOrdersProvider);
@@ -81,469 +75,462 @@ class DriverActiveOrderScreen extends ConsumerWidget {
         : ref.watch(orderChatUnreadCountProvider(parsedOrderId));
     final unreadCount = unreadCountAsync.asData?.value ?? 0;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text(
-          'Order Aktif',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
-        ),
-        backgroundColor: AppColors.white,
-        elevation: 0,
-        actions: [
-          IconButton(
-            tooltip: 'Chat customer',
-            icon: OrderChatBadgeIcon(
-              unreadCount: unreadCount,
-              iconColor: AppColors.textPrimary,
-            ),
-            onPressed: () => context.push(AppRoutes.orderChatPath(orderId)),
+    if (pendingSnackBarMessage != null && detailState.asData != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) {
+          return;
+        }
+
+        final message = ref.read(driverActiveOrderSnackBarMessageProvider);
+        if (message == null) {
+          return;
+        }
+
+        ref.read(driverActiveOrderSnackBarMessageProvider.notifier).clear();
+        _showActionSnackBar(context, message: message);
+      });
+    }
+
+    return DriverActiveOrderSnackBarScope(
+      stickyActionBarKey: _stickyActionBarKey,
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: const Text(
+            'Order Aktif',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
           ),
-        ],
-      ),
-      bottomNavigationBar: detailState.maybeWhen(
-        data: (order) =>
-            _buildStickyActionBar(context, ref, order, isOrderBusy),
-        orElse: () => null,
-      ),
-      body: detailState.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) {
-          return BangErrorState(
-            message: _mapDetailError(error),
-            onRetry: () {
-              ref.invalidate(driverOrderDetailProvider(orderId));
-            },
-          );
-        },
-        data: (order) {
-          final locationState = ref.watch(driverLocationReporterProvider);
-          final latestPosition = locationState.activeOrderId == order.id
-              ? locationState.latestPosition
-              : null;
-          final driverPosition = latestPosition == null
-              ? null
-              : LatLng(latestPosition.latitude, latestPosition.longitude);
-
-          final hasStickyActionBar =
-              order.availableActions.isNotEmpty ||
-              (normalizeServiceTypeCode(order.serviceTypeCode) ==
-                      ServiceTypeCodes.shopping &&
-                  order.shoppingStops.any((stop) => stop.isActive) &&
-                  order.shoppingPricing?.canCancelWithFee != true &&
-                  (normalizeOrderStatusCode(order.statusCode) ==
-                          OrderStatusCodes.driverAssigned ||
-                      normalizeOrderStatusCode(order.statusCode) ==
-                          OrderStatusCodes.arrivedMerchant));
-
-          final bottomPadding = hasStickyActionBar
-              ? 16.0
-              : BangFloatingBottomNavBar.scrollClearance;
-
-          return RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(driverOrderDetailProvider(orderId));
-              await ref.read(driverOrderDetailProvider(orderId).future);
-            },
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(
-                parent: ClampingScrollPhysics(),
+          backgroundColor: AppColors.white,
+          elevation: 0,
+          actions: [
+            IconButton(
+              tooltip: 'Chat customer',
+              icon: OrderChatBadgeIcon(
+                unreadCount: unreadCount,
+                iconColor: AppColors.textPrimary,
               ),
-              padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
-              children: [
-                DriverActiveOrderMapCard(
-                  order: order,
-                  driverPosition: driverPosition,
+              onPressed: () => context.push(AppRoutes.orderChatPath(orderId)),
+            ),
+          ],
+        ),
+        bottomNavigationBar: detailState.maybeWhen(
+          data: (order) => hasDriverOrderStickyActionBarContent(order)
+              ? _buildStickyActionBar(
+                  context,
+                  ref,
+                  order,
+                  isOrderBusy,
+                  isProcessingAction(
+                    DriverOrderActionKeys.shoppingCheckout(order.id),
+                  ),
+                )
+              : null,
+          orElse: () => null,
+        ),
+        body: detailState.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, stackTrace) {
+            return BangErrorState(
+              message: _mapDetailError(error),
+              onRetry: () {
+                ref.invalidate(driverOrderDetailProvider(orderId));
+              },
+            );
+          },
+          data: (order) {
+            final locationState = ref.watch(driverLocationReporterProvider);
+            final latestPosition = locationState.activeOrderId == order.id
+                ? locationState.latestPosition
+                : null;
+            final driverPosition = latestPosition == null
+                ? null
+                : LatLng(latestPosition.latitude, latestPosition.longitude);
+
+            final hasStickyActionBar = hasDriverOrderStickyActionBarContent(
+              order,
+            );
+
+            final bottomPadding = hasStickyActionBar
+                ? 16.0
+                : BangFloatingBottomNavBar.scrollClearance;
+
+            return RefreshIndicator(
+              onRefresh: () async {
+                ref.invalidate(driverOrderDetailProvider(orderId));
+                await ref.read(driverOrderDetailProvider(orderId).future);
+              },
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: ClampingScrollPhysics(),
                 ),
-                const SizedBox(height: 12),
-                DriverOrderCustomerCard(order: order),
-                const SizedBox(height: 12),
-                DriverOrderRouteCard(order: order),
-                const SizedBox(height: 12),
-                if (normalizeServiceTypeCode(order.serviceTypeCode) ==
-                    ServiceTypeCodes.courier) ...[
-                  DriverOrderPackageCard(order: order),
-                  const SizedBox(height: 12),
-                ],
-                Builder(
-                  builder: (context) {
-                    final canEditDeliveryFee =
-                        order.deliveryFeeNegotiation?.canDriverSubmitQuote ==
-                        true;
-                    final canAcceptDeliveryFeeCounter =
-                        order.deliveryFeeNegotiation?.canDriverAcceptCounter ==
-                        true;
-                    final canBypassDeliveryFee =
-                        order.deliveryFeeNegotiation?.isPendingCustomer == true;
-
-                    return DriverOrderPricingCard(
-                      order: order,
-                      isProcessing: isProcessingAction(
-                        DriverOrderActionKeys.updateFee(order.id),
-                      ),
-                      isAcceptingDeliveryFeeCounter: isProcessingAction(
-                        DriverOrderActionKeys.acceptDeliveryFeeCounter(
-                          order.id,
-                        ),
-                      ),
-                      isBypassingDeliveryFee: isProcessingAction(
-                        DriverOrderActionKeys.bypassDeliveryFee(order.id),
-                      ),
-                      onEditDeliveryFee: canEditDeliveryFee
-                          ? ({required amount, required reason}) async {
-                              final error = await ref
-                                  .read(driverOrdersProvider.notifier)
-                                  .updateDeliveryFeeOverride(
-                                    orderId: order.id,
-                                    amount: amount,
-                                    reason: reason,
-                                  );
-                              if (error == null) {
-                                ref.invalidate(
-                                  driverOrderDetailProvider(order.id),
-                                );
-                              }
-                              return error;
-                            }
-                          : null,
-                      onAcceptDeliveryFeeCounter: canAcceptDeliveryFeeCounter
-                          ? () async {
-                              final error = await ref
-                                  .read(driverOrdersProvider.notifier)
-                                  .acceptDeliveryFeeCounterOffer(
-                                    orderId: order.id,
-                                  );
-
-                              if (!context.mounted) {
-                                return;
-                              }
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    error ??
-                                        'Tawaran ongkir customer disetujui.',
-                                  ),
-                                  backgroundColor: error == null
-                                      ? null
-                                      : AppColors.error,
-                                ),
-                              );
-                              if (error == null) {
-                                ref.invalidate(
-                                  driverOrderDetailProvider(order.id),
-                                );
-                              }
-                            }
-                          : null,
-                      onBypassDeliveryFee: canBypassDeliveryFee
-                          ? () async {
-                              final error = await ref
-                                  .read(driverOrdersProvider.notifier)
-                                  .bypassDeliveryFeeOverride(orderId: order.id);
-
-                              if (!context.mounted) {
-                                return;
-                              }
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    error ??
-                                        'Persetujuan ongkir customer dibypass.',
-                                  ),
-                                  backgroundColor: error == null
-                                      ? null
-                                      : AppColors.error,
-                                ),
-                              );
-                              if (error == null) {
-                                ref.invalidate(
-                                  driverOrderDetailProvider(order.id),
-                                );
-                              }
-                            }
-                          : null,
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-                if (normalizeServiceTypeCode(order.serviceTypeCode) ==
-                    ServiceTypeCodes.courier) ...[
-                  DriverOrderProofChecklistCard(
+                padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPadding),
+                children: [
+                  DriverActiveOrderMapCard(
                     order: order,
-                    isOrderBusy: isOrderBusy,
-                    isProofUploading: (type) => isProcessingAction(
-                      DriverOrderActionKeys.uploadProof(order.id, type),
-                    ),
-                    onUploadProof:
-                        ({
-                          required type,
-                          required photo,
-                          note,
-                          pickupLocationId,
-                        }) {
-                          return ref
-                              .read(driverOrdersProvider.notifier)
-                              .uploadProof(
-                                orderId: order.id,
-                                type: type,
-                                photo: photo,
-                                note: note,
-                                pickupLocationId: pickupLocationId,
-                              );
-                        },
+                    driverPosition: driverPosition,
                   ),
                   const SizedBox(height: 12),
-                ],
-                if (order.shoppingItems.isNotEmpty) ...[
-                  if (DriverShoppingItemChangeRequestCard.shouldShow(
-                    order,
-                  )) ...[
-                    DriverShoppingItemChangeRequestCard(
-                      request: order.shoppingItemChangeRequest!,
+                  DriverOrderCustomerCard(order: order),
+                  const SizedBox(height: 12),
+                  DriverOrderRouteCard(order: order),
+                  const SizedBox(height: 12),
+                  if (normalizeServiceTypeCode(order.serviceTypeCode) ==
+                      ServiceTypeCodes.courier) ...[
+                    DriverOrderPackageCard(order: order),
+                    const SizedBox(height: 12),
+                  ],
+                  Builder(
+                    builder: (context) {
+                      final canEditDeliveryFee =
+                          order.deliveryFeeNegotiation?.canDriverSubmitQuote ==
+                          true;
+                      final canAcceptDeliveryFeeCounter =
+                          order
+                              .deliveryFeeNegotiation
+                              ?.canDriverAcceptCounter ==
+                          true;
+                      final canBypassDeliveryFee =
+                          order.deliveryFeeNegotiation?.isPendingCustomer ==
+                          true;
+
+                      return DriverOrderPricingCard(
+                        order: order,
+                        isProcessing: isProcessingAction(
+                          DriverOrderActionKeys.updateFee(order.id),
+                        ),
+                        isAcceptingDeliveryFeeCounter: isProcessingAction(
+                          DriverOrderActionKeys.acceptDeliveryFeeCounter(
+                            order.id,
+                          ),
+                        ),
+                        isBypassingDeliveryFee: isProcessingAction(
+                          DriverOrderActionKeys.bypassDeliveryFee(order.id),
+                        ),
+                        onEditDeliveryFee: canEditDeliveryFee
+                            ? ({required amount, required reason}) async {
+                                final error = await ref
+                                    .read(driverOrdersProvider.notifier)
+                                    .updateDeliveryFeeOverride(
+                                      orderId: order.id,
+                                      amount: amount,
+                                      reason: reason,
+                                    );
+                                if (error == null) {
+                                  ref.invalidate(
+                                    driverOrderDetailProvider(order.id),
+                                  );
+                                }
+                                return error;
+                              }
+                            : null,
+                        onAcceptDeliveryFeeCounter: canAcceptDeliveryFeeCounter
+                            ? () async {
+                                final error = await ref
+                                    .read(driverOrdersProvider.notifier)
+                                    .acceptDeliveryFeeCounterOffer(
+                                      orderId: order.id,
+                                    );
+
+                                if (!context.mounted) {
+                                  return;
+                                }
+
+                                _showActionSnackBar(
+                                  context,
+                                  message:
+                                      error ??
+                                      'Tawaran ongkir customer disetujui.',
+                                  isError: error != null,
+                                );
+                                if (error == null) {
+                                  ref.invalidate(
+                                    driverOrderDetailProvider(order.id),
+                                  );
+                                }
+                              }
+                            : null,
+                        onBypassDeliveryFee: canBypassDeliveryFee
+                            ? () async {
+                                final error = await ref
+                                    .read(driverOrdersProvider.notifier)
+                                    .bypassDeliveryFeeOverride(
+                                      orderId: order.id,
+                                    );
+
+                                if (!context.mounted) {
+                                  return;
+                                }
+
+                                _showActionSnackBar(
+                                  context,
+                                  message:
+                                      error ??
+                                      'Persetujuan ongkir customer dibypass.',
+                                  isError: error != null,
+                                );
+                                if (error == null) {
+                                  ref.invalidate(
+                                    driverOrderDetailProvider(order.id),
+                                  );
+                                }
+                              }
+                            : null,
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  if (normalizeServiceTypeCode(order.serviceTypeCode) ==
+                      ServiceTypeCodes.courier) ...[
+                    DriverOrderProofChecklistCard(
+                      order: order,
                       isOrderBusy: isOrderBusy,
-                      isApproving: isProcessingAction(
-                        DriverOrderActionKeys.respondShoppingItemChange(
-                          order.id,
-                          'APPROVE',
-                        ),
+                      isProofUploading: (type) => isProcessingAction(
+                        DriverOrderActionKeys.uploadProof(order.id, type),
                       ),
-                      isRejecting: isProcessingAction(
-                        DriverOrderActionKeys.respondShoppingItemChange(
-                          order.id,
-                          'REJECT',
-                        ),
-                      ),
-                      onRespond: (action) async {
-                        final error = await ref
-                            .read(driverOrdersProvider.notifier)
-                            .respondShoppingItemChange(
-                              orderId: order.id,
-                              action: action,
-                            );
-                        if (error == null) {
-                          ref.invalidate(driverOrderDetailProvider(order.id));
-                        }
-                        return error;
-                      },
+                      onUploadProof:
+                          ({
+                            required type,
+                            required photo,
+                            note,
+                            pickupLocationId,
+                          }) {
+                            return ref
+                                .read(driverOrdersProvider.notifier)
+                                .uploadProof(
+                                  orderId: order.id,
+                                  type: type,
+                                  photo: photo,
+                                  note: note,
+                                  pickupLocationId: pickupLocationId,
+                                );
+                          },
                     ),
                     const SizedBox(height: 12),
                   ],
-                  DriverShoppingItemsCard(
-                    order: order,
-                    isOrderBusy: isOrderBusy,
-                    isSavingCheckout: isProcessingAction(
-                      DriverOrderActionKeys.shoppingCheckout(order.id),
-                    ),
-                    isSavingItems: (pickupLocationId) => isProcessingAction(
-                      DriverOrderActionKeys.updateShoppingItems(
-                        order.id,
-                        pickupLocationId,
-                      ),
-                    ),
-                    canEditAvailability: order
-                        .shoppingCapabilities
-                        .canDriverUpdateItemAvailability,
-                    canUploadReceipt:
-                        order.shoppingCapabilities.canDriverUploadReceipt,
-                    canCheckout:
-                        order.shoppingNegotiation?.checkoutAllowed == true &&
-                        !order.shoppingCapabilities.hasPendingItemChangeRequest,
-                    isSubmittingQuote: (pickupLocationId) => isProcessingAction(
-                      DriverOrderActionKeys.shoppingPriceQuote(
-                        order.id,
-                        pickupLocationId,
-                      ),
-                    ),
-                    isBypassingPrice: (pickupLocationId) => isProcessingAction(
-                      DriverOrderActionKeys.bypassShoppingPrice(
-                        order.id,
-                        pickupLocationId,
-                      ),
-                    ),
-                    isMarkingMerchantOpen: (pickupLocationId) =>
-                        isProcessingAction(
-                          DriverOrderActionKeys.markShoppingMerchantOpen(
+                  if (order.shoppingItems.isNotEmpty) ...[
+                    if (DriverShoppingItemChangeRequestCard.shouldShow(
+                      order,
+                    )) ...[
+                      DriverShoppingItemChangeRequestCard(
+                        request: order.shoppingItemChangeRequest!,
+                        isOrderBusy: isOrderBusy,
+                        isApproving: isProcessingAction(
+                          DriverOrderActionKeys.respondShoppingItemChange(
                             order.id,
-                            pickupLocationId,
+                            'APPROVE',
                           ),
                         ),
-                    isClosingMerchant: (pickupLocationId) => isProcessingAction(
-                      DriverOrderActionKeys.pickupFailed(
-                        order.id,
-                        pickupLocationId,
-                      ),
-                    ),
-                    onUploadReceipt: (photo) {
-                      return ref
-                          .read(driverOrdersProvider.notifier)
-                          .uploadProof(
-                            orderId: order.id,
-                            type: 'receipt',
-                            photo: photo,
-                          );
-                    },
-                    onSubmitQuote: ({required amount, pickupLocationId}) async {
-                      final error = await ref
-                          .read(driverOrdersProvider.notifier)
-                          .submitShoppingPriceQuote(
-                            orderId: order.id,
-                            amount: amount,
-                            pickupLocationId: pickupLocationId,
-                          );
-                      if (error == null) {
-                        ref.invalidate(driverOrderDetailProvider(order.id));
-                      }
-                      return error;
-                    },
-                    onBypassPrice: ({required pickupLocationId}) async {
-                      final error = await ref
-                          .read(driverOrdersProvider.notifier)
-                          .bypassShoppingPriceQuote(
-                            orderId: order.id,
-                            pickupLocationId: pickupLocationId,
-                          );
-                      if (error == null) {
-                        ref.invalidate(driverOrderDetailProvider(order.id));
-                      }
-                      return error;
-                    },
-                    onMarkMerchantOpen: ({required pickupLocationId}) async {
-                      final error = await ref
-                          .read(driverOrdersProvider.notifier)
-                          .markShoppingMerchantOpen(
-                            orderId: order.id,
-                            pickupLocationId: pickupLocationId,
-                          );
-                      if (error == null) {
-                        ref.invalidate(driverOrderDetailProvider(order.id));
-                      }
-                      return error;
-                    },
-                    onMarkMerchantClosed:
-                        ({required pickupLocationId, required reason}) async {
+                        isRejecting: isProcessingAction(
+                          DriverOrderActionKeys.respondShoppingItemChange(
+                            order.id,
+                            'REJECT',
+                          ),
+                        ),
+                        onRespond: (action) async {
                           final error = await ref
                               .read(driverOrdersProvider.notifier)
-                              .recordShoppingPickupFailed(
+                              .respondShoppingItemChange(
                                 orderId: order.id,
-                                pickupLocationId: pickupLocationId,
-                                reason: reason,
+                                action: action,
                               );
                           if (error == null) {
                             ref.invalidate(driverOrderDetailProvider(order.id));
                           }
                           return error;
                         },
-                    onSaveItems: (items, pickupLocationId) async {
-                      final error = await ref
-                          .read(driverOrdersProvider.notifier)
-                          .updateShoppingItems(
-                            orderId: order.id,
-                            items: items,
-                            pickupLocationId: pickupLocationId,
-                          );
-
-                      if (error == null) {
-                        ref.invalidate(driverOrderDetailProvider(order.id));
-                      }
-
-                      return error;
-                    },
-                    onSave: (items, receiptPhoto) async {
-                      final error = await ref
-                          .read(driverOrdersProvider.notifier)
-                          .updateShoppingCheckout(
-                            orderId: order.id,
-                            items: items,
-                            receiptPhoto: receiptPhoto,
-                          );
-
-                      if (error == null) {
-                        ref.invalidate(driverOrderDetailProvider(order.id));
-                        try {
-                          await ref.read(
-                            driverOrderDetailProvider(order.id).future,
-                          );
-                        } catch (_) {
-                          return 'Checkout tersimpan, tapi detail order belum berhasil dimuat ulang. Tarik layar untuk refresh.';
-                        }
-                      }
-
-                      return error;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                if (DriverTransferPaymentCard.shouldShow(order)) ...[
-                  DriverTransferPaymentCard(
-                    order: order,
-                    isOrderBusy: isOrderBusy,
-                    isConfirmingQris: isProcessingAction(
-                      DriverOrderActionKeys.confirmQris(order.id),
-                    ),
-                    isRejectingQris: isProcessingAction(
-                      DriverOrderActionKeys.rejectQris(order.id),
-                    ),
-                    onConfirmTransfer: ({required amount}) async {
-                      final error = await ref
-                          .read(driverOrdersProvider.notifier)
-                          .confirmTransferPayment(
-                            orderId: order.id,
-                            amount: amount,
-                          );
-
-                      if (!context.mounted) {
-                        return;
-                      }
-
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            error ?? 'Pembayaran QRIS berhasil diverifikasi.',
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    DriverShoppingItemsCard(
+                      order: order,
+                      isOrderBusy: isOrderBusy,
+                      isSavingItems: (pickupLocationId) => isProcessingAction(
+                        DriverOrderActionKeys.updateShoppingItems(
+                          order.id,
+                          pickupLocationId,
+                        ),
+                      ),
+                      canEditAvailability: order
+                          .shoppingCapabilities
+                          .canDriverUpdateItemAvailability,
+                      canUploadReceipt:
+                          order.shoppingCapabilities.canDriverUploadReceipt,
+                      isSubmittingQuote: (pickupLocationId) =>
+                          isProcessingAction(
+                            DriverOrderActionKeys.shoppingPriceQuote(
+                              order.id,
+                              pickupLocationId,
+                            ),
                           ),
-                          backgroundColor: error == null
-                              ? null
-                              : AppColors.error,
-                        ),
-                      );
-                      if (error == null) {
-                        ref.invalidate(driverOrderDetailProvider(order.id));
-                      }
-                    },
-                    onRejectTransfer: ({required reason}) async {
-                      final error = await ref
-                          .read(driverOrdersProvider.notifier)
-                          .rejectTransferPayment(
-                            orderId: order.id,
-                            reason: reason,
-                          );
+                      isBypassingPrice: (pickupLocationId) =>
+                          isProcessingAction(
+                            DriverOrderActionKeys.bypassShoppingPrice(
+                              order.id,
+                              pickupLocationId,
+                            ),
+                          ),
+                      isMarkingMerchantOpen: (pickupLocationId) =>
+                          isProcessingAction(
+                            DriverOrderActionKeys.markShoppingMerchantOpen(
+                              order.id,
+                              pickupLocationId,
+                            ),
+                          ),
+                      isClosingMerchant: (pickupLocationId) =>
+                          isProcessingAction(
+                            DriverOrderActionKeys.pickupFailed(
+                              order.id,
+                              pickupLocationId,
+                            ),
+                          ),
+                      isDeliveryFeeRevisionPending:
+                          order.deliveryFeeNegotiation?.isPending == true,
+                      onUploadReceipt: (photo) {
+                        return ref
+                            .read(driverOrdersProvider.notifier)
+                            .uploadProof(
+                              orderId: order.id,
+                              type: 'receipt',
+                              photo: photo,
+                            );
+                      },
+                      onSubmitQuote:
+                          ({required amount, pickupLocationId}) async {
+                            final error = await ref
+                                .read(driverOrdersProvider.notifier)
+                                .submitShoppingPriceQuote(
+                                  orderId: order.id,
+                                  amount: amount,
+                                  pickupLocationId: pickupLocationId,
+                                );
+                            if (error == null) {
+                              ref.invalidate(
+                                driverOrderDetailProvider(order.id),
+                              );
+                            }
+                            return error;
+                          },
+                      onBypassPrice: ({required pickupLocationId}) async {
+                        final error = await ref
+                            .read(driverOrdersProvider.notifier)
+                            .bypassShoppingPriceQuote(
+                              orderId: order.id,
+                              pickupLocationId: pickupLocationId,
+                            );
+                        if (error == null) {
+                          ref.invalidate(driverOrderDetailProvider(order.id));
+                        }
+                        return error;
+                      },
+                      onMarkMerchantOpen: ({required pickupLocationId}) async {
+                        final error = await ref
+                            .read(driverOrdersProvider.notifier)
+                            .markShoppingMerchantOpen(
+                              orderId: order.id,
+                              pickupLocationId: pickupLocationId,
+                            );
+                        if (error == null) {
+                          ref.invalidate(driverOrderDetailProvider(order.id));
+                        }
+                        return error;
+                      },
+                      onMarkMerchantClosed:
+                          ({required pickupLocationId, required reason}) async {
+                            final error = await ref
+                                .read(driverOrdersProvider.notifier)
+                                .recordShoppingPickupFailed(
+                                  orderId: order.id,
+                                  pickupLocationId: pickupLocationId,
+                                  reason: reason,
+                                );
+                            if (error == null) {
+                              ref.invalidate(
+                                driverOrderDetailProvider(order.id),
+                              );
+                            }
+                            return error;
+                          },
+                      onSaveItems: (items, pickupLocationId) async {
+                        final error = await ref
+                            .read(driverOrdersProvider.notifier)
+                            .updateShoppingItems(
+                              orderId: order.id,
+                              items: items,
+                              pickupLocationId: pickupLocationId,
+                            );
 
-                      if (!context.mounted) {
-                        return;
-                      }
+                        if (error == null) {
+                          ref.invalidate(driverOrderDetailProvider(order.id));
+                        }
 
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(error ?? 'Bukti QRIS ditolak.'),
-                          backgroundColor: error == null
-                              ? null
-                              : AppColors.error,
-                        ),
-                      );
-                      if (error == null) {
-                        ref.invalidate(driverOrderDetailProvider(order.id));
-                      }
-                    },
-                  ),
+                        return error;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  if (DriverTransferPaymentCard.shouldShow(order)) ...[
+                    DriverTransferPaymentCard(
+                      order: order,
+                      isOrderBusy: isOrderBusy,
+                      isConfirmingQris: isProcessingAction(
+                        DriverOrderActionKeys.confirmQris(order.id),
+                      ),
+                      isRejectingQris: isProcessingAction(
+                        DriverOrderActionKeys.rejectQris(order.id),
+                      ),
+                      onConfirmTransfer: ({required amount}) async {
+                        final error = await ref
+                            .read(driverOrdersProvider.notifier)
+                            .confirmTransferPayment(
+                              orderId: order.id,
+                              amount: amount,
+                            );
+
+                        if (!context.mounted) {
+                          return;
+                        }
+
+                        _showActionSnackBar(
+                          context,
+                          message:
+                              error ?? 'Pembayaran QRIS berhasil diverifikasi.',
+                          isError: error != null,
+                        );
+                        if (error == null) {
+                          ref.invalidate(driverOrderDetailProvider(order.id));
+                        }
+                      },
+                      onRejectTransfer: ({required reason}) async {
+                        final error = await ref
+                            .read(driverOrdersProvider.notifier)
+                            .rejectTransferPayment(
+                              orderId: order.id,
+                              reason: reason,
+                            );
+
+                        if (!context.mounted) {
+                          return;
+                        }
+
+                        _showActionSnackBar(
+                          context,
+                          message: error ?? 'Bukti QRIS ditolak.',
+                          isError: error != null,
+                        );
+                        if (error == null) {
+                          ref.invalidate(driverOrderDetailProvider(order.id));
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  DriverOrderTimelineCard(timeline: order.statusTimeline),
                   const SizedBox(height: 12),
                 ],
-                DriverOrderTimelineCard(timeline: order.statusTimeline),
-                const SizedBox(height: 12),
-              ],
-            ),
-          );
-        },
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -553,11 +540,50 @@ class DriverActiveOrderScreen extends ConsumerWidget {
     WidgetRef ref,
     DriverOrderModel order,
     bool isProcessing,
+    bool isSavingShoppingCheckout,
   ) {
     return DriverOrderStickyActionBar(
       key: _stickyActionBarKey,
       order: order,
       isProcessing: isProcessing,
+      isSavingShoppingCheckout: isSavingShoppingCheckout,
+      onSaveShoppingCheckout: () async {
+        final error = await ref
+            .read(driverOrdersProvider.notifier)
+            .updateShoppingCheckout(
+              orderId: order.id,
+              items: _shoppingCheckoutItemPayload(order),
+            );
+
+        if (!context.mounted) {
+          return;
+        }
+
+        if (error == null) {
+          _showActionSnackBar(
+            context,
+            message: 'Checkout nitip berhasil disimpan.',
+          );
+          ref.invalidate(driverOrderDetailProvider(order.id));
+          try {
+            await ref.read(driverOrderDetailProvider(order.id).future);
+          } catch (_) {
+            if (!context.mounted) {
+              return;
+            }
+
+            _showActionSnackBar(
+              context,
+              message:
+                  'Checkout tersimpan, tapi detail order belum berhasil dimuat ulang. Tarik layar untuk refresh.',
+              isError: true,
+            );
+          }
+          return;
+        }
+
+        _showActionSnackBar(context, message: error, isError: true);
+      },
       onTapAction: (action) async {
         final notifier = ref.read(driverOrdersProvider.notifier);
 
@@ -613,5 +639,20 @@ class DriverActiveOrderScreen extends ConsumerWidget {
     }
 
     return error.toString();
+  }
+
+  List<Map<String, dynamic>> _shoppingCheckoutItemPayload(
+    DriverOrderModel order,
+  ) {
+    return order.shoppingItems
+        .map(
+          (item) => <String, dynamic>{
+            'id': item.id,
+            'quantity': item.quantity,
+            'is_available': item.isAvailable,
+            'notes': item.notes,
+          },
+        )
+        .toList(growable: false);
   }
 }

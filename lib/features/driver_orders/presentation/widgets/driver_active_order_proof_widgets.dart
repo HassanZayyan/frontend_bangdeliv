@@ -228,11 +228,10 @@ class DriverOrderProofChecklistCard extends StatelessWidget {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error ?? '${requirement.title} berhasil diupload.'),
-        backgroundColor: error == null ? null : AppColors.error,
-      ),
+    showDriverActiveOrderSnackBar(
+      context,
+      message: error ?? '${requirement.title} berhasil diupload.',
+      isError: error != null,
     );
   }
 }

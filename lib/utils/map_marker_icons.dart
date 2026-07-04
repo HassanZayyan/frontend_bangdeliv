@@ -9,9 +9,11 @@ import '../config/app_colors.dart';
 final Map<String, Future<BitmapDescriptor>> _markerCache =
     <String, Future<BitmapDescriptor>>{};
 
+const String _driverMapIconAsset = 'assets/images/icon_driver_map.png';
+
 Future<BitmapDescriptor> buildMotorDriverMarker({double size = 42}) {
   final pixelRatio = _devicePixelRatio();
-  final key = 'motor:$size:$pixelRatio';
+  final key = 'motor-asset:$_driverMapIconAsset:$size:$pixelRatio';
 
   return _markerCache.putIfAbsent(
     key,
@@ -20,6 +22,22 @@ Future<BitmapDescriptor> buildMotorDriverMarker({double size = 42}) {
 }
 
 Future<BitmapDescriptor> _buildMotorDriverMarker({
+  required double size,
+  required double pixelRatio,
+}) async {
+  try {
+    return BitmapDescriptor.asset(
+      ImageConfiguration(devicePixelRatio: pixelRatio, size: Size(size, size)),
+      _driverMapIconAsset,
+      width: size,
+      height: size,
+    );
+  } catch (_) {
+    return _buildFallbackMotorDriverMarker(size: size, pixelRatio: pixelRatio);
+  }
+}
+
+Future<BitmapDescriptor> _buildFallbackMotorDriverMarker({
   required double size,
   required double pixelRatio,
 }) async {

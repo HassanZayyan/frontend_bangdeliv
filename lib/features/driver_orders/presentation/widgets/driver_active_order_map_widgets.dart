@@ -8,6 +8,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../models/driver_order_model.dart';
 import '../../../../utils/map_marker_icons.dart';
+import '../../../../utils/map_picker_helpers.dart';
 
 class DriverActiveOrderMapCard extends StatefulWidget {
   final DriverOrderModel order;
@@ -27,15 +28,22 @@ class DriverActiveOrderMapCard extends StatefulWidget {
 class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
   GoogleMapController? _mapController;
   BitmapDescriptor? _driverMarkerIcon;
+  LatLng? _lastDriverPositionForBearing;
   Timer? _mapMountTimer;
   bool _mapMountReady = false;
   bool _hasFittedDriverPosition = false;
+  double _driverMovementBearing = 0;
 
+  static const double _driverBearingJitterThresholdMeters = 2;
   static const Duration _mapMountDelay = Duration(milliseconds: 650);
+
+  double get _driverMarkerRotation =>
+      MapPickerHelpers.normalizeBearing(_driverMovementBearing - 90);
 
   @override
   void initState() {
     super.initState();
+    _lastDriverPositionForBearing = widget.driverPosition;
     _scheduleMapMount();
     unawaited(_loadDriverMarkerIcon());
   }
@@ -63,6 +71,13 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
   void didUpdateWidget(covariant DriverActiveOrderMapCard oldWidget) {
     super.didUpdateWidget(oldWidget);
 
+    if (oldWidget.driverPosition != widget.driverPosition) {
+      _syncDriverMovementBearing(
+        oldWidget.driverPosition,
+        widget.driverPosition,
+      );
+    }
+
     if (oldWidget.driverPosition == null &&
         widget.driverPosition != null &&
         !_hasFittedDriverPosition) {
@@ -88,6 +103,7 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
       widget.order.dropoffLatitude,
       widget.order.dropoffLongitude,
     );
+    final driverPosition = widget.driverPosition;
 
     if (pickupPoints.isEmpty && dropoff == null) {
       return Container(
@@ -124,14 +140,16 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
           position: dropoff,
           infoWindow: const InfoWindow(title: 'Dropoff'),
         ),
-      if (widget.driverPosition != null)
+      if (driverPosition != null)
         Marker(
           markerId: const MarkerId('driver_position'),
-          position: widget.driverPosition!,
+          position: driverPosition,
           icon:
               _driverMarkerIcon ??
               BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
           anchor: const Offset(0.5, 0.5),
+          flat: true,
+          rotation: _driverMarkerRotation,
           infoWindow: const InfoWindow(title: 'Posisi Anda'),
         ),
     };
@@ -215,6 +233,36 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
     return LatLng(lat, lng);
   }
 
+  void _syncDriverMovementBearing(
+    LatLng? previousPosition,
+    LatLng? nextPosition,
+  ) {
+    if (nextPosition == null) {
+      _lastDriverPositionForBearing = null;
+      return;
+    }
+
+    final origin = _lastDriverPositionForBearing ?? previousPosition;
+    if (origin == null) {
+      _lastDriverPositionForBearing = nextPosition;
+      return;
+    }
+
+    final distanceMeters = MapPickerHelpers.distanceMeters(
+      origin,
+      nextPosition,
+    );
+    if (distanceMeters < _driverBearingJitterThresholdMeters) {
+      return;
+    }
+
+    _driverMovementBearing = MapPickerHelpers.bearingBetween(
+      origin,
+      nextPosition,
+    );
+    _lastDriverPositionForBearing = nextPosition;
+  }
+
   List<_DriverPickupPoint> _pickupPoints() {
     final orderedIds =
         widget.order.route?.orderedPickupLocationIds ?? const <int>[];
@@ -271,7 +319,7 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
         Polyline(
           polylineId: const PolylineId('order_route'),
           points: decodedPoints,
-          color: AppColors.primary,
+          color: AppColors.routeYellow.withValues(alpha: 0.95),
           width: 4,
           geodesic: true,
         ),
@@ -287,7 +335,7 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
       Polyline(
         polylineId: const PolylineId('order_route_fallback'),
         points: fallbackPoints,
-        color: AppColors.primary.withValues(alpha: 0.55),
+        color: AppColors.routeYellow.withValues(alpha: 0.65),
         width: 3,
         geodesic: true,
       ),

@@ -48,6 +48,24 @@ final driverOrderAvailableNotificationProvider =
       };
     });
 
+final driverActiveOrderSnackBarMessageProvider =
+    NotifierProvider<DriverActiveOrderSnackBarMessageNotifier, String?>(
+      DriverActiveOrderSnackBarMessageNotifier.new,
+    );
+
+class DriverActiveOrderSnackBarMessageNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void show(String message) {
+    state = message;
+  }
+
+  void clear() {
+    state = null;
+  }
+}
+
 class DriverOrdersState {
   final List<DriverOrderModel> incoming;
   final List<DriverOrderModel> running;

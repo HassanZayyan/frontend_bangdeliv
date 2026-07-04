@@ -29,6 +29,9 @@ void main() {
     expect(mapCard, contains("MarkerId('driver_position')"));
     expect(mapCard, contains("InfoWindow(title: 'Posisi Anda')"));
     expect(mapCard, contains('buildMotorDriverMarker(size: 40)'));
+    expect(mapCard, contains('anchor: const Offset(0.5, 0.5)'));
+    expect(mapCard, contains('flat: true'));
+    expect(mapCard, contains('rotation: _driverMarkerRotation'));
   });
 
   test('shopping checkout item cards use compact spacing', () {

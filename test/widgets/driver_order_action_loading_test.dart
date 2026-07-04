@@ -112,7 +112,7 @@ void main() {
     expect(find.text('Diterima'), findsOneWidget);
   });
 
-  testWidgets('shopping checkout loading does not spin receipt upload button', (
+  testWidgets('shopping checkout card keeps receipt upload separate', (
     tester,
   ) async {
     await _pumpShoppingItemsCard(
@@ -132,21 +132,20 @@ void main() {
         ],
       ),
       isOrderBusy: true,
-      isSavingCheckout: true,
       canEditAvailability: false,
       canUploadReceipt: true,
-      canCheckout: true,
     );
 
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.text('Upload Foto Struk Opsional'), findsOneWidget);
+    expect(find.text('Simpan Checkout Nitip'), findsNothing);
 
     final checkoutTitle = tester.widget<Text>(find.text('Checkout Belanja'));
     expect(checkoutTitle.style?.fontSize, 16);
     expect(checkoutTitle.style?.fontWeight, FontWeight.w800);
   });
 
-  testWidgets('saved shopping checkout disables checkout action', (
+  testWidgets('saved shopping checkout is not rendered inside checkout card', (
     tester,
   ) async {
     await _pumpShoppingItemsCard(
@@ -170,14 +169,151 @@ void main() {
         ),
       ),
       canUploadReceipt: true,
-      canCheckout: true,
     );
 
-    expect(find.text('Checkout Nitip Tersimpan'), findsOneWidget);
-    final checkoutButton = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'Checkout Nitip Tersimpan'),
+    expect(find.text('Checkout Nitip Tersimpan'), findsNothing);
+    expect(find.text('Simpan Checkout Nitip'), findsNothing);
+    expect(find.text('Upload Foto Struk Opsional'), findsOneWidget);
+  });
+
+  testWidgets('shopping sticky bar saves checkout before finish action', (
+    tester,
+  ) async {
+    var saveTapped = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          bottomNavigationBar: DriverOrderStickyActionBar(
+            order: _order(
+              serviceTypeCode: ServiceTypeCodes.shopping,
+              statusCode: OrderStatusCodes.arrivedMerchant,
+              availableActions: const [
+                DriverOrderActionModel(
+                  actionCode: 'CONFIRM_PICKED_UP',
+                  label: 'Belanja Selesai',
+                  targetStatusCode: OrderStatusCodes.pickedUp,
+                  blocked: true,
+                  blockedReason: 'Checkout Nitip belum disimpan.',
+                ),
+              ],
+              shoppingCapabilities: const ShoppingOrderCapabilitiesModel(
+                canDriverUploadReceipt: true,
+              ),
+            ),
+            isProcessing: false,
+            onSaveShoppingCheckout: () async {
+              saveTapped = true;
+            },
+            onTapAction: (_) async {},
+          ),
+        ),
+      ),
     );
-    expect(checkoutButton.onPressed, isNull);
+
+    expect(find.text('Simpan Checkout Nitip'), findsOneWidget);
+    expect(find.text('Belanja Selesai'), findsNothing);
+
+    await tester.tap(find.text('Simpan Checkout Nitip'));
+    await tester.pump();
+
+    expect(saveTapped, isTrue);
+  });
+
+  testWidgets('shopping sticky bar shows finish after checkout saved', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          bottomNavigationBar: DriverOrderStickyActionBar(
+            order: _order(
+              serviceTypeCode: ServiceTypeCodes.shopping,
+              statusCode: OrderStatusCodes.arrivedMerchant,
+              availableActions: const [
+                DriverOrderActionModel(
+                  actionCode: 'CONFIRM_PICKED_UP',
+                  label: 'Belanja Selesai',
+                  targetStatusCode: OrderStatusCodes.pickedUp,
+                ),
+              ],
+              shoppingCapabilities: const ShoppingOrderCapabilitiesModel(
+                canDriverUploadReceipt: true,
+                hasCheckoutSaved: true,
+              ),
+            ),
+            isProcessing: false,
+            onSaveShoppingCheckout: () async {},
+            onTapAction: (_) async {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Simpan Checkout Nitip'), findsNothing);
+    expect(find.text('Belanja Selesai'), findsOneWidget);
+  });
+
+  testWidgets('shopping closure fee hint only appears for three stops', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          bottomNavigationBar: DriverOrderStickyActionBar(
+            order: _order(
+              serviceTypeCode: ServiceTypeCodes.shopping,
+              shoppingStops: [_shoppingStop(1), _shoppingStop(2)],
+              shoppingPricing: _shoppingPricing(),
+            ),
+            isProcessing: false,
+            onTapAction: (_) async {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.textContaining('Tempat tutup/order batal'), findsNothing);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          bottomNavigationBar: DriverOrderStickyActionBar(
+            order: _order(
+              serviceTypeCode: ServiceTypeCodes.shopping,
+              shoppingStops: [
+                _shoppingStop(1),
+                _shoppingStop(2),
+                _shoppingStop(3),
+              ],
+              shoppingPricing: _shoppingPricing(),
+            ),
+            isProcessing: false,
+            onTapAction: (_) async {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.textContaining('Tempat tutup/order batal 0/3'), findsOneWidget);
+  });
+
+  test('shopping sticky visibility follows actual visible content', () {
+    final singleStopOrder = _order(
+      serviceTypeCode: ServiceTypeCodes.shopping,
+      shoppingStops: [_shoppingStop(1)],
+      shoppingPricing: _shoppingPricing(),
+      shoppingNegotiation: _shoppingCheckoutBlocked(),
+    );
+    final threeStopOrder = _order(
+      serviceTypeCode: ServiceTypeCodes.shopping,
+      shoppingStops: [_shoppingStop(1), _shoppingStop(2), _shoppingStop(3)],
+      shoppingPricing: _shoppingPricing(),
+      shoppingNegotiation: _shoppingCheckoutBlocked(),
+    );
+
+    expect(hasDriverOrderStickyActionBarContent(singleStopOrder), isFalse);
+    expect(hasDriverOrderStickyActionBarContent(threeStopOrder), isTrue);
   });
 
   testWidgets('shopping merchant closed spinner is scoped to selected stop', (
@@ -250,6 +386,47 @@ void main() {
     expect(find.text('Tempat tutup'), findsOneWidget);
     expect(find.text('Tempat buka'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('pending delivery fee revision disables merchant actions', (
+    tester,
+  ) async {
+    const stop = DriverShoppingStopModel(
+      pickupLocationId: 7,
+      sequenceNo: 1,
+      fulfillmentStatus: 'PENDING',
+      merchant: DriverShoppingMerchantModel(
+        id: 1,
+        name: 'Kedai Tinari',
+        merchantType: 'restaurant',
+        address: 'Jl. Merchant',
+      ),
+      items: <DriverShoppingItemModel>[],
+    );
+
+    await _pumpShoppingItemsCard(
+      tester,
+      order: _order(
+        serviceTypeCode: ServiceTypeCodes.shopping,
+        shoppingStops: const [stop],
+      ),
+      isDeliveryFeeRevisionPending: true,
+    );
+
+    expect(
+      find.text('Revisi ongkir belum disetujui customer.'),
+      findsOneWidget,
+    );
+
+    final closeButton = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, 'Tempat tutup'),
+    );
+    final openButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Tempat buka'),
+    );
+
+    expect(closeButton.onPressed, isNull);
+    expect(openButton.onPressed, isNull);
   });
 
   testWidgets(
@@ -397,26 +574,24 @@ Future<void> _pumpShoppingItemsCard(
   WidgetTester tester, {
   required DriverOrderModel order,
   bool isOrderBusy = false,
-  bool isSavingCheckout = false,
   bool canEditAvailability = false,
   bool canUploadReceipt = false,
-  bool canCheckout = false,
+  bool isDeliveryFeeRevisionPending = false,
   Set<int> closingMerchantIds = const <int>{},
   double? cardWidth,
 }) async {
   final card = DriverShoppingItemsCard(
     order: order,
     isOrderBusy: isOrderBusy,
-    isSavingCheckout: isSavingCheckout,
     isSavingItems: (_) => false,
     canEditAvailability: canEditAvailability,
     canUploadReceipt: canUploadReceipt,
-    canCheckout: canCheckout,
     isSubmittingQuote: (_) => false,
     isBypassingPrice: (_) => false,
     isMarkingMerchantOpen: (_) => false,
     isClosingMerchant: (pickupLocationId) =>
         closingMerchantIds.contains(pickupLocationId),
+    isDeliveryFeeRevisionPending: isDeliveryFeeRevisionPending,
     onUploadReceipt: (_) async => null,
     onSubmitQuote: ({required amount, pickupLocationId}) async => null,
     onBypassPrice: ({required pickupLocationId}) async => null,
@@ -424,7 +599,6 @@ Future<void> _pumpShoppingItemsCard(
     onMarkMerchantClosed:
         ({required pickupLocationId, required reason}) async => null,
     onSaveItems: (_, _) async => null,
-    onSave: (_, _) async => null,
   );
 
   await tester.pumpWidget(
@@ -475,14 +649,23 @@ ShoppingNegotiationModel _merchantApprovedQuote({
   );
 }
 
+ShoppingNegotiationModel _shoppingCheckoutBlocked() {
+  return const ShoppingNegotiationModel(
+    amount: AmountNegotiationModel(status: 'APPROVED'),
+    checkoutAllowed: false,
+  );
+}
+
 DriverOrderModel _order({
   String serviceTypeCode = ServiceTypeCodes.ride,
+  String statusCode = OrderStatusCodes.driverAssigned,
   List<DriverOrderActionModel> availableActions =
       const <DriverOrderActionModel>[],
   List<DriverShoppingItemModel> shoppingItems =
       const <DriverShoppingItemModel>[],
   List<DriverShoppingStopModel> shoppingStops =
       const <DriverShoppingStopModel>[],
+  DriverShoppingPricingModel? shoppingPricing,
   ShoppingOrderCapabilitiesModel shoppingCapabilities =
       const ShoppingOrderCapabilitiesModel(canDriverUploadReceipt: true),
   ShoppingNegotiationModel? shoppingNegotiation,
@@ -497,12 +680,13 @@ DriverOrderModel _order({
     fee: 9000,
     totalPrice: 9000,
     itemCount: 1,
-    statusCode: OrderStatusCodes.driverAssigned,
+    statusCode: statusCode,
     paymentMethod: 'COD',
     paymentStatus: 'unpaid',
     availableActions: availableActions,
     shoppingItems: shoppingItems,
     shoppingStops: shoppingStops,
+    shoppingPricing: shoppingPricing,
     shoppingCapabilities: shoppingCapabilities,
     shoppingNegotiation:
         shoppingNegotiation ??
@@ -510,5 +694,34 @@ DriverOrderModel _order({
           amount: AmountNegotiationModel(status: 'APPROVED'),
           checkoutAllowed: true,
         ),
+  );
+}
+
+DriverShoppingStopModel _shoppingStop(int sequenceNo) {
+  return DriverShoppingStopModel(
+    pickupLocationId: sequenceNo,
+    sequenceNo: sequenceNo,
+    fulfillmentStatus: 'PENDING',
+    merchant: DriverShoppingMerchantModel(
+      id: sequenceNo,
+      name: 'Merchant',
+      merchantType: 'restaurant',
+      address: 'Jl. Merchant',
+    ),
+    items: <DriverShoppingItemModel>[],
+  );
+}
+
+DriverShoppingPricingModel _shoppingPricing() {
+  return const DriverShoppingPricingModel(
+    subtotal: 0,
+    deliveryFee: 5000,
+    serviceFee: 0,
+    totalPrice: 5000,
+    cancellationPenalty: 0,
+    recalculationVersion: 0,
+    hasPendingManualPrices: false,
+    failedAttemptCount: 0,
+    failedAttemptThreshold: 3,
   );
 }

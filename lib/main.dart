@@ -12,6 +12,7 @@ import 'features/auth/application/auth_session_provider.dart';
 import 'features/driver_orders/application/driver_availability_location_reporter_provider.dart';
 import 'features/realtime/application/chat_heads_up_notification_provider.dart';
 import 'features/realtime/application/firebase_notification_provider.dart';
+import 'features/realtime/application/order_price_heads_up_notification_provider.dart';
 import 'features/realtime/application/order_status_heads_up_notification_provider.dart';
 import 'services/firebase_notification_service.dart';
 
@@ -129,6 +130,7 @@ class _AppRuntimeBootstrap extends ConsumerWidget {
     if (shouldBootstrapFirebaseNotifications(session)) {
       ref.watch(firebaseNotificationBootstrapProvider);
       ref.watch(chatHeadsUpNotificationProvider);
+      ref.watch(orderPriceHeadsUpNotificationProvider);
       ref.watch(orderStatusHeadsUpNotificationProvider);
     }
 

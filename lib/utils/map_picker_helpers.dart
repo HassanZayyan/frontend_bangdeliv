@@ -62,6 +62,36 @@ class MapPickerHelpers {
     return earthRadiusMeters * centralAngle;
   }
 
+  static double normalizeBearing(double value) {
+    final bearing = value % 360;
+    return bearing < 0 ? bearing + 360 : bearing;
+  }
+
+  static double bearingBetween(LatLng start, LatLng end) {
+    if (start == end) {
+      return 0;
+    }
+
+    final startLatitudeRad = _degreesToRadians(start.latitude);
+    final endLatitudeRad = _degreesToRadians(end.latitude);
+    final deltaLongitudeRad = _degreesToRadians(
+      end.longitude - start.longitude,
+    );
+
+    final y = math.sin(deltaLongitudeRad) * math.cos(endLatitudeRad);
+    final x =
+        math.cos(startLatitudeRad) * math.sin(endLatitudeRad) -
+        math.sin(startLatitudeRad) *
+            math.cos(endLatitudeRad) *
+            math.cos(deltaLongitudeRad);
+
+    if (x == 0 && y == 0) {
+      return 0;
+    }
+
+    return normalizeBearing(_radiansToDegrees(math.atan2(y, x)));
+  }
+
   static String newMapsSessionToken() {
     return '${DateTime.now().microsecondsSinceEpoch}-${Object().hashCode}';
   }
@@ -165,4 +195,6 @@ class MapPickerHelpers {
   }
 
   static double _degreesToRadians(double value) => value * math.pi / 180;
+
+  static double _radiansToDegrees(double value) => value * 180 / math.pi;
 }
