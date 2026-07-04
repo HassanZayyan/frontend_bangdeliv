@@ -3,89 +3,172 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 // Imported directly to provide a fake Google Maps platform for this widget test.
 // ignore: depend_on_referenced_packages
 import 'package:google_maps_flutter_platform_interface/google_maps_flutter_platform_interface.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-import 'package:frontend_bangdeliv/models/route_location_picker_result.dart';
 import 'package:frontend_bangdeliv/features/addresses/presentation/screens/route_location_picker_screen.dart';
+import 'package:frontend_bangdeliv/models/route_location_picker_result.dart';
 
 void main() {
-  setUpAll(() {
-    GoogleMapsFlutterPlatform.instance = _FakeGoogleMapsFlutterPlatform();
+  late _FakeGoogleMapsFlutterPlatform fakeMaps;
+
+  setUp(() {
+    fakeMaps = _FakeGoogleMapsFlutterPlatform();
+    GoogleMapsFlutterPlatform.instance = fakeMaps;
   });
 
-  testWidgets('pickup prefill starts destination flow with hidden map', (
+  testWidgets('pickup prefill starts destination flow directly on map', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(
-        home: RouteLocationPickerScreen(
-          args: RouteLocationPickerArgs(
-            serviceType: 'kurir',
-            pickupTarget: 'pickup',
-            destinationTarget: 'dropoff',
-            pickupLabel: 'Ambil',
-            destinationLabel: 'Tujuan',
-            title: 'Atur Rute Kurir',
-            confirmLabel: 'Simpan Rute Kurir',
-            defaultPickupAddress:
-                'Jalan Mawar No 1, Sraten, Kabupaten Semarang',
-            defaultPickupLatitude: -7.32006,
-            defaultPickupLongitude: 110.47065,
-          ),
-        ),
-      ),
+      const MaterialApp(home: RouteLocationPickerScreen(args: _courierArgs)),
     );
     await tester.pump();
+    await tester.pump();
 
-    expect(find.text('Pilih Peta'), findsOneWidget);
+    expect(find.text('Pilih Peta'), findsNothing);
     expect(find.text('Tujuan'), findsOneWidget);
-    expect(find.byType(GoogleMap), findsNothing);
-    expect(
-      find.text('Jalan Mawar No 1, Sraten, Kabupaten Semarang'),
-      findsNothing,
+    expect(find.byType(GoogleMap), findsOneWidget);
+    expect(_primaryButton(tester, 'Simpan').onPressed, isNotNull);
+  });
+
+  testWidgets('saved pickup disables save until map moves again', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: RouteLocationPickerScreen(args: _courierArgs)),
     );
+    await tester.pump();
+    await tester.pump();
 
     await tester.tap(find.text('Ambil').first);
     await tester.pump();
 
-    expect(
-      find.text('Jalan Mawar No 1, Sraten, Kabupaten Semarang'),
-      findsOneWidget,
-    );
-    expect(find.text('Lokasi Saya'), findsOneWidget);
+    expect(_primaryButton(tester, 'Simpan').onPressed, isNull);
+
+    fakeMaps.emitCameraMove(const LatLng(-7.322, 110.472));
+    await tester.pump();
+
+    expect(_primaryButton(tester, 'Simpan').onPressed, isNotNull);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Simpan'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(_primaryButton(tester, 'Simpan').onPressed, isNull);
+
+    fakeMaps.emitCameraMove(const LatLng(-7.323, 110.473));
+    await tester.pump();
+
+    expect(_primaryButton(tester, 'Simpan').onPressed, isNotNull);
   });
 
-  testWidgets('destination map selection rejects point that overlaps pickup', (
+  testWidgets('destination save enables confirmation dialog', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(
-        home: RouteLocationPickerScreen(
-          args: RouteLocationPickerArgs(
-            serviceType: 'kurir',
-            pickupTarget: 'pickup',
-            destinationTarget: 'dropoff',
-            pickupLabel: 'Ambil',
-            destinationLabel: 'Tujuan',
-            title: 'Atur Rute Kurir',
-            confirmLabel: 'Simpan Rute Kurir',
-            defaultPickupAddress:
-                'Jalan Mawar No 1, Sraten, Kabupaten Semarang',
-            defaultPickupLatitude: -7.32006,
-            defaultPickupLongitude: 110.47065,
-          ),
-        ),
-      ),
+      const MaterialApp(home: RouteLocationPickerScreen(args: _courierArgs)),
     );
     await tester.pump();
-
-    await tester.tap(find.text('Pilih Peta'));
     await tester.pump();
 
-    expect(find.byType(GoogleMap), findsOneWidget);
+    fakeMaps.emitCameraMove(const LatLng(-7.3312, 110.5077));
+    await tester.pump();
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Simpan'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.widgetWithText(ElevatedButton, 'Konfirmasi'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Konfirmasi'));
+    await tester.pump();
+
+    expect(find.text('Konfirmasi lokasi'), findsOneWidget);
+    expect(find.text('Ambil'), findsWidgets);
+    expect(find.text('Tujuan'), findsWidgets);
+    expect(find.widgetWithText(OutlinedButton, 'Ubah'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Konfirmasi'), findsOneWidget);
+  });
+
+  testWidgets(
+    'confirm returns only destination when pickup default is unchanged',
+    (WidgetTester tester) async {
+      RouteLocationPickerResult? result;
+      final router = _routerForResult((value) => result = value);
+
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.tap(find.text('Open picker'));
+      await tester.pump();
+      await tester.pump();
+
+      fakeMaps.emitCameraMove(const LatLng(-7.3312, 110.5077));
+      await tester.pump();
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Simpan'));
+      await tester.pump();
+      await tester.pump();
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Konfirmasi'));
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, 'Konfirmasi'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(result, isNotNull);
+      expect(result!.locations.map((location) => location.target), ['dropoff']);
+    },
+  );
+
+  testWidgets('confirm returns pickup when pickup was changed', (
+    WidgetTester tester,
+  ) async {
+    RouteLocationPickerResult? result;
+    final router = _routerForResult((value) => result = value);
+
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.tap(find.text('Open picker'));
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.text('Ambil').first);
+    await tester.pump();
+    fakeMaps.emitCameraMove(const LatLng(-7.322, 110.472));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Simpan'));
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.text('Tujuan').first);
+    await tester.pump();
+    fakeMaps.emitCameraMove(const LatLng(-7.3312, 110.5077));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Simpan'));
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Konfirmasi'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, 'Konfirmasi'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(result, isNotNull);
+    expect(result!.locations.map((location) => location.target), [
+      'pickup',
+      'dropoff',
+    ]);
+  });
+
+  testWidgets('destination save rejects point that overlaps pickup', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: RouteLocationPickerScreen(args: _courierArgs)),
+    );
+    await tester.pump();
+    await tester.pump();
 
     await tester.tap(find.widgetWithText(ElevatedButton, 'Simpan'));
     await tester.pump();
@@ -101,9 +184,80 @@ void main() {
   });
 }
 
+const _courierArgs = RouteLocationPickerArgs(
+  serviceType: 'kurir',
+  pickupTarget: 'pickup',
+  destinationTarget: 'dropoff',
+  pickupLabel: 'Ambil',
+  destinationLabel: 'Tujuan',
+  title: 'Atur Rute Kurir',
+  confirmLabel: 'Konfirmasi',
+  defaultPickupAddress: 'Jalan Mawar No 1, Sraten, Kabupaten Semarang',
+  defaultPickupLatitude: -7.32006,
+  defaultPickupLongitude: 110.47065,
+);
+
+ElevatedButton _primaryButton(WidgetTester tester, String text) {
+  return tester.widget<ElevatedButton>(
+    find.widgetWithText(ElevatedButton, text),
+  );
+}
+
+GoRouter _routerForResult(ValueChanged<RouteLocationPickerResult> onResult) {
+  return GoRouter(
+    routes: [
+      GoRoute(
+        path: '/',
+        builder: (context, state) {
+          return Material(
+            child: Center(
+              child: ElevatedButton(
+                onPressed: () async {
+                  final result = await context.push<RouteLocationPickerResult>(
+                    '/picker',
+                  );
+                  if (result != null) {
+                    onResult(result);
+                  }
+                },
+                child: const Text('Open picker'),
+              ),
+            ),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/picker',
+        builder: (context, state) {
+          return const RouteLocationPickerScreen(args: _courierArgs);
+        },
+      ),
+    ],
+  );
+}
+
 class _FakeGoogleMapsFlutterPlatform extends GoogleMapsFlutterPlatform {
+  final Map<int, StreamController<CameraMoveStartedEvent>>
+  _cameraMoveStartedControllers = {};
+  final Map<int, StreamController<CameraMoveEvent>> _cameraMoveControllers = {};
+  final Map<int, StreamController<CameraIdleEvent>> _cameraIdleControllers = {};
+  int? _lastMapId;
+
   @override
   Future<void> init(int mapId) async {}
+
+  void emitCameraMove(LatLng target) {
+    final mapId = _lastMapId;
+    if (mapId == null) {
+      return;
+    }
+
+    _cameraMoveStartedController(mapId).add(CameraMoveStartedEvent(mapId));
+    _cameraMoveController(
+      mapId,
+    ).add(CameraMoveEvent(mapId, CameraPosition(target: target, zoom: 17)));
+    _cameraIdleController(mapId).add(CameraIdleEvent(mapId));
+  }
 
   @override
   Widget buildViewWithConfiguration(
@@ -113,6 +267,7 @@ class _FakeGoogleMapsFlutterPlatform extends GoogleMapsFlutterPlatform {
     MapConfiguration mapConfiguration = const MapConfiguration(),
     MapObjects mapObjects = const MapObjects(),
   }) {
+    _lastMapId = creationId;
     return _FakeGoogleMapView(
       creationId: creationId,
       onPlatformViewCreated: onPlatformViewCreated,
@@ -187,17 +342,40 @@ class _FakeGoogleMapsFlutterPlatform extends GoogleMapsFlutterPlatform {
 
   @override
   Stream<CameraMoveStartedEvent> onCameraMoveStarted({required int mapId}) {
-    return const Stream<CameraMoveStartedEvent>.empty();
+    return _cameraMoveStartedController(mapId).stream;
   }
 
   @override
   Stream<CameraMoveEvent> onCameraMove({required int mapId}) {
-    return const Stream<CameraMoveEvent>.empty();
+    return _cameraMoveController(mapId).stream;
   }
 
   @override
   Stream<CameraIdleEvent> onCameraIdle({required int mapId}) {
-    return const Stream<CameraIdleEvent>.empty();
+    return _cameraIdleController(mapId).stream;
+  }
+
+  StreamController<CameraMoveStartedEvent> _cameraMoveStartedController(
+    int mapId,
+  ) {
+    return _cameraMoveStartedControllers.putIfAbsent(
+      mapId,
+      StreamController<CameraMoveStartedEvent>.broadcast,
+    );
+  }
+
+  StreamController<CameraMoveEvent> _cameraMoveController(int mapId) {
+    return _cameraMoveControllers.putIfAbsent(
+      mapId,
+      StreamController<CameraMoveEvent>.broadcast,
+    );
+  }
+
+  StreamController<CameraIdleEvent> _cameraIdleController(int mapId) {
+    return _cameraIdleControllers.putIfAbsent(
+      mapId,
+      StreamController<CameraIdleEvent>.broadcast,
+    );
   }
 
   @override
@@ -256,7 +434,11 @@ class _FakeGoogleMapsFlutterPlatform extends GoogleMapsFlutterPlatform {
   }
 
   @override
-  void dispose({required int mapId}) {}
+  void dispose({required int mapId}) {
+    _cameraMoveStartedControllers.remove(mapId)?.close();
+    _cameraMoveControllers.remove(mapId)?.close();
+    _cameraIdleControllers.remove(mapId)?.close();
+  }
 }
 
 class _FakeGoogleMapView extends StatefulWidget {
