@@ -1,20 +1,51 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../config/app_colors.dart';
 
-class NotificationSettingsScreen extends StatefulWidget {
+import '../../../../config/app_colors.dart';
+import '../../../../config/app_routes.dart';
+import '../../../auth/application/auth_session_provider.dart';
+
+class NotificationSettingsScreen extends ConsumerStatefulWidget {
   const NotificationSettingsScreen({super.key});
 
   @override
-  State<NotificationSettingsScreen> createState() =>
+  ConsumerState<NotificationSettingsScreen> createState() =>
       _NotificationSettingsScreenState();
 }
 
 class _NotificationSettingsScreenState
-    extends State<NotificationSettingsScreen> {
+    extends ConsumerState<NotificationSettingsScreen> {
   bool _orderUpdates = true;
   bool _chatMessages = true;
   bool _appUpdates = false;
+
+  void _handleBack() {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+
+    final session = ref.read(authSessionProvider);
+    final fallbackRoute = session.role == SessionUserRole.driver
+        ? AppRoutes.driverProfile
+        : AppRoutes.profile;
+    context.go(fallbackRoute);
+  }
+
+  Widget _buildBackNavigationGuard() {
+    return PopScope<void>(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          return;
+        }
+
+        _handleBack();
+      },
+      child: const SizedBox.shrink(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,8 +61,9 @@ class _NotificationSettingsScreenState
         backgroundColor: AppColors.white,
         elevation: 0,
         leading: IconButton(
+          tooltip: 'Kembali',
           icon: const Icon(Icons.chevron_left, color: AppColors.textPrimary),
-          onPressed: () => context.pop(),
+          onPressed: _handleBack,
         ),
       ),
       body: ListView(
@@ -74,6 +106,7 @@ class _NotificationSettingsScreenState
           ),
         ],
       ),
+      bottomNavigationBar: _buildBackNavigationGuard(),
     );
   }
 

@@ -345,7 +345,7 @@ class _DriverActiveOrderScreenState
               _MapControlButton(
                 tooltip: 'Kembali',
                 icon: Icons.arrow_back_rounded,
-                onPressed: () => context.pop(),
+                onPressed: _handleBack,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -852,11 +852,37 @@ class _DriverActiveOrderScreenState
     );
   }
 
+  void _handleBack() {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+
+    context.go(AppRoutes.driverHome);
+  }
+
+  Widget _buildBackNavigationGuard() {
+    return PopScope<void>(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          return;
+        }
+
+        _handleBack();
+      },
+      child: const SizedBox.shrink(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (orderId.trim().isEmpty || !_isServerOrderId(orderId)) {
-      return const Scaffold(
-        body: Center(child: Text('Order ID tidak valid untuk data server.')),
+      return Scaffold(
+        body: const Center(
+          child: Text('Order ID tidak valid untuk data server.'),
+        ),
+        bottomNavigationBar: _buildBackNavigationGuard(),
       );
     }
 
@@ -1674,6 +1700,7 @@ class _DriverActiveOrderScreenState
             );
           },
         ),
+        bottomNavigationBar: _buildBackNavigationGuard(),
       ),
     );
   }
