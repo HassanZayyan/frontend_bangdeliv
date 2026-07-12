@@ -14,11 +14,13 @@ class DriverOrderProofChecklistCard extends StatelessWidget {
     required this.isOrderBusy,
     required this.isProofUploading,
     required this.onUploadProof,
+    this.visibleProofTypes,
   });
 
   final DriverOrderModel order;
   final bool isOrderBusy;
   final bool Function(String type) isProofUploading;
+  final Set<String>? visibleProofTypes;
   final Future<String?> Function({
     required String type,
     required XFile photo,
@@ -89,7 +91,7 @@ class DriverOrderProofChecklistCard extends StatelessWidget {
     final serviceType = normalizeServiceTypeCode(order.serviceTypeCode);
     final hasStoreClosedProof = order.hasProof('store_closed');
 
-    return <_ProofRequirement>[
+    final requirements = <_ProofRequirement>[
       if (serviceType == ServiceTypeCodes.courier) ...[
         const _ProofRequirement(type: 'pickup', title: 'Pengambilan'),
         const _ProofRequirement(type: 'delivery', title: 'Diterima'),
@@ -99,6 +101,15 @@ class DriverOrderProofChecklistCard extends StatelessWidget {
       if (hasStoreClosedProof)
         const _ProofRequirement(type: 'store_closed', title: 'Toko tutup'),
     ];
+
+    final visibleTypes = visibleProofTypes;
+    if (visibleTypes == null) {
+      return requirements;
+    }
+
+    return requirements
+        .where((requirement) => visibleTypes.contains(requirement.type))
+        .toList(growable: false);
   }
 
   Widget _proofRow(BuildContext context, _ProofRequirement requirement) {

@@ -111,6 +111,21 @@ void main() {
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(find.text('Upload'), findsOneWidget);
+    expect(find.text('Pengambilan'), findsOneWidget);
+    expect(find.text('Diterima'), findsOneWidget);
+  });
+
+  testWidgets('proof checklist filters courier requirements per active step', (
+    tester,
+  ) async {
+    await _pumpProofChecklist(tester, visibleProofTypes: const {'pickup'});
+
+    expect(find.text('Pengambilan'), findsOneWidget);
+    expect(find.text('Diterima'), findsNothing);
+
+    await _pumpProofChecklist(tester, visibleProofTypes: const {'delivery'});
+
+    expect(find.text('Pengambilan'), findsNothing);
     expect(find.text('Diterima'), findsOneWidget);
   });
 
@@ -844,6 +859,31 @@ void main() {
       expect(calls.last.$1, 'CANCEL_MERCHANT');
       expect(calls.last.$2, isEmpty);
     },
+  );
+}
+
+Future<void> _pumpProofChecklist(
+  WidgetTester tester, {
+  Set<String>? visibleProofTypes,
+}) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Scaffold(
+        body: DriverOrderProofChecklistCard(
+          order: _order(serviceTypeCode: ServiceTypeCodes.courier),
+          visibleProofTypes: visibleProofTypes,
+          isOrderBusy: false,
+          isProofUploading: (_) => false,
+          onUploadProof:
+              ({
+                required String type,
+                required XFile photo,
+                String? note,
+                int? pickupLocationId,
+              }) async => null,
+        ),
+      ),
+    ),
   );
 }
 
