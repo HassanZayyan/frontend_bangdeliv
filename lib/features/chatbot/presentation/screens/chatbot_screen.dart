@@ -8,6 +8,7 @@ import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
 import '../../../../config/app_text_scaling.dart';
 import '../../../../core/di/app_providers.dart';
+import '../../../../core/widgets/bang_confirmation_dialog.dart';
 import '../../../../models/address_location_picker_result.dart';
 import '../../../../models/chatbot_launch_args.dart';
 import '../../../../models/customer_order_model.dart';
@@ -63,6 +64,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   );
 
   late final TextEditingController _inputController;
+  late final FocusNode _inputFocusNode;
   late final ScrollController _scrollController;
   String? _bootstrappedServiceType;
   String? _appliedLaunchSignature;
@@ -82,6 +84,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   void initState() {
     super.initState();
     _inputController = TextEditingController();
+    _inputFocusNode = FocusNode();
     _scrollController = ScrollController();
   }
 
@@ -120,6 +123,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   void dispose() {
     _pendingScrollTimer?.cancel();
     _inputController.dispose();
+    _inputFocusNode.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -313,17 +317,20 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     _scrollToMenuSelectorSurface();
   }
 
-  Future<void> _sendMessage([String? presetText]) async {
+  Future<bool> _sendMessage([
+    String? presetText,
+    bool preserveMenuSelectorOnFailure = false,
+  ]) async {
     final raw = (presetText ?? _inputController.text).trim();
     if (raw.isEmpty) {
-      return;
+      return false;
     }
 
     if (ChatbotCommandParser.isRestartCommand(raw)) {
       _inputController.clear();
       _clearMenuSelector();
       await _handleRestartConversation();
-      return;
+      return true;
     }
 
     final orderingBlockMessage = _customerOrderingBlockMessage();
@@ -337,20 +344,23 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         actionHints: _customerOrderingBlockActionHints(),
       );
       _scrollToBottom();
-      return;
+      return true;
     }
 
     if (!_hasSavedAddressInProfile()) {
       await _handleOpenAddressesAction();
-      return;
+      return false;
     }
 
     _inputController.clear();
-    _clearMenuSelector();
+    if (!preserveMenuSelectorOnFailure) {
+      _clearMenuSelector();
+    }
 
-    await _conversationNotifier().sendMessage(
+    return await _conversationNotifier().sendMessage(
       raw,
       serviceType: _serviceContext.serviceType,
+      clearMenuSelectorOnStart: !preserveMenuSelectorOnFailure,
     );
   }
 
@@ -538,9 +548,38 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     });
   }
 
-  Future<void> _handleMenuSelectorConfirm(String message) async {
+  Future<void> _handleMenuSelectorConfirm(
+    ChatbotMenuSelectorDraft selector,
+  ) async {
+    final message = _menuSelectorConfirmationMessage(selector);
+    if (message.isEmpty) {
+      return;
+    }
+
+    await _sendMessage(message, true);
+  }
+
+  Future<void> _handleWriteManualItem(ChatbotMenuSelectorDraft selector) async {
+    final selectedCount = _menuSelectorSelectedCount(selector);
+    if (selectedCount > 0) {
+      final confirmed = await showBangConfirmationDialog(
+        context,
+        title: 'Tulis item manual?',
+        message:
+            'Pilihan $selectedCount item dari menu akan dikosongkan sebelum kamu menulis item manual.',
+        confirmLabel: 'Tulis manual',
+      );
+      if (!confirmed || !mounted) {
+        return;
+      }
+    }
+
     _clearMenuSelector();
-    await _sendMessage(message);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _inputFocusNode.requestFocus();
+      }
+    });
   }
 
   Future<void> _handleChangeMenuSelectorMerchant(
@@ -835,131 +874,327 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                     ],
                   ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-            decoration: const BoxDecoration(
-              color: AppColors.white,
-              border: Border(top: BorderSide(color: AppColors.border)),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
-            ),
-            child: SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (showStaticSuggestions) ...[
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          for (final suggestion
-                              in _serviceContext.suggestions) ...[
-                            _buildSuggestionChip(
-                              suggestion,
-                              enabled: inputEnabled,
-                            ),
-                            const SizedBox(width: 8),
+          if (state.menuSelectorDraft != null)
+            _buildMenuSelectionActionBar(
+              state.menuSelectorDraft!,
+              isSending: state.isSending,
+            )
+          else if (_isLoadingMenuSelector)
+            _buildMenuSelectionLoadingBar()
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+              decoration: const BoxDecoration(
+                color: AppColors.white,
+                border: Border(top: BorderSide(color: AppColors.border)),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
+              ),
+              child: SafeArea(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (showStaticSuggestions) ...[
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            for (final suggestion
+                                in _serviceContext.suggestions) ...[
+                              _buildSuggestionChip(
+                                suggestion,
+                                enabled: inputEnabled,
+                              ),
+                              const SizedBox(width: 8),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _inputController,
-                          enabled: inputEnabled,
-                          minLines: 1,
-                          maxLines: 3,
-                          style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: AppTextScaling.adaptive(
-                              context,
-                              normal: 14,
-                              large: 13.4,
-                            ),
-                          ),
-                          keyboardType: TextInputType.multiline,
-                          textInputAction: TextInputAction.newline,
-                          decoration: InputDecoration(
-                            filled: true,
-                            fillColor: AppColors.white,
-                            hintText: 'Ketik kebutuhan layanan...',
-                            hintStyle: TextStyle(
-                              color: AppColors.textSecondary,
+                      const SizedBox(height: 12),
+                    ],
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _inputController,
+                            focusNode: _inputFocusNode,
+                            enabled: inputEnabled,
+                            minLines: 1,
+                            maxLines: 3,
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
                               fontSize: AppTextScaling.adaptive(
                                 context,
                                 normal: 14,
                                 large: 13.4,
                               ),
                             ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: const BorderSide(
-                                color: AppColors.border,
+                            keyboardType: TextInputType.multiline,
+                            textInputAction: TextInputAction.newline,
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: AppColors.white,
+                              hintText: 'Ketik kebutuhan layanan...',
+                              hintStyle: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: AppTextScaling.adaptive(
+                                  context,
+                                  normal: 14,
+                                  large: 13.4,
+                                ),
                               ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: const BorderSide(
-                                color: AppColors.border,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: const BorderSide(
+                                  color: AppColors.border,
+                                ),
                               ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: const BorderSide(
-                                color: AppColors.primary,
-                                width: 1.2,
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: const BorderSide(
+                                  color: AppColors.border,
+                                ),
                               ),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 13,
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: const BorderSide(
+                                  color: AppColors.primary,
+                                  width: 1.2,
+                                ),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 13,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      InkWell(
-                        borderRadius: BorderRadius.circular(10),
-                        onTap: inputEnabled ? _sendMessage : null,
-                        child: Container(
-                          width: AppTextScaling.adaptive(
-                            context,
-                            normal: 50,
-                            large: 54,
+                        const SizedBox(width: 12),
+                        InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: inputEnabled ? _sendMessage : null,
+                          child: Container(
+                            width: AppTextScaling.adaptive(
+                              context,
+                              normal: 50,
+                              large: 54,
+                            ),
+                            height: AppTextScaling.adaptive(
+                              context,
+                              normal: 50,
+                              large: 54,
+                            ),
+                            decoration: BoxDecoration(
+                              color: inputEnabled
+                                  ? AppColors.primary
+                                  : AppColors.primary.withValues(alpha: 0.55),
+                              shape: BoxShape.circle,
+                            ),
+                            child: effectiveBusy
+                                ? const Padding(
+                                    padding: EdgeInsets.all(14),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.send, color: Colors.white),
                           ),
-                          height: AppTextScaling.adaptive(
-                            context,
-                            normal: 50,
-                            large: 54,
-                          ),
-                          decoration: BoxDecoration(
-                            color: inputEnabled
-                                ? AppColors.primary
-                                : AppColors.primary.withValues(alpha: 0.55),
-                            shape: BoxShape.circle,
-                          ),
-                          child: effectiveBusy
-                              ? const Padding(
-                                  padding: EdgeInsets.all(14),
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Icon(Icons.send, color: Colors.white),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
         ],
+      ),
+    );
+  }
+
+  int _menuSelectorSelectedCount(ChatbotMenuSelectorDraft selector) {
+    return selector.quantities.fold<int>(
+      0,
+      (total, quantity) => total + quantity.clamp(0, 99).toInt(),
+    );
+  }
+
+  String _menuSelectorConfirmationMessage(ChatbotMenuSelectorDraft selector) {
+    final lines = <String>[];
+    for (var index = 0; index < selector.menus.length; index++) {
+      final quantity = index < selector.quantities.length
+          ? selector.quantities[index].clamp(0, 99).toInt()
+          : 0;
+      if (quantity <= 0) {
+        continue;
+      }
+
+      lines.add('${selector.menus[index].name.trim()} $quantity');
+    }
+
+    return lines.join('\n');
+  }
+
+  Widget _buildMenuSelectionActionBar(
+    ChatbotMenuSelectorDraft selector, {
+    required bool isSending,
+  }) {
+    final selectedCount = _menuSelectorSelectedCount(selector);
+    final canConfirm = selectedCount > 0 && !isSending;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        border: Border(top: BorderSide(color: AppColors.border)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.shopping_bag_outlined,
+                  color: AppColors.primaryDark,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '$selectedCount item dipilih',
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const Text(
+                  'Selesaikan pilihan menu',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: OutlinedButton(
+                    onPressed: isSending
+                        ? null
+                        : () => _handleWriteManualItem(selector),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primaryDark,
+                      side: const BorderSide(color: AppColors.primary),
+                      minimumSize: const Size(0, 48),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          _chatbotButtonRadius,
+                        ),
+                      ),
+                    ),
+                    child: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'Tulis item manual',
+                        maxLines: 1,
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 6,
+                  child: FilledButton(
+                    onPressed: canConfirm
+                        ? () => _handleMenuSelectorConfirm(selector)
+                        : null,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.white,
+                      disabledBackgroundColor: AppColors.primary.withValues(
+                        alpha: 0.34,
+                      ),
+                      disabledForegroundColor: AppColors.white,
+                      minimumSize: const Size(0, 48),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          _chatbotButtonRadius,
+                        ),
+                      ),
+                    ),
+                    child: isSending
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.white,
+                            ),
+                          )
+                        : FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              'Konfirmasi Pilihan ($selectedCount)',
+                              maxLines: 1,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMenuSelectionLoadingBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        border: Border(top: BorderSide(color: AppColors.border)),
+      ),
+      child: const SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.primary,
+              ),
+            ),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Memuat menu tempat...',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1025,7 +1260,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           );
         },
         onChangeMerchant: () => _handleChangeMenuSelectorMerchant(selectorData),
-        onConfirm: _handleMenuSelectorConfirm,
       );
     }
 
@@ -1666,12 +1900,14 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     bool isPrimaryChoice = false,
   }) {
     final isConfirmationAction = _isConfirmationActionHint(actionHint);
+    final isPositiveAction =
+        isConfirmationAction || _isPaymentActionHint(actionHint);
     final foregroundColor = isUser
         ? Colors.white
-        : (isConfirmationAction ? AppColors.success : AppColors.primaryDark);
+        : (isPositiveAction ? AppColors.success : AppColors.primaryDark);
     final borderColor = isUser
         ? Colors.white.withValues(alpha: 0.35)
-        : (isConfirmationAction ? AppColors.success : AppColors.primary);
+        : (isPositiveAction ? AppColors.success : AppColors.primary);
 
     return OutlinedButton.icon(
       onPressed: actionsEnabled ? () => _handleActionHint(actionHint) : null,

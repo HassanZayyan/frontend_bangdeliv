@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'package:frontend_bangdeliv/config/app_colors.dart';
 import 'package:frontend_bangdeliv/features/driver_orders/presentation/widgets/driver_active_order_action_widgets.dart';
 import 'package:frontend_bangdeliv/features/driver_orders/presentation/widgets/driver_active_order_proof_widgets.dart';
 import 'package:frontend_bangdeliv/features/driver_orders/presentation/widgets/driver_active_order_shopping_widgets.dart';
+import 'package:frontend_bangdeliv/core/widgets/bang_swipe_action_button.dart';
 import 'package:frontend_bangdeliv/models/amount_negotiation_model.dart';
 import 'package:frontend_bangdeliv/models/driver_order_model.dart';
 import 'package:frontend_bangdeliv/models/shopping_negotiation_model.dart';
@@ -388,7 +390,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('pending delivery fee revision disables merchant actions', (
+  testWidgets('pending delivery fee revision keeps merchant actions enabled', (
     tester,
   ) async {
     const stop = DriverShoppingStopModel(
@@ -413,10 +415,7 @@ void main() {
       isDeliveryFeeRevisionPending: true,
     );
 
-    expect(
-      find.text('Revisi ongkir belum disetujui customer.'),
-      findsOneWidget,
-    );
+    expect(find.text('Revisi ongkir belum disetujui customer.'), findsNothing);
 
     final closeButton = tester.widget<OutlinedButton>(
       find.widgetWithText(OutlinedButton, 'Tempat tutup'),
@@ -425,8 +424,8 @@ void main() {
       find.widgetWithText(FilledButton, 'Tempat buka'),
     );
 
-    expect(closeButton.onPressed, isNull);
-    expect(openButton.onPressed, isNull);
+    expect(closeButton.onPressed, isNotNull);
+    expect(openButton.onPressed, isNotNull);
   });
 
   testWidgets(
@@ -568,6 +567,284 @@ void main() {
     expect(itemCheckbox.onChanged, isNull);
     expect(find.text('Simpan Ketersediaan Item'), findsNothing);
   });
+
+  testWidgets('driver can trigger backend-gated unavailable item bypass', (
+    tester,
+  ) async {
+    const availableItem = DriverShoppingItemModel(
+      id: 10,
+      pickupLocationId: 7,
+      itemSource: 'MANUAL',
+      name: 'Ramen mala',
+      quantity: 1,
+      unitPrice: 20000,
+      subtotal: 20000,
+      isAvailable: true,
+    );
+    const unavailableItem = DriverShoppingItemModel(
+      id: 11,
+      pickupLocationId: 7,
+      itemSource: 'MANUAL',
+      name: 'Es jeruk',
+      quantity: 1,
+      unitPrice: 0,
+      subtotal: 0,
+      isAvailable: false,
+    );
+    var bypassedPickupId = 0;
+
+    await _pumpShoppingItemsCard(
+      tester,
+      order: _order(
+        serviceTypeCode: ServiceTypeCodes.shopping,
+        shoppingItems: const [availableItem, unavailableItem],
+        shoppingStops: const [
+          DriverShoppingStopModel(
+            pickupLocationId: 7,
+            sequenceNo: 1,
+            fulfillmentStatus: 'ITEMS_PENDING_CUSTOMER',
+            availabilityConfirmed: true,
+            canDriverBypassUnavailableItems: true,
+            canDriverContinueWithoutUnavailableItem: true,
+            merchant: DriverShoppingMerchantModel(
+              id: 1,
+              name: 'Kedai Tinari',
+              merchantType: 'restaurant',
+              address: 'Jl. Merchant',
+            ),
+            items: [availableItem, unavailableItem],
+          ),
+        ],
+      ),
+      onBypassUnavailableItems: (pickupLocationId) async {
+        bypassedPickupId = pickupLocationId;
+        return null;
+      },
+    );
+
+    expect(find.text('Geser untuk bypass semua item'), findsOneWidget);
+    expect(find.text('Lanjut tanpa ini'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('driver-shopping-action-continue-7')),
+      findsNothing,
+    );
+    expect(find.textContaining('Es jeruk akan dihapus'), findsOneWidget);
+    final swipe = tester.widget<BangSwipeActionButton>(
+      find.byType(BangSwipeActionButton),
+    );
+    await swipe.onSubmit?.call();
+    expect(bypassedPickupId, 7);
+  });
+
+  testWidgets('all unavailable items keep bypass cancellation flow', (
+    tester,
+  ) async {
+    const unavailableItem = DriverShoppingItemModel(
+      id: 11,
+      pickupLocationId: 7,
+      itemSource: 'MANUAL',
+      name: 'Es jeruk',
+      quantity: 1,
+      unitPrice: 0,
+      subtotal: 0,
+      isAvailable: false,
+    );
+
+    await _pumpShoppingItemsCard(
+      tester,
+      order: _order(
+        serviceTypeCode: ServiceTypeCodes.shopping,
+        shoppingItems: const [unavailableItem],
+        shoppingStops: const [
+          DriverShoppingStopModel(
+            pickupLocationId: 7,
+            sequenceNo: 1,
+            fulfillmentStatus: 'ITEMS_PENDING_CUSTOMER',
+            availabilityConfirmed: true,
+            canDriverBypassUnavailableItems: true,
+            merchant: DriverShoppingMerchantModel(
+              id: 1,
+              name: 'Kedai Tinari',
+              merchantType: 'restaurant',
+              address: 'Jl. Merchant',
+            ),
+            items: [unavailableItem],
+          ),
+        ],
+      ),
+    );
+
+    expect(find.text('Geser untuk bypass semua item'), findsOneWidget);
+    expect(find.text('Lanjut tanpa ini'), findsNothing);
+    expect(
+      find.textContaining('Bypass akan membatalkan tempat'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('driver can open replace unavailable items wizard action', (
+    tester,
+  ) async {
+    const unavailableItem = DriverShoppingItemModel(
+      id: 11,
+      pickupLocationId: 7,
+      itemSource: 'MANUAL',
+      name: 'Es jeruk',
+      quantity: 1,
+      unitPrice: 0,
+      subtotal: 0,
+      isAvailable: false,
+    );
+    var replacedPickupId = 0;
+    await _pumpShoppingItemsCard(
+      tester,
+      order: _order(
+        serviceTypeCode: ServiceTypeCodes.shopping,
+        shoppingItems: const [unavailableItem],
+        shoppingStops: const [
+          DriverShoppingStopModel(
+            pickupLocationId: 7,
+            sequenceNo: 1,
+            fulfillmentStatus: 'ITEMS_PENDING_CUSTOMER',
+            availabilityConfirmed: true,
+            canDriverReplaceUnavailableItems: true,
+            merchant: DriverShoppingMerchantModel(
+              id: 1,
+              name: 'Kedai Tinari',
+              merchantType: 'restaurant',
+              address: 'Jl. Merchant',
+            ),
+            items: [unavailableItem],
+          ),
+        ],
+      ),
+      onReplaceUnavailableItems: (pickupLocationId) async {
+        replacedPickupId = pickupLocationId;
+        return null;
+      },
+    );
+
+    await tester.tap(find.text('Ganti item'));
+    await tester.pump();
+    expect(replacedPickupId, 7);
+  });
+
+  testWidgets(
+    'driver decision grid matches customer and keeps bypass separate',
+    (tester) async {
+      const availableItem = DriverShoppingItemModel(
+        id: 10,
+        pickupLocationId: 7,
+        itemSource: 'MANUAL',
+        name: 'Ramen mala',
+        quantity: 1,
+        unitPrice: 20000,
+        subtotal: 20000,
+        isAvailable: true,
+      );
+      const unavailableOne = DriverShoppingItemModel(
+        id: 11,
+        pickupLocationId: 7,
+        itemSource: 'MANUAL',
+        name: 'Es jeruk',
+        quantity: 1,
+        unitPrice: 0,
+        subtotal: 0,
+        isAvailable: false,
+      );
+      const unavailableTwo = DriverShoppingItemModel(
+        id: 12,
+        pickupLocationId: 7,
+        itemSource: 'MANUAL',
+        name: 'Lemon tea',
+        quantity: 1,
+        unitPrice: 0,
+        subtotal: 0,
+        isAvailable: false,
+      );
+      final calls = <(String, List<int>)>[];
+
+      await _pumpShoppingItemsCard(
+        tester,
+        order: _order(
+          serviceTypeCode: ServiceTypeCodes.shopping,
+          shoppingItems: const [availableItem, unavailableOne, unavailableTwo],
+          shoppingStops: const [
+            DriverShoppingStopModel(
+              pickupLocationId: 7,
+              sequenceNo: 1,
+              fulfillmentStatus: 'ITEMS_PENDING_CUSTOMER',
+              availabilityConfirmed: true,
+              canDriverBypassUnavailableItems: true,
+              canDriverContinueWithoutUnavailableItem: true,
+              canDriverCancelUnavailableMerchant: true,
+              canDriverReplaceUnavailableItems: true,
+              canReplaceMerchant: true,
+              merchant: DriverShoppingMerchantModel(
+                id: 1,
+                name: 'Kedai Tinari',
+                merchantType: 'restaurant',
+                address: 'Jl. Merchant',
+              ),
+              items: [availableItem, unavailableOne, unavailableTwo],
+            ),
+          ],
+        ),
+        onDecideUnavailableItems: (pickupId, action, itemIds) async {
+          expect(pickupId, 7);
+          calls.add((action, itemIds));
+          return null;
+        },
+      );
+
+      expect(find.text('Ganti item'), findsOneWidget);
+      expect(find.text('Ganti toko/resto'), findsOneWidget);
+      expect(find.text('Pilih item'), findsOneWidget);
+      expect(find.text('Lanjut tanpa ini'), findsNothing);
+      expect(find.text('Batal tempat'), findsOneWidget);
+      expect(find.text('Geser untuk bypass semua item'), findsOneWidget);
+
+      for (final key in const [
+        'driver-shopping-action-replace-items-7',
+        'driver-shopping-action-replace-merchant-7',
+        'driver-shopping-action-continue-7',
+        'driver-shopping-action-cancel-7',
+      ]) {
+        final button = tester.widget<OutlinedButton>(find.byKey(ValueKey(key)));
+        expect(
+          button.style?.backgroundColor?.resolve(const <WidgetState>{}),
+          AppColors.white,
+        );
+      }
+
+      await tester.tap(
+        find.byKey(const ValueKey('driver-shopping-action-continue-7')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('unavailable-item-choice-11')),
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('unavailable-item-choice-12')),
+      );
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const ValueKey('confirm-unavailable-item-selection')),
+      );
+      await tester.pumpAndSettle();
+      expect(calls.first.$1, 'REMOVE');
+      expect(calls.first.$2, [11, 12]);
+
+      await tester.tap(
+        find.byKey(const ValueKey('driver-shopping-action-cancel-7')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Batal tempat'));
+      await tester.pumpAndSettle();
+      expect(calls.last.$1, 'CANCEL_MERCHANT');
+      expect(calls.last.$2, isEmpty);
+    },
+  );
 }
 
 Future<void> _pumpShoppingItemsCard(
@@ -578,6 +855,14 @@ Future<void> _pumpShoppingItemsCard(
   bool canUploadReceipt = false,
   bool isDeliveryFeeRevisionPending = false,
   Set<int> closingMerchantIds = const <int>{},
+  Future<String?> Function(int pickupLocationId)? onBypassUnavailableItems,
+  Future<String?> Function(
+    int pickupLocationId,
+    String action,
+    List<int> itemIds,
+  )?
+  onDecideUnavailableItems,
+  Future<String?> Function(int pickupLocationId)? onReplaceUnavailableItems,
   double? cardWidth,
 }) async {
   final card = DriverShoppingItemsCard(
@@ -588,6 +873,8 @@ Future<void> _pumpShoppingItemsCard(
     canUploadReceipt: canUploadReceipt,
     isSubmittingQuote: (_) => false,
     isBypassingPrice: (_) => false,
+    isBypassingUnavailableItems: (_) => false,
+    isDecidingUnavailableItems: (_, _) => false,
     isMarkingMerchantOpen: (_) => false,
     isClosingMerchant: (pickupLocationId) =>
         closingMerchantIds.contains(pickupLocationId),
@@ -595,9 +882,25 @@ Future<void> _pumpShoppingItemsCard(
     onUploadReceipt: (_) async => null,
     onSubmitQuote: ({required amount, pickupLocationId}) async => null,
     onBypassPrice: ({required pickupLocationId}) async => null,
+    onBypassUnavailableItems: ({required pickupLocationId}) async =>
+        onBypassUnavailableItems?.call(pickupLocationId),
+    onDecideUnavailableItems:
+        ({
+          required pickupLocationId,
+          required action,
+          required itemIds,
+        }) async =>
+            onDecideUnavailableItems?.call(pickupLocationId, action, itemIds),
     onMarkMerchantOpen: ({required pickupLocationId}) async => null,
     onMarkMerchantClosed:
-        ({required pickupLocationId, required reason}) async => null,
+        ({
+          required pickupLocationId,
+          required reason,
+          storeClosedPhoto,
+        }) async => null,
+    onReplaceMerchant: (_) async => null,
+    onReplaceUnavailableItems: (stop) async =>
+        onReplaceUnavailableItems?.call(stop.pickupLocationId),
     onSaveItems: (_, _) async => null,
   );
 

@@ -11,12 +11,14 @@ import '../../../../core/widgets/bang_amount_negotiation_card.dart';
 import '../../../../core/widgets/bang_confirmation_dialog.dart';
 import '../../../../core/widgets/bang_counter_amount_dialog.dart';
 import '../../../../core/widgets/bang_image_preview.dart';
+import '../../../../core/widgets/bang_sheet_drag_region.dart';
 import '../../../../services/qris_download_service.dart';
 import '../../../../models/customer_order_model.dart';
 import '../../../../models/payment_proof_feedback_model.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../orders/application/customer_order_providers.dart';
 import '../../../orders/application/order_chat_unread_provider.dart';
+import '../../../orders/presentation/widgets/customer_order_cancel_sheet.dart';
 import '../../application/customer_order_tracking_provider.dart';
 import '../../application/tracking_focus_target.dart';
 import '../../../../utils/order_formatters.dart';
@@ -43,6 +45,7 @@ class TrackOrderScreen extends ConsumerStatefulWidget {
 }
 
 class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
+  final Set<int> _cancellingOrderIds = <int>{};
   final GlobalKey _paymentFocusKey = GlobalKey(debugLabel: 'payment_focus');
   final GlobalKey _deliveryFeeFocusKey = GlobalKey(
     debugLabel: 'delivery_fee_focus',
@@ -50,7 +53,11 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
   final Map<int, GlobalKey> _shoppingPriceFocusKeys = <int, GlobalKey>{};
   String? _scheduledFocusSignature;
   String? _completedFocusSignature;
+  String? _appliedShoppingFocusSignature;
   double? _trackingSheetExtent;
+  String _selectedShoppingPointId = 'summary';
+  final DraggableScrollableController _trackingSheetController =
+      DraggableScrollableController();
 
   static const double _trackingSheetInitialChildSize = 0.38;
   static const double _trackingSheetMinChildSize = 0.20;
@@ -88,6 +95,14 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
 
   double get _effectiveTrackingSheetExtent =>
       _trackingSheetExtent ?? _trackingSheetInitialChildSize;
+
+  @override
+  void dispose() {
+    _trackingSheetController.dispose();
+    super.dispose();
+  }
+
+  bool _isCancellingOrder(int orderId) => _cancellingOrderIds.contains(orderId);
 
   bool _handleTrackingSheetNotification(
     DraggableScrollableNotification notification,
@@ -406,6 +421,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     _scheduleFocusScroll(focusTarget);
 
     final detail = tracking.detail;
+    _syncShoppingSelection(detail, focusTarget);
     final order = detail.summary;
     final shouldShowMap = TrackOrderPresenter.shouldShowTrackingMap(order);
     final isWaitingDriver = TrackOrderPresenter.isWaitingDriverStatus(order);
@@ -469,12 +485,22 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                       showLegend: false,
                       followDriver: true,
                       mapPadding: mapPadding,
+                      selectedPickupId: _selectedShoppingPickupId?.toString(),
+                      onPickupSelected: detail.isShoppingOrder
+                          ? (pickupId) {
+                              setState(
+                                () => _selectedShoppingPointId =
+                                    'pickup:$pickupId',
+                              );
+                            }
+                          : null,
                     )
                   : const ColoredBox(color: AppColors.background),
             ),
             NotificationListener<DraggableScrollableNotification>(
               onNotification: _handleTrackingSheetNotification,
               child: DraggableScrollableSheet(
+                controller: _trackingSheetController,
                 initialChildSize: _trackingSheetInitialChildSize,
                 minChildSize: _trackingSheetMinChildSize,
                 maxChildSize: _trackingSheetMaxChildSize,
@@ -501,16 +527,46 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                     ),
                     child: Column(
                       children: [
-                        const SizedBox(height: 12),
-                        Container(
-                          width: 48,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: AppColors.border,
-                            borderRadius: BorderRadius.circular(10),
+                        BangSheetDragRegion(
+                          key: const ValueKey(
+                            'customer-tracking-sheet-header-drag-region',
+                          ),
+                          controller: _trackingSheetController,
+                          minExtent: _trackingSheetMinChildSize,
+                          maxExtent: _trackingSheetMaxChildSize,
+                          snapExtents: const [
+                            _trackingSheetMinChildSize,
+                            _trackingSheetInitialChildSize,
+                            _trackingSheetMidChildSize,
+                            _trackingSheetMaxChildSize,
+                          ],
+                          child: Column(
+                            children: [
+                              const SizedBox(height: 12),
+                              Container(
+                                key: const ValueKey(
+                                  'customer-tracking-sheet-handle',
+                                ),
+                                width: 48,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: AppColors.border,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              if (detail.isShoppingOrder) ...[
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
+                                  child: _buildShoppingPointSelector(detail),
+                                ),
+                                const SizedBox(height: 12),
+                              ],
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 16),
                         Expanded(
                           child: RefreshIndicator(
                             onRefresh: onRefresh ?? () async {},
@@ -519,13 +575,15 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                               physics: const AlwaysScrollableScrollPhysics(),
                               padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
                               children: [
-                                _buildActiveTrackingCard(
-                                  order: order,
-                                  isRide: isRide,
-                                  driverEtaMessage: driverEtaMessage,
-                                ),
+                                if (_showShoppingSummary(detail))
+                                  _buildActiveTrackingCard(
+                                    order: order,
+                                    isRide: isRide,
+                                    driverEtaMessage: driverEtaMessage,
+                                  ),
                                 const SizedBox(height: 12),
-                                if (driverName.isNotEmpty) ...[
+                                if (_showShoppingSummary(detail) &&
+                                    driverName.isNotEmpty) ...[
                                   _buildDriverCard(
                                     driverName,
                                     orderId: order.id,
@@ -538,21 +596,32 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                                   ),
                                   const SizedBox(height: 12),
                                 ],
-                                _buildRouteCard(detail),
-                                const SizedBox(height: 12),
-                                _buildOrderDetailsCard(
-                                  context,
-                                  ref,
-                                  order,
-                                  detail,
-                                ),
-                                const SizedBox(height: 12),
+                                if (!_showSelectedShoppingPlace(detail)) ...[
+                                  _buildRouteCard(detail),
+                                  const SizedBox(height: 12),
+                                  _buildOrderDetailsCard(
+                                    context,
+                                    ref,
+                                    order,
+                                    detail,
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
                                 if (detail.isShoppingOrder) ...[
                                   TrackShoppingOrderItemsCard(
                                     detail: detail,
                                     onChanged: onRefresh,
                                     shoppingPriceFocusKeyFor:
                                         _shoppingPriceFocusKey,
+                                    selectedPickupLocationId:
+                                        _selectedShoppingPickupId,
+                                    showStops: _showSelectedShoppingPlace(
+                                      detail,
+                                    ),
+                                    showPricing: _showShoppingSummary(detail),
+                                    showGlobalActions: _showShoppingSummary(
+                                      detail,
+                                    ),
                                   ),
                                   const SizedBox(height: 12),
                                 ],
@@ -560,18 +629,27 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                                   _buildProofsCard(context, detail.proofs),
                                   const SizedBox(height: 12),
                                 ],
-                                ..._paymentCardSection(
-                                  context,
-                                  ref,
-                                  order,
-                                  detail,
-                                  onRefresh,
-                                ),
-                                _buildTimelineCard(
-                                  detail.timeline,
-                                  isRide: isRide,
-                                  shouldShowMap: shouldShowMap,
-                                ),
+                                if (!_showSelectedShoppingPlace(detail))
+                                  ..._paymentCardSection(
+                                    context,
+                                    ref,
+                                    order,
+                                    detail,
+                                    onRefresh,
+                                  ),
+                                if (_showShoppingSummary(detail) &&
+                                    TrackOrderPresenter.canCustomerCancelOrder(
+                                      order,
+                                    )) ...[
+                                  _buildCustomerCancelOrderAction(order),
+                                  const SizedBox(height: 12),
+                                ],
+                                if (_showShoppingSummary(detail))
+                                  _buildTimelineCard(
+                                    detail.timeline,
+                                    isRide: isRide,
+                                    shouldShowMap: shouldShowMap,
+                                  ),
                               ],
                             ),
                           ),
@@ -622,15 +700,23 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
             children: [
-              _buildActiveTrackingCard(
-                order: order,
-                isRide:
-                    normalizeServiceTypeCode(order.serviceTypeCode) ==
-                    ServiceTypeCodes.ride,
-                driverEtaMessage: TrackOrderPresenter.driverEtaMessage(detail),
-              ),
-              const SizedBox(height: 12),
-              if (driverName.isNotEmpty) ...[
+              if (detail.isShoppingOrder) ...[
+                _buildShoppingPointSelector(detail),
+                const SizedBox(height: 12),
+              ],
+              if (_showShoppingSummary(detail)) ...[
+                _buildActiveTrackingCard(
+                  order: order,
+                  isRide:
+                      normalizeServiceTypeCode(order.serviceTypeCode) ==
+                      ServiceTypeCodes.ride,
+                  driverEtaMessage: TrackOrderPresenter.driverEtaMessage(
+                    detail,
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (_showShoppingSummary(detail) && driverName.isNotEmpty) ...[
                 _buildDriverCard(
                   driverName,
                   orderId: order.id,
@@ -641,34 +727,48 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                 ),
                 const SizedBox(height: 12),
               ],
-              _buildRouteCard(detail),
-              const SizedBox(height: 12),
-              _buildOrderDetailsCard(context, ref, order, detail),
-              const SizedBox(height: 12),
+              if (!_showSelectedShoppingPlace(detail)) ...[
+                _buildRouteCard(detail),
+                const SizedBox(height: 12),
+                _buildOrderDetailsCard(context, ref, order, detail),
+                const SizedBox(height: 12),
+              ],
               if (detail.isShoppingOrder) ...[
                 TrackShoppingOrderItemsCard(
                   detail: detail,
                   onChanged: onRefresh,
                   shoppingPriceFocusKeyFor: _shoppingPriceFocusKey,
+                  selectedPickupLocationId: _selectedShoppingPickupId,
+                  showStops: _showSelectedShoppingPlace(detail),
+                  showPricing: _showShoppingSummary(detail),
+                  showGlobalActions: _showShoppingSummary(detail),
                 ),
                 const SizedBox(height: 12),
               ],
-              if (detail.proofs.isNotEmpty) ...[
+              if (!_showSelectedShoppingPlace(detail) &&
+                  detail.proofs.isNotEmpty) ...[
                 _buildProofsCard(context, detail.proofs),
                 const SizedBox(height: 12),
               ],
-              ..._paymentCardSection(context, ref, order, detail, onRefresh),
-              _buildCard(
-                title: 'Info Tracking',
-                child: Text(
-                  infoMessage,
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12.5,
-                    height: 1.4,
+              if (!_showSelectedShoppingPlace(detail))
+                ..._paymentCardSection(context, ref, order, detail, onRefresh),
+              if (_showShoppingSummary(detail) &&
+                  TrackOrderPresenter.canCustomerCancelOrder(order)) ...[
+                _buildCustomerCancelOrderAction(order),
+                const SizedBox(height: 12),
+              ],
+              if (_showShoppingSummary(detail))
+                _buildCard(
+                  title: 'Info Tracking',
+                  child: Text(
+                    infoMessage,
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12.5,
+                      height: 1.4,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
@@ -698,39 +798,146 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
             children: [
-              const TrackWaitingDriverHeroCard(),
-              const SizedBox(height: 12),
-              _buildStatusProgress(
-                order.statusCode,
-                statusLabel: order.statusLabel,
-                isTerminalStatus: order.isTerminalStatus,
-                isRide: isRide,
-              ),
-              const SizedBox(height: 12),
-              _buildTrackingInfoBanner(infoMessage),
-              const SizedBox(height: 12),
-              _buildRouteCard(detail),
-              const SizedBox(height: 12),
-              _buildOrderDetailsCard(context, ref, order, detail),
-              const SizedBox(height: 12),
+              if (detail.isShoppingOrder) ...[
+                _buildShoppingPointSelector(detail),
+                const SizedBox(height: 12),
+              ],
+              if (_showShoppingSummary(detail)) ...[
+                const TrackWaitingDriverHeroCard(),
+                const SizedBox(height: 12),
+                _buildStatusProgress(
+                  order.statusCode,
+                  statusLabel: order.statusLabel,
+                  isTerminalStatus: order.isTerminalStatus,
+                  isRide: isRide,
+                ),
+                const SizedBox(height: 12),
+                _buildTrackingInfoBanner(infoMessage),
+                const SizedBox(height: 12),
+              ],
+              if (!_showSelectedShoppingPlace(detail)) ...[
+                _buildRouteCard(detail),
+                const SizedBox(height: 12),
+                _buildOrderDetailsCard(context, ref, order, detail),
+                const SizedBox(height: 12),
+              ],
               if (detail.isShoppingOrder) ...[
                 TrackShoppingOrderItemsCard(
                   detail: detail,
                   onChanged: onRefresh,
                   shoppingPriceFocusKeyFor: _shoppingPriceFocusKey,
+                  selectedPickupLocationId: _selectedShoppingPickupId,
+                  showStops: _showSelectedShoppingPlace(detail),
+                  showPricing: _showShoppingSummary(detail),
+                  showGlobalActions: _showShoppingSummary(detail),
                 ),
                 const SizedBox(height: 12),
               ],
-              if (detail.proofs.isNotEmpty) ...[
+              if (!_showSelectedShoppingPlace(detail) &&
+                  detail.proofs.isNotEmpty) ...[
                 _buildProofsCard(context, detail.proofs),
                 const SizedBox(height: 12),
               ],
-              ..._paymentCardSection(context, ref, order, detail, onRefresh),
+              if (!_showSelectedShoppingPlace(detail))
+                ..._paymentCardSection(context, ref, order, detail, onRefresh),
+              if (_showShoppingSummary(detail) &&
+                  TrackOrderPresenter.canCustomerCancelOrder(order))
+                _buildCustomerCancelOrderAction(order),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildCustomerCancelOrderAction(CustomerOrderSummaryModel order) {
+    final isCancelling = _isCancellingOrder(order.id);
+
+    return Semantics(
+      button: true,
+      label: isCancelling ? 'Sedang membatalkan pesanan' : 'Batalkan pesanan',
+      child: SizedBox(
+        width: double.infinity,
+        height: 50,
+        child: OutlinedButton.icon(
+          key: ValueKey('track-cancel-order-${order.id}'),
+          onPressed: isCancelling ? null : () => _cancelOrder(order),
+          icon: isCancelling
+              ? const SizedBox(
+                  width: 17,
+                  height: 17,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.error,
+                  ),
+                )
+              : const Icon(Icons.cancel_outlined, size: 19),
+          label: Text(
+            isCancelling ? 'Membatalkan...' : 'Batalkan Pesanan',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.error,
+            disabledForegroundColor: AppColors.textMuted,
+            side: BorderSide(
+              color: isCancelling
+                  ? AppColors.border
+                  : AppColors.error.withValues(alpha: 0.55),
+            ),
+            textStyle: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _cancelOrder(CustomerOrderSummaryModel order) async {
+    final reason = await showCustomerOrderCancelSheet(context);
+    if (reason == null || reason.trim().isEmpty || !mounted) {
+      return;
+    }
+
+    setState(() => _cancellingOrderIds.add(order.id));
+
+    try {
+      await ref
+          .read(customerOrderRepositoryProvider)
+          .cancelOrder(order.id, reason: reason);
+
+      ref.invalidate(customerOrderTrackingProvider(order.id));
+      ref.invalidate(customerOrdersProvider);
+      ref.invalidate(customerOrderDetailProvider(order.id));
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Order berhasil dibatalkan.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString()),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _cancellingOrderIds.remove(order.id));
+      }
+    }
   }
 
   List<TrackingMapPickupPoint> _shoppingPickupStops(
@@ -771,6 +978,91 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
           ),
         )
         .toList(growable: false);
+  }
+
+  void _syncShoppingSelection(
+    CustomerOrderDetailModel detail,
+    TrackingFocusTarget? focusTarget,
+  ) {
+    if (!detail.isShoppingOrder) {
+      _selectedShoppingPointId = 'summary';
+      return;
+    }
+    if (_selectedShoppingPointId == 'dropoff') {
+      _selectedShoppingPointId = 'summary';
+    }
+    final activeIds = detail.shoppingStops
+        .where((stop) => stop.isActive)
+        .map((stop) => stop.pickupLocationId)
+        .toSet();
+    final focusedPickup = focusTarget?.pickupLocationId;
+    final focusSignature = focusTarget == null
+        ? null
+        : '${detail.summary.id}:${focusTarget.signature}';
+    if (focusedPickup != null &&
+        activeIds.contains(focusedPickup) &&
+        _appliedShoppingFocusSignature != focusSignature) {
+      _selectedShoppingPointId = 'pickup:$focusedPickup';
+      _appliedShoppingFocusSignature = focusSignature;
+      return;
+    }
+    final selectedPickup = _selectedShoppingPickupId;
+    if (selectedPickup != null && !activeIds.contains(selectedPickup)) {
+      _selectedShoppingPointId = 'summary';
+    }
+  }
+
+  int? get _selectedShoppingPickupId {
+    if (!_selectedShoppingPointId.startsWith('pickup:')) return null;
+    return int.tryParse(_selectedShoppingPointId.substring(7));
+  }
+
+  bool _showShoppingSummary(CustomerOrderDetailModel detail) =>
+      !detail.isShoppingOrder || _selectedShoppingPointId == 'summary';
+
+  bool _showSelectedShoppingPlace(CustomerOrderDetailModel detail) =>
+      detail.isShoppingOrder && _selectedShoppingPickupId != null;
+
+  Widget _buildShoppingPointSelector(CustomerOrderDetailModel detail) {
+    final stops = detail.shoppingStops
+        .where((stop) => stop.isActive)
+        .toList(growable: false);
+    stops.sort((a, b) => a.sequenceNo.compareTo(b.sequenceNo));
+    final entries = <(String, String)>[
+      ('summary', 'Ringkasan'),
+      ...stops.map(
+        (stop) => (
+          'pickup:${stop.pickupLocationId}',
+          'Tempat ${stop.sequenceNo <= 0 ? stops.indexOf(stop) + 1 : stop.sequenceNo}',
+        ),
+      ),
+    ];
+
+    return Semantics(
+      label: 'Pilih bagian detail order Nitip',
+      child: SizedBox(
+        height: 48,
+        child: ListView.separated(
+          key: const ValueKey('customer-shopping-point-selector'),
+          scrollDirection: Axis.horizontal,
+          itemCount: entries.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 8),
+          itemBuilder: (context, index) {
+            final entry = entries[index];
+            final selected = _selectedShoppingPointId == entry.$1;
+            return ChoiceChip(
+              selected: selected,
+              label: Text(entry.$2),
+              onSelected: (_) {
+                if (!selected) {
+                  setState(() => _selectedShoppingPointId = entry.$1);
+                }
+              },
+            );
+          },
+        ),
+      ),
+    );
   }
 
   // ---------------------------------------------------------------------------

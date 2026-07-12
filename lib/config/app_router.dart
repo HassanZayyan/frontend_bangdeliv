@@ -207,11 +207,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final targetPickupLocationId = extra is ShoppingAddItemRouteArgs
               ? extra.targetPickupLocationId
               : null;
+          final replaceMerchant = extra is ShoppingAddItemRouteArgs
+              ? extra.replaceMerchant
+              : false;
 
           return ShoppingAddItemScreen(
             orderId: orderId,
             initialDetail: detail,
             targetPickupLocationId: targetPickupLocationId,
+            replaceMerchant: replaceMerchant,
           );
         },
       ),

@@ -664,7 +664,21 @@ class DriverShoppingStopModel {
   final int sequenceNo;
   final String fulfillmentStatus;
   final int failedAttemptCount;
+  final String chainId;
+  final int chainAttemptNo;
+  final int chainFailedAttemptCount;
+  final int chainFailedAttemptLimit;
+  final int orderFailedTripCount;
+  final int verifiedFailedTripCount;
+  final bool compensationEligible;
+  final int stateVersion;
   final bool availabilityConfirmed;
+  final bool canDriverBypassUnavailableItems;
+  final bool canDriverContinueWithoutUnavailableItem;
+  final bool canDriverCancelUnavailableMerchant;
+  final bool canDriverReplaceUnavailableItems;
+  final bool canReplaceMerchant;
+  final String? replacementBlockReason;
   final DriverShoppingMerchantModel merchant;
   final List<DriverShoppingItemModel> items;
 
@@ -673,7 +687,21 @@ class DriverShoppingStopModel {
     required this.sequenceNo,
     this.fulfillmentStatus = 'PENDING',
     this.failedAttemptCount = 0,
+    this.chainId = '',
+    this.chainAttemptNo = 1,
+    this.chainFailedAttemptCount = 0,
+    this.chainFailedAttemptLimit = 3,
+    this.orderFailedTripCount = 0,
+    this.verifiedFailedTripCount = 0,
+    this.compensationEligible = false,
+    this.stateVersion = 0,
     this.availabilityConfirmed = false,
+    this.canDriverBypassUnavailableItems = false,
+    this.canDriverContinueWithoutUnavailableItem = false,
+    this.canDriverCancelUnavailableMerchant = false,
+    this.canDriverReplaceUnavailableItems = false,
+    this.canReplaceMerchant = false,
+    this.replacementBlockReason,
     required this.merchant,
     required this.items,
   });
@@ -682,6 +710,8 @@ class DriverShoppingStopModel {
   bool get isSkipped => fulfillmentStatus.toUpperCase() == 'SKIPPED';
   bool get isReplaced => fulfillmentStatus.toUpperCase() == 'REPLACED';
   bool get isCompleted => fulfillmentStatus.toUpperCase() == 'COMPLETED';
+  bool get isAbandoned =>
+      fulfillmentStatus.toUpperCase() == 'ABANDONED_AFTER_LIMIT';
   bool get isOpenConfirmed =>
       fulfillmentStatus.toUpperCase() == 'OPEN_CONFIRMED';
   bool get isItemsPendingCustomer =>
@@ -692,7 +722,8 @@ class DriverShoppingStopModel {
       fulfillmentStatus.toUpperCase() == 'PRICE_PENDING_CUSTOMER';
   bool get isPriceApproved =>
       fulfillmentStatus.toUpperCase() == 'PRICE_APPROVED';
-  bool get isTerminal => isFailed || isSkipped || isReplaced || isCompleted;
+  bool get isTerminal =>
+      isFailed || isSkipped || isReplaced || isCompleted || isAbandoned;
   bool get isActive => !isTerminal;
 
   factory DriverShoppingStopModel.fromJson(Map<String, dynamic> json) {
@@ -704,6 +735,12 @@ class DriverShoppingStopModel {
               .whereType<Map<String, dynamic>>()
               .toList(growable: false)
         : const <Map<String, dynamic>>[];
+    final unavailableActions =
+        (json['unavailable_item_actions'] is Map<String, dynamic>)
+        ? json['unavailable_item_actions'] as Map<String, dynamic>
+        : (json['unavailableItemActions'] is Map<String, dynamic>)
+        ? json['unavailableItemActions'] as Map<String, dynamic>
+        : const <String, dynamic>{};
 
     return DriverShoppingStopModel(
       pickupLocationId: DriverOrderModel._asInt(
@@ -718,7 +755,59 @@ class DriverShoppingStopModel {
         json['failed_attempt_count'],
         fallback: 0,
       ),
+      chainId: (json['chain_id'] ?? unavailableActions['chain_id'] ?? '')
+          .toString(),
+      chainAttemptNo: DriverOrderModel._asInt(
+        json['chain_attempt_no'] ?? unavailableActions['chain_attempt_no'],
+        fallback: 1,
+      ),
+      chainFailedAttemptCount: DriverOrderModel._asInt(
+        json['chain_failed_attempt_count'] ??
+            unavailableActions['chain_failed_attempt_count'],
+        fallback: 0,
+      ),
+      chainFailedAttemptLimit: DriverOrderModel._asInt(
+        json['chain_failed_attempt_limit'] ??
+            unavailableActions['chain_failed_attempt_limit'],
+        fallback: 3,
+      ),
+      orderFailedTripCount: DriverOrderModel._asInt(
+        json['order_failed_trip_count'] ??
+            unavailableActions['order_failed_trip_count'],
+        fallback: 0,
+      ),
+      verifiedFailedTripCount: DriverOrderModel._asInt(
+        json['verified_failed_trip_count'] ??
+            unavailableActions['verified_failed_trip_count'],
+        fallback: 0,
+      ),
+      compensationEligible:
+          json['compensation_eligible'] == true ||
+          unavailableActions['compensation_eligible'] == true,
+      stateVersion: DriverOrderModel._asInt(
+        json['state_version'] ?? unavailableActions['state_version'],
+        fallback: 0,
+      ),
       availabilityConfirmed: json['availability_confirmed'] == true,
+      canDriverBypassUnavailableItems:
+          unavailableActions['can_driver_bypass'] == true ||
+          unavailableActions['canDriverBypass'] == true,
+      canDriverContinueWithoutUnavailableItem:
+          unavailableActions['can_driver_continue_without_item'] == true ||
+          unavailableActions['canDriverContinueWithoutItem'] == true,
+      canDriverCancelUnavailableMerchant:
+          unavailableActions['can_driver_cancel_merchant'] == true ||
+          unavailableActions['canDriverCancelMerchant'] == true,
+      canDriverReplaceUnavailableItems:
+          unavailableActions['can_driver_replace_unavailable_items'] == true ||
+          unavailableActions['canDriverReplaceUnavailableItems'] == true,
+      canReplaceMerchant:
+          unavailableActions['can_driver_replace_merchant'] == true ||
+          unavailableActions['canDriverReplaceMerchant'] == true,
+      replacementBlockReason:
+          (unavailableActions['replacement_block_reason'] ??
+                  unavailableActions['replacementBlockReason'])
+              ?.toString(),
       merchant: DriverShoppingMerchantModel.fromJson(merchantJson),
       items: rawItems
           .map(DriverShoppingItemModel.fromJson)
@@ -780,6 +869,7 @@ class DriverShoppingPricingModel {
   final double serviceFee;
   final double totalPrice;
   final double cancellationPenalty;
+  final double failedTripCompensation;
   final int recalculationVersion;
   final bool hasPendingManualPrices;
   final int failedAttemptCount;
@@ -792,6 +882,7 @@ class DriverShoppingPricingModel {
     required this.serviceFee,
     required this.totalPrice,
     required this.cancellationPenalty,
+    this.failedTripCompensation = 0,
     required this.recalculationVersion,
     required this.hasPendingManualPrices,
     this.failedAttemptCount = 0,
@@ -810,6 +901,9 @@ class DriverShoppingPricingModel {
       serviceFee: DriverOrderModel._asDouble(json['service_fee']),
       totalPrice: DriverOrderModel._asDouble(json['total_price']),
       cancellationPenalty: cancellationPenalty,
+      failedTripCompensation: DriverOrderModel._asDouble(
+        json['failed_trip_compensation'],
+      ),
       recalculationVersion: DriverOrderModel._asInt(
         json['recalculation_version'],
         fallback: 0,

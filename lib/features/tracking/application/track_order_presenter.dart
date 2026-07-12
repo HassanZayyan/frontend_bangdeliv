@@ -62,6 +62,11 @@ class TrackOrderPresenter {
         normalizedLabel.contains('DRIVER');
   }
 
+  static bool canCustomerCancelOrder(CustomerOrderSummaryModel order) {
+    return normalizeOrderStatusCode(order.statusCode) ==
+        OrderStatusCodes.pending;
+  }
+
   static bool isPassengerDropoffStatus(CustomerOrderSummaryModel order) {
     final normalizedCode = normalizeOrderStatusCode(order.statusCode);
     if (normalizedCode == OrderStatusCodes.delivered ||

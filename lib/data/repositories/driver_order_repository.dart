@@ -1,6 +1,7 @@
 import 'package:image_picker/image_picker.dart';
 
 import '../../models/driver_order_model.dart';
+import '../../services/customer_order_api_service.dart';
 import '../../services/driver_order_service.dart';
 
 abstract class DriverOrderRepository {
@@ -95,6 +96,45 @@ abstract class DriverOrderRepository {
     required int pickupLocationId,
   });
 
+  Future<DriverOrderModel> bypassUnavailableShoppingItems({
+    required String orderId,
+    required int pickupLocationId,
+  });
+
+  Future<DriverOrderModel> decideUnavailableShoppingItems({
+    required String orderId,
+    required int pickupLocationId,
+    required String action,
+    List<int> itemIds = const <int>[],
+  });
+
+  Future<DriverOrderModel> replaceUnavailableShoppingItems({
+    required String orderId,
+    required int pickupLocationId,
+    required String idempotencyKey,
+    required List<ShoppingItemDraftPayload> items,
+  });
+
+  Future<ShoppingMerchantReplacementPreview>
+  previewShoppingMerchantReplacement({
+    required String orderId,
+    required int pickupLocationId,
+    required int expectedVersion,
+    int? merchantId,
+    ShoppingMerchantPlacePayload? merchantPlace,
+    required List<ShoppingItemDraftPayload> items,
+  });
+
+  Future<DriverOrderModel> replaceShoppingMerchant({
+    required String orderId,
+    required int pickupLocationId,
+    required int expectedVersion,
+    required String idempotencyKey,
+    int? merchantId,
+    ShoppingMerchantPlacePayload? merchantPlace,
+    required List<ShoppingItemDraftPayload> items,
+  });
+
   Future<DriverOrderModel> markShoppingMerchantOpen({
     required String orderId,
     required int pickupLocationId,
@@ -110,6 +150,7 @@ abstract class DriverOrderRepository {
     required String orderId,
     required int pickupLocationId,
     required String reason,
+    XFile? merchantClosedPhoto,
   });
 
   Future<String> fetchAvailabilityStatus();
@@ -307,6 +348,88 @@ class ApiDriverOrderRepository implements DriverOrderRepository {
   }
 
   @override
+  Future<DriverOrderModel> bypassUnavailableShoppingItems({
+    required String orderId,
+    required int pickupLocationId,
+  }) {
+    return _service.bypassUnavailableShoppingItems(
+      orderId: orderId,
+      pickupLocationId: pickupLocationId,
+    );
+  }
+
+  @override
+  Future<DriverOrderModel> decideUnavailableShoppingItems({
+    required String orderId,
+    required int pickupLocationId,
+    required String action,
+    List<int> itemIds = const <int>[],
+  }) {
+    return _service.decideUnavailableShoppingItems(
+      orderId: orderId,
+      pickupLocationId: pickupLocationId,
+      action: action,
+      itemIds: itemIds,
+    );
+  }
+
+  @override
+  Future<DriverOrderModel> replaceUnavailableShoppingItems({
+    required String orderId,
+    required int pickupLocationId,
+    required String idempotencyKey,
+    required List<ShoppingItemDraftPayload> items,
+  }) {
+    return _service.replaceUnavailableShoppingItems(
+      orderId: orderId,
+      pickupLocationId: pickupLocationId,
+      idempotencyKey: idempotencyKey,
+      items: items,
+    );
+  }
+
+  @override
+  Future<ShoppingMerchantReplacementPreview>
+  previewShoppingMerchantReplacement({
+    required String orderId,
+    required int pickupLocationId,
+    required int expectedVersion,
+    int? merchantId,
+    ShoppingMerchantPlacePayload? merchantPlace,
+    required List<ShoppingItemDraftPayload> items,
+  }) {
+    return _service.previewShoppingMerchantReplacement(
+      orderId: orderId,
+      pickupLocationId: pickupLocationId,
+      expectedVersion: expectedVersion,
+      merchantId: merchantId,
+      merchantPlace: merchantPlace,
+      items: items,
+    );
+  }
+
+  @override
+  Future<DriverOrderModel> replaceShoppingMerchant({
+    required String orderId,
+    required int pickupLocationId,
+    required int expectedVersion,
+    required String idempotencyKey,
+    int? merchantId,
+    ShoppingMerchantPlacePayload? merchantPlace,
+    required List<ShoppingItemDraftPayload> items,
+  }) {
+    return _service.replaceShoppingMerchant(
+      orderId: orderId,
+      pickupLocationId: pickupLocationId,
+      expectedVersion: expectedVersion,
+      idempotencyKey: idempotencyKey,
+      merchantId: merchantId,
+      merchantPlace: merchantPlace,
+      items: items,
+    );
+  }
+
+  @override
   Future<DriverOrderModel> markShoppingMerchantOpen({
     required String orderId,
     required int pickupLocationId,
@@ -335,11 +458,13 @@ class ApiDriverOrderRepository implements DriverOrderRepository {
     required String orderId,
     required int pickupLocationId,
     required String reason,
+    XFile? merchantClosedPhoto,
   }) {
     return _service.recordShoppingPickupFailed(
       orderId: orderId,
       pickupLocationId: pickupLocationId,
       reason: reason,
+      merchantClosedPhoto: merchantClosedPhoto,
     );
   }
 

@@ -43,6 +43,9 @@ class TrackingMapSection extends StatefulWidget {
     this.showLegend = true,
     this.followDriver = false,
     this.mapPadding,
+    this.selectedPickupId,
+    this.onPickupSelected,
+    this.onDropoffSelected,
   });
 
   final String dropoffAddress;
@@ -60,6 +63,9 @@ class TrackingMapSection extends StatefulWidget {
   final bool showLegend;
   final bool followDriver;
   final EdgeInsets? mapPadding;
+  final String? selectedPickupId;
+  final ValueChanged<String>? onPickupSelected;
+  final VoidCallback? onDropoffSelected;
 
   @override
   State<TrackingMapSection> createState() => _TrackingMapSectionState();
@@ -136,6 +142,13 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
   @override
   void didUpdateWidget(covariant TrackingMapSection oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.selectedPickupId != widget.selectedPickupId &&
+        widget.selectedPickupId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_focusSelectedPickup());
+      });
+    }
 
     final routeChanged = _routePointsChanged(oldWidget);
     final driverChanged = _driverPositionChanged(oldWidget);
@@ -345,6 +358,17 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
     await _animateCamera(
       CameraUpdate.newLatLngZoom(driverPosition, _driverFollowZoom),
     );
+  }
+
+  Future<void> _focusSelectedPickup() async {
+    final selectedId = widget.selectedPickupId;
+    if (selectedId == null || _mapController == null || !mounted) return;
+    for (final point in _pickupPoints()) {
+      if (point.id == selectedId) {
+        await _animateCamera(CameraUpdate.newLatLngZoom(point.position, 15.5));
+        return;
+      }
+    }
   }
 
   bool _shouldMoveToDriver(LatLng driverPosition) {
@@ -760,9 +784,12 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
           markerId: MarkerId('pickup_${point.id}'),
           position: point.position,
           icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueGreen,
+            widget.selectedPickupId == point.id
+                ? BitmapDescriptor.hueOrange
+                : BitmapDescriptor.hueGreen,
           ),
           infoWindow: InfoWindow(title: point.label),
+          onTap: () => widget.onPickupSelected?.call(point.id),
         ),
       );
     }
@@ -774,6 +801,7 @@ class _TrackingMapSectionState extends State<TrackingMapSection> {
           position: LatLng(widget.dropoffLatitude!, widget.dropoffLongitude!),
           icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
           infoWindow: const InfoWindow(title: 'Titik Tujuan'),
+          onTap: widget.onDropoffSelected,
         ),
       );
     }

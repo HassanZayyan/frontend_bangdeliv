@@ -205,6 +205,8 @@ class DriverOrderStickyActionBar extends StatelessWidget {
   final bool isSavingShoppingCheckout;
   final Future<void> Function()? onSaveShoppingCheckout;
   final Future<void> Function(DriverOrderActionModel action) onTapAction;
+  final bool compactForSheet;
+  final bool singlePrimaryAction;
 
   const DriverOrderStickyActionBar({
     super.key,
@@ -213,6 +215,8 @@ class DriverOrderStickyActionBar extends StatelessWidget {
     this.isSavingShoppingCheckout = false,
     this.onSaveShoppingCheckout,
     required this.onTapAction,
+    this.compactForSheet = false,
+    this.singlePrimaryAction = false,
   });
 
   @override
@@ -236,11 +240,11 @@ class DriverOrderStickyActionBar extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(
+          padding: EdgeInsets.fromLTRB(
             16,
             10,
             16,
-            BangFloatingBottomNavBar.scrollClearance - 42,
+            compactForSheet ? 8 : BangFloatingBottomNavBar.scrollClearance - 42,
           ),
           child: _DriverOrderActionControls(
             order: order,
@@ -249,6 +253,8 @@ class DriverOrderStickyActionBar extends StatelessWidget {
             onSaveShoppingCheckout: onSaveShoppingCheckout,
             onTapAction: onTapAction,
             showEmptyState: false,
+            singlePrimaryAction: singlePrimaryAction,
+            compact: compactForSheet,
           ),
         ),
       ),
@@ -276,6 +282,8 @@ class _DriverOrderActionControls extends StatelessWidget {
   final Future<void> Function()? onSaveShoppingCheckout;
   final Future<void> Function(DriverOrderActionModel action) onTapAction;
   final bool showEmptyState;
+  final bool singlePrimaryAction;
+  final bool compact;
 
   const _DriverOrderActionControls({
     required this.order,
@@ -284,6 +292,8 @@ class _DriverOrderActionControls extends StatelessWidget {
     this.onSaveShoppingCheckout,
     required this.onTapAction,
     required this.showEmptyState,
+    this.singlePrimaryAction = false,
+    this.compact = false,
   });
 
   @override
@@ -291,11 +301,14 @@ class _DriverOrderActionControls extends StatelessWidget {
     final showSaveShoppingCheckout =
         _shouldShowShoppingCheckoutAction(order) &&
         onSaveShoppingCheckout != null;
-    final actions = showSaveShoppingCheckout
+    final availableActions = showSaveShoppingCheckout
         ? order.availableActions
               .where((action) => action.actionCode != 'CONFIRM_PICKED_UP')
               .toList(growable: false)
         : order.availableActions;
+    final actions = singlePrimaryAction
+        ? availableActions.take(1).toList(growable: false)
+        : availableActions;
     final hasCodCollection = actions.any((action) => action.isCodCollection);
     final isCancelledWithFee =
         normalizeOrderStatusCode(order.statusCode) ==
@@ -315,7 +328,7 @@ class _DriverOrderActionControls extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (showShoppingClosureFeeHint && pricing != null) ...[
+        if (!compact && showShoppingClosureFeeHint && pricing != null) ...[
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Text(
@@ -329,7 +342,7 @@ class _DriverOrderActionControls extends StatelessWidget {
             ),
           ),
         ],
-        if (hasCodCollection) ...[
+        if (!compact && hasCodCollection) ...[
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
@@ -439,7 +452,7 @@ class _DriverOrderActionControls extends StatelessWidget {
               ),
             ),
           ),
-        if (actions.any((action) => action.blocked))
+        if (!compact && actions.any((action) => action.blocked))
           Text(
             actions.firstWhere((action) => action.blocked).blockedReason ??
                 'Aksi masih terkunci.',

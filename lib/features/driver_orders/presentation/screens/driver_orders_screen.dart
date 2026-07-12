@@ -342,100 +342,105 @@ class _OrderCard extends StatelessWidget {
         side: const BorderSide(color: AppColors.border),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: _ServiceTypeLabel(
-                label: serviceLabel,
-                icon: serviceTypeLeadingIcon(order.serviceTypeCode),
-                fontSize: 15,
-                fontWeight: FontWeight.w900,
-                iconSize: 18,
-                maxWidth: 240,
-                textColor: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                _CustomerAvatar(
-                  name: order.customerName,
-                  avatarUrl: order.customerAvatarUrl,
-                  size: 42,
+      child: InkWell(
+        onTap: () => _showDetail(context),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: _ServiceTypeLabel(
+                  label: serviceLabel,
+                  icon: serviceTypeLeadingIcon(order.serviceTypeCode),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                  iconSize: 18,
+                  maxWidth: 240,
+                  textColor: AppColors.textPrimary,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        order.customerName,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w700,
-                          height: 1.2,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (quantityLabel != null) ...[
-                        const SizedBox(height: 3),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  _CustomerAvatar(
+                    name: order.customerName,
+                    avatarUrl: order.customerAvatarUrl,
+                    size: 42,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Text(
-                          quantityLabel,
+                          order.customerName,
                           style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
+                            color: AppColors.textPrimary,
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                            height: 1.2,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
+                        if (quantityLabel != null) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            quantityLabel,
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            _OrderRoutePreview(order: order),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(child: _InlineDistanceText(dispatch: order.dispatch)),
-                const SizedBox(width: 12),
-                Text(
-                  formatCurrency(order.fee),
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            OutlinedButton(
-              onPressed: () => _showDetail(context),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                side: const BorderSide(color: AppColors.primary, width: 1.2),
-                minimumSize: const Size.fromHeight(40),
-                padding: const EdgeInsets.symmetric(vertical: 9),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                textStyle: GoogleFonts.inter(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13.5,
-                ),
+                ],
               ),
-              child: const Text('Lihat Detail'),
-            ),
-          ],
+              const SizedBox(height: 14),
+              _OrderRoutePreview(order: order),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _InlineDistanceText(dispatch: order.dispatch),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    formatCurrency(order.fee),
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              OutlinedButton(
+                onPressed: () => _showDetail(context),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary, width: 1.2),
+                  minimumSize: const Size.fromHeight(40),
+                  padding: const EdgeInsets.symmetric(vertical: 9),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  textStyle: GoogleFonts.inter(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13.5,
+                  ),
+                ),
+                child: const Text('Lihat Detail'),
+              ),
+            ],
+          ),
         ),
       ),
     );

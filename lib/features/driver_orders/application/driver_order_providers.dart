@@ -6,19 +6,19 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/application/app_lifecycle_provider.dart';
 import '../../../models/driver_order_model.dart';
 import '../../../data/repositories/driver_order_repository.dart';
+import '../../../services/customer_order_api_service.dart';
 import '../../../services/driver_order_service.dart';
 import '../../../services/firebase_notification_service.dart';
 import '../../../utils/order_formatters.dart';
 import '../../../utils/order_status.dart';
-import '../../../utils/order_ui_helpers.dart';
 import '../../../core/di/app_providers.dart';
 import '../../auth/application/auth_session_provider.dart';
 import '../../realtime/application/order_realtime_hub_provider.dart';
 
 Duration driverOrdersReconciliationInterval = const Duration(seconds: 8);
-Duration driverTransferProofReconciliationInterval = const Duration(
-  seconds: 10,
-);
+Duration driverOrderDetailReconciliationInterval = const Duration(seconds: 5);
+
+typedef DriverOrderDetailRefresh = Future<DriverOrderModel> Function();
 
 typedef DriverOrderAvailableNotification =
     Future<void> Function({
@@ -163,6 +163,37 @@ class DriverOrderActionKeys {
         ? ':$pickupLocationId'
         : '';
     return _build(orderId, 'bypassShoppingPrice$suffix');
+  }
+
+  static String bypassUnavailableItems(
+    String orderId, [
+    int? pickupLocationId,
+  ]) {
+    final suffix = pickupLocationId != null && pickupLocationId > 0
+        ? ':$pickupLocationId'
+        : '';
+    return _build(orderId, 'bypassUnavailableItems$suffix');
+  }
+
+  static String decideUnavailableItems(
+    String orderId,
+    int pickupLocationId,
+    String action,
+  ) {
+    return _build(
+      orderId,
+      'decideUnavailableItems:$pickupLocationId:${_normalize(action)}',
+    );
+  }
+
+  static String replaceUnavailableItems(
+    String orderId, [
+    int? pickupLocationId,
+  ]) {
+    final suffix = pickupLocationId != null && pickupLocationId > 0
+        ? ':$pickupLocationId'
+        : '';
+    return _build(orderId, 'replaceUnavailableItems$suffix');
   }
 
   static String markShoppingMerchantOpen(
@@ -1059,6 +1090,66 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     );
   }
 
+  Future<String?> bypassUnavailableShoppingItems({
+    required String orderId,
+    required int pickupLocationId,
+  }) async {
+    return _mutateRunningOrder(
+      orderId: orderId,
+      actionKey: DriverOrderActionKeys.bypassUnavailableItems(
+        orderId,
+        pickupLocationId,
+      ),
+      request: (repository) => repository.bypassUnavailableShoppingItems(
+        orderId: orderId,
+        pickupLocationId: pickupLocationId,
+      ),
+    );
+  }
+
+  Future<String?> decideUnavailableShoppingItems({
+    required String orderId,
+    required int pickupLocationId,
+    required String action,
+    List<int> itemIds = const <int>[],
+  }) async {
+    return _mutateRunningOrder(
+      orderId: orderId,
+      actionKey: DriverOrderActionKeys.decideUnavailableItems(
+        orderId,
+        pickupLocationId,
+        action,
+      ),
+      request: (repository) => repository.decideUnavailableShoppingItems(
+        orderId: orderId,
+        pickupLocationId: pickupLocationId,
+        action: action,
+        itemIds: itemIds,
+      ),
+    );
+  }
+
+  Future<String?> replaceUnavailableShoppingItems({
+    required String orderId,
+    required int pickupLocationId,
+    required String idempotencyKey,
+    required List<ShoppingItemDraftPayload> items,
+  }) async {
+    return _mutateRunningOrder(
+      orderId: orderId,
+      actionKey: DriverOrderActionKeys.replaceUnavailableItems(
+        orderId,
+        pickupLocationId,
+      ),
+      request: (repository) => repository.replaceUnavailableShoppingItems(
+        orderId: orderId,
+        pickupLocationId: pickupLocationId,
+        idempotencyKey: idempotencyKey,
+        items: items,
+      ),
+    );
+  }
+
   Future<String?> markShoppingMerchantOpen({
     required String orderId,
     required int pickupLocationId,
@@ -1222,24 +1313,13 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     state = AsyncData(_markActionProcessing(current, actionKey: actionKey));
 
     try {
-      if (storeClosedPhoto != null) {
-        await ref
-            .read(driverOrderRepositoryProvider)
-            .uploadProof(
-              orderId: orderId,
-              type: 'store_closed',
-              photo: storeClosedPhoto,
-              note: reason,
-              pickupLocationId: pickupLocationId,
-            );
-      }
-
       final updated = await ref
           .read(driverOrderRepositoryProvider)
           .recordShoppingPickupFailed(
             orderId: orderId,
             pickupLocationId: pickupLocationId,
             reason: reason,
+            merchantClosedPhoto: storeClosedPhoto,
           );
 
       final latest = state.asData?.value;
@@ -1647,6 +1727,31 @@ final driverOrderDetailProvider =
       return ref.read(driverOrderRepositoryProvider).fetchOrderDetail(orderId);
     });
 
+final driverOrderDetailRefreshProvider = Provider.autoDispose
+    .family<DriverOrderDetailRefresh, String>((ref, orderId) {
+      Future<DriverOrderModel>? inFlight;
+
+      Future<DriverOrderModel> refresh() async {
+        final pending = inFlight;
+        if (pending != null) {
+          return pending;
+        }
+
+        ref.invalidate(driverOrderDetailProvider(orderId));
+        final request = ref.read(driverOrderDetailProvider(orderId).future);
+        inFlight = request;
+        try {
+          return await request;
+        } finally {
+          if (identical(inFlight, request)) {
+            inFlight = null;
+          }
+        }
+      }
+
+      return refresh;
+    });
+
 final driverOrderDetailRealtimeProvider = Provider.autoDispose
     .family<void, String>((ref, orderId) {
       final parsedOrderId = int.tryParse(orderId.trim());
@@ -1660,61 +1765,108 @@ final driverOrderDetailRealtimeProvider = Provider.autoDispose
       }
 
       final hub = ref.watch(orderRealtimeHubProvider);
+      final refresh = ref.watch(driverOrderDetailRefreshProvider(orderId));
+      Timer? pendingRefresh;
       unawaited(hub.retainOrder(parsedOrderId));
 
       final subscription = hub.events
           .where((event) => event.orderId == parsedOrderId)
           .listen((event) {
-            if (event.type == OrderRealtimeEventType.content ||
+            if (event.type == OrderRealtimeEventType.connected ||
+                event.type == OrderRealtimeEventType.content ||
                 event.type == OrderRealtimeEventType.status) {
               final delay = event.type == OrderRealtimeEventType.content
                   ? const Duration(milliseconds: 400)
                   : Duration.zero;
-              Timer(delay, () {
+              pendingRefresh?.cancel();
+              pendingRefresh = Timer(delay, () {
                 if (ref.mounted) {
-                  ref.invalidate(driverOrderDetailProvider(orderId));
+                  unawaited(_refreshDriverOrderDetailSilently(refresh));
                 }
               });
             }
           });
 
       ref.onDispose(() {
+        pendingRefresh?.cancel();
         unawaited(subscription.cancel());
         hub.releaseOrder(parsedOrderId);
       });
     });
 
-final driverOrderTransferProofReconciliationProvider = Provider.autoDispose
+final driverOrderDetailReconciliationProvider = Provider.autoDispose
     .family<void, String>((ref, orderId) {
-      final detailState = ref.watch(driverOrderDetailProvider(orderId));
-      final order = detailState.asData?.value;
-      if (order == null || !_needsTransferProofReconciliation(order)) {
+      final parsedOrderId = int.tryParse(orderId.trim());
+      if (parsedOrderId == null || parsedOrderId <= 0) {
         return;
       }
 
-      final timer = Timer.periodic(driverTransferProofReconciliationInterval, (
-        _,
-      ) {
-        if (ref.mounted &&
-            isAppLifecycleResumed(ref.read(appLifecycleStateProvider))) {
-          ref.invalidate(driverOrderDetailProvider(orderId));
+      final refresh = ref.watch(driverOrderDetailRefreshProvider(orderId));
+      Timer? timer;
+
+      bool canRefresh() {
+        if (!ref.mounted ||
+            !isAppLifecycleResumed(ref.read(appLifecycleStateProvider))) {
+          return false;
+        }
+
+        final order = ref
+            .read(driverOrderDetailProvider(orderId))
+            .asData
+            ?.value;
+        if (order != null && isTerminalOrderStatus(order.statusCode)) {
+          timer?.cancel();
+          timer = null;
+          return false;
+        }
+
+        return true;
+      }
+
+      void reconcile() {
+        if (canRefresh()) {
+          unawaited(_refreshDriverOrderDetailSilently(refresh));
+        }
+      }
+
+      void startTimer() {
+        if (timer != null ||
+            !isAppLifecycleResumed(ref.read(appLifecycleStateProvider))) {
+          return;
+        }
+        timer = Timer.periodic(driverOrderDetailReconciliationInterval, (_) {
+          reconcile();
+        });
+      }
+
+      void stopTimer() {
+        timer?.cancel();
+        timer = null;
+      }
+
+      ref.listen(appLifecycleStateProvider, (previous, next) {
+        if (isAppLifecycleResumed(next)) {
+          startTimer();
+          if (previous != next) {
+            reconcile();
+          }
+        } else {
+          stopTimer();
         }
       });
 
-      ref.onDispose(timer.cancel);
+      startTimer();
+      ref.onDispose(stopTimer);
     });
 
-bool _needsTransferProofReconciliation(DriverOrderModel order) {
-  final paymentMethod = order.paymentMethod.trim().toUpperCase();
-  if (paymentMethod != 'TRANSFER' || isPaymentPaid(order.paymentStatus)) {
-    return false;
+Future<void> _refreshDriverOrderDetailSilently(
+  DriverOrderDetailRefresh refresh,
+) async {
+  try {
+    await refresh();
+  } catch (_) {
+    // Pertahankan snapshot terakhir. Realtime/polling berikutnya akan mencoba lagi.
   }
-
-  return !order.proofs.any(
-    (proof) =>
-        proof.type == 'payment_transfer' &&
-        (proof.photoUrl ?? '').trim().isNotEmpty,
-  );
 }
 
 class DriverHistoryNotifier

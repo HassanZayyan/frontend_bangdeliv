@@ -16,13 +16,19 @@ import '../../application/customer_order_providers.dart';
 import '../../application/order_chat_provider.dart';
 import '../../application/order_chat_unread_provider.dart';
 import '../../../../utils/order_formatters.dart';
+import '../../../../utils/whatsapp_launcher.dart';
 import '../../../../widgets/bang_chat_bubble.dart';
 import '../../../../widgets/profile_avatar.dart';
 
 class OrderChatScreen extends ConsumerStatefulWidget {
-  const OrderChatScreen({super.key, required this.orderId});
+  const OrderChatScreen({
+    super.key,
+    required this.orderId,
+    this.whatsAppLauncher,
+  });
 
   final int orderId;
+  final OrderWhatsAppLauncher? whatsAppLauncher;
 
   @override
   ConsumerState<OrderChatScreen> createState() => _OrderChatScreenState();
@@ -171,6 +177,29 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
     context.go(AppRoutes.home);
   }
 
+  Future<void> _openWhatsApp(Uri uri) async {
+    var launched = false;
+    try {
+      launched = await launchOrderWhatsApp(
+        uri,
+        launcher: widget.whatsAppLauncher,
+      );
+    } catch (_) {
+      launched = false;
+    }
+
+    if (!mounted || launched) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('WhatsApp tidak dapat dibuka di perangkat ini.'),
+        backgroundColor: AppColors.error,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final chatAsync = ref.watch(orderChatProvider(widget.orderId));
@@ -199,6 +228,16 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
     final participantAvatarUrl = isDriverSession
         ? driverDetail?.customerAvatarUrl?.trim()
         : customerDetail?.driverAvatarUrl?.trim();
+    final participantPhone = isDriverSession
+        ? driverDetail?.customerPhone
+        : customerDetail?.driverPhone;
+    final whatsAppUri = buildOrderWhatsAppUri(
+      phone: participantPhone,
+      participantName: participantName.isEmpty
+          ? participantFallback
+          : participantName,
+      orderId: widget.orderId,
+    );
 
     ref.listen<AsyncValue<OrderChatState>>(orderChatProvider(widget.orderId), (
       previous,
@@ -239,6 +278,24 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
             icon: const Icon(Icons.chevron_left, color: AppColors.textPrimary),
             onPressed: _handleBack,
           ),
+          actions: [
+            if (whatsAppUri != null)
+              IconButton(
+                tooltip: 'Buka WhatsApp $participantRoleLabel',
+                constraints: const BoxConstraints.tightFor(
+                  width: 48,
+                  height: 48,
+                ),
+                onPressed: () => _openWhatsApp(whatsAppUri),
+                icon: Image.asset(
+                  'assets/images/WhatsApp.webp',
+                  width: 24,
+                  height: 24,
+                  semanticLabel: 'WhatsApp $participantRoleLabel',
+                ),
+              ),
+            const SizedBox(width: 4),
+          ],
         ),
         body: chatAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),

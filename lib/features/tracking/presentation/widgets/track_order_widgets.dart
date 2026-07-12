@@ -8,7 +8,9 @@ import '../../../../config/app_routes.dart';
 import '../../../../core/widgets/bang_amount_negotiation_card.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../../core/widgets/bang_confirmation_dialog.dart';
+import '../../../../core/widgets/bang_decision_action_grid.dart';
 import '../../../../core/widgets/bang_shopping_merchant_request_summary.dart';
+import '../../../../core/widgets/bang_unavailable_item_picker.dart';
 import '../../../../models/customer_order_model.dart';
 import '../../../../models/shopping_order_capability_model.dart';
 import '../../../../utils/order_formatters.dart';
@@ -20,12 +22,20 @@ class TrackShoppingOrderItemsCard extends ConsumerStatefulWidget {
   final CustomerOrderDetailModel detail;
   final Future<void> Function()? onChanged;
   final GlobalKey Function(int pickupLocationId)? shoppingPriceFocusKeyFor;
+  final int? selectedPickupLocationId;
+  final bool showPricing;
+  final bool showGlobalActions;
+  final bool showStops;
 
   const TrackShoppingOrderItemsCard({
     super.key,
     required this.detail,
     this.onChanged,
     this.shoppingPriceFocusKeyFor,
+    this.selectedPickupLocationId,
+    this.showPricing = true,
+    this.showGlobalActions = true,
+    this.showStops = true,
   });
 
   @override
@@ -43,6 +53,11 @@ class _TrackShoppingOrderItemsCardState
     final stops = detail.shoppingStops;
     final activeStops = stops
         .where((stop) => stop.isActive)
+        .where(
+          (stop) =>
+              widget.selectedPickupLocationId == null ||
+              stop.pickupLocationId == widget.selectedPickupLocationId,
+        )
         .toList(growable: false);
     final pricing = detail.shoppingPricing;
     final failedStops = stops
@@ -81,7 +96,7 @@ class _TrackShoppingOrderItemsCardState
                   ),
                 ),
               ),
-              if (detail.canAddShoppingMerchant)
+              if (widget.showGlobalActions && detail.canAddShoppingMerchant)
                 TextButton.icon(
                   onPressed: () => _openAddItemScreen(context, ref),
                   style: TextButton.styleFrom(
@@ -102,19 +117,23 @@ class _TrackShoppingOrderItemsCardState
             ],
           ),
           const Divider(height: 18, color: AppColors.border),
-          if (failedStops.isNotEmpty) ...[
-            ...failedStops.map(_failedStopNotice),
+          if (widget.showGlobalActions && failedStops.isNotEmpty) ...[
+            ...failedStops.map((stop) => _failedStopNotice(context, ref, stop)),
             const SizedBox(height: 4),
           ],
-          if (detail.shoppingItemChangeRequest?.isPending == true) ...[
+          if (widget.showGlobalActions &&
+              detail.shoppingItemChangeRequest?.isPending == true) ...[
             _shoppingItemChangeRequestNotice(detail.shoppingItemChangeRequest!),
             const SizedBox(height: 10),
           ],
-          if (_unavailableItems(detail).isNotEmpty) ...[
+          if (widget.showGlobalActions &&
+              _unavailableItems(detail).isNotEmpty) ...[
             _unavailableItemsNotice(_unavailableItems(detail)),
             const SizedBox(height: 10),
           ],
-          if (activeStops.isEmpty)
+          if (!widget.showStops)
+            const SizedBox.shrink()
+          else if (activeStops.isEmpty)
             const Text(
               'Belum ada item belanja.',
               style: TextStyle(color: AppColors.textSecondary),
@@ -128,25 +147,60 @@ class _TrackShoppingOrderItemsCardState
                 showDivider: entry.$1 > 0,
               ),
             ),
-          if (pricing != null) ...[
+          if (widget.showPricing && pricing != null) ...[
             const Divider(height: 18, color: AppColors.border),
             _pricingRow('Subtotal barang', pricing.subtotal),
-            _pricingRow('Ongkir', pricing.deliveryFee),
-            _pricingRow(detail.shoppingServiceFeeLabel, pricing.serviceFee),
+            _pricingRow('Ongkir aktif', pricing.deliveryFee),
+            _pricingRow(
+              detail.shoppingServiceFeeLabel,
+              (pricing.serviceFee - pricing.failedTripCompensation).clamp(
+                0,
+                double.infinity,
+              ),
+            ),
+            if (pricing.failedTripCompensation > 0)
+              _pricingRow(
+                'Kompensasi perjalanan gagal (50%)',
+                pricing.failedTripCompensation,
+              ),
             const SizedBox(height: 4),
-            _pricingRow('Total', pricing.totalPrice, isTotal: true),
+            _pricingRow(
+              'Total pembayaran customer',
+              pricing.totalPrice,
+              isTotal: true,
+            ),
           ],
         ],
       ),
     );
   }
 
-  Widget _failedStopNotice(CustomerShoppingStopModel stop) {
+  Widget _failedStopNotice(
+    BuildContext context,
+    WidgetRef ref,
+    CustomerShoppingStopModel stop,
+  ) {
     return _TrackNotice(
       margin: const EdgeInsets.only(bottom: 8),
       tone: _TrackNoticeTone.danger,
       icon: Icons.storefront_outlined,
-      text: '${stop.merchant.name} - Tempat tutup/order batal',
+      text:
+          '${stop.merchant.name} - Tempat tutup/order batal\n${formatShoppingAttemptProgress(attemptNo: stop.chainAttemptNo, attemptLimit: stop.chainFailedAttemptLimit, totalFailed: stop.orderFailedTripCount)}',
+      child: stop.canReplaceMerchant
+          ? Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: () => _openAddItemScreen(
+                  context,
+                  ref,
+                  targetPickupLocationId: stop.pickupLocationId,
+                  replaceMerchant: true,
+                ),
+                icon: const Icon(Icons.swap_horiz_rounded),
+                label: const Text('Ganti toko/resto'),
+              ),
+            )
+          : null,
     );
   }
 
@@ -315,27 +369,24 @@ class _TrackShoppingOrderItemsCardState
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
               if (stop.isFailed || stop.isSkipped)
                 _stopStatusChip(
                   stop.isFailed ? 'Tempat tutup/order batal' : 'Dilewati',
-                )
-              else if (canEditUnavailable)
-                TextButton.icon(
-                  onPressed: () => _openAddItemScreen(
-                    context,
-                    ref,
-                    targetPickupLocationId: stop.pickupLocationId,
-                  ),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    minimumSize: const Size(0, 30),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  icon: const Icon(Icons.edit_outlined, size: 15),
-                  label: const Text('Edit'),
                 ),
             ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            formatShoppingAttemptProgress(
+              attemptNo: stop.chainAttemptNo,
+              attemptLimit: stop.chainFailedAttemptLimit,
+              totalFailed: stop.orderFailedTripCount,
+            ),
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 8),
           if (showStopQuoteCard) ...[
@@ -411,49 +462,64 @@ class _TrackShoppingOrderItemsCardState
     required bool canCancelMerchant,
   }) {
     final canSkipDirectly = unavailableItems.length == 1;
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        if (canContinueWithoutUnavailable)
-          OutlinedButton.icon(
-            onPressed: () {
-              if (canSkipDirectly) {
-                _continueWithoutUnavailableItem(
-                  context,
-                  ref,
-                  stop,
-                  unavailableItems.single,
-                );
-                return;
-              }
-
-              _showUnavailableItemPicker(context, ref, stop, unavailableItems);
-            },
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              minimumSize: const Size(0, 38),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            icon: const Icon(Icons.remove_circle_outline, size: 16),
-            label: Text(canSkipDirectly ? 'Lanjut tanpa ini' : 'Pilih item'),
+    final actions = <BangDecisionAction>[
+      BangDecisionAction(
+        key: ValueKey('shopping-action-replace-items-${stop.pickupLocationId}'),
+        label: 'Ganti item',
+        icon: Icons.edit_outlined,
+        tone: BangDecisionActionTone.orange,
+        onPressed: () => _openAddItemScreen(
+          context,
+          ref,
+          targetPickupLocationId: stop.pickupLocationId,
+        ),
+      ),
+      if (stop.canReplaceMerchant)
+        BangDecisionAction(
+          key: ValueKey(
+            'shopping-action-replace-merchant-${stop.pickupLocationId}',
           ),
-        if (canCancelMerchant)
-          OutlinedButton.icon(
-            onPressed: () => _cancelUnavailableMerchant(context, ref, stop),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.error,
-              side: BorderSide(color: AppColors.error.withValues(alpha: 0.65)),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              minimumSize: const Size(0, 38),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            icon: const Icon(Icons.storefront_outlined, size: 16),
-            label: const Text('Batal tempat'),
+          label: 'Ganti toko/resto',
+          icon: Icons.swap_horiz_rounded,
+          tone: BangDecisionActionTone.orange,
+          onPressed: () => _openAddItemScreen(
+            context,
+            ref,
+            targetPickupLocationId: stop.pickupLocationId,
+            replaceMerchant: true,
           ),
-      ],
-    );
+        ),
+      if (canContinueWithoutUnavailable)
+        BangDecisionAction(
+          key: ValueKey('shopping-action-continue-${stop.pickupLocationId}'),
+          label: canSkipDirectly ? 'Lanjut tanpa ini' : 'Pilih item',
+          icon: Icons.remove_circle_outline,
+          tone: BangDecisionActionTone.amber,
+          onPressed: () {
+            if (canSkipDirectly) {
+              _continueWithoutUnavailableItem(
+                context,
+                ref,
+                stop,
+                unavailableItems.single,
+              );
+              return;
+            }
+
+            _showUnavailableItemPicker(context, ref, stop, unavailableItems);
+          },
+        ),
+      if (canCancelMerchant)
+        BangDecisionAction(
+          key: ValueKey('shopping-action-cancel-${stop.pickupLocationId}'),
+          label: 'Batal tempat',
+          icon: Icons.storefront_outlined,
+          tone: BangDecisionActionTone.red,
+          onPressed: () => _cancelUnavailableMerchant(context, ref, stop),
+        ),
+    ];
+
+    return BangDecisionActionGrid(actions: actions);
   }
 
   Widget _stopNumberBadge(int number) {
@@ -631,45 +697,34 @@ class _TrackShoppingOrderItemsCardState
     CustomerShoppingStopModel stop,
     List<CustomerShoppingItemModel> unavailableItems,
   ) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Pilih item yang dilewati',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 8),
-              for (final item in unavailableItems)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    '${item.quantity <= 0 ? 1 : item.quantity}x ${item.name}',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  subtitle: const Text('Tidak tersedia'),
-                  trailing: TextButton(
-                    onPressed: () {
-                      Navigator.of(sheetContext).pop();
-                      _continueWithoutUnavailableItem(context, ref, stop, item);
-                    },
-                    child: const Text('Lanjut'),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
+    final selectedIds = await showBangUnavailableItemPicker(
+      context,
+      items: unavailableItems
+          .map(
+            (item) => BangUnavailableItemChoice(
+              id: item.id,
+              label: '${item.quantity <= 0 ? 1 : item.quantity}x ${item.name}',
+            ),
+          )
+          .toList(growable: false),
+    );
+    if (selectedIds == null || selectedIds.isEmpty || !context.mounted) {
+      return;
+    }
+
+    final names = unavailableItems
+        .where((item) => selectedIds.contains(item.id))
+        .map((item) => item.name)
+        .join(', ');
+    await _submitUnavailableDecision(
+      context,
+      ref,
+      action: 'REMOVE',
+      pickupLocationId: stop.pickupLocationId,
+      itemIds: selectedIds,
+      note: 'Customer memilih lanjut tanpa item tidak tersedia: $names.',
+      successMessage:
+          '${selectedIds.length} item dilewati. Driver perlu input harga baru.',
     );
   }
 
@@ -700,6 +755,10 @@ class _TrackShoppingOrderItemsCardState
         const SnackBar(content: Text('Respons harga Nitip diproses.')),
       );
     } catch (error) {
+      ref.invalidate(customerOrderTrackingProvider(widget.detail.summary.id));
+      ref.invalidate(customerOrdersProvider);
+      await widget.onChanged?.call();
+
       if (!context.mounted) {
         return;
       }
@@ -734,7 +793,7 @@ class _TrackShoppingOrderItemsCardState
       ref,
       action: 'REMOVE',
       pickupLocationId: stop.pickupLocationId,
-      itemId: item.id,
+      itemIds: [item.id],
       note: 'Customer memilih lanjut tanpa item tidak tersedia: ${item.name}.',
       successMessage: '${item.name} dilewati. Driver perlu input harga baru.',
     );
@@ -790,6 +849,7 @@ class _TrackShoppingOrderItemsCardState
     required String action,
     required int pickupLocationId,
     int? itemId,
+    List<int> itemIds = const <int>[],
     String? note,
     required String successMessage,
   }) async {
@@ -801,6 +861,7 @@ class _TrackShoppingOrderItemsCardState
             action: action,
             requestKind: 'EDIT_UNAVAILABLE',
             itemId: itemId,
+            itemIds: itemIds,
             targetPickupLocationId: pickupLocationId,
             note: note,
           );
@@ -832,12 +893,14 @@ class _TrackShoppingOrderItemsCardState
     BuildContext context,
     WidgetRef ref, {
     int? targetPickupLocationId,
+    bool replaceMerchant = false,
   }) async {
     final result = await context.push<ShoppingAddItemResult>(
       AppRoutes.shoppingAddItemPath(widget.detail.summary.id),
       extra: ShoppingAddItemRouteArgs(
         detail: widget.detail,
         targetPickupLocationId: targetPickupLocationId,
+        replaceMerchant: replaceMerchant,
       ),
     );
 

@@ -530,6 +530,7 @@ class CustomerOrderDetailModel {
   final String? paymentStatus;
   final String? paymentMethod;
   final String? driverName;
+  final String? driverPhone;
   final String? driverVehicleType;
   final String? driverVehicleBrand;
   final String? driverVehicleModel;
@@ -568,6 +569,7 @@ class CustomerOrderDetailModel {
     required this.paymentStatus,
     required this.paymentMethod,
     required this.driverName,
+    this.driverPhone,
     required this.driverVehicleType,
     required this.driverVehicleBrand,
     required this.driverVehicleModel,
@@ -703,6 +705,7 @@ class CustomerOrderDetailModel {
     String? paymentStatus,
     String? paymentMethod,
     String? driverName,
+    String? driverPhone,
     String? driverVehicleType,
     String? driverVehicleBrand,
     String? driverVehicleModel,
@@ -743,6 +746,7 @@ class CustomerOrderDetailModel {
       paymentStatus: paymentStatus ?? this.paymentStatus,
       paymentMethod: paymentMethod ?? this.paymentMethod,
       driverName: driverName ?? this.driverName,
+      driverPhone: driverPhone ?? this.driverPhone,
       driverVehicleType: driverVehicleType ?? this.driverVehicleType,
       driverVehicleBrand: driverVehicleBrand ?? this.driverVehicleBrand,
       driverVehicleModel: driverVehicleModel ?? this.driverVehicleModel,
@@ -955,6 +959,7 @@ class CustomerOrderDetailModel {
       paymentStatus: json['payment_status']?.toString(),
       paymentMethod: json['payment_method']?.toString(),
       driverName: driverUser['name']?.toString(),
+      driverPhone: driverUser['phone']?.toString(),
       driverVehicleType: driver['vehicle_type']?.toString(),
       driverVehicleBrand: driver['vehicle_brand']?.toString(),
       driverVehicleModel: driver['vehicle_model']?.toString(),
@@ -1262,30 +1267,52 @@ class CustomerShoppingStopModel {
   final int sequenceNo;
   final String fulfillmentStatus;
   final int failedAttemptCount;
+  final String chainId;
+  final int chainAttemptNo;
+  final int chainFailedAttemptCount;
+  final int chainFailedAttemptLimit;
+  final int orderFailedTripCount;
+  final int verifiedFailedTripCount;
+  final bool compensationEligible;
+  final int stateVersion;
   final CustomerShoppingMerchantModel merchant;
   final List<CustomerShoppingItemModel> items;
   final bool hasExplicitUnavailableItemActions;
   final bool canEditUnavailableItems;
   final bool canContinueWithoutUnavailableItem;
   final bool canCancelUnavailableMerchant;
+  final bool canReplaceMerchant;
+  final String? replacementBlockReason;
 
   const CustomerShoppingStopModel({
     required this.pickupLocationId,
     required this.sequenceNo,
     this.fulfillmentStatus = 'PENDING',
     this.failedAttemptCount = 0,
+    this.chainId = '',
+    this.chainAttemptNo = 1,
+    this.chainFailedAttemptCount = 0,
+    this.chainFailedAttemptLimit = 3,
+    this.orderFailedTripCount = 0,
+    this.verifiedFailedTripCount = 0,
+    this.compensationEligible = false,
+    this.stateVersion = 0,
     required this.merchant,
     required this.items,
     this.hasExplicitUnavailableItemActions = false,
     this.canEditUnavailableItems = false,
     this.canContinueWithoutUnavailableItem = false,
     this.canCancelUnavailableMerchant = false,
+    this.canReplaceMerchant = false,
+    this.replacementBlockReason,
   });
 
   bool get isFailed => fulfillmentStatus.toUpperCase() == 'FAILED';
   bool get isSkipped => fulfillmentStatus.toUpperCase() == 'SKIPPED';
   bool get isReplaced => fulfillmentStatus.toUpperCase() == 'REPLACED';
   bool get isCompleted => fulfillmentStatus.toUpperCase() == 'COMPLETED';
+  bool get isAbandoned =>
+      fulfillmentStatus.toUpperCase() == 'ABANDONED_AFTER_LIMIT';
   bool get isOpenConfirmed =>
       fulfillmentStatus.toUpperCase() == 'OPEN_CONFIRMED';
   bool get isItemsPendingCustomer =>
@@ -1296,7 +1323,7 @@ class CustomerShoppingStopModel {
       fulfillmentStatus.toUpperCase() == 'PRICE_PENDING_CUSTOMER';
   bool get isPriceApproved =>
       fulfillmentStatus.toUpperCase() == 'PRICE_APPROVED';
-  bool get isActive => !isFailed && !isSkipped && !isReplaced;
+  bool get isActive => !isFailed && !isSkipped && !isReplaced && !isAbandoned;
 
   factory CustomerShoppingStopModel.fromJson(Map<String, dynamic> json) {
     final merchantJson = (json['merchant'] is Map<String, dynamic>)
@@ -1325,6 +1352,42 @@ class CustomerShoppingStopModel {
       failedAttemptCount: CustomerOrderSummaryModel._asInt(
         json['failed_attempt_count'],
       ),
+      chainId: (json['chain_id'] ?? unavailableActions['chain_id'] ?? '')
+          .toString(),
+      chainAttemptNo: CustomerOrderSummaryModel._asInt(
+        json['chain_attempt_no'] ?? unavailableActions['chain_attempt_no'] ?? 1,
+      ),
+      chainFailedAttemptCount: CustomerOrderSummaryModel._asInt(
+        json['chain_failed_attempt_count'] ??
+            unavailableActions['chain_failed_attempt_count'],
+      ),
+      chainFailedAttemptLimit:
+          CustomerOrderSummaryModel._asInt(
+                json['chain_failed_attempt_limit'] ??
+                    unavailableActions['chain_failed_attempt_limit'] ??
+                    3,
+              ) <=
+              0
+          ? 3
+          : CustomerOrderSummaryModel._asInt(
+              json['chain_failed_attempt_limit'] ??
+                  unavailableActions['chain_failed_attempt_limit'] ??
+                  3,
+            ),
+      orderFailedTripCount: CustomerOrderSummaryModel._asInt(
+        json['order_failed_trip_count'] ??
+            unavailableActions['order_failed_trip_count'],
+      ),
+      verifiedFailedTripCount: CustomerOrderSummaryModel._asInt(
+        json['verified_failed_trip_count'] ??
+            unavailableActions['verified_failed_trip_count'],
+      ),
+      compensationEligible:
+          json['compensation_eligible'] == true ||
+          unavailableActions['compensation_eligible'] == true,
+      stateVersion: CustomerOrderSummaryModel._asInt(
+        json['state_version'] ?? unavailableActions['state_version'],
+      ),
       merchant: CustomerShoppingMerchantModel.fromJson(merchantJson),
       items: rawItems
           .map(CustomerShoppingItemModel.fromJson)
@@ -1339,6 +1402,13 @@ class CustomerShoppingStopModel {
       canCancelUnavailableMerchant:
           unavailableActions['can_cancel_merchant'] == true ||
           unavailableActions['canCancelMerchant'] == true,
+      canReplaceMerchant:
+          unavailableActions['can_customer_replace_merchant'] == true ||
+          unavailableActions['canCustomerReplaceMerchant'] == true,
+      replacementBlockReason:
+          (unavailableActions['replacement_block_reason'] ??
+                  unavailableActions['replacementBlockReason'])
+              ?.toString(),
     );
   }
 
@@ -1404,6 +1474,7 @@ class CustomerShoppingPricingModel {
   final double serviceFee;
   final double totalPrice;
   final double cancellationPenalty;
+  final double failedTripCompensation;
   final int failedAttemptCount;
   final int failedAttemptThreshold;
   final bool canCancelWithFee;
@@ -1414,6 +1485,7 @@ class CustomerShoppingPricingModel {
     required this.serviceFee,
     required this.totalPrice,
     required this.cancellationPenalty,
+    this.failedTripCompensation = 0,
     this.failedAttemptCount = 0,
     this.failedAttemptThreshold = 3,
     this.canCancelWithFee = false,
@@ -1426,6 +1498,28 @@ class CustomerShoppingPricingModel {
     final cancellationPenalty = CustomerOrderSummaryModel._asDouble(
       shoppingJson['cancellation_penalty'],
     );
+    final feeBreakdown = orderJson['fee_breakdown'] is List
+        ? orderJson['fee_breakdown'] as List
+        : shoppingJson['fee_breakdown'] is List
+        ? shoppingJson['fee_breakdown'] as List
+        : const <dynamic>[];
+    dynamic failedTripCompensationRaw =
+        shoppingJson['failed_trip_compensation'];
+    if (failedTripCompensationRaw == null) {
+      for (final rawLine in feeBreakdown) {
+        if (rawLine is! Map<String, dynamic>) {
+          continue;
+        }
+        if ((rawLine['code'] ?? '').toString().toUpperCase() ==
+            'FAILED_TRIP_COMPENSATION') {
+          failedTripCompensationRaw = rawLine['amount'];
+          break;
+        }
+      }
+    }
+    final failedTripCompensation = CustomerOrderSummaryModel._asDouble(
+      failedTripCompensationRaw,
+    );
 
     return CustomerShoppingPricingModel(
       subtotal: CustomerOrderSummaryModel._asDouble(orderJson['subtotal']),
@@ -1435,6 +1529,7 @@ class CustomerShoppingPricingModel {
       serviceFee: CustomerOrderSummaryModel._asDouble(orderJson['service_fee']),
       totalPrice: CustomerOrderSummaryModel._asDouble(orderJson['total_price']),
       cancellationPenalty: cancellationPenalty,
+      failedTripCompensation: failedTripCompensation,
       failedAttemptCount: CustomerOrderSummaryModel._asInt(
         shoppingJson['failed_attempt_count'],
       ),

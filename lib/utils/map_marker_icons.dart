@@ -114,6 +114,88 @@ Future<BitmapDescriptor> buildOfficialMerchantMarker(
   );
 }
 
+Future<BitmapDescriptor> buildNumberedRouteMarker({
+  required int number,
+  required Color color,
+  double size = 44,
+}) {
+  final pixelRatio = _devicePixelRatio();
+  final key = 'route-number:$number:${color.toARGB32()}:$size:$pixelRatio';
+  return _markerCache.putIfAbsent(
+    key,
+    () => _buildNumberedRouteMarker(
+      number: number,
+      color: color,
+      size: size,
+      pixelRatio: pixelRatio,
+    ),
+  );
+}
+
+Future<BitmapDescriptor> _buildNumberedRouteMarker({
+  required int number,
+  required Color color,
+  required double size,
+  required double pixelRatio,
+}) async {
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  final markerSize = (size * pixelRatio).roundToDouble();
+  final center = Offset(markerSize / 2, markerSize * 0.43);
+  final radius = markerSize * 0.32;
+
+  final shadowPaint = Paint()
+    ..color = Colors.black.withValues(alpha: 0.22)
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+  canvas.drawCircle(
+    center.translate(0, markerSize * 0.06),
+    radius,
+    shadowPaint,
+  );
+
+  final pinPath = Path()
+    ..moveTo(center.dx, markerSize * 0.94)
+    ..lineTo(center.dx - radius * 0.42, center.dy + radius * 0.62)
+    ..lineTo(center.dx + radius * 0.42, center.dy + radius * 0.62)
+    ..close();
+  canvas.drawPath(pinPath, Paint()..color = color);
+  canvas.drawCircle(center, radius, Paint()..color = color);
+  canvas.drawCircle(center, radius * 0.76, Paint()..color = AppColors.white);
+
+  final textPainter = TextPainter(
+    text: TextSpan(
+      text: '$number',
+      style: TextStyle(
+        color: color,
+        fontSize: markerSize * 0.31,
+        fontWeight: FontWeight.w900,
+      ),
+    ),
+    textDirection: TextDirection.ltr,
+    textAlign: TextAlign.center,
+  )..layout();
+  textPainter.paint(
+    canvas,
+    center - Offset(textPainter.width / 2, textPainter.height / 2),
+  );
+
+  final image = await recorder.endRecording().toImage(
+    markerSize.round(),
+    markerSize.round(),
+  );
+  final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+  final data = bytes?.buffer.asUint8List() ?? Uint8List(0);
+  if (data.isEmpty) {
+    return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange);
+  }
+  return BitmapDescriptor.bytes(
+    data,
+    imagePixelRatio: pixelRatio,
+    width: size,
+    height: size,
+  );
+}
+
 Future<BitmapDescriptor> _buildCircularIconMarker(
   IconData icon, {
   required double size,

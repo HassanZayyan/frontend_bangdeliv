@@ -89,37 +89,41 @@ class _DriverMainLayoutState extends ConsumerState<DriverMainLayout> {
     final incomingOrderCount = isActiveDriver
         ? ref.watch(driverIncomingOrderCountProvider)
         : 0;
+    final isFocusedActiveOrder =
+        isActiveDriver && _isFocusedActiveOrderRoute(context);
 
     final scaffold = Scaffold(
       backgroundColor: AppColors.background,
       body: isActiveDriver
-          ? BangFloatingBottomNavHost(
-              navigationBar: BangFloatingBottomNavBar(
-                currentIndex: _calculateSelectedIndex(context),
-                onTap: (index) => _onItemTapped(index, context),
-                items: [
-                  const BangFloatingNavItem(
-                    icon: Icons.home_filled,
-                    label: 'Beranda',
-                  ),
-                  BangFloatingNavItem(
-                    icon: Icons.assignment_rounded,
-                    label: 'Orderan',
-                    badgeCount: incomingOrderCount,
-                  ),
-                  const BangFloatingNavItem(
-                    icon: Icons.history,
-                    label: 'Riwayat',
-                  ),
-                  const BangFloatingNavItem(
-                    icon: Icons.person_outline,
-                    activeIcon: Icons.person,
-                    label: 'Profil',
-                  ),
-                ],
-              ),
-              child: widget.child,
-            )
+          ? isFocusedActiveOrder
+                ? widget.child
+                : BangFloatingBottomNavHost(
+                    navigationBar: BangFloatingBottomNavBar(
+                      currentIndex: _calculateSelectedIndex(context),
+                      onTap: (index) => _onItemTapped(index, context),
+                      items: [
+                        const BangFloatingNavItem(
+                          icon: Icons.home_filled,
+                          label: 'Beranda',
+                        ),
+                        BangFloatingNavItem(
+                          icon: Icons.assignment_rounded,
+                          label: 'Orderan',
+                          badgeCount: incomingOrderCount,
+                        ),
+                        const BangFloatingNavItem(
+                          icon: Icons.history,
+                          label: 'Riwayat',
+                        ),
+                        const BangFloatingNavItem(
+                          icon: Icons.person_outline,
+                          activeIcon: Icons.person,
+                          label: 'Profil',
+                        ),
+                      ],
+                    ),
+                    child: widget.child,
+                  )
           : widget.child,
     );
 
@@ -131,5 +135,11 @@ class _DriverMainLayoutState extends ConsumerState<DriverMainLayout> {
       value: _driverMainLayoutSystemUiOverlayStyle,
       child: content,
     );
+  }
+
+  bool _isFocusedActiveOrderRoute(BuildContext context) {
+    final location = GoRouterState.of(context).uri.path;
+    final activeOrderPattern = RegExp(r'^/driver/orders/[^/]+/active$');
+    return activeOrderPattern.hasMatch(location);
   }
 }

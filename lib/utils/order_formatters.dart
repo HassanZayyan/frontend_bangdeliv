@@ -13,6 +13,21 @@ String formatCurrency(num value) {
   return 'Rp $withDots';
 }
 
+String formatShoppingAttemptProgress({
+  required int attemptNo,
+  required int attemptLimit,
+  required int totalFailed,
+}) {
+  final safeLimit = attemptLimit > 0 ? attemptLimit : 3;
+  final safeAttempt = attemptNo.clamp(1, safeLimit);
+  final progress = 'Percobaan $safeAttempt/$safeLimit';
+  final safeTotalFailed = totalFailed.clamp(0, 1 << 31);
+
+  return safeTotalFailed > 0
+      ? '$progress • Total gagal $safeTotalFailed'
+      : progress;
+}
+
 String formatDateTime(DateTime? value, {bool includeZone = true}) {
   if (value == null) return '-';
 

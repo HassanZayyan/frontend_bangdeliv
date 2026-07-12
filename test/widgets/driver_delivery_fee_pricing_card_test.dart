@@ -229,20 +229,55 @@ void main() {
     expect(find.text('Tawaran ongkir customer'), findsNothing);
     expect(find.text('Terima Tawaran'), findsNothing);
   });
+
+  testWidgets('shopping pricing does not duplicate equal transport income', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DriverOrderPricingCard(
+            order: _order(
+              serviceTypeCode: ServiceTypeCodes.shopping,
+              deliveryFee: 19000,
+              fee: 19000,
+              shoppingPricing: const DriverShoppingPricingModel(
+                subtotal: 14000,
+                deliveryFee: 19000,
+                serviceFee: 0,
+                totalPrice: 33000,
+                cancellationPenalty: 0,
+                recalculationVersion: 1,
+                hasPendingManualPrices: false,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Ongkir aktif'), findsOneWidget);
+    expect(find.text('Pendapatan transport'), findsNothing);
+    expect(find.text('Fee Driver'), findsNothing);
+    expect(find.text('Total pembayaran customer'), findsOneWidget);
+  });
 }
 
 DriverOrderModel _order({
   double? deliveryFee,
+  int fee = 9000,
+  String serviceTypeCode = ServiceTypeCodes.ride,
+  DriverShoppingPricingModel? shoppingPricing,
   DeliveryFeeNegotiationModel? deliveryFeeNegotiation,
 }) {
   return DriverOrderModel(
     id: '99',
     customerName: 'Customer',
-    serviceTypeCode: ServiceTypeCodes.ride,
+    serviceTypeCode: serviceTypeCode,
     pickupAddress: 'Pickup',
     dropoffAddress: 'Dropoff',
     etaMinutes: 8,
-    fee: 9000,
+    fee: fee,
     deliveryFee: deliveryFee,
     totalPrice: 9000,
     itemCount: 1,
@@ -250,5 +285,6 @@ DriverOrderModel _order({
     paymentMethod: 'COD',
     paymentStatus: 'unpaid',
     deliveryFeeNegotiation: deliveryFeeNegotiation,
+    shoppingPricing: shoppingPricing,
   );
 }

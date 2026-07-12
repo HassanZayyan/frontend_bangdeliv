@@ -10,6 +10,8 @@ class AppColors {
   static const Color darkBlue = Color(0xFF1E2140);
   static const Color info = Color(0xFF2563EB);
   static const Color warning = Color(0xFFF59E0B);
+  static const Color warningSurface = Color(0xFFFFF7E6);
+  static const Color warningDark = Color(0xFF92400E);
   static const Color routeYellow = Color(0xFFF4D000);
 
   // Neutral Colors (Text, Background)
@@ -25,5 +27,6 @@ class AppColors {
   static const Color border = Color(0xFFE5E7EB);
   static const Color divider = Color(0xFFE5E7EB);
   static const Color error = Color(0xFFDC2626);
+  static const Color errorSurface = Color(0xFFFEE2E2);
   static const Color success = Color(0xFF16A34A);
 }

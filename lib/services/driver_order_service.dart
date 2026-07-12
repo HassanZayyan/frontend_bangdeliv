@@ -10,6 +10,7 @@ import '../models/driver_order_model.dart';
 import '../utils/app_time.dart';
 import 'api_exception.dart';
 import 'auth_service.dart';
+import 'customer_order_api_service.dart';
 
 class DriverOrderService {
   DriverOrderService({http.Client? httpClient})
@@ -334,6 +335,101 @@ class DriverOrderService {
     return _orderFromMutationResponse(response, orderId);
   }
 
+  Future<DriverOrderModel> bypassUnavailableShoppingItems({
+    required String orderId,
+    required int pickupLocationId,
+  }) async {
+    final response = await _post(
+      '/v1/driver/orders/$orderId/shopping-stops/$pickupLocationId/unavailable-items/bypass',
+      fallback: 'Gagal melanjutkan tanpa item yang tidak tersedia.',
+    );
+
+    return _orderFromMutationResponse(response, orderId);
+  }
+
+  Future<DriverOrderModel> decideUnavailableShoppingItems({
+    required String orderId,
+    required int pickupLocationId,
+    required String action,
+    List<int> itemIds = const <int>[],
+  }) async {
+    final response = await _post(
+      '/v1/driver/orders/$orderId/shopping-stops/$pickupLocationId/unavailable-items/decision',
+      body: <String, dynamic>{
+        'action': action.trim().toUpperCase(),
+        if (itemIds.isNotEmpty) 'item_ids': itemIds,
+      },
+      fallback: 'Gagal memproses keputusan item tidak tersedia.',
+    );
+
+    return _orderFromMutationResponse(response, orderId);
+  }
+
+  Future<DriverOrderModel> replaceUnavailableShoppingItems({
+    required String orderId,
+    required int pickupLocationId,
+    required String idempotencyKey,
+    required List<ShoppingItemDraftPayload> items,
+  }) async {
+    final response = await _post(
+      '/v1/driver/orders/$orderId/shopping-stops/$pickupLocationId/unavailable-items/replace',
+      body: <String, dynamic>{
+        'items': items.map((item) => item.toJson()).toList(growable: false),
+      },
+      extraHeaders: <String, String>{'Idempotency-Key': idempotencyKey},
+      fallback: 'Gagal mengganti item yang tidak tersedia.',
+    );
+
+    return _orderFromMutationResponse(response, orderId);
+  }
+
+  Future<ShoppingMerchantReplacementPreview>
+  previewShoppingMerchantReplacement({
+    required String orderId,
+    required int pickupLocationId,
+    required int expectedVersion,
+    int? merchantId,
+    ShoppingMerchantPlacePayload? merchantPlace,
+    required List<ShoppingItemDraftPayload> items,
+  }) async {
+    final response = await _post(
+      '/v1/driver/orders/$orderId/shopping-stops/$pickupLocationId/replacement-preview',
+      body: _replacementBody(
+        expectedVersion: expectedVersion,
+        merchantId: merchantId,
+        merchantPlace: merchantPlace,
+        items: items,
+      ),
+      fallback: 'Gagal menghitung preview merchant pengganti.',
+    );
+
+    return ShoppingMerchantReplacementPreview.fromJson(_extractData(response));
+  }
+
+  Future<DriverOrderModel> replaceShoppingMerchant({
+    required String orderId,
+    required int pickupLocationId,
+    required int expectedVersion,
+    required String idempotencyKey,
+    int? merchantId,
+    ShoppingMerchantPlacePayload? merchantPlace,
+    required List<ShoppingItemDraftPayload> items,
+  }) async {
+    final response = await _post(
+      '/v1/driver/orders/$orderId/shopping-stops/$pickupLocationId/replace',
+      body: _replacementBody(
+        expectedVersion: expectedVersion,
+        merchantId: merchantId,
+        merchantPlace: merchantPlace,
+        items: items,
+      ),
+      extraHeaders: <String, String>{'Idempotency-Key': idempotencyKey},
+      fallback: 'Gagal mengganti merchant Nitip.',
+    );
+
+    return _orderFromMutationResponse(response, orderId);
+  }
+
   Future<DriverOrderModel> markShoppingMerchantOpen({
     required String orderId,
     required int pickupLocationId,
@@ -367,16 +463,26 @@ class DriverOrderService {
     required String orderId,
     required int pickupLocationId,
     required String reason,
+    XFile? merchantClosedPhoto,
   }) async {
-    await _post(
-      '/v1/orders/$orderId/attempt-failed',
-      body: <String, dynamic>{
-        'failure_type': 'PICKUP',
-        'reason': reason.trim(),
-        if (pickupLocationId > 0) 'pickup_location_id': pickupLocationId,
-      },
-      fallback: 'Gagal mencatat tempat tutup.',
-    );
+    if (merchantClosedPhoto == null) {
+      await _post(
+        '/v1/orders/$orderId/attempt-failed',
+        body: <String, dynamic>{
+          'failure_type': 'PICKUP',
+          'reason': reason.trim(),
+          if (pickupLocationId > 0) 'pickup_location_id': pickupLocationId,
+        },
+        fallback: 'Gagal mencatat tempat tutup.',
+      );
+    } else {
+      await _postFailedAttemptWithPhoto(
+        orderId: orderId,
+        pickupLocationId: pickupLocationId,
+        reason: reason,
+        photo: merchantClosedPhoto,
+      );
+    }
 
     return fetchOrderDetail(orderId);
   }
@@ -543,9 +649,13 @@ class DriverOrderService {
     Map<String, dynamic>? body,
     String fallback = 'Gagal memproses aksi order driver.',
     Duration timeout = _timeout,
+    Map<String, String>? extraHeaders,
   }) async {
     final uri = _buildUri(path);
     final headers = await AuthService.authorizedHeaders();
+    if (extraHeaders != null) {
+      headers.addAll(extraHeaders);
+    }
     final payload = body ?? const <String, dynamic>{};
 
     late final http.Response response;
@@ -588,6 +698,70 @@ class DriverOrderService {
       AuthService.extractErrorMessage(response, fallback: fallback),
       statusCode: response.statusCode,
     );
+  }
+
+  Map<String, dynamic> _replacementBody({
+    required int expectedVersion,
+    int? merchantId,
+    ShoppingMerchantPlacePayload? merchantPlace,
+    required List<ShoppingItemDraftPayload> items,
+  }) {
+    return <String, dynamic>{
+      'expected_version': expectedVersion,
+      if (merchantId != null && merchantId > 0) 'merchant_id': merchantId,
+      if ((merchantId == null || merchantId <= 0) && merchantPlace != null)
+        'merchant_place': merchantPlace.toJson(),
+      'items': items.map((item) => item.toJson()).toList(growable: false),
+    };
+  }
+
+  Future<void> _postFailedAttemptWithPhoto({
+    required String orderId,
+    required int pickupLocationId,
+    required String reason,
+    required XFile photo,
+  }) async {
+    final request = http.MultipartRequest(
+      'POST',
+      _buildUri('/v1/orders/$orderId/attempt-failed'),
+    );
+    request.headers.addAll(
+      await AuthService.authorizedHeaders(includeJsonContentType: false),
+    );
+    request.fields.addAll(<String, String>{
+      'failure_type': 'PICKUP',
+      'reason': reason.trim(),
+      'pickup_location_id': pickupLocationId.toString(),
+    });
+    request.files.add(
+      await http.MultipartFile.fromPath('merchant_closed_photo', photo.path),
+    );
+
+    try {
+      final streamed = await request.send().timeout(
+        const Duration(seconds: 30),
+      );
+      final response = await http.Response.fromStream(streamed);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw DriverOrderApiException(
+          AuthService.extractErrorMessage(
+            response,
+            fallback: 'Gagal mencatat tempat tutup.',
+          ),
+          statusCode: response.statusCode,
+        );
+      }
+    } on TimeoutException {
+      throw const DriverOrderApiException(
+        ApiException.uploadTimeoutMessage,
+        statusCode: 408,
+      );
+    } on http.ClientException {
+      throw const DriverOrderApiException(
+        ApiException.noInternetMessage,
+        statusCode: 0,
+      );
+    }
   }
 
   Future<Map<String, dynamic>> _patch(

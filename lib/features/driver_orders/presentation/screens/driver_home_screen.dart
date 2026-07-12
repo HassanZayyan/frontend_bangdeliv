@@ -495,6 +495,8 @@ class _ActiveOrderSection extends StatelessWidget {
     return _DriverSurface(
       padding: const EdgeInsets.all(16),
       borderColor: AppColors.primary.withValues(alpha: 0.22),
+      onTap: onOpenDetail,
+      semanticLabel: 'Buka detail order aktif #${order.id}',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -733,19 +735,34 @@ class _DriverSurface extends StatelessWidget {
     required this.child,
     this.padding = const EdgeInsets.all(16),
     this.borderColor,
+    this.onTap,
+    this.semanticLabel,
   });
 
   final Widget child;
   final EdgeInsetsGeometry padding;
   final Color? borderColor;
+  final VoidCallback? onTap;
+  final String? semanticLabel;
 
   @override
   Widget build(BuildContext context) {
+    final content = Material(
+      color: AppColors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: borderColor ?? AppColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(padding: padding, child: child),
+      ),
+    );
+
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.white,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: borderColor ?? AppColors.border),
         boxShadow: [
           BoxShadow(
             color: AppColors.black.withValues(alpha: 0.025),
@@ -754,7 +771,9 @@ class _DriverSurface extends StatelessWidget {
           ),
         ],
       ),
-      child: Padding(padding: padding, child: child),
+      child: onTap == null
+          ? content
+          : Semantics(button: true, label: semanticLabel, child: content),
     );
   }
 }

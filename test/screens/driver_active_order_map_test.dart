@@ -45,4 +45,24 @@ void main() {
     expect(source, contains('flat: true'));
     expect(source, contains('rotation: _driverMarkerRotation'));
   });
+
+  test('driver active map synchronizes selected numbered route marker', () {
+    final source = File(
+      'lib/features/driver_orders/presentation/widgets/driver_active_order_map_widgets.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('buildNumberedRouteMarker('));
+    expect(source, contains('widget.onPointSelected?.call(pickupPoint.id)'));
+    expect(source, contains('_focusSelectedPoint()'));
+    expect(source, contains('widget.selectedPointId =='));
+  });
+
+  test('driver active map hides the redundant native map toolbar', () {
+    final source = File(
+      'lib/features/driver_orders/presentation/widgets/driver_active_order_map_widgets.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('mapToolbarEnabled: false'));
+    expect(source, isNot(contains('mapToolbarEnabled: true')));
+  });
 }

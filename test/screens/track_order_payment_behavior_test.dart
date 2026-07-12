@@ -168,4 +168,50 @@ void main() {
       isNot(contains('detail.deliveryFeeNegotiation?.note')),
     );
   });
+
+  test('customer cancellation action lives in tracking, not activity card', () {
+    final trackSource = File(_trackOrderSourcePath).readAsStringSync();
+    final activitySource = File(
+      'lib/features/orders/presentation/screens/activity_screen.dart',
+    ).readAsStringSync();
+
+    expect(trackSource, contains('_buildCustomerCancelOrderAction(order)'));
+    expect(trackSource, contains('showCustomerOrderCancelSheet(context)'));
+    expect(trackSource, contains("'track-cancel-order-\${order.id}'"));
+    expect(trackSource, contains('.cancelOrder(order.id, reason: reason)'));
+    expect(activitySource, isNot(contains('showCancelAction:')));
+    expect(activitySource, isNot(contains('onCancel:')));
+  });
+
+  test('customer Nitip selector excludes dropoff and keeps it in summary', () {
+    final source = File(_trackOrderSourcePath).readAsStringSync();
+    final selector = source.substring(
+      source.indexOf('Widget _buildShoppingPointSelector('),
+      source.indexOf('// Progress stepper'),
+    );
+
+    expect(selector, contains("('summary', 'Ringkasan')"));
+    expect(selector, contains("'Tempat \${stop.sequenceNo"));
+    expect(selector, isNot(contains("('dropoff', 'Antar')")));
+    expect(source, isNot(contains('onDropoffSelected:')));
+    expect(source, contains("_selectedShoppingPointId == 'dropoff'"));
+    expect(source, contains("_selectedShoppingPointId = 'summary'"));
+  });
+
+  test(
+    'customer tracking sheet header uses shared drag region and four snaps',
+    () {
+      final source = File(_trackOrderSourcePath).readAsStringSync();
+
+      expect(source, contains('DraggableScrollableController'));
+      expect(source, contains('BangSheetDragRegion('));
+      expect(source, contains('customer-tracking-sheet-header-drag-region'));
+      expect(source, contains('customer-tracking-sheet-handle'));
+      expect(source, contains('customer-shopping-point-selector'));
+      expect(source, contains('_trackingSheetMinChildSize'));
+      expect(source, contains('_trackingSheetInitialChildSize'));
+      expect(source, contains('_trackingSheetMidChildSize'));
+      expect(source, contains('_trackingSheetMaxChildSize'));
+    },
+  );
 }

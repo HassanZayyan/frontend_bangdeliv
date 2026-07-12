@@ -5,9 +5,11 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../core/widgets/bang_action_button.dart';
 import '../../../../core/widgets/bang_confirmation_dialog.dart';
+import '../../../../core/widgets/bang_decision_action_grid.dart';
 import '../../../../core/widgets/bang_negotiation_status_panel.dart';
 import '../../../../core/widgets/bang_shopping_merchant_request_summary.dart';
 import '../../../../core/widgets/bang_swipe_action_button.dart';
+import '../../../../core/widgets/bang_unavailable_item_picker.dart';
 import '../../../../models/driver_order_model.dart';
 import '../../../../models/shopping_negotiation_model.dart';
 import '../../../../models/shopping_order_capability_model.dart';
@@ -143,6 +145,8 @@ class DriverShoppingMerchantQuotePanel extends StatefulWidget {
     required this.isBypassingPrice,
     required this.onSubmitQuote,
     required this.onBypassApproval,
+    this.initialDraft = '',
+    this.onDraftChanged,
   });
 
   final int pickupLocationId;
@@ -157,6 +161,8 @@ class DriverShoppingMerchantQuotePanel extends StatefulWidget {
   onSubmitQuote;
   final Future<String?> Function({required int pickupLocationId})
   onBypassApproval;
+  final String initialDraft;
+  final ValueChanged<String>? onDraftChanged;
 
   @override
   State<DriverShoppingMerchantQuotePanel> createState() =>
@@ -170,13 +176,22 @@ class _DriverShoppingMerchantQuotePanelState
   @override
   void initState() {
     super.initState();
-    _primeAmount();
+    if (widget.initialDraft.trim().isNotEmpty) {
+      _amountController.text = widget.initialDraft;
+    } else {
+      _primeAmount();
+    }
   }
 
   @override
   void didUpdateWidget(covariant DriverShoppingMerchantQuotePanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.quote?.displayAmount != widget.quote?.displayAmount &&
+    if (oldWidget.pickupLocationId != widget.pickupLocationId) {
+      _amountController.text = widget.initialDraft;
+      if (_amountController.text.trim().isEmpty) {
+        _primeAmount();
+      }
+    } else if (oldWidget.quote?.displayAmount != widget.quote?.displayAmount &&
         _amountController.text.trim().isEmpty) {
       _primeAmount();
     }
@@ -283,6 +298,7 @@ class _DriverShoppingMerchantQuotePanelState
           controller: _amountController,
           keyboardType: TextInputType.number,
           enabled: canSubmitQuote && !widget.isOrderBusy,
+          onChanged: widget.onDraftChanged,
           decoration: driverDialogInputDecoration(
             labelText: 'Harga tempat',
             prefixText: 'Rp ',
@@ -317,6 +333,10 @@ class _DriverShoppingMerchantQuotePanelState
       return;
     }
 
+    if (error == null) {
+      widget.onDraftChanged?.call('');
+    }
+
     _showSnack(error ?? 'Harga Nitip dikirim.');
   }
 
@@ -336,6 +356,12 @@ class _DriverShoppingMerchantQuotePanelState
   }
 }
 
+class DriverShoppingItemsDraftStore {
+  final Map<int, bool> availability = <int, bool>{};
+  final Set<int> dirtyAvailabilityIds = <int>{};
+  final Map<int, String> quoteDrafts = <int, String>{};
+}
+
 class DriverShoppingItemsCard extends StatefulWidget {
   final DriverOrderModel order;
   final bool isOrderBusy;
@@ -344,9 +370,16 @@ class DriverShoppingItemsCard extends StatefulWidget {
   final bool canUploadReceipt;
   final bool Function(int pickupLocationId) isSubmittingQuote;
   final bool Function(int pickupLocationId) isBypassingPrice;
+  final bool Function(int pickupLocationId) isBypassingUnavailableItems;
+  final bool Function(int pickupLocationId, String action)
+  isDecidingUnavailableItems;
   final bool Function(int pickupLocationId) isMarkingMerchantOpen;
   final bool Function(int pickupLocationId) isClosingMerchant;
   final bool isDeliveryFeeRevisionPending;
+  final int? selectedPickupLocationId;
+  final bool mapFirstMode;
+  final bool readOnly;
+  final DriverShoppingItemsDraftStore? draftStore;
   final Future<String?> Function(XFile photo) onUploadReceipt;
   final Future<String?> Function({
     required double amount,
@@ -355,12 +388,25 @@ class DriverShoppingItemsCard extends StatefulWidget {
   onSubmitQuote;
   final Future<String?> Function({required int pickupLocationId}) onBypassPrice;
   final Future<String?> Function({required int pickupLocationId})
+  onBypassUnavailableItems;
+  final Future<String?> Function({
+    required int pickupLocationId,
+    required String action,
+    required List<int> itemIds,
+  })
+  onDecideUnavailableItems;
+  final Future<String?> Function({required int pickupLocationId})
   onMarkMerchantOpen;
   final Future<String?> Function({
     required int pickupLocationId,
     required String reason,
+    XFile? storeClosedPhoto,
   })
   onMarkMerchantClosed;
+  final Future<String?> Function(DriverShoppingStopModel stop)
+  onReplaceMerchant;
+  final Future<String?> Function(DriverShoppingStopModel stop)
+  onReplaceUnavailableItems;
   final Future<String?> Function(
     List<Map<String, dynamic>> items,
     int? pickupLocationId,
@@ -376,14 +422,24 @@ class DriverShoppingItemsCard extends StatefulWidget {
     required this.canUploadReceipt,
     required this.isSubmittingQuote,
     required this.isBypassingPrice,
+    required this.isBypassingUnavailableItems,
+    required this.isDecidingUnavailableItems,
     required this.isMarkingMerchantOpen,
     required this.isClosingMerchant,
     this.isDeliveryFeeRevisionPending = false,
+    this.selectedPickupLocationId,
+    this.mapFirstMode = false,
+    this.readOnly = false,
+    this.draftStore,
     required this.onUploadReceipt,
     required this.onSubmitQuote,
     required this.onBypassPrice,
+    required this.onBypassUnavailableItems,
+    required this.onDecideUnavailableItems,
     required this.onMarkMerchantOpen,
     required this.onMarkMerchantClosed,
+    required this.onReplaceMerchant,
+    required this.onReplaceUnavailableItems,
     required this.onSaveItems,
   });
 
@@ -393,9 +449,18 @@ class DriverShoppingItemsCard extends StatefulWidget {
 }
 
 class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
-  final Map<int, bool> _availability = {};
-  final Set<int> _dirtyAvailabilityIds = {};
+  final Map<int, bool> _localAvailability = {};
+  final Set<int> _localDirtyAvailabilityIds = {};
+  final Map<int, String> _localQuoteDrafts = {};
+  final Set<int> _replacingPickupIds = {};
   bool _isUploadingReceipt = false;
+
+  Map<int, bool> get _availability =>
+      widget.draftStore?.availability ?? _localAvailability;
+  Set<int> get _dirtyAvailabilityIds =>
+      widget.draftStore?.dirtyAvailabilityIds ?? _localDirtyAvailabilityIds;
+  Map<int, String> get _quoteDrafts =>
+      widget.draftStore?.quoteDrafts ?? _localQuoteDrafts;
 
   @override
   void initState() {
@@ -442,8 +507,11 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
         (widget.order.shoppingNegotiation?.checkoutAllowed ?? false);
     final checkoutSaved = widget.order.shoppingCapabilities.hasCheckoutSaved;
     final showCheckoutFields =
-        widget.canUploadReceipt && (checkoutAllowed || checkoutSaved);
+        !widget.readOnly &&
+        widget.canUploadReceipt &&
+        (checkoutAllowed || checkoutSaved);
     final canEditAvailability =
+        !widget.readOnly &&
         widget.canEditAvailability &&
         !widget.order.shoppingCapabilities.hasPendingItemChangeRequest;
 
@@ -507,6 +575,11 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
           ] else
             ...widget.order.shoppingStops
                 .where((stop) => !stop.isSkipped && !stop.isReplaced)
+                .where(
+                  (stop) =>
+                      widget.selectedPickupLocationId == null ||
+                      stop.pickupLocationId == widget.selectedPickupLocationId,
+                )
                 .map(_buildStopSection),
           if (showCheckoutFields && _shoppingProofs().isNotEmpty) ...[
             const SizedBox(height: 4),
@@ -620,7 +693,8 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
       stop.pickupLocationId,
     );
 
-    if (!widget.canEditAvailability ||
+    if (widget.readOnly ||
+        !widget.canEditAvailability ||
         widget.order.shoppingCapabilities.hasPendingItemChangeRequest ||
         !stop.isActive ||
         stop.fulfillmentStatus.toUpperCase() == 'PENDING' ||
@@ -660,12 +734,11 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     final quote = widget.order.shoppingNegotiation?.quoteForPickup(
       stop.pickupLocationId,
     );
-    final shouldShowQuotePanel = _shouldShowQuotePanelForStop(
-      stop,
-      quote,
-      activeItems,
-    );
+    final shouldShowQuotePanel =
+        !widget.readOnly &&
+        _shouldShowQuotePanelForStop(stop, quote, activeItems);
     final showAvailabilityControl =
+        !widget.readOnly &&
         widget.canEditAvailability &&
         !widget.order.shoppingCapabilities.hasPendingItemChangeRequest;
     final canEditStopAvailability = _canEditAvailabilityForStop(stop);
@@ -772,7 +845,22 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
               ),
             ),
           ],
-          if (stop.isActive && isPendingMerchant) ...[
+          Padding(
+            padding: const EdgeInsets.only(left: 32, top: 5),
+            child: Text(
+              formatShoppingAttemptProgress(
+                attemptNo: stop.chainAttemptNo,
+                attemptLimit: stop.chainFailedAttemptLimit,
+                totalFailed: stop.orderFailedTripCount,
+              ),
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          if (stop.isActive && isPendingMerchant && !widget.mapFirstMode) ...[
             const SizedBox(height: 10),
             _buildPendingMerchantActions(
               stop: stop,
@@ -782,6 +870,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
           ],
           if (stop.isActive && !isPendingMerchant && shouldShowQuotePanel) ...[
             DriverShoppingMerchantQuotePanel(
+              key: ValueKey('shopping-quote-${stop.pickupLocationId}'),
               pickupLocationId: stop.pickupLocationId,
               quote: quote,
               isOrderBusy: widget.isOrderBusy,
@@ -791,6 +880,14 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
               isBypassingPrice: widget.isBypassingPrice(stop.pickupLocationId),
               onSubmitQuote: widget.onSubmitQuote,
               onBypassApproval: widget.onBypassPrice,
+              initialDraft: _quoteDrafts[stop.pickupLocationId] ?? '',
+              onDraftChanged: (value) {
+                if (value.trim().isEmpty) {
+                  _quoteDrafts.remove(stop.pickupLocationId);
+                } else {
+                  _quoteDrafts[stop.pickupLocationId] = value;
+                }
+              },
             ),
           ],
           const SizedBox(height: 8),
@@ -802,6 +899,18 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
                 canToggleAvailability: canEditStopAvailability,
               ),
             ),
+          if (!widget.readOnly &&
+              (stop.canDriverReplaceUnavailableItems ||
+                  stop.canReplaceMerchant ||
+                  stop.canDriverContinueWithoutUnavailableItem ||
+                  stop.canDriverCancelUnavailableMerchant)) ...[
+            const SizedBox(height: 10),
+            _buildUnavailableDecisionActions(stop),
+          ],
+          if (!widget.readOnly && stop.canDriverBypassUnavailableItems) ...[
+            const SizedBox(height: 10),
+            _buildUnavailableItemBypassPanel(stop),
+          ],
           if (stop.isActive &&
               canEditStopAvailability &&
               (!stop.availabilityConfirmed ||
@@ -824,19 +933,239 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     );
   }
 
+  Widget _buildUnavailableDecisionActions(DriverShoppingStopModel stop) {
+    final unavailableItems = stop.items
+        .where((item) => !item.isAvailable)
+        .toList(growable: false);
+    final isRemoving = widget.isDecidingUnavailableItems(
+      stop.pickupLocationId,
+      'REMOVE',
+    );
+    final isCancelling = widget.isDecidingUnavailableItems(
+      stop.pickupLocationId,
+      'CANCEL_MERCHANT',
+    );
+    final isReplacingMerchant = _replacingPickupIds.contains(
+      stop.pickupLocationId,
+    );
+
+    return BangDecisionActionGrid(
+      actions: [
+        if (stop.canDriverReplaceUnavailableItems)
+          BangDecisionAction(
+            key: ValueKey(
+              'driver-shopping-action-replace-items-${stop.pickupLocationId}',
+            ),
+            label: 'Ganti item',
+            icon: Icons.find_replace_rounded,
+            tone: BangDecisionActionTone.orange,
+            isEnabled: !widget.isOrderBusy,
+            onPressed: () => _replaceUnavailableItems(stop),
+          ),
+        if (stop.canReplaceMerchant)
+          BangDecisionAction(
+            key: ValueKey(
+              'driver-shopping-action-replace-merchant-${stop.pickupLocationId}',
+            ),
+            label: 'Ganti toko/resto',
+            icon: Icons.swap_horiz_rounded,
+            tone: BangDecisionActionTone.orange,
+            isLoading: isReplacingMerchant,
+            isEnabled: !widget.isOrderBusy || isReplacingMerchant,
+            onPressed: () => _replaceMerchant(stop),
+          ),
+        if (stop.canDriverContinueWithoutUnavailableItem &&
+            unavailableItems.length > 1)
+          BangDecisionAction(
+            key: ValueKey(
+              'driver-shopping-action-continue-${stop.pickupLocationId}',
+            ),
+            label: 'Pilih item',
+            icon: Icons.remove_circle_outline,
+            tone: BangDecisionActionTone.amber,
+            isLoading: isRemoving,
+            isEnabled: !widget.isOrderBusy || isRemoving,
+            onPressed: () => _pickUnavailableItems(stop, unavailableItems),
+          ),
+        if (stop.canDriverCancelUnavailableMerchant)
+          BangDecisionAction(
+            key: ValueKey(
+              'driver-shopping-action-cancel-${stop.pickupLocationId}',
+            ),
+            label: 'Batal tempat',
+            icon: Icons.storefront_outlined,
+            tone: BangDecisionActionTone.red,
+            isLoading: isCancelling,
+            isEnabled: !widget.isOrderBusy || isCancelling,
+            onPressed: () => _cancelUnavailableMerchant(stop),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildUnavailableItemBypassPanel(DriverShoppingStopModel stop) {
+    final unavailableItems = stop.items
+        .where((item) => !item.isAvailable)
+        .toList(growable: false);
+    final merchantWillBeCancelled = !stop.items.any((item) => item.isAvailable);
+    final isBypassing = widget.isBypassingUnavailableItems(
+      stop.pickupLocationId,
+    );
+    final itemLabel = unavailableItems.length == 1
+        ? unavailableItems.first.name
+        : '${unavailableItems.length} item tidak tersedia';
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.cardYellow,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.22)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.inventory_2_outlined,
+                color: AppColors.primaryDark,
+                size: 18,
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Menunggu keputusan item',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            merchantWillBeCancelled
+                ? 'Semua item toko/resto tidak tersedia. Bypass akan membatalkan tempat dan dapat membatalkan order sesuai aturan biaya Nitip.'
+                : '$itemLabel akan dihapus dari order. Item lain di toko/resto ini tetap dilanjutkan dan harga perlu dikirim ulang.',
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 10),
+          BangSwipeActionButton(
+            label: 'Geser untuk bypass semua item',
+            loadingLabel: 'Memproses bypass item...',
+            isLoading: isBypassing,
+            isEnabled: !widget.isOrderBusy || isBypassing,
+            color: merchantWillBeCancelled
+                ? AppColors.error
+                : AppColors.primary,
+            onSubmit: () => _bypassUnavailableItems(stop),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickUnavailableItems(
+    DriverShoppingStopModel stop,
+    List<DriverShoppingItemModel> unavailableItems,
+  ) async {
+    final selectedIds = await showBangUnavailableItemPicker(
+      context,
+      items: unavailableItems
+          .map(
+            (item) => BangUnavailableItemChoice(
+              id: item.id,
+              label: '${item.quantity <= 0 ? 1 : item.quantity}x ${item.name}',
+            ),
+          )
+          .toList(growable: false),
+    );
+    if (selectedIds == null || selectedIds.isEmpty || !mounted) {
+      return;
+    }
+
+    await _submitUnavailableDecision(
+      stop,
+      action: 'REMOVE',
+      itemIds: selectedIds,
+      successMessage: '${selectedIds.length} item dilewati.',
+    );
+  }
+
+  Future<void> _cancelUnavailableMerchant(DriverShoppingStopModel stop) async {
+    final confirmed = await showBangConfirmationDialog(
+      context,
+      title: 'Batalkan ${stop.merchant.name}?',
+      message:
+          'Semua item dari tempat ini tidak akan dibeli. Jika ini tempat terakhir, order Nitip dapat ikut dibatalkan.',
+      confirmLabel: 'Batal tempat',
+      isDestructive: true,
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+
+    await _submitUnavailableDecision(
+      stop,
+      action: 'CANCEL_MERCHANT',
+      itemIds: const <int>[],
+      successMessage: '${stop.merchant.name} dibatalkan.',
+    );
+  }
+
+  Future<void> _submitUnavailableDecision(
+    DriverShoppingStopModel stop, {
+    required String action,
+    required List<int> itemIds,
+    required String successMessage,
+  }) async {
+    final error = await widget.onDecideUnavailableItems(
+      pickupLocationId: stop.pickupLocationId,
+      action: action,
+      itemIds: itemIds,
+    );
+    if (!mounted) {
+      return;
+    }
+
+    showDriverActiveOrderSnackBar(
+      context,
+      message: error ?? successMessage,
+      isError: error != null,
+    );
+  }
+
+  Future<void> _bypassUnavailableItems(DriverShoppingStopModel stop) async {
+    final error = await widget.onBypassUnavailableItems(
+      pickupLocationId: stop.pickupLocationId,
+    );
+    if (!mounted) {
+      return;
+    }
+
+    showDriverActiveOrderSnackBar(
+      context,
+      message: error ?? 'Order dilanjutkan tanpa item yang tidak tersedia.',
+      isError: error != null,
+    );
+  }
+
   Widget _buildPendingMerchantActions({
     required DriverShoppingStopModel stop,
     required bool isClosingStop,
     required bool isOpeningStop,
   }) {
-    final isBlockedByDeliveryFee = widget.isDeliveryFeeRevisionPending;
-    final canPressMerchantAction =
-        !isBlockedByDeliveryFee && (!widget.isOrderBusy || isClosingStop);
-    final canPressOpenAction =
-        !isBlockedByDeliveryFee && (!widget.isOrderBusy || isOpeningStop);
-    final disabledForeground = AppColors.textMuted;
-    final disabledBackground = AppColors.surfaceAlt;
-    final disabledBorder = AppColors.border;
+    // A pending route-fee proposal blocks final checkout, not merchant work.
+    final canPressMerchantAction = !widget.isOrderBusy || isClosingStop;
+    final canPressOpenAction = !widget.isOrderBusy || isOpeningStop;
     final closeButton = BangActionButton(
       label: 'Tempat tutup',
       variant: BangActionButtonVariant.outlined,
@@ -845,15 +1174,10 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
       isEnabled: canPressMerchantAction,
       onPressed: () => _closeMerchant(stop),
       style: OutlinedButton.styleFrom(
-        foregroundColor: isBlockedByDeliveryFee
-            ? disabledForeground
-            : AppColors.error,
-        disabledForegroundColor: disabledForeground,
-        backgroundColor: isBlockedByDeliveryFee ? AppColors.white : null,
+        foregroundColor: AppColors.error,
+        disabledForegroundColor: AppColors.textMuted,
         disabledBackgroundColor: AppColors.white,
-        side: BorderSide(
-          color: isBlockedByDeliveryFee ? disabledBorder : AppColors.error,
-        ),
+        side: const BorderSide(color: AppColors.error),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
         minimumSize: const Size(0, 44),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -868,14 +1192,10 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
       isEnabled: canPressOpenAction,
       onPressed: () => _openMerchant(stop),
       style: FilledButton.styleFrom(
-        backgroundColor: isBlockedByDeliveryFee
-            ? disabledBackground
-            : AppColors.primary,
-        foregroundColor: isBlockedByDeliveryFee
-            ? disabledForeground
-            : AppColors.white,
-        disabledBackgroundColor: disabledBackground,
-        disabledForegroundColor: disabledForeground,
+        backgroundColor: AppColors.primary,
+        foregroundColor: AppColors.white,
+        disabledBackgroundColor: AppColors.surfaceAlt,
+        disabledForegroundColor: AppColors.textMuted,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
         minimumSize: const Size(0, 44),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -902,26 +1222,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
                 ],
               );
 
-        if (!isBlockedByDeliveryFee) {
-          return buttons;
-        }
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            buttons,
-            const SizedBox(height: 6),
-            const Text(
-              'Revisi ongkir belum disetujui customer.',
-              style: TextStyle(
-                color: AppColors.error,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                height: 1.35,
-              ),
-            ),
-          ],
-        );
+        return buttons;
       },
     );
   }
@@ -930,7 +1231,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     final address = (merchant.address ?? '').trim();
     final hasMapPoint = merchant.latitude != null && merchant.longitude != null;
     if (address.isEmpty || address == '-') {
-      return hasMapPoint ? 'Titik lokasi merchant' : null;
+      return hasMapPoint ? 'Titik lokasi toko/resto' : null;
     }
 
     final lower = address.toLowerCase();
@@ -941,7 +1242,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
         lower.contains('dummy') ||
         lower.startsWith('lokasi bangdeliv') ||
         lower.startsWith('lokasi bang deliv')) {
-      return hasMapPoint ? 'Titik lokasi merchant' : null;
+      return hasMapPoint ? 'Titik lokasi toko/resto' : null;
     }
 
     var cleaned = address;
@@ -1002,9 +1303,32 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
       return;
     }
 
+    final photo = await ImagePicker().pickImage(
+      source: ImageSource.camera,
+      imageQuality: 78,
+      maxWidth: 1600,
+    );
+    if (!mounted) {
+      return;
+    }
+    if (photo == null) {
+      final continueWithoutCompensation = await showBangConfirmationDialog(
+        context,
+        title: 'Lanjut tanpa foto?',
+        message:
+            'Toko/resto tetap dapat ditutup, tetapi perjalanan ini tidak masuk kompensasi sampai bukti tervalidasi.',
+        confirmLabel: 'Lanjut tanpa foto',
+        isDestructive: true,
+      );
+      if (!continueWithoutCompensation || !mounted) {
+        return;
+      }
+    }
+
     final error = await widget.onMarkMerchantClosed(
       pickupLocationId: stop.pickupLocationId,
       reason: 'Tempat tutup/order batal saat driver tiba.',
+      storeClosedPhoto: photo,
     );
     if (!mounted) {
       return;
@@ -1015,6 +1339,35 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
       message: error ?? '${stop.merchant.name} ditandai tutup.',
       isError: error != null,
     );
+  }
+
+  Future<void> showMerchantClosedFlow(int pickupLocationId) async {
+    for (final stop in widget.order.shoppingStops) {
+      if (stop.pickupLocationId == pickupLocationId) {
+        await _closeMerchant(stop);
+        return;
+      }
+    }
+  }
+
+  Future<void> _replaceMerchant(DriverShoppingStopModel stop) async {
+    setState(() => _replacingPickupIds.add(stop.pickupLocationId));
+    final error = await widget.onReplaceMerchant(stop);
+    if (!mounted) {
+      return;
+    }
+    setState(() => _replacingPickupIds.remove(stop.pickupLocationId));
+    if (error != null) {
+      showDriverActiveOrderSnackBar(context, message: error, isError: true);
+    }
+  }
+
+  Future<void> _replaceUnavailableItems(DriverShoppingStopModel stop) async {
+    final error = await widget.onReplaceUnavailableItems(stop);
+    if (!mounted || error == null) {
+      return;
+    }
+    showDriverActiveOrderSnackBar(context, message: error, isError: true);
   }
 
   List<DriverOrderProofModel> _shoppingProofs() {
