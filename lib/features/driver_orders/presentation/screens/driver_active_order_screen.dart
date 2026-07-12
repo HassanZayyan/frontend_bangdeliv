@@ -1228,6 +1228,11 @@ class _DriverActiveOrderScreenState
                                               isDropoff)) ...[
                                         DriverOrderProofChecklistCard(
                                           order: order,
+                                          visibleProofTypes: isPickup
+                                              ? const {'pickup'}
+                                              : isDropoff
+                                              ? const {'delivery'}
+                                              : null,
                                           isOrderBusy: isOrderBusy,
                                           isProofUploading: (type) =>
                                               isProcessingAction(

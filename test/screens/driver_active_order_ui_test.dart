@@ -173,12 +173,16 @@ void main() {
     addTearDown(router.dispose);
 
     await _scrollDetailsToText(tester, 'Bukti Foto Order');
+    expect(find.text('Pengambilan'), findsOneWidget);
+    expect(find.text('Diterima'), findsNothing);
     await _scrollDetailsToText(tester, 'Bukti QRIS Customer');
 
     await tester.tap(_pointTab('Ringkasan'));
     await tester.pumpAndSettle();
     await _resetDetailsScroll(tester);
 
+    await _scrollDetailsToText(tester, 'Pengambilan');
+    expect(find.text('Diterima'), findsOneWidget);
     await _scrollDetailsToText(tester, 'Bukti QRIS Customer');
 
     await tester.tap(_pointTab('Antar'));
@@ -186,6 +190,8 @@ void main() {
     await _resetDetailsScroll(tester);
 
     await _scrollDetailsToText(tester, 'Bukti Foto Order');
+    expect(find.text('Pengambilan'), findsNothing);
+    expect(find.text('Diterima'), findsOneWidget);
     await _scrollDetailsToBottom(tester);
 
     expect(find.text('Bukti Foto Order'), findsOneWidget);
@@ -226,10 +232,12 @@ Finder _pointTab(String label) {
 }
 
 Finder _detailsScrollable() {
-  return find.descendant(
-    of: find.byType(DraggableScrollableSheet),
-    matching: find.byType(Scrollable),
-  ).last;
+  return find
+      .descendant(
+        of: find.byType(DraggableScrollableSheet),
+        matching: find.byType(Scrollable),
+      )
+      .last;
 }
 
 Future<void> _scrollDetailsToText(WidgetTester tester, String text) async {
