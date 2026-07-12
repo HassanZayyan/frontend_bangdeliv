@@ -71,4 +71,36 @@ void main() {
       expect(body['updated_at'], '2026-06-15T20:31:34+07:00');
     },
   );
+
+  test('driver unavailable decision sends batch item ids', () async {
+    http.Request? capturedRequest;
+    final service = DriverOrderService(
+      httpClient: MockClient((request) async {
+        capturedRequest = request;
+        return http.Response(
+          '{"success":true,"data":{"id":"42","service_type_code":"SHOPPING"}}',
+          200,
+        );
+      }),
+    );
+
+    await service.decideUnavailableShoppingItems(
+      orderId: '42',
+      pickupLocationId: 7,
+      action: 'remove',
+      itemIds: const [11, 12],
+    );
+
+    final request = capturedRequest!;
+    final body = jsonDecode(request.body) as Map<String, dynamic>;
+    expect(request.method, 'POST');
+    expect(
+      request.url.path,
+      endsWith(
+        '/api/v1/driver/orders/42/shopping-stops/7/unavailable-items/decision',
+      ),
+    );
+    expect(body['action'], 'REMOVE');
+    expect(body['item_ids'], [11, 12]);
+  });
 }

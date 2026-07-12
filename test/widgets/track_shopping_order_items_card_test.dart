@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'package:frontend_bangdeliv/config/app_colors.dart';
 import 'package:frontend_bangdeliv/core/di/app_providers.dart';
 import 'package:frontend_bangdeliv/data/repositories/customer_order_repository.dart';
 import 'package:frontend_bangdeliv/features/tracking/presentation/widgets/track_order_widgets.dart';
@@ -30,7 +31,8 @@ void main() {
 
     expect(repository.changeCalls, 1);
     expect(repository.lastAction, 'REMOVE');
-    expect(repository.lastItemId, 12);
+    expect(repository.lastItemId, isNull);
+    expect(repository.lastItemIds, [12]);
     expect(repository.lastTargetPickupLocationId, 77);
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'Batal tempat'));
@@ -59,9 +61,210 @@ void main() {
       ),
     );
 
-    expect(find.text('Edit'), findsOneWidget);
+    expect(find.text('Edit'), findsNothing);
+    expect(find.text('Ganti item'), findsOneWidget);
     expect(find.text('Lanjut tanpa ini'), findsNothing);
     expect(find.text('Batal tempat'), findsOneWidget);
+  });
+
+  testWidgets('multiple unavailable items can be selected in one decision', (
+    tester,
+  ) async {
+    final repository = _FakeCustomerOrderRepository();
+    await _pumpCard(
+      tester,
+      repository,
+      detail: _shoppingDetail(includeSecondUnavailableItem: true),
+    );
+
+    await tester.tap(find.text('Pilih item'));
+    await tester.pumpAndSettle();
+    final confirm = find.byKey(
+      const ValueKey('confirm-unavailable-item-selection'),
+    );
+    expect(tester.widget<FilledButton>(confirm).onPressed, isNull);
+
+    await tester.tap(find.byKey(const ValueKey('unavailable-item-choice-12')));
+    await tester.tap(find.byKey(const ValueKey('unavailable-item-choice-14')));
+    await tester.pump();
+    await tester.tap(confirm);
+    await tester.pumpAndSettle();
+
+    expect(repository.changeCalls, 1);
+    expect(repository.lastAction, 'REMOVE');
+    expect(repository.lastItemIds, [12, 14]);
+  });
+
+  testWidgets('four item decisions use a symmetric tonal grid', (tester) async {
+    tester.view.physicalSize = const Size(360, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpCard(
+      tester,
+      _FakeCustomerOrderRepository(),
+      detail: _shoppingDetail(canReplaceMerchant: true),
+      textScaler: const TextScaler.linear(1.3),
+    );
+
+    expect(find.text('Edit'), findsNothing);
+    expect(find.text('Ganti item'), findsOneWidget);
+    expect(find.text('Ganti toko/resto'), findsOneWidget);
+    expect(find.text('Lanjut tanpa ini'), findsOneWidget);
+    expect(find.text('Batal tempat'), findsOneWidget);
+    final semantics = tester.ensureSemantics();
+    expect(find.bySemanticsLabel('Ganti item'), findsWidgets);
+    expect(find.bySemanticsLabel('Ganti toko/resto'), findsWidgets);
+    expect(find.bySemanticsLabel('Lanjut tanpa ini'), findsWidgets);
+    expect(find.bySemanticsLabel('Batal tempat'), findsWidgets);
+
+    final replaceItems = find.byKey(
+      const ValueKey('shopping-action-replace-items-77'),
+    );
+    final replaceMerchant = find.byKey(
+      const ValueKey('shopping-action-replace-merchant-77'),
+    );
+    final continueAction = find.byKey(
+      const ValueKey('shopping-action-continue-77'),
+    );
+    final cancelAction = find.byKey(
+      const ValueKey('shopping-action-cancel-77'),
+    );
+
+    for (final finder in [
+      replaceItems,
+      replaceMerchant,
+      continueAction,
+      cancelAction,
+    ]) {
+      expect(finder, findsOneWidget);
+      expect(tester.getSize(finder).height, greaterThanOrEqualTo(52));
+    }
+
+    expect(
+      tester.getTopLeft(replaceItems).dy,
+      tester.getTopLeft(replaceMerchant).dy,
+    );
+    expect(
+      tester.getTopLeft(continueAction).dy,
+      tester.getTopLeft(cancelAction).dy,
+    );
+    expect(tester.getSize(replaceItems), tester.getSize(replaceMerchant));
+    expect(tester.getSize(continueAction), tester.getSize(cancelAction));
+
+    Color? backgroundColor(Finder finder) => tester
+        .widget<OutlinedButton>(finder)
+        .style
+        ?.backgroundColor
+        ?.resolve(const <WidgetState>{});
+    Color? foregroundColor(Finder finder) => tester
+        .widget<OutlinedButton>(finder)
+        .style
+        ?.foregroundColor
+        ?.resolve(const <WidgetState>{});
+    Color? borderColor(Finder finder) => tester
+        .widget<OutlinedButton>(finder)
+        .style
+        ?.side
+        ?.resolve(const <WidgetState>{})
+        ?.color;
+
+    expect(backgroundColor(replaceItems), AppColors.white);
+    expect(backgroundColor(replaceMerchant), AppColors.white);
+    expect(backgroundColor(continueAction), AppColors.white);
+    expect(backgroundColor(cancelAction), AppColors.white);
+    expect(foregroundColor(replaceItems), AppColors.primaryDark);
+    expect(foregroundColor(replaceMerchant), AppColors.primaryDark);
+    expect(foregroundColor(continueAction), AppColors.warningDark);
+    expect(foregroundColor(cancelAction), AppColors.error);
+    expect(borderColor(replaceItems), AppColors.primary);
+    expect(borderColor(continueAction), AppColors.warning);
+    expect(borderColor(cancelAction), AppColors.error);
+    expect(tester.takeException(), isNull);
+    semantics.dispose();
+  });
+
+  testWidgets('decision grid adapts to one and three available actions', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpCard(
+      tester,
+      _FakeCustomerOrderRepository(),
+      detail: _shoppingDetail(
+        includeAvailableItem: false,
+        hasExplicitUnavailableItemActions: true,
+        canContinueWithoutUnavailableItem: false,
+        canCancelUnavailableMerchant: false,
+      ),
+    );
+
+    expect(find.text('Ganti item'), findsOneWidget);
+    expect(find.text('Ganti toko/resto'), findsNothing);
+    expect(find.text('Lanjut tanpa ini'), findsNothing);
+    expect(find.text('Batal tempat'), findsNothing);
+
+    await _pumpCard(tester, _FakeCustomerOrderRepository());
+
+    final replaceItems = find.byKey(
+      const ValueKey('shopping-action-replace-items-77'),
+    );
+    final continueAction = find.byKey(
+      const ValueKey('shopping-action-continue-77'),
+    );
+    final cancelAction = find.byKey(
+      const ValueKey('shopping-action-cancel-77'),
+    );
+
+    expect(replaceItems, findsOneWidget);
+    expect(continueAction, findsOneWidget);
+    expect(cancelAction, findsOneWidget);
+    expect(
+      tester.getTopLeft(replaceItems).dy,
+      tester.getTopLeft(continueAction).dy,
+    );
+    expect(
+      tester.getSize(cancelAction).width,
+      greaterThan(tester.getSize(replaceItems).width * 1.8),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('decision grid stacks when content width is under 280', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(260, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpCard(
+      tester,
+      _FakeCustomerOrderRepository(),
+      detail: _shoppingDetail(canReplaceMerchant: true),
+    );
+
+    final actions = [
+      find.byKey(const ValueKey('shopping-action-replace-items-77')),
+      find.byKey(const ValueKey('shopping-action-replace-merchant-77')),
+      find.byKey(const ValueKey('shopping-action-continue-77')),
+      find.byKey(const ValueKey('shopping-action-cancel-77')),
+    ];
+    final leftPositions = actions
+        .map((finder) => tester.getTopLeft(finder).dx)
+        .toSet();
+    final topPositions = actions
+        .map((finder) => tester.getTopLeft(finder).dy)
+        .toSet();
+
+    expect(leftPositions, hasLength(1));
+    expect(topPositions, hasLength(4));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('cancelled with fee pricing uses cancellation fee label', (
@@ -137,12 +340,34 @@ void main() {
     expect(find.text('Batalkan tempat'), findsOneWidget);
     expect(find.text('Iya'), findsNothing);
   });
+
+  testWidgets('selected tempat renders only its own items', (tester) async {
+    final stops = _shoppingStops(3);
+    await _pumpCard(
+      tester,
+      _FakeCustomerOrderRepository(),
+      detail: _shoppingDetail(shoppingStops: stops),
+      selectedPickupLocationId: stops[1].pickupLocationId,
+      showPricing: false,
+      showGlobalActions: false,
+    );
+
+    expect(find.text('Merchant 2'), findsOneWidget);
+    expect(find.textContaining('Item 2'), findsOneWidget);
+    expect(find.text('Merchant 1'), findsNothing);
+    expect(find.text('Item 3'), findsNothing);
+    expect(find.text('Ongkir aktif'), findsNothing);
+  });
 }
 
 Future<void> _pumpCard(
   WidgetTester tester,
   _FakeCustomerOrderRepository repository, {
   CustomerOrderDetailModel? detail,
+  int? selectedPickupLocationId,
+  bool showPricing = true,
+  bool showGlobalActions = true,
+  TextScaler? textScaler,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -150,10 +375,19 @@ Future<void> _pumpCard(
         customerOrderRepositoryProvider.overrideWithValue(repository),
       ],
       child: MaterialApp(
+        builder: textScaler == null
+            ? null
+            : (context, child) => MediaQuery(
+                data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+                child: child!,
+              ),
         home: Scaffold(
           body: SingleChildScrollView(
             child: TrackShoppingOrderItemsCard(
               detail: detail ?? _shoppingDetail(),
+              selectedPickupLocationId: selectedPickupLocationId,
+              showPricing: showPricing,
+              showGlobalActions: showGlobalActions,
             ),
           ),
         ),
@@ -167,7 +401,29 @@ class _FakeCustomerOrderRepository implements CustomerOrderRepository {
   int changeCalls = 0;
   String? lastAction;
   int? lastItemId;
+  List<int> lastItemIds = const <int>[];
   int? lastTargetPickupLocationId;
+
+  @override
+  Future<ShoppingMerchantReplacementPreview> previewShoppingMerchantReplacement(
+    int orderId, {
+    required int pickupLocationId,
+    required int expectedVersion,
+    int? merchantId,
+    ShoppingMerchantPlacePayload? merchantPlace,
+    required List<ShoppingItemDraftPayload> items,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<CustomerOrderDetailModel> replaceShoppingMerchant(
+    int orderId, {
+    required int pickupLocationId,
+    required int expectedVersion,
+    required String idempotencyKey,
+    int? merchantId,
+    ShoppingMerchantPlacePayload? merchantPlace,
+    required List<ShoppingItemDraftPayload> items,
+  }) => throw UnimplementedError();
 
   @override
   Future<CustomerOrderDetailModel> requestShoppingItemChange(
@@ -176,12 +432,14 @@ class _FakeCustomerOrderRepository implements CustomerOrderRepository {
     String? requestKind,
     List<ShoppingItemDraftPayload> items = const <ShoppingItemDraftPayload>[],
     int? itemId,
+    List<int> itemIds = const <int>[],
     int? targetPickupLocationId,
     String? note,
   }) async {
     changeCalls += 1;
     lastAction = action;
     lastItemId = itemId;
+    lastItemIds = itemIds;
     lastTargetPickupLocationId = targetPickupLocationId;
     return _shoppingDetail();
   }
@@ -261,6 +519,9 @@ CustomerOrderDetailModel _shoppingDetail({
   bool includeAvailableItem = true,
   bool hasExplicitUnavailableItemActions = false,
   bool canContinueWithoutUnavailableItem = true,
+  bool canReplaceMerchant = false,
+  bool canCancelUnavailableMerchant = true,
+  bool includeSecondUnavailableItem = false,
   String statusCode = 'ARRIVED_MERCHANT',
   CustomerShoppingPricingModel? shoppingPricing,
   ShoppingOrderCapabilitiesModel? shoppingCapabilities,
@@ -287,12 +548,36 @@ CustomerOrderDetailModel _shoppingDetail({
     subtotal: 0,
     isAvailable: true,
   );
+  const secondUnavailableItem = CustomerShoppingItemModel(
+    id: 14,
+    pickupLocationId: 77,
+    itemSource: 'MANUAL',
+    name: 'lemon tea',
+    quantity: 1,
+    unitPrice: 0,
+    subtotal: 0,
+    isAvailable: false,
+  );
   final stopItems = includeAvailableItem
-      ? const [availableItem, unavailableItem]
-      : const [unavailableItem];
+      ? [
+          availableItem,
+          unavailableItem,
+          if (includeSecondUnavailableItem) secondUnavailableItem,
+        ]
+      : [
+          unavailableItem,
+          if (includeSecondUnavailableItem) secondUnavailableItem,
+        ];
   final shoppingItems = includeAvailableItem
-      ? const [unavailableItem, availableItem]
-      : const [unavailableItem];
+      ? [
+          unavailableItem,
+          if (includeSecondUnavailableItem) secondUnavailableItem,
+          availableItem,
+        ]
+      : [
+          unavailableItem,
+          if (includeSecondUnavailableItem) secondUnavailableItem,
+        ];
 
   return CustomerOrderDetailModel(
     summary: CustomerOrderSummaryModel(
@@ -341,7 +626,8 @@ CustomerOrderDetailModel _shoppingDetail({
             canEditUnavailableItems: true,
             canContinueWithoutUnavailableItem:
                 canContinueWithoutUnavailableItem,
-            canCancelUnavailableMerchant: true,
+            canCancelUnavailableMerchant: canCancelUnavailableMerchant,
+            canReplaceMerchant: canReplaceMerchant,
             merchant: CustomerShoppingMerchantModel(
               id: 10,
               name: 'Kedai Tinari',

@@ -53,7 +53,7 @@ void main() {
     expect(_hasLightSystemUiRegion(tester), isTrue);
   });
 
-  testWidgets('driver order tab does not navigate again from active order', (
+  testWidgets('driver active order hides the shell bottom navigation', (
     tester,
   ) async {
     var activeRouteBuilds = 0;
@@ -107,12 +107,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final initialActiveRouteBuilds = activeRouteBuilds;
-    await tester.tap(find.text('Orderan'));
-    await tester.pumpAndSettle();
-
     expect(find.text('driver active order'), findsOneWidget);
-    expect(activeRouteBuilds, initialActiveRouteBuilds);
+    expect(find.text('Orderan'), findsNothing);
+    expect(activeRouteBuilds, 1);
   });
 }
 

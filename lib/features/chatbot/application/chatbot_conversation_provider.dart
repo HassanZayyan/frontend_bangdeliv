@@ -294,15 +294,16 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     );
   }
 
-  Future<void> sendMessage(
+  Future<bool> sendMessage(
     String rawMessage, {
     required String serviceType,
+    bool clearMenuSelectorOnStart = true,
   }) async {
     _ensureService(serviceType);
 
     final message = rawMessage.trim();
     if (message.isEmpty || state.isSending || state.isBootstrapping) {
-      return;
+      return false;
     }
 
     var sessionId = state.sessionId?.trim();
@@ -324,7 +325,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       ],
       isSending: true,
       clearErrorMessage: true,
-      clearMenuSelectorSurface: true,
+      clearMenuSelectorSurface: clearMenuSelectorOnStart,
     );
 
     final api = ref.read(chatbotRepositoryProvider);
@@ -351,7 +352,9 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
           _messageFromResult(result, serviceType),
         ],
         clearErrorMessage: true,
+        clearMenuSelectorSurface: true,
       );
+      return true;
     } on ApiException catch (error) {
       final message = error.message.trim().isEmpty
           ? 'Gagal mengirim pesan.'
@@ -364,6 +367,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         ],
         errorMessage: message,
       );
+      return false;
     } catch (_) {
       state = state.copyWith(
         isSending: false,
@@ -376,6 +380,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         ],
         errorMessage: 'Gagal mengirim pesan.',
       );
+      return false;
     }
   }
 
@@ -1258,12 +1263,13 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
           normalized.contains('merchant') ||
           normalized.contains('place');
     });
-    if (hasMissingMerchantField) {
-      return true;
+    final assistantText = (result.assistantText ?? '').trim().toLowerCase();
+    if (assistantText.isEmpty) {
+      return hasMissingMerchantField;
     }
 
-    final assistantText = (result.assistantText ?? '').trim().toLowerCase();
     return assistantText.contains('lengkapi: tempat') ||
+        assistantText.contains('lengkapi: merchant') ||
         (assistantText.contains('belum lengkap') &&
             assistantText.contains('tempat'));
   }

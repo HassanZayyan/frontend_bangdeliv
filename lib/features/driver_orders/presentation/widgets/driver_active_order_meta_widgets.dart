@@ -539,30 +539,44 @@ class DriverOrderPricingCard extends StatelessWidget {
           const SizedBox(height: 12),
           if (showDriverAdminFeeBreakdown && order.driverIncomeGross > 0) ...[
             _pricingLine(
-              'Pendapatan Bruto',
+              'Pendapatan bruto',
               _formatCurrency(order.driverIncomeGross.round()),
             ),
-            const SizedBox(height: 8),
-          ] else if (fee != total) ...[
-            _pricingLine('Fee Driver', _formatCurrency(fee)),
             const SizedBox(height: 8),
           ],
           if (showAdminFee) ...[
             _pricingLine(
-              'Biaya Admin ${_formatPercent(order.driverAdminFeePercent)}',
+              'Biaya admin ${_formatPercent(order.driverAdminFeePercent)}',
               _formatCurrency(order.driverAdminFee.round()),
             ),
             const SizedBox(height: 8),
             _pricingLine(
-              'Pendapatan Bersih',
+              'Pendapatan bersih',
               _formatCurrency(order.driverIncomeNet.round()),
               valueColor: AppColors.primaryDark,
               valueSize: 15,
             ),
             const SizedBox(height: 8),
           ],
-          if (order.deliveryFee != null && order.deliveryFee! > 0) ...[
-            _pricingLine('Ongkir', formatRupiah(order.deliveryFee!)),
+          if (!showDriverAdminFeeBreakdown &&
+              order.deliveryFee != null &&
+              order.deliveryFee! > 0) ...[
+            _pricingLine('Ongkir aktif', formatRupiah(order.deliveryFee!)),
+            const SizedBox(height: 8),
+          ],
+          if (!showDriverAdminFeeBreakdown &&
+              (order.shoppingPricing?.failedTripCompensation ?? 0) > 0) ...[
+            _pricingLine(
+              'Kompensasi perjalanan gagal (50%)',
+              formatRupiah(order.shoppingPricing!.failedTripCompensation),
+            ),
+            const SizedBox(height: 8),
+          ],
+          if (!showDriverAdminFeeBreakdown &&
+              fee > 0 &&
+              order.deliveryFee != null &&
+              (fee - order.deliveryFee!).abs() >= 1) ...[
+            _pricingLine('Pendapatan transport', _formatCurrency(fee)),
             const SizedBox(height: 8),
           ],
           if (deliveryFeeSourceLabel.isNotEmpty) ...[
@@ -570,7 +584,7 @@ class DriverOrderPricingCard extends StatelessWidget {
             const SizedBox(height: 8),
           ],
           _pricingLine(
-            'Total Pembayaran',
+            'Total pembayaran customer',
             _formatCurrency(total),
             valueColor: AppColors.primaryDark,
             valueSize: 17,

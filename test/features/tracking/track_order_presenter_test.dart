@@ -40,6 +40,27 @@ void main() {
     );
   });
 
+  test('customer cancellation stays limited to pending orders', () {
+    expect(
+      TrackOrderPresenter.canCustomerCancelOrder(
+        _summary(statusCode: 'PENDING'),
+      ),
+      isTrue,
+    );
+    expect(
+      TrackOrderPresenter.canCustomerCancelOrder(
+        _summary(statusCode: 'DRIVER_ASSIGNED'),
+      ),
+      isFalse,
+    );
+    expect(
+      TrackOrderPresenter.canCustomerCancelOrder(
+        _summary(statusCode: 'CANCELLED'),
+      ),
+      isFalse,
+    );
+  });
+
   test('normalizedPaymentMethod prefers detail then summary then COD', () {
     final summary = _summary(paymentMethod: 'cod');
 

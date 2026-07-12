@@ -10,12 +10,16 @@ class ShoppingSubmitBar extends StatelessWidget {
     required this.totalQuantity,
     required this.isSubmitting,
     required this.onSubmit,
+    this.buttonLabel = 'Simpan Item',
+    this.detailText,
   });
 
   final int itemCount;
   final int totalQuantity;
   final bool isSubmitting;
   final VoidCallback onSubmit;
+  final String buttonLabel;
+  final String? detailText;
 
   @override
   Widget build(BuildContext context) {
@@ -24,9 +28,11 @@ class ShoppingSubmitBar extends StatelessWidget {
         ? 'Belum ada item'
         : '$itemCount item ditambahkan';
     final quantityLabel = canSubmit ? '$totalQuantity total qty' : '-';
-    final detailText = !canSubmit
-        ? 'Tambahkan item dulu untuk menyimpan'
-        : 'Harga akhir diinput driver';
+    final resolvedDetailText =
+        detailText ??
+        (!canSubmit
+            ? 'Tambahkan item dulu untuk menyimpan'
+            : 'Harga akhir diinput driver');
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
@@ -64,7 +70,7 @@ class ShoppingSubmitBar extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  detailText,
+                  resolvedDetailText,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -102,8 +108,8 @@ class ShoppingSubmitBar extends StatelessWidget {
                         color: AppColors.white,
                       ),
                     )
-                  : const Text(
-                      'Simpan Item',
+                  : Text(
+                      buttonLabel,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),

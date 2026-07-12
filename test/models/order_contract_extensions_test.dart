@@ -4,6 +4,59 @@ import 'package:frontend_bangdeliv/models/driver_order_model.dart';
 import 'package:frontend_bangdeliv/models/order_chat_model.dart';
 
 void main() {
+  test('order models parse WhatsApp participant and bypass capability', () {
+    final driverOrder = DriverOrderModel.fromJson({
+      'id': 42,
+      'customer_name': 'Hassan',
+      'customer_phone': '081234567890',
+      'shopping_stops': [
+        {
+          'pickup_location_id': 7,
+          'sequence_no': 1,
+          'fulfillment_status': 'ITEMS_PENDING_CUSTOMER',
+          'availability_confirmed': true,
+          'unavailable_item_actions': {
+            'can_driver_bypass': true,
+            'can_driver_continue_without_item': true,
+            'can_driver_cancel_merchant': true,
+            'can_driver_replace_unavailable_items': true,
+          },
+          'merchant': {'name': 'Kedai'},
+          'items': const <Map<String, dynamic>>[],
+        },
+      ],
+    });
+    final customerDetail = CustomerOrderDetailModel.fromJson({
+      'id': 42,
+      'order_number': 'BD-42',
+      'service_type': {'code': 'SHOPPING', 'display_name': 'Nitip'},
+      'status': 'DRIVER_ASSIGNED',
+      'total_amount': 15000,
+      'driver': {
+        'user': {'name': 'Driver Satu', 'phone': '082345678901'},
+      },
+    });
+
+    expect(driverOrder.customerPhone, '081234567890');
+    expect(
+      driverOrder.shoppingStops.single.canDriverBypassUnavailableItems,
+      isTrue,
+    );
+    expect(
+      driverOrder.shoppingStops.single.canDriverReplaceUnavailableItems,
+      isTrue,
+    );
+    expect(
+      driverOrder.shoppingStops.single.canDriverContinueWithoutUnavailableItem,
+      isTrue,
+    );
+    expect(
+      driverOrder.shoppingStops.single.canDriverCancelUnavailableMerchant,
+      isTrue,
+    );
+    expect(customerDetail.driverPhone, '082345678901');
+  });
+
   test('driver order parses delivery pricing and proof contract fields', () {
     final order = DriverOrderModel.fromJson({
       'id': 42,
@@ -244,5 +297,67 @@ void main() {
     expect(detail.driverEta?.distanceText, '2,1 km');
     expect(detail.driverEta?.locationFresh, isTrue);
     expect(detail.driverEta?.routeProvider, 'routes_api');
+  });
+
+  test('shopping stop parses event replacement capability and counters', () {
+    final customerStop = CustomerShoppingStopModel.fromJson({
+      'pickup_location_id': 31,
+      'sequence_no': 2,
+      'fulfillment_status': 'ITEMS_PENDING_CUSTOMER',
+      'merchant': {'name': 'Resto Lama'},
+      'items': const <Map<String, dynamic>>[],
+      'unavailable_item_actions': {
+        'can_customer_replace_merchant': true,
+        'chain_id': 'pickup:10',
+        'chain_attempt_no': 2,
+        'chain_failed_attempt_count': 1,
+        'chain_failed_attempt_limit': 3,
+        'order_failed_trip_count': 3,
+        'verified_failed_trip_count': 3,
+        'compensation_eligible': true,
+        'state_version': 88,
+      },
+    });
+    final driverStop = DriverShoppingStopModel.fromJson({
+      'pickup_location_id': 31,
+      'sequence_no': 2,
+      'fulfillment_status': 'ITEMS_PENDING_CUSTOMER',
+      'merchant': {'name': 'Resto Lama'},
+      'items': const <Map<String, dynamic>>[],
+      'unavailable_item_actions': {
+        'can_driver_replace_merchant': true,
+        'can_driver_replace_unavailable_items': true,
+        'chain_id': 'pickup:10',
+        'chain_attempt_no': 2,
+        'chain_failed_attempt_count': 1,
+        'order_failed_trip_count': 3,
+        'verified_failed_trip_count': 3,
+        'compensation_eligible': true,
+        'state_version': 88,
+      },
+    });
+
+    expect(customerStop.canReplaceMerchant, isTrue);
+    expect(driverStop.canReplaceMerchant, isTrue);
+    expect(driverStop.canDriverReplaceUnavailableItems, isTrue);
+    expect(customerStop.chainId, 'pickup:10');
+    expect(driverStop.chainAttemptNo, 2);
+    expect(customerStop.orderFailedTripCount, 3);
+    expect(driverStop.compensationEligible, isTrue);
+    expect(customerStop.stateVersion, 88);
+  });
+
+  test('customer pricing parses failed trip compensation fee line', () {
+    final pricing = CustomerShoppingPricingModel.fromJson({
+      'subtotal': 30000,
+      'delivery_fee': 12000,
+      'service_fee': 6500,
+      'total_price': 48500,
+      'fee_breakdown': [
+        {'code': 'FAILED_TRIP_COMPENSATION', 'amount': 4500},
+      ],
+    }, const <String, dynamic>{});
+
+    expect(pricing.failedTripCompensation, 4500);
   });
 }

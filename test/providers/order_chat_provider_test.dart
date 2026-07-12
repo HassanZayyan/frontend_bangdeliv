@@ -5,11 +5,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:frontend_bangdeliv/models/order_chat_model.dart';
+import 'package:frontend_bangdeliv/models/customer_order_model.dart';
+import 'package:frontend_bangdeliv/models/driver_order_model.dart';
 import 'package:frontend_bangdeliv/models/user_profile_model.dart';
 import 'package:frontend_bangdeliv/core/di/app_providers.dart';
 import 'package:frontend_bangdeliv/features/auth/application/auth_session_provider.dart';
 import 'package:frontend_bangdeliv/features/orders/application/order_chat_provider.dart';
 import 'package:frontend_bangdeliv/features/orders/application/order_chat_unread_provider.dart';
+import 'package:frontend_bangdeliv/features/orders/application/customer_order_providers.dart';
+import 'package:frontend_bangdeliv/features/driver_orders/application/driver_order_providers.dart';
 import 'package:frontend_bangdeliv/features/orders/presentation/screens/order_chat_screen.dart';
 import 'package:frontend_bangdeliv/services/api_client.dart';
 import 'package:frontend_bangdeliv/services/api_exception.dart';
@@ -1115,6 +1119,123 @@ void main() {
       false,
       true,
     ]);
+  });
+
+  testWidgets(
+    'driver chat opens customer WhatsApp and handles launch failure',
+    (tester) async {
+      final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+      final fakeService = _FakeOrderChatApiService(
+        initialPage: const OrderChatMessagesPage(
+          messages: <OrderChatMessageModel>[],
+          canSend: true,
+          hasMore: false,
+          nextBeforeId: null,
+          unreadCount: 0,
+          lastReadMessageId: 0,
+        ),
+      );
+      final detail = DriverOrderModel.fromJson(const <String, dynamic>{
+        'id': 99,
+        'customer_name': 'Muhammad Zaky',
+        'customer_phone': '081234567890',
+        'pickup_address': 'Pickup',
+        'dropoff_address': 'Dropoff',
+      });
+      Uri? launchedUri;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(() => fakeAuth),
+            orderChatApiServiceProvider.overrideWithValue(fakeService),
+            orderRealtimeClientProvider.overrideWithValue(
+              FakeOrderRealtimeClient(),
+            ),
+            driverOrderDetailProvider.overrideWith(
+              (ref, orderId) async => detail,
+            ),
+          ],
+          child: MaterialApp(
+            home: OrderChatScreen(
+              orderId: 99,
+              whatsAppLauncher: (uri) async {
+                launchedUri = uri;
+                return false;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      await tester.tap(find.byTooltip('Buka WhatsApp customer'));
+      await tester.pump();
+
+      expect(launchedUri?.path, '/6281234567890');
+      expect(launchedUri?.queryParameters['text'], contains('#99'));
+      expect(
+        find.text('WhatsApp tidak dapat dibuka di perangkat ini.'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('customer chat opens assigned driver WhatsApp', (tester) async {
+    final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
+    final fakeService = _FakeOrderChatApiService(
+      initialPage: const OrderChatMessagesPage(
+        messages: <OrderChatMessageModel>[],
+        canSend: true,
+        hasMore: false,
+        nextBeforeId: null,
+        unreadCount: 0,
+        lastReadMessageId: 0,
+      ),
+    );
+    final detail = CustomerOrderDetailModel.fromJson(const <String, dynamic>{
+      'id': 99,
+      'order_number': 'BD-99',
+      'service_type': {'code': 'SHOPPING', 'display_name': 'Nitip'},
+      'status': 'DRIVER_ASSIGNED',
+      'total_amount': 15000,
+      'driver': {
+        'user': {'name': 'Driver Satu', 'phone': '082345678901'},
+      },
+    });
+    Uri? launchedUri;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          orderChatApiServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(
+            FakeOrderRealtimeClient(),
+          ),
+          customerOrderDetailProvider.overrideWith(
+            (ref, orderId) async => detail,
+          ),
+        ],
+        child: MaterialApp(
+          home: OrderChatScreen(
+            orderId: 99,
+            whatsAppLauncher: (uri) async {
+              launchedUri = uri;
+              return true;
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.byTooltip('Buka WhatsApp driver'));
+    await tester.pump();
+
+    expect(launchedUri?.path, '/6282345678901');
   });
 }
 

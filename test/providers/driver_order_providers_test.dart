@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
@@ -9,6 +10,7 @@ import 'package:frontend_bangdeliv/models/driver_order_model.dart';
 import 'package:frontend_bangdeliv/models/order_chat_model.dart';
 import 'package:frontend_bangdeliv/models/payment_proof_feedback_model.dart';
 import 'package:frontend_bangdeliv/models/user_profile_model.dart';
+import 'package:frontend_bangdeliv/core/application/app_lifecycle_provider.dart';
 import 'package:frontend_bangdeliv/core/di/app_providers.dart';
 import 'package:frontend_bangdeliv/features/realtime/application/app_realtime_bootstrap_provider.dart';
 import 'package:frontend_bangdeliv/features/auth/application/auth_session_provider.dart';
@@ -1230,14 +1232,14 @@ void main() {
   );
 
   test(
-    'driver detail reconciliation refetches transfer proof when realtime is missed',
+    'driver detail reconciliation refetches content when realtime is missed',
     () async {
-      final oldInterval = driverTransferProofReconciliationInterval;
-      driverTransferProofReconciliationInterval = const Duration(
+      final oldInterval = driverOrderDetailReconciliationInterval;
+      driverOrderDetailReconciliationInterval = const Duration(
         milliseconds: 20,
       );
       addTearDown(() {
-        driverTransferProofReconciliationInterval = oldInterval;
+        driverOrderDetailReconciliationInterval = oldInterval;
       });
 
       final staleOrder = _transferOrder('99');
@@ -1273,7 +1275,7 @@ void main() {
       addTearDown(container.dispose);
 
       final subscription = container.listen<void>(
-        driverOrderTransferProofReconciliationProvider('99'),
+        driverOrderDetailReconciliationProvider('99'),
         (_, _) {},
         fireImmediately: true,
       );
@@ -1293,6 +1295,139 @@ void main() {
       expect(refreshed.hasProof('payment_transfer'), isTrue);
       expect(refreshed.proofs.single.photoUrl, contains('transfer.jpg'));
       expect(fakeService.fetchDetailCalls, greaterThanOrEqualTo(2));
+    },
+  );
+
+  test(
+    'driver detail refresh coordinator coalesces concurrent requests',
+    () async {
+      final gate = Completer<void>();
+      final order = _runningOrder('99');
+      final fakeService = _FakeDriverOrderService(
+        payload: DriverOrdersPayload(
+          incoming: const <DriverOrderModel>[],
+          running: <DriverOrderModel>[order],
+        ),
+        detailCompleter: gate,
+      );
+      final container = ProviderContainer(
+        overrides: [driverOrderServiceProvider.overrideWithValue(fakeService)],
+      );
+      addTearDown(container.dispose);
+
+      final refresh = container.read(driverOrderDetailRefreshProvider('99'));
+      final first = refresh();
+      final second = refresh();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(fakeService.fetchDetailCalls, 1);
+      gate.complete();
+      final results = await Future.wait([first, second]);
+      expect(results.map((item) => item.id), everyElement('99'));
+      expect(fakeService.fetchDetailCalls, 1);
+    },
+  );
+
+  test(
+    'driver detail reconciliation pauses with lifecycle and refreshes on resume',
+    () async {
+      final oldInterval = driverOrderDetailReconciliationInterval;
+      driverOrderDetailReconciliationInterval = const Duration(
+        milliseconds: 20,
+      );
+      addTearDown(() {
+        driverOrderDetailReconciliationInterval = oldInterval;
+      });
+
+      final order = _runningOrder('99');
+      final fakeService = _FakeDriverOrderService(
+        payload: DriverOrdersPayload(
+          incoming: const <DriverOrderModel>[],
+          running: <DriverOrderModel>[order],
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [driverOrderServiceProvider.overrideWithValue(fakeService)],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(driverOrderDetailProvider('99').future);
+      final subscription = container.listen<void>(
+        driverOrderDetailReconciliationProvider('99'),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
+
+      await Future<void>.delayed(const Duration(milliseconds: 55));
+      final callsBeforePause = fakeService.fetchDetailCalls;
+      expect(callsBeforePause, greaterThanOrEqualTo(2));
+
+      container
+          .read(appLifecycleStateProvider.notifier)
+          .setState(AppLifecycleState.paused);
+      await Future<void>.delayed(const Duration(milliseconds: 55));
+      expect(fakeService.fetchDetailCalls, callsBeforePause);
+
+      container
+          .read(appLifecycleStateProvider.notifier)
+          .setState(AppLifecycleState.resumed);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(fakeService.fetchDetailCalls, greaterThan(callsBeforePause));
+    },
+  );
+
+  test(
+    'driver detail realtime refreshes on connect and content updates',
+    () async {
+      final initial = _runningOrder('99');
+      final connected = _runningOrder('99', itemCount: 2);
+      final contentUpdated = _runningOrder('99', itemCount: 3);
+      final fakeService = _FakeDriverOrderService(
+        payload: DriverOrdersPayload(
+          incoming: const <DriverOrderModel>[],
+          running: <DriverOrderModel>[initial],
+        ),
+        detailResponses: [initial, connected, contentUpdated],
+      );
+      final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+      final fakeRealtime = FakeOrderRealtimeClient();
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          driverOrderServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final first = await container.read(
+        driverOrderDetailProvider('99').future,
+      );
+      expect(first.itemCount, 1);
+      final subscription = container.listen<void>(
+        driverOrderDetailRealtimeProvider('99'),
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
+
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(
+        (await container.read(
+          driverOrderDetailProvider('99').future,
+        )).itemCount,
+        2,
+      );
+
+      fakeRealtime.emitOrderContentUpdated(99);
+      await Future<void>.delayed(const Duration(milliseconds: 450));
+      expect(
+        (await container.read(
+          driverOrderDetailProvider('99').future,
+        )).itemCount,
+        3,
+      );
     },
   );
 
@@ -1367,6 +1502,7 @@ class _FakeDriverOrderService extends DriverOrderService {
   final Completer<void>? confirmTransferCompleter;
   final Completer<void>? rejectTransferCompleter;
   final Completer<void>? transitionCompleter;
+  final Completer<void>? detailCompleter;
   final List<String> acceptedOrderIds = <String>[];
   final Map<String, String> rejectedTransferReasons = <String, String>{};
   final List<DriverOrderModel> detailResponses;
@@ -1386,6 +1522,7 @@ class _FakeDriverOrderService extends DriverOrderService {
     this.confirmTransferCompleter,
     this.rejectTransferCompleter,
     this.transitionCompleter,
+    this.detailCompleter,
     List<DriverOrderModel>? detailResponses,
   }) : detailResponses = List<DriverOrderModel>.from(
          detailResponses ?? const <DriverOrderModel>[],
@@ -1400,6 +1537,10 @@ class _FakeDriverOrderService extends DriverOrderService {
   @override
   Future<DriverOrderModel> fetchOrderDetail(String orderId) async {
     fetchDetailCalls += 1;
+    final completer = detailCompleter;
+    if (completer != null) {
+      await completer.future;
+    }
     if (detailResponses.isNotEmpty) {
       final next = detailResponses.removeAt(0);
       _upsertPayloadOrder(next);
@@ -1704,7 +1845,7 @@ DriverProfileModel _activeDriverProfile() {
   );
 }
 
-DriverOrderModel _runningOrder(String id) {
+DriverOrderModel _runningOrder(String id, {int itemCount = 1}) {
   return DriverOrderModel(
     id: id,
     customerName: 'Customer $id',
@@ -1712,7 +1853,7 @@ DriverOrderModel _runningOrder(String id) {
     dropoffAddress: 'Dropoff',
     etaMinutes: 8,
     fee: 9000,
-    itemCount: 1,
+    itemCount: itemCount,
     statusCode: 'DRIVER_ASSIGNED',
   );
 }

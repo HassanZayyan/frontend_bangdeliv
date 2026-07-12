@@ -154,12 +154,12 @@ void main() {
       await tester.tap(find.text('Resto Satu'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Item'), findsOneWidget);
+      expect(find.text('Item'), findsWidgets);
       expect(find.text('Menu Katalog'), findsNothing);
       expect(find.text('Item berat'), findsNothing);
       expect(service.menuSearchCalls, 1);
 
-      await tester.enterText(find.byType(TextField).at(1), 'Soto Ayam');
+      await tester.enterText(find.byType(TextField).first, 'Soto Ayam');
       await tester.pumpAndSettle();
       await _tapAddToDraft(tester);
 
@@ -293,16 +293,16 @@ void main() {
     await tester.tap(find.text('Warung Madura'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Item'), findsOneWidget);
+    expect(find.text('Item'), findsWidgets);
     expect(find.text('Harga dikonfirmasi driver dari nota.'), findsOneWidget);
     expect(find.text('Item berat'), findsNothing);
     expect(service.menuSearchCalls, 1);
 
-    await tester.enterText(find.byType(TextField).at(1), 'Telur 1 kg');
+    await tester.enterText(find.byType(TextField).first, 'Telur 1 kg');
     await tester.pumpAndSettle();
     await _tapAddToDraft(tester);
 
-    await tester.enterText(find.byType(TextField).at(1), 'Gula 1 kg');
+    await tester.enterText(find.byType(TextField).first, 'Gula 1 kg');
     await tester.pumpAndSettle();
     await _tapAddToDraft(tester);
 
@@ -403,10 +403,15 @@ Future<void> _tapAddToDraft(WidgetTester tester) async {
 }
 
 Future<void> _tapSubmitDrafts(WidgetTester tester) async {
-  final finder = find.text('Simpan Item');
-  await tester.ensureVisible(finder);
+  final next = find.text('Lanjut');
+  await tester.ensureVisible(next);
   await tester.pumpAndSettle();
-  await tester.tap(finder);
+  await tester.tap(next);
+  await tester.pumpAndSettle();
+  final confirm = find.text('Konfirmasi Item');
+  await tester.ensureVisible(confirm);
+  await tester.pumpAndSettle();
+  await tester.tap(confirm);
   await tester.pumpAndSettle();
 }
 
@@ -487,6 +492,7 @@ class _FakeCustomerOrderApiService extends CustomerOrderApiService {
     String? requestKind,
     List<ShoppingItemDraftPayload> items = const <ShoppingItemDraftPayload>[],
     int? itemId,
+    List<int> itemIds = const <int>[],
     int? targetPickupLocationId,
     String? note,
   }) async {

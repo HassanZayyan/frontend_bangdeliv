@@ -192,6 +192,7 @@ class CustomerOrderApiService {
     String? requestKind,
     List<ShoppingItemDraftPayload> items = const <ShoppingItemDraftPayload>[],
     int? itemId,
+    List<int> itemIds = const <int>[],
     int? targetPickupLocationId,
     String? note,
   }) async {
@@ -208,6 +209,7 @@ class CustomerOrderApiService {
           if (items.isNotEmpty)
             'items': items.map((item) => item.toJson()).toList(growable: false),
           if (itemId != null && itemId > 0) 'item_id': itemId,
+          if (itemIds.isNotEmpty) 'item_ids': itemIds,
           if ((note ?? '').trim().isNotEmpty) 'note': note!.trim(),
         },
         headers: await AuthService.authorizedHeaders(),
@@ -256,6 +258,57 @@ class CustomerOrderApiService {
     return _extractList(
       data['menus'],
     ).map(ShoppingMenuOption.fromJson).toList(growable: false);
+  }
+
+  Future<ShoppingMerchantReplacementPreview> previewShoppingMerchantReplacement(
+    int orderId, {
+    required int pickupLocationId,
+    required int expectedVersion,
+    int? merchantId,
+    ShoppingMerchantPlacePayload? merchantPlace,
+    required List<ShoppingItemDraftPayload> items,
+  }) async {
+    final response = await _shoppingItemRequest(
+      () async => _apiClient.post(
+        '/v1/orders/$orderId/shopping-stops/$pickupLocationId/replacement-preview',
+        body: _replacementBody(
+          expectedVersion: expectedVersion,
+          merchantId: merchantId,
+          merchantPlace: merchantPlace,
+          items: items,
+        ),
+        headers: await AuthService.authorizedHeaders(),
+      ),
+    );
+
+    return ShoppingMerchantReplacementPreview.fromJson(response);
+  }
+
+  Future<CustomerOrderDetailModel> replaceShoppingMerchant(
+    int orderId, {
+    required int pickupLocationId,
+    required int expectedVersion,
+    required String idempotencyKey,
+    int? merchantId,
+    ShoppingMerchantPlacePayload? merchantPlace,
+    required List<ShoppingItemDraftPayload> items,
+  }) async {
+    final response = await _shoppingItemRequest(() async {
+      final headers = await AuthService.authorizedHeaders();
+      headers['Idempotency-Key'] = idempotencyKey;
+      return _apiClient.post(
+        '/v1/orders/$orderId/shopping-stops/$pickupLocationId/replace',
+        body: _replacementBody(
+          expectedVersion: expectedVersion,
+          merchantId: merchantId,
+          merchantPlace: merchantPlace,
+          items: items,
+        ),
+        headers: headers,
+      );
+    });
+
+    return CustomerOrderDetailModel.fromJson(response);
   }
 
   Future<CustomerOrderDetailModel> updateShoppingItem(
@@ -394,6 +447,76 @@ class CustomerOrderApiService {
     }
 
     return const <Map<String, dynamic>>[];
+  }
+
+  Map<String, dynamic> _replacementBody({
+    required int expectedVersion,
+    int? merchantId,
+    ShoppingMerchantPlacePayload? merchantPlace,
+    required List<ShoppingItemDraftPayload> items,
+  }) {
+    return <String, dynamic>{
+      'expected_version': expectedVersion,
+      if (merchantId != null && merchantId > 0) 'merchant_id': merchantId,
+      if ((merchantId == null || merchantId <= 0) && merchantPlace != null)
+        'merchant_place': merchantPlace.toJson(),
+      'items': items.map((item) => item.toJson()).toList(growable: false),
+    };
+  }
+}
+
+class ShoppingMerchantReplacementPreview {
+  const ShoppingMerchantReplacementPreview({
+    required this.expectedVersion,
+    required this.chainId,
+    required this.nextAttemptNo,
+    required this.oldMerchantName,
+    required this.newMerchantName,
+    required this.activeDeliveryFee,
+    required this.failedTripCompensation,
+    required this.totalTransport,
+    required this.items,
+  });
+
+  final int expectedVersion;
+  final String chainId;
+  final int nextAttemptNo;
+  final String oldMerchantName;
+  final String newMerchantName;
+  final double activeDeliveryFee;
+  final double failedTripCompensation;
+  final double totalTransport;
+  final List<Map<String, dynamic>> items;
+
+  factory ShoppingMerchantReplacementPreview.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    final oldMerchant = json['old_merchant'] is Map<String, dynamic>
+        ? json['old_merchant'] as Map<String, dynamic>
+        : const <String, dynamic>{};
+    final newMerchant = json['new_merchant'] is Map<String, dynamic>
+        ? json['new_merchant'] as Map<String, dynamic>
+        : const <String, dynamic>{};
+    final items = json['items'] is List
+        ? (json['items'] as List).whereType<Map<String, dynamic>>().toList(
+            growable: false,
+          )
+        : const <Map<String, dynamic>>[];
+
+    return ShoppingMerchantReplacementPreview(
+      expectedVersion:
+          int.tryParse(json['expected_version']?.toString() ?? '') ?? 0,
+      chainId: (json['chain_id'] ?? '').toString(),
+      nextAttemptNo:
+          int.tryParse(json['next_attempt_no']?.toString() ?? '') ?? 1,
+      oldMerchantName: (oldMerchant['name'] ?? '-').toString(),
+      newMerchantName: (newMerchant['name'] ?? '-').toString(),
+      activeDeliveryFee: _toNullableDouble(json['active_delivery_fee']) ?? 0,
+      failedTripCompensation:
+          _toNullableDouble(json['failed_trip_compensation']) ?? 0,
+      totalTransport: _toNullableDouble(json['total_transport']) ?? 0,
+      items: items,
+    );
   }
 }
 

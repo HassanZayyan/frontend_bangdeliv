@@ -31,6 +31,7 @@ abstract class CustomerOrderRepository {
     String? requestKind,
     List<ShoppingItemDraftPayload> items,
     int? itemId,
+    List<int> itemIds = const <int>[],
     int? targetPickupLocationId,
     String? note,
   });
@@ -67,6 +68,25 @@ abstract class CustomerOrderRepository {
     int merchantId,
     String query,
   );
+
+  Future<ShoppingMerchantReplacementPreview> previewShoppingMerchantReplacement(
+    int orderId, {
+    required int pickupLocationId,
+    required int expectedVersion,
+    int? merchantId,
+    ShoppingMerchantPlacePayload? merchantPlace,
+    required List<ShoppingItemDraftPayload> items,
+  });
+
+  Future<CustomerOrderDetailModel> replaceShoppingMerchant(
+    int orderId, {
+    required int pickupLocationId,
+    required int expectedVersion,
+    required String idempotencyKey,
+    int? merchantId,
+    ShoppingMerchantPlacePayload? merchantPlace,
+    required List<ShoppingItemDraftPayload> items,
+  });
 }
 
 class ApiCustomerOrderRepository implements CustomerOrderRepository {
@@ -117,6 +137,7 @@ class ApiCustomerOrderRepository implements CustomerOrderRepository {
     String? requestKind,
     List<ShoppingItemDraftPayload> items = const <ShoppingItemDraftPayload>[],
     int? itemId,
+    List<int> itemIds = const <int>[],
     int? targetPickupLocationId,
     String? note,
   }) {
@@ -126,6 +147,7 @@ class ApiCustomerOrderRepository implements CustomerOrderRepository {
       requestKind: requestKind,
       items: items,
       itemId: itemId,
+      itemIds: itemIds,
       targetPickupLocationId: targetPickupLocationId,
       note: note,
     );
@@ -198,5 +220,45 @@ class ApiCustomerOrderRepository implements CustomerOrderRepository {
     String query,
   ) {
     return _service.searchMerchantMenus(merchantId, query);
+  }
+
+  @override
+  Future<ShoppingMerchantReplacementPreview> previewShoppingMerchantReplacement(
+    int orderId, {
+    required int pickupLocationId,
+    required int expectedVersion,
+    int? merchantId,
+    ShoppingMerchantPlacePayload? merchantPlace,
+    required List<ShoppingItemDraftPayload> items,
+  }) {
+    return _service.previewShoppingMerchantReplacement(
+      orderId,
+      pickupLocationId: pickupLocationId,
+      expectedVersion: expectedVersion,
+      merchantId: merchantId,
+      merchantPlace: merchantPlace,
+      items: items,
+    );
+  }
+
+  @override
+  Future<CustomerOrderDetailModel> replaceShoppingMerchant(
+    int orderId, {
+    required int pickupLocationId,
+    required int expectedVersion,
+    required String idempotencyKey,
+    int? merchantId,
+    ShoppingMerchantPlacePayload? merchantPlace,
+    required List<ShoppingItemDraftPayload> items,
+  }) {
+    return _service.replaceShoppingMerchant(
+      orderId,
+      pickupLocationId: pickupLocationId,
+      expectedVersion: expectedVersion,
+      idempotencyKey: idempotencyKey,
+      merchantId: merchantId,
+      merchantPlace: merchantPlace,
+      items: items,
+    );
   }
 }

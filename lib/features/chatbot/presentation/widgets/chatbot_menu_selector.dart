@@ -15,7 +15,6 @@ class ChatbotMenuSelector extends StatefulWidget {
     required this.quantities,
     required this.onQuantityDelta,
     required this.onChangeMerchant,
-    required this.onConfirm,
   });
 
   final String merchantName;
@@ -23,7 +22,6 @@ class ChatbotMenuSelector extends StatefulWidget {
   final List<int> quantities;
   final void Function(int index, int delta) onQuantityDelta;
   final VoidCallback onChangeMerchant;
-  final ValueChanged<String> onConfirm;
 
   @override
   State<ChatbotMenuSelector> createState() => _ChatbotMenuSelectorState();
@@ -37,27 +35,6 @@ class _ChatbotMenuSelectorState extends State<ChatbotMenuSelector> {
         : 0,
     growable: false,
   );
-
-  bool get _hasSelectedItems => _quantities.any((quantity) => quantity > 0);
-
-  void _confirmSelection() {
-    final quantities = _quantities;
-    final lines = <String>[];
-    for (var index = 0; index < widget.menus.length; index++) {
-      final quantity = quantities[index];
-      if (quantity <= 0) {
-        continue;
-      }
-
-      lines.add('${widget.menus[index].name.trim()} $quantity');
-    }
-
-    if (lines.isEmpty) {
-      return;
-    }
-
-    widget.onConfirm(lines.join('\n'));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -99,36 +76,7 @@ class _ChatbotMenuSelectorState extends State<ChatbotMenuSelector> {
                 if (index != widget.menus.length - 1)
                   const Divider(height: 18, color: AppColors.border),
               ],
-              const SizedBox(height: 14),
-              SizedBox(
-                height: 46,
-                child: ElevatedButton(
-                  onPressed: _hasSelectedItems ? _confirmSelection : null,
-                  style: ElevatedButton.styleFrom(
-                    elevation: 0,
-                    backgroundColor: AppColors.primary,
-                    disabledBackgroundColor: AppColors.primary.withValues(
-                      alpha: 0.35,
-                    ),
-                    foregroundColor: AppColors.white,
-                    disabledForegroundColor: AppColors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(_chatbotButtonRadius),
-                    ),
-                  ),
-                  child: Text(
-                    'Konfirmasi',
-                    style: TextStyle(
-                      fontSize: AppTextScaling.adaptive(
-                        context,
-                        normal: 14,
-                        large: 13.5,
-                      ),
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ),
+              const SizedBox(height: 4),
             ],
           ),
         ),

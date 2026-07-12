@@ -9,15 +9,28 @@ import '../../../../config/app_colors.dart';
 import '../../../../models/driver_order_model.dart';
 import '../../../../utils/map_marker_icons.dart';
 import '../../../../utils/map_picker_helpers.dart';
+import '../models/driver_active_order_point.dart';
 
 class DriverActiveOrderMapCard extends StatefulWidget {
   final DriverOrderModel order;
   final LatLng? driverPosition;
+  final List<DriverActiveOrderPoint>? points;
+  final String? selectedPointId;
+  final ValueChanged<String>? onPointSelected;
+  final bool fullBleed;
+  final double mapBottomPadding;
+  final double mapTopPadding;
 
   const DriverActiveOrderMapCard({
     super.key,
     required this.order,
     this.driverPosition,
+    this.points,
+    this.selectedPointId,
+    this.onPointSelected,
+    this.fullBleed = false,
+    this.mapBottomPadding = 0,
+    this.mapTopPadding = 0,
   });
 
   @override
@@ -28,6 +41,8 @@ class DriverActiveOrderMapCard extends StatefulWidget {
 class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
   GoogleMapController? _mapController;
   BitmapDescriptor? _driverMarkerIcon;
+  Map<String, BitmapDescriptor> _pointMarkerIcons = const {};
+  int _pointIconLoadVersion = 0;
   LatLng? _lastDriverPositionForBearing;
   Timer? _mapMountTimer;
   bool _mapMountReady = false;
@@ -46,6 +61,7 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
     _lastDriverPositionForBearing = widget.driverPosition;
     _scheduleMapMount();
     unawaited(_loadDriverMarkerIcon());
+    unawaited(_loadPointMarkerIcons());
   }
 
   void _scheduleMapMount() {
@@ -84,6 +100,13 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
       _hasFittedDriverPosition = true;
       unawaited(_fitCameraToMapPoints());
     }
+
+    if (oldWidget.selectedPointId != widget.selectedPointId) {
+      unawaited(_focusSelectedPoint());
+      unawaited(_loadPointMarkerIcons());
+    } else if (!listEquals(oldWidget.points, widget.points)) {
+      unawaited(_loadPointMarkerIcons());
+    }
   }
 
   Future<void> _loadDriverMarkerIcon() async {
@@ -93,6 +116,35 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
     }
 
     setState(() => _driverMarkerIcon = icon);
+  }
+
+  Future<void> _loadPointMarkerIcons() async {
+    final loadVersion = ++_pointIconLoadVersion;
+    final points = widget.points ?? const <DriverActiveOrderPoint>[];
+    final icons = <String, BitmapDescriptor>{};
+    for (var index = 0; index < points.length; index++) {
+      final point = points[index];
+      if (!point.isMerchant &&
+          point.kind != DriverActiveOrderPointKind.pickup) {
+        continue;
+      }
+      final number = point.sequenceNo ?? 1;
+      final color = point.id == widget.selectedPointId
+          ? AppColors.primary
+          : point.isFailed
+          ? AppColors.error
+          : point.isTerminal
+          ? AppColors.success
+          : const Color(0xFF0F9D8A);
+      icons[point.id] = await buildNumberedRouteMarker(
+        number: number,
+        color: color,
+      );
+    }
+    if (!mounted || loadVersion != _pointIconLoadVersion) {
+      return;
+    }
+    setState(() => _pointMarkerIcons = icons);
   }
 
   @override
@@ -107,10 +159,12 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
 
     if (pickupPoints.isEmpty && dropoff == null) {
       return Container(
-        height: 220,
+        height: widget.fullBleed ? null : 220,
         decoration: BoxDecoration(
           color: AppColors.white,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: widget.fullBleed
+              ? BorderRadius.zero
+              : BorderRadius.circular(10),
           border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
         ),
         child: const Center(
@@ -129,16 +183,26 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
         Marker(
           markerId: MarkerId('pickup_${pickupPoint.id}'),
           position: pickupPoint.position,
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueGreen,
-          ),
+          icon:
+              _pointMarkerIcons[pickupPoint.id] ??
+              BitmapDescriptor.defaultMarkerWithHue(
+                _markerHueForPoint(pickupPoint.id),
+              ),
           infoWindow: InfoWindow(title: pickupPoint.label),
+          onTap: () => widget.onPointSelected?.call(pickupPoint.id),
         ),
       if (dropoff != null)
         Marker(
           markerId: const MarkerId('dropoff'),
           position: dropoff,
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            widget.selectedPointId == DriverActiveOrderPoint.dropoffId
+                ? BitmapDescriptor.hueOrange
+                : BitmapDescriptor.hueAzure,
+          ),
           infoWindow: const InfoWindow(title: 'Dropoff'),
+          onTap: () =>
+              widget.onPointSelected?.call(DriverActiveOrderPoint.dropoffId),
         ),
       if (driverPosition != null)
         Marker(
@@ -158,62 +222,70 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
       return _buildMapLoadingPlaceholder();
     }
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: SizedBox(
-        height: 230,
-        child: Stack(
-          children: [
-            GoogleMap(
-              initialCameraPosition: CameraPosition(target: initial, zoom: 14),
-              markers: markers,
-              polylines: _buildPolylines(),
-              scrollGesturesEnabled: true,
-              zoomGesturesEnabled: true,
-              rotateGesturesEnabled: true,
-              tiltGesturesEnabled: true,
-              gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
-                Factory<OneSequenceGestureRecognizer>(
-                  EagerGestureRecognizer.new,
-                ),
-              },
-              myLocationButtonEnabled: false,
-              mapToolbarEnabled: true,
-              zoomControlsEnabled: false,
-              compassEnabled: true,
-              onMapCreated: (controller) {
-                _mapController = controller;
-                unawaited(_fitCameraToMapPoints());
-              },
+    final map = SizedBox(
+      height: widget.fullBleed ? null : 230,
+      width: double.infinity,
+      child: Stack(
+        children: [
+          GoogleMap(
+            initialCameraPosition: CameraPosition(target: initial, zoom: 14),
+            markers: markers,
+            polylines: _buildPolylines(),
+            scrollGesturesEnabled: true,
+            zoomGesturesEnabled: true,
+            rotateGesturesEnabled: true,
+            tiltGesturesEnabled: true,
+            gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+              Factory<OneSequenceGestureRecognizer>(EagerGestureRecognizer.new),
+            },
+            myLocationButtonEnabled: false,
+            mapToolbarEnabled: false,
+            zoomControlsEnabled: false,
+            compassEnabled: true,
+            padding: EdgeInsets.only(
+              top: widget.mapTopPadding,
+              bottom: widget.mapBottomPadding,
             ),
-            if (showRouteUnavailableHint)
-              Positioned(
-                top: 10,
-                left: 10,
-                right: 10,
-                child: const _RouteUnavailableBadge(),
+            onMapCreated: (controller) {
+              _mapController = controller;
+              unawaited(_fitCameraToMapPoints());
+            },
+          ),
+          if (showRouteUnavailableHint)
+            Positioned(
+              top: 10,
+              left: 10,
+              right: 10,
+              child: const _RouteUnavailableBadge(),
+            ),
+          if (widget.order.deliveryDistanceLabel.isNotEmpty)
+            Positioned(
+              left: 10,
+              right: 10,
+              bottom: 10,
+              child: _MapDistanceBadge(
+                label: widget.order.deliveryDistanceLabel,
               ),
-            if (widget.order.deliveryDistanceLabel.isNotEmpty)
-              Positioned(
-                left: 10,
-                right: 10,
-                bottom: 10,
-                child: _MapDistanceBadge(
-                  label: widget.order.deliveryDistanceLabel,
-                ),
-              ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
+
+    if (widget.fullBleed) {
+      return SizedBox.expand(child: map);
+    }
+
+    return ClipRRect(borderRadius: BorderRadius.circular(10), child: map);
   }
 
   Widget _buildMapLoadingPlaceholder() {
     return Container(
-      height: 230,
+      height: widget.fullBleed ? null : 230,
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: widget.fullBleed
+            ? BorderRadius.zero
+            : BorderRadius.circular(10),
         border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
       ),
       child: const Center(
@@ -264,6 +336,25 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
   }
 
   List<_DriverPickupPoint> _pickupPoints() {
+    final suppliedPoints = widget.points
+        ?.where(
+          (point) =>
+              point.isMerchant ||
+              point.kind == DriverActiveOrderPointKind.pickup,
+        )
+        .where((point) => point.hasCoordinates)
+        .map(
+          (point) => _DriverPickupPoint(
+            id: point.id,
+            label: point.title,
+            position: LatLng(point.latitude!, point.longitude!),
+          ),
+        )
+        .toList(growable: false);
+    if (suppliedPoints != null && suppliedPoints.isNotEmpty) {
+      return suppliedPoints;
+    }
+
     final orderedIds =
         widget.order.route?.orderedPickupLocationIds ?? const <int>[];
     final activeStops = widget.order.shoppingStops
@@ -287,7 +378,7 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
     final stopPoints = activeStops
         .map(
           (stop) => _DriverPickupPoint(
-            id: stop.pickupLocationId.toString(),
+            id: DriverActiveOrderPoint.merchantId(stop.pickupLocationId),
             label:
                 'Tempat ${stop.sequenceNo <= 0 ? 1 : stop.sequenceNo}: ${stop.merchant.name}',
             position: LatLng(stop.merchant.latitude!, stop.merchant.longitude!),
@@ -308,7 +399,11 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
     }
 
     return [
-      _DriverPickupPoint(id: 'default', label: 'Pickup', position: fallback),
+      _DriverPickupPoint(
+        id: DriverActiveOrderPoint.pickupId,
+        label: 'Pickup',
+        position: fallback,
+      ),
     ];
   }
 
@@ -416,6 +511,55 @@ class _DriverActiveOrderMapCardState extends State<DriverActiveOrderMapCard> {
       );
     } catch (_) {
       // Camera animation can fail while the platform map is being recreated.
+    }
+  }
+
+  double _markerHueForPoint(String pointId) {
+    if (pointId == widget.selectedPointId) {
+      return BitmapDescriptor.hueOrange;
+    }
+    DriverActiveOrderPoint? point;
+    for (final candidate in widget.points ?? const <DriverActiveOrderPoint>[]) {
+      if (candidate.id == pointId) {
+        point = candidate;
+        break;
+      }
+    }
+    if (point?.isFailed == true) {
+      return BitmapDescriptor.hueRed;
+    }
+    if (point?.isTerminal == true) {
+      return BitmapDescriptor.hueGreen;
+    }
+    return BitmapDescriptor.hueCyan;
+  }
+
+  Future<void> _focusSelectedPoint() async {
+    final controller = _mapController;
+    final selectedId = widget.selectedPointId;
+    if (controller == null || selectedId == null || !mounted) {
+      return;
+    }
+    LatLng? target;
+    for (final point in widget.points ?? const <DriverActiveOrderPoint>[]) {
+      if (point.id == selectedId && point.hasCoordinates) {
+        target = LatLng(point.latitude!, point.longitude!);
+        break;
+      }
+    }
+    if (target == null && selectedId == DriverActiveOrderPoint.dropoffId) {
+      target = _latLng(
+        widget.order.dropoffLatitude,
+        widget.order.dropoffLongitude,
+      );
+    }
+    if (target == null) {
+      return;
+    }
+    try {
+      await controller.animateCamera(CameraUpdate.newLatLngZoom(target, 15.5));
+    } catch (_) {
+      // The platform map can be recreated while the sheet changes context.
     }
   }
 

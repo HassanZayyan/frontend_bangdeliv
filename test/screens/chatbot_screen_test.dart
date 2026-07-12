@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:frontend_bangdeliv/models/address_location_picker_result.dart';
+import 'package:frontend_bangdeliv/config/app_colors.dart';
 import 'package:frontend_bangdeliv/models/chatbot_model.dart';
 import 'package:frontend_bangdeliv/models/chatbot_launch_args.dart';
 import 'package:frontend_bangdeliv/models/customer_order_model.dart';
@@ -277,6 +278,10 @@ void main() {
       );
       expect(find.widgetWithText(OutlinedButton, 'COD'), findsNothing);
       expect(find.widgetWithText(OutlinedButton, 'QRIS'), findsNothing);
+      expect(
+        find.textContaining('kompensasi 50% tarif segmen gagal'),
+        findsNothing,
+      );
     },
   );
 
@@ -334,6 +339,20 @@ void main() {
       expect(find.widgetWithText(OutlinedButton, 'COD'), findsOneWidget);
       expect(find.widgetWithText(OutlinedButton, 'QRIS'), findsOneWidget);
 
+      for (final label in const ['COD', 'QRIS']) {
+        final button = tester.widget<OutlinedButton>(
+          find.widgetWithText(OutlinedButton, label),
+        );
+        expect(
+          button.style?.foregroundColor?.resolve(<WidgetState>{}),
+          AppColors.success,
+        );
+        expect(
+          button.style?.side?.resolve(<WidgetState>{})?.color,
+          AppColors.success,
+        );
+      }
+
       await tester.tap(find.widgetWithText(OutlinedButton, 'QRIS'));
       await _pumpChatbotFrame(tester);
 
@@ -363,6 +382,35 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'nitip empty draft keeps nearby recommendation instead of map fallback',
+    (WidgetTester tester) async {
+      await _pumpChatbot(
+        tester,
+        serviceType: 'nitip',
+        chatbotApiService: _FakeChatbotApiService(),
+      );
+
+      await _sendMessage(tester, 'nitip apa enaknya');
+
+      expect(
+        find.textContaining(
+          'Berikut pilihan dari restoran terdekat dengan alamat antarmu',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Resto Paling Dekat'), findsOneWidget);
+      expect(
+        find.textContaining('Nama toko/resto itu belum ada'),
+        findsNothing,
+      );
+      expect(
+        find.widgetWithText(OutlinedButton, 'Pilih Toko/Resto'),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('nitip launch args select merchant and show menu selector', (
     WidgetTester tester,
@@ -400,20 +448,24 @@ void main() {
       findsNothing,
     );
 
-    final disabledConfirm = tester.widget<ElevatedButton>(
-      find.widgetWithText(ElevatedButton, 'Konfirmasi'),
+    final disabledConfirm = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Konfirmasi Pilihan (0)'),
     );
     expect(disabledConfirm.onPressed, isNull);
+    expect(find.text('Tulis item manual'), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
 
     await tester.tap(find.byTooltip('Tambah Bakso Urat'));
     await _pumpChatbotFrame(tester);
 
-    final enabledConfirm = tester.widget<ElevatedButton>(
-      find.widgetWithText(ElevatedButton, 'Konfirmasi'),
+    final enabledConfirm = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Konfirmasi Pilihan (1)'),
     );
     expect(enabledConfirm.onPressed, isNotNull);
 
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Konfirmasi'));
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Konfirmasi Pilihan (1)'),
+    );
     await _pumpChatbotFrame(tester);
 
     expect(fakeService.lastMessage, 'Bakso Urat 1');
@@ -476,10 +528,82 @@ void main() {
     await tester.tap(find.byTooltip('Tambah Dimsum Ayam'));
     await tester.tap(find.byTooltip('Tambah Es Teh'));
     await _pumpChatbotFrame(tester);
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Konfirmasi'));
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Konfirmasi Pilihan (3)'),
+    );
     await _pumpChatbotFrame(tester);
 
     expect(fakeService.lastMessage, 'Dimsum Ayam 2\nEs Teh 1');
+  });
+
+  testWidgets('menu selector asks before switching to manual item input', (
+    tester,
+  ) async {
+    await _pumpChatbot(
+      tester,
+      serviceType: 'nitip',
+      chatbotApiService: _FakeChatbotApiService(),
+      launchArgs: const ChatbotLaunchArgs(
+        serviceType: 'nitip',
+        merchantId: 42,
+        merchantName: 'Bakso Balungan',
+        menuSuggestions: <ChatbotMenuSuggestion>[
+          ChatbotMenuSuggestion(
+            name: 'Bakso Urat',
+            presetMessage: 'Bakso Urat 1',
+            priceLabel: 'Rp 12.000',
+          ),
+        ],
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Tambah Bakso Urat'));
+    await _pumpChatbotFrame(tester);
+    await tester.tap(find.text('Tulis item manual'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Tulis item manual?'), findsOneWidget);
+    expect(find.textContaining('Pilihan 1 item'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Tulis manual'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pilih menu'), findsNothing);
+    expect(find.byType(TextField), findsOneWidget);
+  });
+
+  testWidgets('failed menu confirmation preserves selected quantities', (
+    tester,
+  ) async {
+    await _pumpChatbot(
+      tester,
+      serviceType: 'nitip',
+      chatbotApiService: _FakeChatbotApiService(
+        failingMessages: const <String>{'bakso urat 1'},
+      ),
+      launchArgs: const ChatbotLaunchArgs(
+        serviceType: 'nitip',
+        merchantId: 42,
+        merchantName: 'Bakso Balungan',
+        menuSuggestions: <ChatbotMenuSuggestion>[
+          ChatbotMenuSuggestion(
+            name: 'Bakso Urat',
+            presetMessage: 'Bakso Urat 1',
+            priceLabel: 'Rp 12.000',
+          ),
+        ],
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Tambah Bakso Urat'));
+    await _pumpChatbotFrame(tester);
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Konfirmasi Pilihan (1)'),
+    );
+    await _pumpChatbotFrame(tester);
+
+    expect(find.text('Pilih menu'), findsOneWidget);
+    expect(find.text('1 item dipilih'), findsOneWidget);
+    expect(find.text('Chatbot timeout'), findsWidgets);
   });
 
   testWidgets('nitip official menu selector survives reopening chatbot', (
@@ -535,7 +659,9 @@ void main() {
     expect(find.text('Pilih menu'), findsOneWidget);
     expect(find.text('Dimsum Ayam'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Konfirmasi'));
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Konfirmasi Pilihan (1)'),
+    );
     await _pumpChatbotFrame(tester);
 
     expect(fakeService.lastMessage, 'Dimsum Ayam 1');
@@ -1558,7 +1684,10 @@ class _FakeAuthSessionNotifier extends AuthSessionNotifier {
 }
 
 class _FakeChatbotApiService extends ChatbotApiService {
-  _FakeChatbotApiService() : super(ApiClient());
+  _FakeChatbotApiService({this.failingMessages = const <String>{}})
+    : super(ApiClient());
+
+  final Set<String> failingMessages;
 
   int callCount = 0;
   int patchLocationCallCount = 0;
@@ -1594,7 +1723,7 @@ class _FakeChatbotApiService extends ChatbotApiService {
     lastMessage = message;
 
     final normalized = message.trim().toLowerCase();
-    if (normalized == 'trigger error') {
+    if (normalized == 'trigger error' || failingMessages.contains(normalized)) {
       throw const ApiException('Chatbot timeout');
     }
 
@@ -1754,6 +1883,47 @@ class _FakeChatbotApiService extends ChatbotApiService {
           'action_payloads': {
             'OPEN_MERCHANT_PICKER': {
               'label': 'Pilih Tempat di Map',
+              'initial_latitude': -7.0509,
+              'initial_longitude': 110.4315,
+            },
+          },
+          'order': {'created': false, 'payment_method': null},
+        },
+      });
+    }
+
+    if (serviceType == 'nitip' && normalized == 'nitip apa enaknya') {
+      return ChatbotResult.fromApiJson({
+        'status': 'success',
+        'session_id': sessionId,
+        'service_context': {'service_type': serviceType},
+        'model_used': 'deterministic-assistant',
+        'data': {
+          'intent': 'shopping_order',
+          'assistant_text':
+              'Berikut pilihan dari restoran terdekat dengan alamat antarmu:\n\n'
+              '1. Resto Paling Dekat (sekitar 0,25 km)\n'
+              '- Nasi Goreng\n'
+              '- Es Teh\n\n'
+              'Sebutkan nama restoran yang ingin dipakai, lalu tulis menu dan jumlah pesanannya.',
+          'shopping': {
+            'ready_to_confirm': false,
+            'payment_method': null,
+            'merchant': {'id': null, 'name': null},
+            'delivery': {'address': 'FISIP UNDIP'},
+            'items': <Map<String, dynamic>>[],
+            'stops': <Map<String, dynamic>>[],
+          },
+          'validation': {
+            'is_valid_order': false,
+            'rejection_reasons': ['Tempat belum dipilih.'],
+            'missing_fields': ['merchant', 'items'],
+            'next_actions': ['OPEN_MERCHANT_PICKER'],
+          },
+          'action_payloads': {
+            'OPEN_MERCHANT_PICKER': {
+              'label': 'Pilih Tempat di Map',
+              'mode': 'select',
               'initial_latitude': -7.0509,
               'initial_longitude': 110.4315,
             },

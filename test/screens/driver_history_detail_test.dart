@@ -94,10 +94,10 @@ void main() {
 
     expect(find.text('Detail Pesanan'), findsOneWidget);
     expect(find.text('Order ID: BDR-HIST-42'), findsOneWidget);
-    expect(find.text('Pendapatan Bruto'), findsOneWidget);
-    expect(find.text('Pendapatan Bersih'), findsOneWidget);
-    expect(find.text('Biaya Admin 10%'), findsOneWidget);
-    expect(find.text('Total Pembayaran'), findsOneWidget);
+    expect(find.text('Pendapatan bruto'), findsOneWidget);
+    expect(find.text('Pendapatan bersih'), findsOneWidget);
+    expect(find.text('Biaya admin 10%'), findsOneWidget);
+    expect(find.text('Total pembayaran customer'), findsOneWidget);
     expect(find.text('Item Belanja'), findsOneWidget);
     expect(find.text('Bukti Foto'), findsOneWidget);
     expect(

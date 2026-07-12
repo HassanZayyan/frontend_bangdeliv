@@ -157,6 +157,21 @@ void main() {
     expect(find.textContaining('baskoro raya'), findsWidgets);
   });
 
+  testWidgets('incoming order opens detail from the whole card surface', (
+    tester,
+  ) async {
+    await _pumpDriverOrders(
+      tester,
+      service: _AcceptNavigationDriverOrderService(),
+    );
+
+    await tester.tap(find.text('Mhn Zayyan'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Detail Order'), findsOneWidget);
+    expect(find.text('Terima Order'), findsOneWidget);
+  });
+
   testWidgets('empty incoming orders uses activity empty illustration', (
     tester,
   ) async {
