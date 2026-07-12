@@ -962,6 +962,12 @@ class _DriverActiveOrderScreenState
                 selectedPoint.kind == DriverActiveOrderPointKind.pickup;
             final isDropoff = selectedPoint.isDropoff;
             final isMerchant = selectedPoint.isMerchant;
+            final isCourier =
+                normalizeServiceTypeCode(order.serviceTypeCode) ==
+                ServiceTypeCodes.courier;
+            final showTransferPaymentCard =
+                DriverTransferPaymentCard.shouldShow(order) &&
+                (isSummary || (isCourier ? isPickup : isDropoff));
             return LayoutBuilder(
               builder: (context, constraints) {
                 final minExtent = (232 / constraints.maxHeight).clamp(
@@ -1588,10 +1594,7 @@ class _DriverActiveOrderScreenState
                                         ),
                                         const SizedBox(height: 12),
                                       ],
-                                      if ((isSummary || isDropoff) &&
-                                          DriverTransferPaymentCard.shouldShow(
-                                            order,
-                                          )) ...[
+                                      if (showTransferPaymentCard) ...[
                                         DriverTransferPaymentCard(
                                           order: order,
                                           isOrderBusy: isOrderBusy,
