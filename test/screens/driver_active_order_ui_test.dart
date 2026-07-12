@@ -1,6 +1,16 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:frontend_bangdeliv/config/app_routes.dart';
+import 'package:frontend_bangdeliv/features/auth/application/auth_session_provider.dart';
+import 'package:frontend_bangdeliv/features/driver_orders/application/driver_location_reporter_provider.dart';
+import 'package:frontend_bangdeliv/features/driver_orders/application/driver_order_providers.dart';
+import 'package:frontend_bangdeliv/features/driver_orders/presentation/screens/driver_active_order_screen.dart';
+import 'package:frontend_bangdeliv/models/driver_order_model.dart';
+import 'package:frontend_bangdeliv/utils/service_type.dart';
+import 'package:go_router/go_router.dart';
 
 void main() {
   const screenPath =
@@ -151,5 +161,182 @@ void main() {
       expect(source, contains('skipLoadingOnRefresh: true'));
       expect(source, contains('skipError: true'));
     },
+  );
+
+  testWidgets('courier shows QRIS on summary and pickup but not dropoff', (
+    tester,
+  ) async {
+    final router = await _pumpActiveOrder(
+      tester,
+      order: _qrisOrder(ServiceTypeCodes.courier),
+    );
+    addTearDown(router.dispose);
+
+    await _scrollDetailsToText(tester, 'Bukti Foto Order');
+    await _scrollDetailsToText(tester, 'Bukti QRIS Customer');
+
+    await tester.tap(_pointTab('Ringkasan'));
+    await tester.pumpAndSettle();
+    await _resetDetailsScroll(tester);
+
+    await _scrollDetailsToText(tester, 'Bukti QRIS Customer');
+
+    await tester.tap(_pointTab('Antar'));
+    await tester.pumpAndSettle();
+    await _resetDetailsScroll(tester);
+
+    await _scrollDetailsToText(tester, 'Bukti Foto Order');
+    await _scrollDetailsToBottom(tester);
+
+    expect(find.text('Bukti Foto Order'), findsOneWidget);
+    expect(find.text('Bukti QRIS Customer'), findsNothing);
+  });
+
+  testWidgets('non-courier keeps QRIS on summary and dropoff only', (
+    tester,
+  ) async {
+    final router = await _pumpActiveOrder(
+      tester,
+      order: _qrisOrder(ServiceTypeCodes.ride),
+    );
+    addTearDown(router.dispose);
+
+    await _scrollDetailsToBottom(tester);
+    expect(find.text('Bukti QRIS Customer'), findsNothing);
+
+    await tester.tap(_pointTab('Ringkasan'));
+    await tester.pumpAndSettle();
+    await _resetDetailsScroll(tester);
+
+    await _scrollDetailsToText(tester, 'Bukti QRIS Customer');
+
+    await tester.tap(_pointTab('Antar'));
+    await tester.pumpAndSettle();
+    await _resetDetailsScroll(tester);
+
+    await _scrollDetailsToText(tester, 'Bukti QRIS Customer');
+  });
+}
+
+Finder _pointTab(String label) {
+  return find.descendant(
+    of: find.byKey(const ValueKey('driver-active-order-point-selector')),
+    matching: find.text(label),
+  );
+}
+
+Finder _detailsScrollable() {
+  return find.descendant(
+    of: find.byType(DraggableScrollableSheet),
+    matching: find.byType(Scrollable),
+  ).last;
+}
+
+Future<void> _scrollDetailsToText(WidgetTester tester, String text) async {
+  final finder = find.text(text);
+  await tester.scrollUntilVisible(
+    finder,
+    260,
+    scrollable: _detailsScrollable(),
+  );
+  expect(finder, findsOneWidget);
+}
+
+Future<void> _scrollDetailsToBottom(WidgetTester tester) async {
+  for (var index = 0; index < 6; index++) {
+    await tester.drag(_detailsScrollable(), const Offset(0, -500));
+    await tester.pumpAndSettle();
+  }
+}
+
+Future<void> _resetDetailsScroll(WidgetTester tester) async {
+  for (var index = 0; index < 6; index++) {
+    await tester.drag(_detailsScrollable(), const Offset(0, 500));
+    await tester.pumpAndSettle();
+  }
+}
+
+Future<GoRouter> _pumpActiveOrder(
+  WidgetTester tester, {
+  required DriverOrderModel order,
+}) async {
+  final router = GoRouter(
+    initialLocation: AppRoutes.driverOrderActivePath(order.id),
+    routes: [
+      GoRoute(
+        path: AppRoutes.driverHome,
+        builder: (context, state) =>
+            const Scaffold(body: Center(child: Text('driver home'))),
+      ),
+      GoRoute(
+        path: AppRoutes.driverOrderActive,
+        builder: (context, state) => DriverActiveOrderScreen(
+          orderId: state.pathParameters['orderId'] ?? '',
+        ),
+      ),
+    ],
+  );
+
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        authSessionProvider.overrideWith(_ActiveDriverAuthSession.new),
+        driverOrderDetailProvider.overrideWith((ref, orderId) async => order),
+        driverLocationReporterProvider.overrideWith(
+          _IdleDriverLocationReporter.new,
+        ),
+      ],
+      child: MaterialApp.router(routerConfig: router),
+    ),
+  );
+  await tester.pumpAndSettle();
+  return router;
+}
+
+class _ActiveDriverAuthSession extends AuthSessionNotifier {
+  @override
+  AuthSessionState build() {
+    return const AuthSessionState(
+      initialized: true,
+      isAuthenticated: true,
+      role: SessionUserRole.driver,
+      driverAccessState: DriverAccessState.active,
+      profile: null,
+    );
+  }
+}
+
+class _IdleDriverLocationReporter extends DriverLocationReporterNotifier {
+  @override
+  DriverLocationReporterState build() {
+    return const DriverLocationReporterState();
+  }
+}
+
+DriverOrderModel _qrisOrder(String serviceTypeCode) {
+  return DriverOrderModel(
+    id: '42',
+    customerName: 'Customer',
+    serviceTypeCode: serviceTypeCode,
+    pickupAddress: 'Pickup',
+    dropoffAddress: 'Dropoff',
+    etaMinutes: 8,
+    fee: 18000,
+    totalPrice: 23000,
+    itemCount: 1,
+    statusCode: 'ARRIVED_PICKUP',
+    paymentMethod: 'QRIS',
+    paymentStatus: 'paid',
+    proofs: [
+      DriverOrderProofModel(
+        id: 1,
+        type: 'payment_transfer',
+        label: 'Bukti QRIS',
+        photoUrl: 'https://example.test/qris.jpg',
+        status: 'verified',
+        note: 'Bukti QRIS dari customer.',
+        createdAt: DateTime.parse('2026-07-13T06:06:00+07:00'),
+      ),
+    ],
   );
 }
