@@ -21,6 +21,20 @@ void main() {
     );
     expect(isTerminalOrderStatus(OrderStatusCode.completed), isTrue);
     expect(isDriverRunningOrderStatus(OrderStatusCode.driverAssigned), isTrue);
+    expect(
+      isDriverRunningOrder(
+        statusCode: OrderStatusCode.cancelledWithFee,
+        paymentStatus: 'unpaid',
+      ),
+      isTrue,
+    );
+    expect(
+      isDriverRunningOrder(
+        statusCode: OrderStatusCode.cancelledWithFee,
+        paymentStatus: 'paid',
+      ),
+      isFalse,
+    );
   });
 
   test('payment and proof constants cover main service flow contracts', () {

@@ -893,7 +893,10 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         return null;
       }
 
-      final isDriverRunning = isDriverRunningOrderStatus(updated.statusCode);
+      final isDriverRunning = isDriverRunningOrder(
+        statusCode: updated.statusCode,
+        paymentStatus: updated.paymentStatus,
+      );
       final syncedRunning = isDriverRunning
           ? _upsertRunningOrder(latest.running, updated)
           : _removeRunningOrder(latest.running, orderId);
@@ -1243,17 +1246,30 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         return null;
       }
 
+      final isDriverRunning = isDriverRunningOrder(
+        statusCode: updated.statusCode,
+        paymentStatus: updated.paymentStatus,
+      );
+      final syncedRunning = isDriverRunning
+          ? _upsertRunningOrder(latest.running, updated)
+          : _removeRunningOrder(latest.running, orderId);
+
       state = AsyncData(
         _clearActionProcessing(
-          latest.copyWith(
-            running: _upsertRunningOrder(latest.running, updated),
-          ),
+          latest.copyWith(running: syncedRunning),
           actionKey: actionKey,
         ),
       );
       _syncRunningOrderRealtime(state.asData!.value);
 
       ref.invalidate(driverOrderDetailProvider(orderId));
+      if (!isDriverRunning && isTerminalOrderStatus(updated.statusCode)) {
+        ref.invalidate(driverAvailabilityProvider);
+        unawaited(
+          ref.read(driverHistoryProvider.notifier).refresh(showLoading: false),
+        );
+        _refreshAvailabilityThenSyncRealtime();
+      }
       return null;
     } catch (error) {
       final latest = state.asData?.value;

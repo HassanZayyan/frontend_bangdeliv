@@ -66,6 +66,7 @@ class CustomerOrderSummaryModel {
   final String? manualDeliveryFeeReason;
   final String? paymentStatus;
   final String? paymentMethod;
+  final bool wasCancelledWithFee;
 
   const CustomerOrderSummaryModel({
     required this.id,
@@ -90,24 +91,43 @@ class CustomerOrderSummaryModel {
     this.manualDeliveryFeeReason,
     required this.paymentStatus,
     required this.paymentMethod,
+    this.wasCancelledWithFee = false,
   });
 
-  bool get isCompleted =>
-      order_status.normalizeOrderStatusCode(statusCode) ==
-      order_status.OrderStatusCodes.completed;
+  bool get hasCancelledWithFeeOutcome {
+    return wasCancelledWithFee ||
+        order_status.normalizeOrderStatusCode(statusCode) ==
+            order_status.OrderStatusCodes.cancelledWithFee;
+  }
 
-  bool get isCancelled => order_status.isCancelledOrderStatus(statusCode);
+  String get effectiveStatusCode => hasCancelledWithFeeOutcome
+      ? order_status.OrderStatusCodes.cancelledWithFee
+      : statusCode;
+
+  String get effectiveStatusLabel => hasCancelledWithFeeOutcome
+      ? order_status.orderStatusLabel(
+          order_status.OrderStatusCodes.cancelledWithFee,
+        )
+      : statusLabel;
+
+  bool get isCompleted =>
+      !hasCancelledWithFeeOutcome &&
+      order_status.normalizeOrderStatusCode(statusCode) ==
+          order_status.OrderStatusCodes.completed;
+
+  bool get isCancelled =>
+      hasCancelledWithFeeOutcome ||
+      order_status.isCancelledOrderStatus(statusCode);
 
   bool get requiresCustomerPaymentAction {
     final normalizedServiceType = service_type.normalizeServiceTypeCode(
       serviceTypeCode,
     );
-    final normalizedStatus = order_status.normalizeOrderStatusCode(statusCode);
     final normalizedPaymentMethod = (paymentMethod ?? '').trim().toUpperCase();
     final normalizedPaymentStatus = (paymentStatus ?? '').trim().toLowerCase();
 
     return normalizedServiceType == service_type.ServiceTypeCodes.shopping &&
-        normalizedStatus == order_status.OrderStatusCodes.cancelledWithFee &&
+        hasCancelledWithFeeOutcome &&
         normalizedPaymentMethod == 'TRANSFER' &&
         normalizedPaymentStatus != 'paid';
   }
@@ -146,6 +166,7 @@ class CustomerOrderSummaryModel {
     String? manualDeliveryFeeReason,
     String? paymentStatus,
     String? paymentMethod,
+    bool? wasCancelledWithFee,
   }) {
     return CustomerOrderSummaryModel(
       id: id ?? this.id,
@@ -172,6 +193,7 @@ class CustomerOrderSummaryModel {
           manualDeliveryFeeReason ?? this.manualDeliveryFeeReason,
       paymentStatus: paymentStatus ?? this.paymentStatus,
       paymentMethod: paymentMethod ?? this.paymentMethod,
+      wasCancelledWithFee: wasCancelledWithFee ?? this.wasCancelledWithFee,
     );
   }
 
@@ -215,6 +237,9 @@ class CustomerOrderSummaryModel {
       manualDeliveryFeeReason: null,
       paymentStatus: json['payment_status']?.toString(),
       paymentMethod: json['payment_method']?.toString(),
+      wasCancelledWithFee: _asBool(
+        json['was_cancelled_with_fee'] ?? json['wasCancelledWithFee'],
+      ),
     );
   }
 
@@ -670,8 +695,12 @@ class CustomerOrderDetailModel {
   }
 
   bool get isCancelledWithFee {
-    return order_status.normalizeOrderStatusCode(summary.statusCode) ==
-        order_status.OrderStatusCodes.cancelledWithFee;
+    return summary.hasCancelledWithFeeOutcome ||
+        timeline.any(
+          (entry) =>
+              order_status.normalizeOrderStatusCode(entry.code) ==
+              order_status.OrderStatusCodes.cancelledWithFee,
+        );
   }
 
   String get shoppingServiceFeeLabel {

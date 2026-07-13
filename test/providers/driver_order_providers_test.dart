@@ -227,7 +227,6 @@ void main() {
       addTearDown(container.dispose);
 
       await container.read(driverOrdersProvider.future);
-
       final error = await container
           .read(driverOrdersProvider.notifier)
           .rejectOrder('ORD-1');
@@ -395,6 +394,48 @@ void main() {
       expect(error, isNull);
       expect(state.isProcessing('99'), isFalse);
       expect(state.processingActionKeys, isEmpty);
+    },
+  );
+
+  test(
+    'paid cancelled with fee is removed from running orders and refreshes history',
+    () async {
+      final cancelledOrder = _transferOrder('99').copyWith(
+        statusCode: OrderStatusCodes.cancelledWithFee,
+        statusDisplayName: 'Dibatalkan Dengan Biaya',
+      );
+      final fakeService = _FakeDriverOrderService(
+        payload: DriverOrdersPayload(
+          incoming: const <DriverOrderModel>[],
+          running: <DriverOrderModel>[cancelledOrder],
+        ),
+      );
+      final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+      final fakeRealtime = FakeOrderRealtimeClient();
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          driverOrderServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(driverOrdersProvider.future);
+      final historyCallsBeforePayment = fakeService.fetchHistoryCalls;
+
+      final error = await container
+          .read(driverOrdersProvider.notifier)
+          .confirmTransferPayment(orderId: '99', amount: 5000);
+      await Future<void>.delayed(Duration.zero);
+
+      final state = container.read(driverOrdersProvider).asData!.value;
+      expect(error, isNull);
+      expect(state.running, isEmpty);
+      expect(
+        fakeService.fetchHistoryCalls,
+        greaterThan(historyCallsBeforePayment),
+      );
     },
   );
 

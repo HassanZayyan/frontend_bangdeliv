@@ -124,6 +124,17 @@ void main() {
         isTerminalStatus: true,
         paymentStatus: 'paid',
       );
+      final legacyCancelledWithFeeOrder = _order(
+        id: 7104,
+        number: 'ORD-LEGACY-FEE',
+        serviceTypeCode: 'SHOPPING',
+        statusCode: 'COMPLETED',
+        statusLabel: 'Selesai',
+        isTerminalStatus: true,
+        paymentStatus: 'paid',
+        paymentMethod: 'TRANSFER',
+        wasCancelledWithFee: true,
+      );
       final fakeAuth = _FakeAuthSessionNotifier(_customerSession(9));
       final fakeService = _FakeCustomerOrderApiService(
         queuedResponses: <List<CustomerOrderSummaryModel>>[
@@ -131,6 +142,7 @@ void main() {
             unpaidFeeOrder,
             paidFeeOrder,
             completedOrder,
+            legacyCancelledWithFeeOrder,
           ],
         ],
       );
@@ -155,16 +167,50 @@ void main() {
       );
       expect(
         container.read(customerHistoryOrdersProvider).map((order) => order.id),
-        unorderedEquals([7102, 7103]),
+        unorderedEquals([7102, 7103, 7104]),
       );
       expect(
         container
             .read(customerCancelledOrdersProvider)
             .map((order) => order.id),
-        [7102],
+        [7102, 7104],
+      );
+      expect(
+        container
+            .read(customerCompletedOrdersProvider)
+            .map((order) => order.id),
+        [7103],
+      );
+      expect(
+        legacyCancelledWithFeeOrder.effectiveStatusLabel,
+        'Dibatalkan Dengan Biaya',
       );
     },
   );
+
+  test('customer summary parses legacy cancelled with fee outcome flag', () {
+    final order = CustomerOrderSummaryModel.fromJson({
+      'id': 7201,
+      'order_number': 'ORD-LEGACY-PARSED',
+      'service_type': {'code': 'SHOPPING', 'display_name': 'Nitip'},
+      'status_ref': {
+        'code': 'COMPLETED',
+        'display_name': 'Selesai',
+        'is_terminal': true,
+      },
+      'was_cancelled_with_fee': true,
+      'payment_method': 'TRANSFER',
+      'payment_status': 'paid',
+      'total_price': 65000,
+    });
+
+    expect(order.statusCode, 'COMPLETED');
+    expect(order.hasCancelledWithFeeOutcome, isTrue);
+    expect(order.isCompleted, isFalse);
+    expect(order.isCancelled, isTrue);
+    expect(order.effectiveStatusCode, 'CANCELLED_WITH_FEE');
+    expect(order.effectiveStatusLabel, 'Dibatalkan Dengan Biaya');
+  });
 }
 
 class _FakeAuthSessionNotifier extends AuthSessionNotifier {
@@ -254,6 +300,7 @@ CustomerOrderSummaryModel _order({
   bool isTerminalStatus = false,
   String paymentStatus = 'unpaid',
   String paymentMethod = 'COD',
+  bool wasCancelledWithFee = false,
 }) {
   return CustomerOrderSummaryModel(
     id: id,
@@ -271,6 +318,7 @@ CustomerOrderSummaryModel _order({
     deliveryAddress: 'Alamat Tujuan',
     paymentStatus: paymentStatus,
     paymentMethod: paymentMethod,
+    wasCancelledWithFee: wasCancelledWithFee,
   );
 }
 

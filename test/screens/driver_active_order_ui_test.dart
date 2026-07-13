@@ -239,6 +239,19 @@ void main() {
 
     await _scrollDetailsToText(tester, 'Bukti QRIS Customer');
   });
+
+  testWidgets('paid cancellation fee returns driver to home', (tester) async {
+    final order = _qrisOrder(ServiceTypeCodes.shopping).copyWith(
+      statusCode: 'CANCELLED_WITH_FEE',
+      statusDisplayName: 'Dibatalkan Dengan Biaya',
+      paymentStatus: 'paid',
+    );
+    final router = await _pumpActiveOrder(tester, order: order);
+    addTearDown(router.dispose);
+
+    expect(find.text('driver home'), findsOneWidget);
+    expect(find.byType(DriverActiveOrderScreen), findsNothing);
+  });
 }
 
 Finder _pointTab(String label) {

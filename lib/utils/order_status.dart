@@ -47,6 +47,15 @@ bool isDriverRunningOrderStatus(String code) {
   }
 }
 
+bool isDriverRunningOrder({required String statusCode, String? paymentStatus}) {
+  final normalizedStatus = normalizeOrderStatusCode(statusCode);
+  if (normalizedStatus == OrderStatusCodes.cancelledWithFee) {
+    return (paymentStatus ?? '').trim().toLowerCase() != 'paid';
+  }
+
+  return isDriverRunningOrderStatus(normalizedStatus);
+}
+
 bool isCancelledOrderStatus(String code) {
   switch (normalizeOrderStatusCode(code)) {
     case OrderStatusCodes.cancelled:
