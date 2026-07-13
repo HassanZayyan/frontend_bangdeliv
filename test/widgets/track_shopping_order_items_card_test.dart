@@ -68,6 +68,57 @@ void main() {
     expect(find.text('Batal tempat'), findsOneWidget);
   });
 
+  testWidgets('failed merchant card remains available before checkout', (
+    tester,
+  ) async {
+    await _pumpCard(
+      tester,
+      _FakeCustomerOrderRepository(),
+      detail: _shoppingDetail(
+        shoppingStops: [_failedShoppingStop(77, 'Kedai Tinari')],
+      ),
+    );
+
+    expect(
+      find.textContaining('Kedai Tinari - Tempat tutup/order batal'),
+      findsOneWidget,
+    );
+    expect(find.text('Ganti toko/resto'), findsOneWidget);
+  });
+
+  testWidgets('checkout hides all failed merchant cards and keeps order info', (
+    tester,
+  ) async {
+    await _pumpCard(
+      tester,
+      _FakeCustomerOrderRepository(),
+      detail: _shoppingDetail(
+        shoppingCapabilities: const ShoppingOrderCapabilitiesModel(
+          isExplicit: true,
+          hasCheckoutSaved: true,
+        ),
+        shoppingStops: [
+          _failedShoppingStop(77, 'Kedai Tinari'),
+          _failedShoppingStop(78, 'Warung Sejahtera'),
+        ],
+      ),
+    );
+
+    expect(
+      find.textContaining('Kedai Tinari - Tempat tutup/order batal'),
+      findsNothing,
+    );
+    expect(
+      find.textContaining('Warung Sejahtera - Tempat tutup/order batal'),
+      findsNothing,
+    );
+    expect(find.text('Ganti toko/resto'), findsNothing);
+    expect(find.textContaining('Item tidak tersedia:'), findsOneWidget);
+    expect(find.text('Subtotal barang'), findsOneWidget);
+    expect(find.text('Ongkir aktif'), findsOneWidget);
+    expect(find.text('Total pembayaran customer'), findsOneWidget);
+  });
+
   testWidgets('multiple unavailable items can be selected in one decision', (
     tester,
   ) async {
@@ -760,6 +811,24 @@ List<CustomerShoppingStopModel> _shoppingStops(int count) {
       ],
     );
   }, growable: false);
+}
+
+CustomerShoppingStopModel _failedShoppingStop(int id, String merchantName) {
+  return CustomerShoppingStopModel(
+    pickupLocationId: id,
+    sequenceNo: id,
+    fulfillmentStatus: 'FAILED',
+    chainFailedAttemptCount: 1,
+    orderFailedTripCount: 1,
+    canReplaceMerchant: true,
+    merchant: CustomerShoppingMerchantModel(
+      id: id,
+      name: merchantName,
+      merchantType: 'restaurant',
+      address: 'Jl. Merchant $id',
+    ),
+    items: const [],
+  );
 }
 
 ShoppingNegotiationModel _pendingShoppingQuote({
