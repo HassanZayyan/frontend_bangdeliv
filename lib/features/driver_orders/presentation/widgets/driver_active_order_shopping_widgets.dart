@@ -14,6 +14,7 @@ import '../../../../models/driver_order_model.dart';
 import '../../../../models/shopping_negotiation_model.dart';
 import '../../../../models/shopping_order_capability_model.dart';
 import '../../../../utils/order_formatters.dart';
+import '../../../../utils/rupiah_input_formatter.dart';
 import 'driver_active_order_widget_helpers.dart';
 
 class DriverShoppingItemChangeRequestCard extends StatelessWidget {
@@ -177,7 +178,7 @@ class _DriverShoppingMerchantQuotePanelState
   void initState() {
     super.initState();
     if (widget.initialDraft.trim().isNotEmpty) {
-      _amountController.text = widget.initialDraft;
+      _amountController.text = formatRupiahInputText(widget.initialDraft);
     } else {
       _primeAmount();
     }
@@ -187,7 +188,7 @@ class _DriverShoppingMerchantQuotePanelState
   void didUpdateWidget(covariant DriverShoppingMerchantQuotePanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.pickupLocationId != widget.pickupLocationId) {
-      _amountController.text = widget.initialDraft;
+      _amountController.text = formatRupiahInputText(widget.initialDraft);
       if (_amountController.text.trim().isEmpty) {
         _primeAmount();
       }
@@ -206,7 +207,7 @@ class _DriverShoppingMerchantQuotePanelState
   void _primeAmount() {
     final amount = widget.quote?.displayAmount;
     if ((amount ?? 0) > 0) {
-      _amountController.text = amount!.round().toString();
+      _amountController.text = formatRupiahInputAmount(amount!);
     }
   }
 
@@ -297,6 +298,7 @@ class _DriverShoppingMerchantQuotePanelState
         TextField(
           controller: _amountController,
           keyboardType: TextInputType.number,
+          inputFormatters: const [RupiahInputFormatter()],
           enabled: canSubmitQuote && !widget.isOrderBusy,
           onChanged: widget.onDraftChanged,
           decoration: driverDialogInputDecoration(
@@ -590,7 +592,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
             const SizedBox(height: 8),
             BangActionButton(
               label: !widget.order.hasProof('receipt')
-                  ? 'Upload Foto Struk Opsional'
+                  ? 'Ambil Foto Struk (Opsional)'
                   : 'Foto Struk Siap',
               variant: BangActionButtonVariant.outlined,
               icon: Icons.photo_camera_outlined,
@@ -1460,7 +1462,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
   }
 
   Future<void> _uploadReceiptPhoto() async {
-    final photo = await pickDriverOrderImage(context);
+    final photo = await pickDriverOrderCameraImage(context);
     if (photo == null || !mounted) {
       return;
     }

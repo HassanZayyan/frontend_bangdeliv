@@ -89,13 +89,13 @@ class _DriverMainLayoutState extends ConsumerState<DriverMainLayout> {
     final incomingOrderCount = isActiveDriver
         ? ref.watch(driverIncomingOrderCountProvider)
         : 0;
-    final isFocusedActiveOrder =
-        isActiveDriver && _isFocusedActiveOrderRoute(context);
+    final isFocusedDriverRoute =
+        isActiveDriver && _isFocusedDriverRoute(context);
 
     final scaffold = Scaffold(
       backgroundColor: AppColors.background,
       body: isActiveDriver
-          ? isFocusedActiveOrder
+          ? isFocusedDriverRoute
                 ? widget.child
                 : BangFloatingBottomNavHost(
                     navigationBar: BangFloatingBottomNavBar(
@@ -137,9 +137,11 @@ class _DriverMainLayoutState extends ConsumerState<DriverMainLayout> {
     );
   }
 
-  bool _isFocusedActiveOrderRoute(BuildContext context) {
+  bool _isFocusedDriverRoute(BuildContext context) {
     final location = GoRouterState.of(context).uri.path;
     final activeOrderPattern = RegExp(r'^/driver/orders/[^/]+/active$');
-    return activeOrderPattern.hasMatch(location);
+    final historyDetailPattern = RegExp(r'^/driver/history/[^/]+$');
+    return activeOrderPattern.hasMatch(location) ||
+        historyDetailPattern.hasMatch(location);
   }
 }

@@ -250,13 +250,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.orderChat,
         builder: (context, state) {
           final orderId = int.tryParse(state.pathParameters['orderId'] ?? '');
+          final extra = state.extra;
           if (orderId == null || orderId <= 0) {
             return const Scaffold(
               body: Center(child: Text('Order chat tidak valid.')),
             );
           }
 
-          return OrderChatScreen(orderId: orderId);
+          final routeArgs = extra is OrderChatRouteArgs ? extra : null;
+          final returnPath =
+              routeArgs?.returnPath ?? (extra is String ? extra : null);
+
+          return OrderChatScreen(orderId: orderId, returnPath: returnPath);
         },
       ),
       _rootRoute(

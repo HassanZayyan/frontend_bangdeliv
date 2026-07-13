@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../config/app_colors.dart';
 import '../../utils/currency_input_parser.dart';
 import '../../utils/order_formatters.dart';
+import '../../utils/rupiah_input_formatter.dart';
 
 Future<double?> showBangCounterAmountDialog(
   BuildContext context, {
@@ -109,6 +110,7 @@ class _BangCounterAmountSheetState extends State<_BangCounterAmountSheet> {
             TextField(
               controller: _controller,
               keyboardType: TextInputType.number,
+              inputFormatters: const [RupiahInputFormatter()],
               autofocus: true,
               style: const TextStyle(
                 color: AppColors.textPrimary,

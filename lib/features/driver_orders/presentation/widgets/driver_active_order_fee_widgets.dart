@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../config/app_colors.dart';
 import '../../../../models/driver_order_model.dart';
 import '../../../../utils/order_formatters.dart';
+import '../../../../utils/rupiah_input_formatter.dart';
 import '../../../../utils/service_type.dart';
 import 'driver_active_order_widget_helpers.dart';
 
@@ -71,7 +72,7 @@ class _ShoppingCancelWithFeeDialogState
     super.initState();
     _amountController = TextEditingController(
       text: widget.initialBaseDeliveryFee > 0
-          ? widget.initialBaseDeliveryFee.round().toString()
+          ? formatRupiahInputAmount(widget.initialBaseDeliveryFee)
           : '',
     );
     _reasonController = TextEditingController();
@@ -110,6 +111,7 @@ class _ShoppingCancelWithFeeDialogState
                 controller: _amountController,
                 autofocus: true,
                 keyboardType: TextInputType.number,
+                inputFormatters: const [RupiahInputFormatter()],
                 decoration: driverDialogInputDecoration(
                   labelText: 'Ongkir penuh',
                   prefixText: 'Rp ',
@@ -282,7 +284,7 @@ class _ManualDeliveryFeeDialogState extends State<_ManualDeliveryFeeDialog> {
     super.initState();
     final initialAmount = widget.initialAmount ?? 0;
     _amountController = TextEditingController(
-      text: initialAmount > 0 ? initialAmount.round().toString() : '',
+      text: formatRupiahInputAmount(initialAmount),
     );
     _reasonController = TextEditingController(text: widget.initialReason);
   }
@@ -334,6 +336,7 @@ class _ManualDeliveryFeeDialogState extends State<_ManualDeliveryFeeDialog> {
                     TextField(
                       controller: _amountController,
                       keyboardType: TextInputType.number,
+                      inputFormatters: const [RupiahInputFormatter()],
                       style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 14,

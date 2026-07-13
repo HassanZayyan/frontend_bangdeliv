@@ -170,8 +170,8 @@ class DriverOrderProofChecklistCard extends StatelessWidget {
             const SizedBox(width: 8),
           ],
           BangActionButton(
-            label: uploaded ? 'Ganti' : 'Upload',
-            icon: Icons.upload_file,
+            label: uploaded ? 'Ganti Foto' : 'Ambil Foto',
+            icon: Icons.photo_camera_outlined,
             variant: BangActionButtonVariant.outlined,
             isLoading: isUploading,
             isEnabled: !isOrderBusy || isUploading,
@@ -224,7 +224,12 @@ class DriverOrderProofChecklistCard extends StatelessWidget {
     BuildContext context,
     _ProofRequirement requirement,
   ) async {
-    final photo = await pickDriverOrderImage(context);
+    final XFile? photo;
+    if (_isCourierLifecycleProof(requirement.type)) {
+      photo = await pickDriverOrderCameraImage(context);
+    } else {
+      photo = await pickDriverOrderImage(context);
+    }
     if (photo == null) {
       return;
     }
@@ -244,6 +249,11 @@ class DriverOrderProofChecklistCard extends StatelessWidget {
       message: error ?? '${requirement.title} berhasil diupload.',
       isError: error != null,
     );
+  }
+
+  bool _isCourierLifecycleProof(String type) {
+    final normalized = type.trim().toLowerCase();
+    return normalized == 'pickup' || normalized == 'delivery';
   }
 }
 

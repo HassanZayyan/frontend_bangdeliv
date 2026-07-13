@@ -126,7 +126,7 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
                               formatter: formatCurrency,
                               onTap: order.orderId == null
                                   ? null
-                                  : () => context.go(
+                                  : () => context.push(
                                       AppRoutes.driverHistoryDetailPath(
                                         order.orderId!,
                                       ),

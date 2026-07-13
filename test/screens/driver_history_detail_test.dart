@@ -7,9 +7,11 @@ import 'package:frontend_bangdeliv/config/app_colors.dart';
 import 'package:frontend_bangdeliv/config/app_routes.dart';
 import 'package:frontend_bangdeliv/core/di/app_providers.dart';
 import 'package:frontend_bangdeliv/features/auth/application/auth_session_provider.dart';
-import 'package:frontend_bangdeliv/features/navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
+import 'package:frontend_bangdeliv/features/driver_orders/application/driver_location_reporter_provider.dart';
+import 'package:frontend_bangdeliv/features/driver_orders/application/driver_order_providers.dart';
 import 'package:frontend_bangdeliv/features/driver_orders/presentation/screens/driver_history_screen.dart';
 import 'package:frontend_bangdeliv/features/driver_orders/presentation/screens/driver_order_history_detail_screen.dart';
+import 'package:frontend_bangdeliv/features/navigation/presentation/screens/driver_main_layout.dart';
 import 'package:frontend_bangdeliv/models/driver_order_model.dart';
 import 'package:frontend_bangdeliv/models/user_profile_model.dart';
 import 'package:frontend_bangdeliv/services/driver_order_service.dart';
@@ -23,18 +25,24 @@ void main() {
     final router = GoRouter(
       initialLocation: AppRoutes.driverHistory,
       routes: [
-        GoRoute(
-          path: AppRoutes.driverHistory,
-          builder: (context, state) => const DriverHistoryScreen(),
-        ),
-        GoRoute(
-          path: AppRoutes.driverHistoryDetail,
-          builder: (context, state) => Scaffold(
-            body: Text('history-detail:${state.pathParameters['orderId']}'),
-          ),
+        ShellRoute(
+          builder: (context, state, child) => DriverMainLayout(child: child),
+          routes: [
+            GoRoute(
+              path: AppRoutes.driverHistory,
+              builder: (context, state) => const DriverHistoryScreen(),
+            ),
+            GoRoute(
+              path: AppRoutes.driverHistoryDetail,
+              builder: (context, state) => DriverOrderHistoryDetailScreen(
+                orderId: state.pathParameters['orderId'] ?? '',
+              ),
+            ),
+          ],
         ),
       ],
     );
+    addTearDown(router.dispose);
 
     await tester.pumpWidget(
       ProviderScope(
@@ -44,6 +52,10 @@ void main() {
           ),
           driverOrderServiceProvider.overrideWithValue(
             _FakeDriverHistoryService(),
+          ),
+          driverIncomingOrderCountProvider.overrideWith((ref) => 0),
+          driverLocationReporterProvider.overrideWith(
+            _IdleDriverLocationReporter.new,
           ),
         ],
         child: MaterialApp.router(routerConfig: router),
@@ -58,6 +70,7 @@ void main() {
     expect(find.text(formatDateMonthTime(_driverHistoryDate)), findsOneWidget);
     expect(find.text('Bruto Rp 15.000 - Admin 10% Rp 1.500'), findsOneWidget);
     expect(find.byIcon(Icons.chevron_right_rounded), findsNothing);
+    expect(find.text('Riwayat'), findsOneWidget);
 
     final orderNumberText = tester.widget<Text>(find.text('BDR-HIST-42'));
     expect(orderNumberText.style?.fontSize, 11.5);
@@ -69,10 +82,17 @@ void main() {
     await tester.tap(find.text('BDR-HIST-42'));
     await tester.pumpAndSettle();
 
-    expect(find.text('history-detail:42'), findsOneWidget);
+    expect(find.text('Detail Pesanan'), findsOneWidget);
+    expect(find.text('Riwayat'), findsNothing);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Riwayat Driver'), findsOneWidget);
+    expect(find.text('Riwayat'), findsOneWidget);
     expect(
       router.routeInformationProvider.value.uri.path,
-      '/driver/history/42',
+      AppRoutes.driverHistory,
     );
   });
 
@@ -122,7 +142,7 @@ void main() {
 
     final detailList = tester.widget<ListView>(find.byType(ListView));
     final detailPadding = detailList.padding as EdgeInsets;
-    expect(detailPadding.bottom, BangFloatingBottomNavBar.scrollClearance - 42);
+    expect(detailPadding.bottom, 24);
 
     await tester.scrollUntilVisible(
       find.text('Riwayat Status'),
@@ -293,6 +313,13 @@ class _FakeAuthSessionNotifier extends AuthSessionNotifier {
 
   @override
   AuthSessionState build() => _initialState;
+}
+
+class _IdleDriverLocationReporter extends DriverLocationReporterNotifier {
+  @override
+  DriverLocationReporterState build() {
+    return const DriverLocationReporterState();
+  }
 }
 
 AuthSessionState _driverSession() {

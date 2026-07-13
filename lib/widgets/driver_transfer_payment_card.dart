@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../config/app_colors.dart';
 import '../core/widgets/bang_action_button.dart';
@@ -8,6 +7,7 @@ import '../utils/currency_formatter.dart';
 import '../utils/currency_input_parser.dart';
 import '../utils/order_formatters.dart';
 import '../utils/order_ui_helpers.dart';
+import '../utils/rupiah_input_formatter.dart';
 
 typedef DriverTransferPaymentCallback =
     Future<void> Function({required double amount});
@@ -829,7 +829,7 @@ class _TransferPaymentDialogState extends State<_TransferPaymentDialog> {
     super.initState();
     _amountController = TextEditingController(
       text: widget.initialAmount > 0
-          ? widget.initialAmount.round().toString()
+          ? formatRupiahInputAmount(widget.initialAmount)
           : '',
     );
   }
@@ -879,9 +879,7 @@ class _TransferPaymentDialogState extends State<_TransferPaymentDialog> {
                       TextField(
                         controller: _amountController,
                         keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
+                        inputFormatters: const [RupiahInputFormatter()],
                         style: const TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 14,

@@ -72,7 +72,7 @@ void main() {
     expect(find.text('Rp 50.000'), findsOneWidget);
     expect(
       tester.widget<TextField>(find.byType(TextField).first).controller?.text,
-      '100000',
+      '100.000',
     );
 
     await tester.enterText(find.byType(TextField).first, '120000');
@@ -171,7 +171,7 @@ void main() {
     );
     expect(
       tester.widget<TextField>(find.byType(TextField).first).controller?.text,
-      '25000',
+      '25.000',
     );
   });
 

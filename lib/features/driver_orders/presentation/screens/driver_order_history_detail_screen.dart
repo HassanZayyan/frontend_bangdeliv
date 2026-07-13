@@ -8,8 +8,8 @@ import '../../../../core/widgets/bang_async_state.dart';
 import '../../../../models/driver_order_model.dart';
 import '../../../../services/driver_order_service.dart';
 import '../../../../widgets/order_chat_badge_icon.dart';
-import '../../../navigation/presentation/widgets/bang_floating_bottom_nav_bar.dart';
 import '../../../orders/application/order_chat_unread_provider.dart';
+import '../../../orders/presentation/screens/order_chat_screen.dart';
 import '../../application/driver_order_providers.dart';
 import '../widgets/driver_active_order_action_widgets.dart';
 import '../widgets/driver_active_order_meta_widgets.dart';
@@ -35,7 +35,7 @@ class DriverOrderHistoryDetailScreen extends ConsumerWidget {
     final unreadCount = unreadCountAsync.asData?.value ?? 0;
 
     return PopScope<void>(
-      canPop: false,
+      canPop: Navigator.of(context).canPop(),
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) {
           return;
@@ -67,7 +67,12 @@ class DriverOrderHistoryDetailScreen extends ConsumerWidget {
                 unreadCount: unreadCount,
                 iconColor: AppColors.textPrimary,
               ),
-              onPressed: () => context.push(AppRoutes.orderChatPath(orderId)),
+              onPressed: () => context.push(
+                AppRoutes.orderChatPath(orderId),
+                extra: OrderChatRouteArgs(
+                  returnPath: AppRoutes.driverHistoryDetailPath(orderId),
+                ),
+              ),
             ),
           ],
         ),
@@ -89,12 +94,7 @@ class DriverOrderHistoryDetailScreen extends ConsumerWidget {
               },
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(
-                  16,
-                  12,
-                  16,
-                  BangFloatingBottomNavBar.scrollClearance - 42,
-                ),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                 children: [
                   DriverOrderMetaCard(order: order, showOrderIdLabel: true),
                   const SizedBox(height: 12),
@@ -138,6 +138,12 @@ class DriverOrderHistoryDetailScreen extends ConsumerWidget {
   }
 
   void _goBackToHistory(BuildContext context) {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+
     context.go(AppRoutes.driverHistory);
   }
 }

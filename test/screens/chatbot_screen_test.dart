@@ -162,6 +162,41 @@ void main() {
     );
   });
 
+  testWidgets('antar jemput welcome shows a destination writing example', (
+    WidgetTester tester,
+  ) async {
+    await _pumpChatbot(
+      tester,
+      serviceType: 'antar_jemput',
+      chatbotApiService: _FakeChatbotApiService(),
+    );
+
+    expect(find.textContaining('Tulis tujuan perjalanan'), findsOneWidget);
+    expect(find.textContaining('Contoh:'), findsOneWidget);
+    expect(find.textContaining('Antar ke Ramayana Salatiga'), findsOneWidget);
+  });
+
+  testWidgets('courier welcome shows the complete writing format', (
+    WidgetTester tester,
+  ) async {
+    await _pumpChatbot(
+      tester,
+      serviceType: 'kurir',
+      chatbotApiService: _FakeChatbotApiService(),
+    );
+
+    expect(find.textContaining('Contoh:'), findsOneWidget);
+    expect(
+      find.textContaining('Ambil: Laundry Berkah Salatiga'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Tujuan: Universitas Kristen Satya Wacana'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Barang: 1 tas laundry'), findsOneWidget);
+  });
+
   testWidgets('chatbot input keyboard uses newline instead of keyboard send', (
     WidgetTester tester,
   ) async {

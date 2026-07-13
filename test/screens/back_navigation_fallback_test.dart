@@ -2,13 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend_bangdeliv/config/app_routes.dart';
+import 'package:frontend_bangdeliv/core/di/app_providers.dart';
 import 'package:frontend_bangdeliv/features/auth/application/auth_session_provider.dart';
 import 'package:frontend_bangdeliv/features/driver_orders/application/driver_location_reporter_provider.dart';
 import 'package:frontend_bangdeliv/features/driver_orders/application/driver_order_providers.dart';
 import 'package:frontend_bangdeliv/features/driver_orders/presentation/screens/driver_active_order_screen.dart';
+import 'package:frontend_bangdeliv/features/orders/presentation/screens/order_chat_screen.dart';
 import 'package:frontend_bangdeliv/features/profile/presentation/screens/notification_settings_screen.dart';
 import 'package:frontend_bangdeliv/models/driver_order_model.dart';
+import 'package:frontend_bangdeliv/models/order_chat_model.dart';
+import 'package:frontend_bangdeliv/models/user_profile_model.dart';
+import 'package:frontend_bangdeliv/services/api_client.dart';
+import 'package:frontend_bangdeliv/services/order_chat_api_service.dart';
+import 'package:frontend_bangdeliv/widgets/order_chat_badge_icon.dart';
 import 'package:go_router/go_router.dart';
+
+import '../fakes/fake_order_realtime_client.dart';
 
 void main() {
   group('driver active order back navigation', () {
@@ -86,6 +95,73 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('driver home'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('system back from active order chat returns to active order', (
+      tester,
+    ) async {
+      final router = await _pumpNavigationApp(
+        tester,
+        initialLocation: AppRoutes.driverOrderActivePath('42'),
+        session: _driverSessionWithProfile(),
+      );
+      addTearDown(router.dispose);
+
+      expect(
+        router.routeInformationProvider.value.uri.path,
+        AppRoutes.driverOrderActivePath('42'),
+      );
+
+      final chatButton = find.ancestor(
+        of: find.byType(OrderChatBadgeIcon),
+        matching: find.byType(IconButton),
+      );
+      final chatIconButton = tester
+          .widgetList<IconButton>(chatButton)
+          .singleWhere((button) => button.onPressed != null);
+      chatIconButton.onPressed!();
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('Halo driver', findRichText: true),
+        findsOneWidget,
+      );
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Hubungi customer'), findsOneWidget);
+      expect(
+        router.routeInformationProvider.value.uri.path,
+        AppRoutes.driverOrderActivePath('42'),
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('direct driver chat system back falls back to active order', (
+      tester,
+    ) async {
+      final router = await _pumpNavigationApp(
+        tester,
+        initialLocation: AppRoutes.orderChatPath(42),
+        session: _driverSessionWithProfile(),
+      );
+      addTearDown(router.dispose);
+
+      expect(
+        router.routeInformationProvider.value.uri.path,
+        AppRoutes.orderChatPath(42),
+      );
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Hubungi customer'), findsOneWidget);
+      expect(
+        router.routeInformationProvider.value.uri.path,
+        AppRoutes.driverOrderActivePath('42'),
+      );
       expect(tester.takeException(), isNull);
     });
   });
@@ -194,6 +270,19 @@ Future<GoRouter> _pumpNavigationApp(
         ),
       ),
       GoRoute(
+        path: AppRoutes.orderChat,
+        builder: (context, state) {
+          final orderId = int.tryParse(state.pathParameters['orderId'] ?? '');
+          final extra = state.extra;
+          final routeArgs = extra is OrderChatRouteArgs ? extra : null;
+
+          return OrderChatScreen(
+            orderId: orderId ?? 0,
+            returnPath: routeArgs?.returnPath,
+          );
+        },
+      ),
+      GoRoute(
         path: _sourceRoute,
         builder: (context, state) => const _SourceScreen(),
       ),
@@ -211,6 +300,12 @@ Future<GoRouter> _pumpNavigationApp(
         ),
         driverLocationReporterProvider.overrideWith(
           _IdleDriverLocationReporter.new,
+        ),
+        orderChatApiServiceProvider.overrideWithValue(
+          _FakeOrderChatApiService(),
+        ),
+        orderRealtimeClientProvider.overrideWithValue(
+          FakeOrderRealtimeClient(),
         ),
       ],
       child: MaterialApp.router(routerConfig: router),
@@ -247,6 +342,31 @@ const _adminSession = AuthSessionState(
   driverAccessState: DriverAccessState.none,
   profile: null,
 );
+
+AuthSessionState _driverSessionWithProfile() {
+  return AuthSessionState.fromProfile(
+    UserProfileModel(
+      id: 77,
+      name: 'Driver Test',
+      phone: '081277771111',
+      email: 'driver.test@example.com',
+      avatar: null,
+      avatarUrl: null,
+      role: 'driver',
+      driverProfile: const DriverProfileModel(
+        registrationStatus: 'active',
+        status: 'available',
+        vehicleType: 'motor',
+        vehicleBrand: 'Honda',
+        vehicleModel: 'Beat',
+        vehiclePlate: 'H 1234 QA',
+        totalDeliveries: 0,
+      ),
+      stats: const UserStatsModel(totalOrders: 0, totalPaid: 0),
+      addresses: const <SavedAddressModel>[],
+    ),
+  );
+}
 
 class _TestAuthSessionNotifier extends AuthSessionNotifier {
   _TestAuthSessionNotifier(this.initialState);
@@ -315,3 +435,48 @@ DriverOrderModel _driverOrder(String id) {
 }
 
 final _testOrder = _driverOrder('42');
+
+class _FakeOrderChatApiService extends OrderChatApiService {
+  _FakeOrderChatApiService() : super(ApiClient());
+
+  @override
+  Future<OrderChatMessagesPage> fetchMessages({
+    required int orderId,
+    int limit = 50,
+    int? beforeId,
+    int? afterId,
+  }) async {
+    return OrderChatMessagesPage(
+      messages: <OrderChatMessageModel>[
+        OrderChatMessageModel(
+          id: 1,
+          orderId: orderId,
+          senderUserId: 88,
+          senderRole: 'customer',
+          senderName: 'Customer $orderId',
+          body: 'Halo driver',
+          clientMessageId: null,
+          createdAt: DateTime.utc(2026),
+        ),
+      ],
+      canSend: true,
+      hasMore: false,
+      nextBeforeId: null,
+      unreadCount: 0,
+      lastReadMessageId: 0,
+    );
+  }
+
+  @override
+  Future<OrderChatUnreadSummary> fetchUnread({required int orderId}) async {
+    return const OrderChatUnreadSummary(unreadCount: 0, lastReadMessageId: 0);
+  }
+
+  @override
+  Future<OrderChatUnreadSummary> markRead({
+    required int orderId,
+    required int messageId,
+  }) async {
+    return OrderChatUnreadSummary(unreadCount: 0, lastReadMessageId: messageId);
+  }
+}

@@ -37,22 +37,22 @@ void main() {
     await tester.pumpWidget(buildPanel(1));
     expect(
       tester.widget<TextField>(find.byType(TextField)).controller?.text,
-      '12000',
+      '12.000',
     );
 
     await tester.enterText(find.byType(TextField), '15000');
-    expect(drafts[1], '15000');
+    expect(drafts[1], '15.000');
 
     await tester.pumpWidget(buildPanel(2));
     expect(
       tester.widget<TextField>(find.byType(TextField)).controller?.text,
-      '23000',
+      '23.000',
     );
 
     await tester.pumpWidget(buildPanel(1));
     expect(
       tester.widget<TextField>(find.byType(TextField)).controller?.text,
-      '15000',
+      '15.000',
     );
   });
 }

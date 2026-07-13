@@ -153,3 +153,22 @@ Future<XFile?> pickDriverOrderImage(BuildContext context) async {
     maxWidth: 1600,
   );
 }
+
+Future<XFile?> pickDriverOrderCameraImage(BuildContext context) async {
+  try {
+    return await ImagePicker().pickImage(
+      source: ImageSource.camera,
+      imageQuality: 76,
+      maxWidth: 1600,
+    );
+  } catch (_) {
+    if (context.mounted) {
+      showDriverActiveOrderSnackBar(
+        context,
+        message: 'Kamera belum bisa dibuka. Cek izin kamera lalu coba lagi.',
+        isError: true,
+      );
+    }
+    return null;
+  }
+}

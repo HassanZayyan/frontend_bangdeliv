@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../config/app_routes.dart';
@@ -20,6 +21,7 @@ import '../../../../utils/external_navigation_launcher.dart';
 import '../../../../widgets/driver_transfer_payment_card.dart';
 import '../../../../widgets/order_chat_badge_icon.dart';
 import '../../../orders/application/order_chat_unread_provider.dart';
+import '../../../orders/presentation/screens/order_chat_screen.dart';
 import '../../../shopping/presentation/screens/shopping_merchant_map_picker_screen.dart';
 import '../../application/driver_location_reporter_provider.dart';
 import '../../application/driver_order_providers.dart';
@@ -172,10 +174,17 @@ class _DriverActiveOrderScreenState
       DriverShoppingItemsDraftStore();
   String? _selectedPointId;
   String? _lastActivePointId;
+  double? _pendingSheetLimitSyncTarget;
   bool _isRefreshingOrder = false;
   bool _resolvedCancellationNavigationScheduled = false;
 
   String get orderId => widget.orderId;
+
+  static const double _sheetCompactMaxExtent = 0.58;
+  static const double _sheetDetailedMaxExtent = 0.76;
+  static const double _sheetPaymentMaxExtent = 0.82;
+  static const double _sheetExpandedMaxExtent = 0.94;
+  static const double _sheetExtentEpsilon = 0.001;
 
   // Dipakai untuk mengukur tinggi sticky action bar agar toast hasil aksi
   // driver muncul DI ATAS tombol aksi, bukan menutupinya. Khusus layar ini.
@@ -210,26 +219,71 @@ class _DriverActiveOrderScreenState
     );
   }
 
-  void _selectPoint(String pointId, {double? targetExtent}) {
+  void _selectPoint(String pointId) {
     if (_selectedPointId != pointId) {
       setState(() => _selectedPointId = pointId);
     }
-    final extent = targetExtent;
-    if (extent == null || !_sheetController.isAttached) {
+  }
+
+  double _sheetMaxExtentForPoint({
+    required DriverOrderModel order,
+    required DriverActiveOrderPoint selectedPoint,
+    required bool showTransferPaymentCard,
+  }) {
+    if (selectedPoint.isSummary || selectedPoint.isMerchant) {
+      return _sheetExpandedMaxExtent;
+    }
+
+    if (showTransferPaymentCard) {
+      return _sheetPaymentMaxExtent;
+    }
+
+    final serviceType = normalizeServiceTypeCode(order.serviceTypeCode);
+    if (serviceType == ServiceTypeCodes.courier) {
+      return _sheetDetailedMaxExtent;
+    }
+
+    return _sheetCompactMaxExtent;
+  }
+
+  void _syncSheetWithinMaxExtent(double maxExtent) {
+    if (!_sheetController.isAttached ||
+        _sheetController.size <= maxExtent + _sheetExtentEpsilon) {
       return;
     }
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    if (reduceMotion) {
-      _sheetController.jumpTo(extent);
+
+    final pendingTarget = _pendingSheetLimitSyncTarget;
+    if (pendingTarget != null &&
+        (pendingTarget - maxExtent).abs() <= _sheetExtentEpsilon) {
       return;
     }
-    unawaited(
-      _sheetController.animateTo(
-        extent,
-        duration: const Duration(milliseconds: 240),
-        curve: Curves.easeOutCubic,
-      ),
-    );
+
+    _pendingSheetLimitSyncTarget = maxExtent;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final targetExtent = _pendingSheetLimitSyncTarget;
+      _pendingSheetLimitSyncTarget = null;
+      if (!mounted ||
+          targetExtent == null ||
+          !_sheetController.isAttached ||
+          _sheetController.size <= targetExtent + _sheetExtentEpsilon) {
+        return;
+      }
+
+      if (MediaQuery.disableAnimationsOf(context)) {
+        _sheetController.jumpTo(targetExtent);
+        return;
+      }
+
+      unawaited(
+        _sheetController
+            .animateTo(
+              targetExtent,
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+            )
+            .catchError((_) {}),
+      );
+    });
   }
 
   Future<void> _refreshOrder(
@@ -395,8 +449,12 @@ class _DriverActiveOrderScreenState
               const SizedBox(width: 8),
               _MapControlButton(
                 tooltip: 'Hubungi customer',
-                onPressed: () =>
-                    context.push(AppRoutes.orderChatPath(order.id)),
+                onPressed: () => context.push(
+                  AppRoutes.orderChatPath(order.id),
+                  extra: OrderChatRouteArgs(
+                    returnPath: AppRoutes.driverOrderActivePath(order.id),
+                  ),
+                ),
                 child: OrderChatBadgeIcon(
                   unreadCount: unreadCount,
                   iconColor: AppColors.textPrimary,
@@ -599,7 +657,7 @@ class _DriverActiveOrderScreenState
                         )
                       : null,
                   label: Text(point.label),
-                  onSelected: (_) => _selectPoint(point.id, targetExtent: 0.52),
+                  onSelected: (_) => _selectPoint(point.id),
                   selectedColor: AppColors.primaryLight,
                   side: BorderSide(
                     color: selected ? AppColors.primary : AppColors.border,
@@ -685,8 +743,13 @@ class _DriverActiveOrderScreenState
 
     final choice = await showModalBottomSheet<String>(
       context: context,
+      backgroundColor: AppColors.surface,
       showDragHandle: true,
       useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      clipBehavior: Clip.antiAlias,
       builder: (sheetContext) => Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: Column(
@@ -793,13 +856,12 @@ class _DriverActiveOrderScreenState
       return _SheetPrimaryAction(
         label: 'Kembali ke tugas aktif: ${activePoint.label}',
         icon: Icons.near_me_outlined,
-        onPressed: () => _selectPoint(activePoint.id, targetExtent: 0.52),
+        onPressed: () => _selectPoint(activePoint.id),
       );
     }
 
     final primaryActions = order.availableActions
         .where((action) => !_isProblemOrderAction(action))
-        .take(1)
         .toList(growable: false);
     final footerOrder = order.copyWith(availableActions: primaryActions);
     if (!hasDriverOrderStickyActionBarContent(footerOrder)) {
@@ -811,6 +873,40 @@ class _DriverActiveOrderScreenState
       footerOrder,
       isOrderBusy,
       isProcessingAction(DriverOrderActionKeys.shoppingCheckout(order.id)),
+      isResolvingTransferPayment:
+          isProcessingAction(DriverOrderActionKeys.confirmQris(order.id)) ||
+          isProcessingAction(DriverOrderActionKeys.rejectQris(order.id)),
+      onResolveTransferPayment: () => _showTransferPaymentSheet(context, order),
+      isResolvingProof:
+          isProcessingAction(
+            DriverOrderActionKeys.uploadProof(order.id, 'pickup'),
+          ) ||
+          isProcessingAction(
+            DriverOrderActionKeys.uploadProof(order.id, 'delivery'),
+          ),
+      onResolveProof: (proofType) =>
+          _pickAndUploadCourierProof(context, order, proofType),
+      isUpdatingDeliveryFee: isProcessingAction(
+        DriverOrderActionKeys.updateFee(order.id),
+      ),
+      isAcceptingDeliveryFeeCounter: isProcessingAction(
+        DriverOrderActionKeys.acceptDeliveryFeeCounter(order.id),
+      ),
+      isBypassingDeliveryFee: isProcessingAction(
+        DriverOrderActionKeys.bypassDeliveryFee(order.id),
+      ),
+      onEditDeliveryFee:
+          order.deliveryFeeNegotiation?.canDriverSubmitQuote == true
+          ? () => _showDeliveryFeeEditDialog(context, order)
+          : null,
+      onAcceptDeliveryFeeCounter:
+          order.deliveryFeeNegotiation?.canDriverAcceptCounter == true
+          ? () => _acceptDeliveryFeeCounter(context, order)
+          : null,
+      onBypassDeliveryFee:
+          order.deliveryFeeNegotiation?.isPendingCustomer == true
+          ? () => _confirmAndBypassDeliveryFee(context, order)
+          : null,
       compactForSheet: true,
     );
   }
@@ -852,6 +948,290 @@ class _DriverActiveOrderScreenState
       isError: isError,
       stickyActionBarKey: _stickyActionBarKey,
     );
+  }
+
+  Future<String?> _confirmTransferPayment(
+    DriverOrderModel order, {
+    required double amount,
+  }) async {
+    final error = await ref
+        .read(driverOrdersProvider.notifier)
+        .confirmTransferPayment(orderId: order.id, amount: amount);
+
+    if (!mounted) {
+      return error;
+    }
+
+    _showActionSnackBar(
+      context,
+      message: error ?? 'Pembayaran QRIS berhasil diverifikasi.',
+      isError: error != null,
+    );
+    if (error == null) {
+      ref.invalidate(driverOrderDetailProvider(order.id));
+    }
+
+    return error;
+  }
+
+  Future<String?> _rejectTransferPayment(
+    DriverOrderModel order, {
+    required String reason,
+  }) async {
+    final error = await ref
+        .read(driverOrdersProvider.notifier)
+        .rejectTransferPayment(orderId: order.id, reason: reason);
+
+    if (!mounted) {
+      return error;
+    }
+
+    _showActionSnackBar(
+      context,
+      message: error ?? 'Bukti QRIS ditolak.',
+      isError: error != null,
+    );
+    if (error == null) {
+      ref.invalidate(driverOrderDetailProvider(order.id));
+    }
+
+    return error;
+  }
+
+  Future<String?> _updateDeliveryFeeOverride(
+    DriverOrderModel order, {
+    required double amount,
+    required String reason,
+  }) async {
+    final error = await ref
+        .read(driverOrdersProvider.notifier)
+        .updateDeliveryFeeOverride(
+          orderId: order.id,
+          amount: amount,
+          reason: reason,
+        );
+    if (error == null) {
+      ref.invalidate(driverOrderDetailProvider(order.id));
+    }
+    return error;
+  }
+
+  Future<void> _showDeliveryFeeEditDialog(
+    BuildContext context,
+    DriverOrderModel order,
+  ) async {
+    await showDriverManualDeliveryFeeEditDialog(
+      context,
+      order: order,
+      onSave: ({required amount, required reason}) =>
+          _updateDeliveryFeeOverride(order, amount: amount, reason: reason),
+    );
+  }
+
+  Future<void> _acceptDeliveryFeeCounter(
+    BuildContext context,
+    DriverOrderModel order,
+  ) async {
+    final error = await ref
+        .read(driverOrdersProvider.notifier)
+        .acceptDeliveryFeeCounterOffer(orderId: order.id);
+
+    if (!context.mounted) {
+      return;
+    }
+
+    _showActionSnackBar(
+      context,
+      message: error ?? 'Tawaran ongkir customer disetujui.',
+      isError: error != null,
+    );
+    if (error == null) {
+      ref.invalidate(driverOrderDetailProvider(order.id));
+    }
+  }
+
+  Future<void> _bypassDeliveryFee(
+    BuildContext context,
+    DriverOrderModel order,
+  ) async {
+    final error = await ref
+        .read(driverOrdersProvider.notifier)
+        .bypassDeliveryFeeOverride(orderId: order.id);
+
+    if (!context.mounted) {
+      return;
+    }
+
+    _showActionSnackBar(
+      context,
+      message: error ?? 'Persetujuan ongkir customer dibypass.',
+      isError: error != null,
+    );
+    if (error == null) {
+      ref.invalidate(driverOrderDetailProvider(order.id));
+    }
+  }
+
+  Future<void> _confirmAndBypassDeliveryFee(
+    BuildContext context,
+    DriverOrderModel order,
+  ) async {
+    final confirmed = await showDriverDeliveryFeeBypassConfirmation(
+      context,
+      order: order,
+    );
+    if (!confirmed || !context.mounted) {
+      return;
+    }
+
+    await _bypassDeliveryFee(context, order);
+  }
+
+  Future<void> _showTransferPaymentSheet(
+    BuildContext context,
+    DriverOrderModel order,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return Consumer(
+          builder: (sheetContext, sheetRef, _) {
+            final ordersSnapshot = sheetRef.watch(driverOrdersProvider).asData;
+            bool sheetIsProcessingAction(String actionKey) {
+              return ordersSnapshot?.value.isProcessingAction(actionKey) ??
+                  false;
+            }
+
+            final isConfirmingQris = sheetIsProcessingAction(
+              DriverOrderActionKeys.confirmQris(order.id),
+            );
+            final isRejectingQris = sheetIsProcessingAction(
+              DriverOrderActionKeys.rejectQris(order.id),
+            );
+            final bottomInset = MediaQuery.viewInsetsOf(sheetContext).bottom;
+            final maxSheetHeight =
+                MediaQuery.sizeOf(sheetContext).height * 0.86;
+
+            return SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(12, 0, 12, bottomInset + 12),
+                child: Material(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  clipBehavior: Clip.antiAlias,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: maxSheetHeight),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 4,
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: AppColors.border,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                          ),
+                          DriverTransferPaymentCard(
+                            order: order,
+                            isOrderBusy: isConfirmingQris || isRejectingQris,
+                            isConfirmingQris: isConfirmingQris,
+                            isRejectingQris: isRejectingQris,
+                            onConfirmTransfer: ({required amount}) async {
+                              final error = await _confirmTransferPayment(
+                                order,
+                                amount: amount,
+                              );
+                              if (error == null && sheetContext.mounted) {
+                                Navigator.of(sheetContext).pop();
+                              }
+                            },
+                            onRejectTransfer: ({required reason}) async {
+                              final error = await _rejectTransferPayment(
+                                order,
+                                reason: reason,
+                              );
+                              if (error == null && sheetContext.mounted) {
+                                Navigator.of(sheetContext).pop();
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<String?> _uploadOrderProof(
+    DriverOrderModel order, {
+    required String type,
+    required XFile photo,
+    String? note,
+    int? pickupLocationId,
+  }) async {
+    final error = await ref
+        .read(driverOrdersProvider.notifier)
+        .uploadProof(
+          orderId: order.id,
+          type: type,
+          photo: photo,
+          note: note,
+          pickupLocationId: pickupLocationId,
+        );
+
+    if (error == null) {
+      ref.invalidate(driverOrderDetailProvider(order.id));
+    }
+
+    return error;
+  }
+
+  Future<void> _pickAndUploadCourierProof(
+    BuildContext context,
+    DriverOrderModel order,
+    String proofType,
+  ) async {
+    final photo = await pickDriverOrderCameraImage(context);
+    if (photo == null) {
+      return;
+    }
+
+    final label = _courierProofLabel(proofType);
+    final error = await _uploadOrderProof(
+      order,
+      type: proofType,
+      photo: photo,
+      note: label,
+    );
+
+    if (!context.mounted) {
+      return;
+    }
+
+    _showActionSnackBar(
+      context,
+      message: error ?? '$label berhasil diupload.',
+      isError: error != null,
+    );
+  }
+
+  String _courierProofLabel(String proofType) {
+    return proofType.trim().toLowerCase() == 'delivery'
+        ? 'Bukti diterima'
+        : 'Bukti pengambilan';
   }
 
   void _handleBack() {
@@ -995,7 +1375,7 @@ class _DriverActiveOrderScreenState
                 ServiceTypeCodes.courier;
             final showTransferPaymentCard =
                 DriverTransferPaymentCard.shouldShow(order) &&
-                (isSummary || (isCourier ? isPickup : isDropoff));
+                (isCourier ? isPickup : (isSummary || isDropoff));
             return LayoutBuilder(
               builder: (context, constraints) {
                 final minExtent = (232 / constraints.maxHeight).clamp(
@@ -1003,7 +1383,12 @@ class _DriverActiveOrderScreenState
                   0.38,
                 );
                 const mediumExtent = 0.52;
-                const maxExtent = 0.94;
+                final maxExtent = _sheetMaxExtentForPoint(
+                  order: order,
+                  selectedPoint: selectedPoint,
+                  showTransferPaymentCard: showTransferPaymentCard,
+                );
+                _syncSheetWithinMaxExtent(maxExtent);
 
                 return Stack(
                   children: [
@@ -1013,8 +1398,7 @@ class _DriverActiveOrderScreenState
                         driverPosition: driverPosition,
                         points: points,
                         selectedPointId: selectedPoint.id,
-                        onPointSelected: (pointId) =>
-                            _selectPoint(pointId, targetExtent: mediumExtent),
+                        onPointSelected: _selectPoint,
                         fullBleed: true,
                         mapTopPadding: MediaQuery.paddingOf(context).top + 72,
                         mapBottomPadding:
@@ -1158,90 +1542,27 @@ class _DriverActiveOrderScreenState
                                                   ? ({
                                                       required amount,
                                                       required reason,
-                                                    }) async {
-                                                      final error = await ref
-                                                          .read(
-                                                            driverOrdersProvider
-                                                                .notifier,
-                                                          )
-                                                          .updateDeliveryFeeOverride(
-                                                            orderId: order.id,
-                                                            amount: amount,
-                                                            reason: reason,
-                                                          );
-                                                      if (error == null) {
-                                                        ref.invalidate(
-                                                          driverOrderDetailProvider(
-                                                            order.id,
-                                                          ),
-                                                        );
-                                                      }
-                                                      return error;
-                                                    }
+                                                    }) =>
+                                                        _updateDeliveryFeeOverride(
+                                                          order,
+                                                          amount: amount,
+                                                          reason: reason,
+                                                        )
                                                   : null,
                                               onAcceptDeliveryFeeCounter:
                                                   canAcceptDeliveryFeeCounter
-                                                  ? () async {
-                                                      final error = await ref
-                                                          .read(
-                                                            driverOrdersProvider
-                                                                .notifier,
-                                                          )
-                                                          .acceptDeliveryFeeCounterOffer(
-                                                            orderId: order.id,
-                                                          );
-
-                                                      if (!context.mounted) {
-                                                        return;
-                                                      }
-
-                                                      _showActionSnackBar(
-                                                        context,
-                                                        message:
-                                                            error ??
-                                                            'Tawaran ongkir customer disetujui.',
-                                                        isError: error != null,
-                                                      );
-                                                      if (error == null) {
-                                                        ref.invalidate(
-                                                          driverOrderDetailProvider(
-                                                            order.id,
-                                                          ),
-                                                        );
-                                                      }
-                                                    }
+                                                  ? () =>
+                                                        _acceptDeliveryFeeCounter(
+                                                          context,
+                                                          order,
+                                                        )
                                                   : null,
                                               onBypassDeliveryFee:
                                                   canBypassDeliveryFee
-                                                  ? () async {
-                                                      final error = await ref
-                                                          .read(
-                                                            driverOrdersProvider
-                                                                .notifier,
-                                                          )
-                                                          .bypassDeliveryFeeOverride(
-                                                            orderId: order.id,
-                                                          );
-
-                                                      if (!context.mounted) {
-                                                        return;
-                                                      }
-
-                                                      _showActionSnackBar(
-                                                        context,
-                                                        message:
-                                                            error ??
-                                                            'Persetujuan ongkir customer dibypass.',
-                                                        isError: error != null,
-                                                      );
-                                                      if (error == null) {
-                                                        ref.invalidate(
-                                                          driverOrderDetailProvider(
-                                                            order.id,
-                                                          ),
-                                                        );
-                                                      }
-                                                    }
+                                                  ? () => _bypassDeliveryFee(
+                                                      context,
+                                                      order,
+                                                    )
                                                   : null,
                                             );
                                           },
@@ -1251,9 +1572,7 @@ class _DriverActiveOrderScreenState
                                                 order.serviceTypeCode,
                                               ) ==
                                               ServiceTypeCodes.courier &&
-                                          (isSummary ||
-                                              isPickup ||
-                                              isDropoff)) ...[
+                                          (isPickup || isDropoff)) ...[
                                         DriverOrderProofChecklistCard(
                                           order: order,
                                           visibleProofTypes: isPickup
@@ -1276,19 +1595,14 @@ class _DriverActiveOrderScreenState
                                                 note,
                                                 pickupLocationId,
                                               }) {
-                                                return ref
-                                                    .read(
-                                                      driverOrdersProvider
-                                                          .notifier,
-                                                    )
-                                                    .uploadProof(
-                                                      orderId: order.id,
-                                                      type: type,
-                                                      photo: photo,
-                                                      note: note,
-                                                      pickupLocationId:
-                                                          pickupLocationId,
-                                                    );
+                                                return _uploadOrderProof(
+                                                  order,
+                                                  type: type,
+                                                  photo: photo,
+                                                  note: note,
+                                                  pickupLocationId:
+                                                      pickupLocationId,
+                                                );
                                               },
                                         ),
                                         const SizedBox(height: 12),
@@ -1643,65 +1957,17 @@ class _DriverActiveOrderScreenState
                                           ),
                                           onConfirmTransfer:
                                               ({required amount}) async {
-                                                final error = await ref
-                                                    .read(
-                                                      driverOrdersProvider
-                                                          .notifier,
-                                                    )
-                                                    .confirmTransferPayment(
-                                                      orderId: order.id,
-                                                      amount: amount,
-                                                    );
-
-                                                if (!context.mounted) {
-                                                  return;
-                                                }
-
-                                                _showActionSnackBar(
-                                                  context,
-                                                  message:
-                                                      error ??
-                                                      'Pembayaran QRIS berhasil diverifikasi.',
-                                                  isError: error != null,
+                                                await _confirmTransferPayment(
+                                                  order,
+                                                  amount: amount,
                                                 );
-                                                if (error == null) {
-                                                  ref.invalidate(
-                                                    driverOrderDetailProvider(
-                                                      order.id,
-                                                    ),
-                                                  );
-                                                }
                                               },
                                           onRejectTransfer:
                                               ({required reason}) async {
-                                                final error = await ref
-                                                    .read(
-                                                      driverOrdersProvider
-                                                          .notifier,
-                                                    )
-                                                    .rejectTransferPayment(
-                                                      orderId: order.id,
-                                                      reason: reason,
-                                                    );
-
-                                                if (!context.mounted) {
-                                                  return;
-                                                }
-
-                                                _showActionSnackBar(
-                                                  context,
-                                                  message:
-                                                      error ??
-                                                      'Bukti QRIS ditolak.',
-                                                  isError: error != null,
+                                                await _rejectTransferPayment(
+                                                  order,
+                                                  reason: reason,
                                                 );
-                                                if (error == null) {
-                                                  ref.invalidate(
-                                                    driverOrderDetailProvider(
-                                                      order.id,
-                                                    ),
-                                                  );
-                                                }
                                               },
                                         ),
                                         const SizedBox(height: 12),
@@ -1926,6 +2192,16 @@ class _DriverActiveOrderScreenState
     DriverOrderModel order,
     bool isProcessing,
     bool isSavingShoppingCheckout, {
+    bool isResolvingTransferPayment = false,
+    Future<void> Function()? onResolveTransferPayment,
+    bool isResolvingProof = false,
+    Future<void> Function(String proofType)? onResolveProof,
+    bool isUpdatingDeliveryFee = false,
+    bool isAcceptingDeliveryFeeCounter = false,
+    bool isBypassingDeliveryFee = false,
+    Future<void> Function()? onEditDeliveryFee,
+    Future<void> Function()? onAcceptDeliveryFeeCounter,
+    Future<void> Function()? onBypassDeliveryFee,
     bool compactForSheet = false,
   }) {
     return DriverOrderStickyActionBar(
@@ -1933,6 +2209,11 @@ class _DriverActiveOrderScreenState
       order: order,
       isProcessing: isProcessing,
       isSavingShoppingCheckout: isSavingShoppingCheckout,
+      isResolvingTransferPayment: isResolvingTransferPayment,
+      isResolvingProof: isResolvingProof,
+      isUpdatingDeliveryFee: isUpdatingDeliveryFee,
+      isAcceptingDeliveryFeeCounter: isAcceptingDeliveryFeeCounter,
+      isBypassingDeliveryFee: isBypassingDeliveryFee,
       compactForSheet: compactForSheet,
       singlePrimaryAction: compactForSheet,
       onSaveShoppingCheckout: () async {
@@ -1972,6 +2253,11 @@ class _DriverActiveOrderScreenState
 
         _showActionSnackBar(context, message: error, isError: true);
       },
+      onResolveTransferPayment: onResolveTransferPayment,
+      onResolveProof: onResolveProof,
+      onEditDeliveryFee: onEditDeliveryFee,
+      onAcceptDeliveryFeeCounter: onAcceptDeliveryFeeCounter,
+      onBypassDeliveryFee: onBypassDeliveryFee,
       onTapAction: (action) => _executeOrderAction(context, order, action),
     );
   }
