@@ -322,6 +322,8 @@ void main() {
           orderId: '99',
           actionCode: 'CANCEL_WITH_FEE',
           targetStatusCode: OrderStatusCodes.cancelledWithFee,
+          note: 'Rute aktual lebih jauh.',
+          cancellationPenaltyBaseDeliveryFee: 100000,
         );
     await Future<void>.delayed(Duration.zero);
 
@@ -331,6 +333,8 @@ void main() {
     expect(state.running.single.id, '99');
     expect(state.running.single.statusCode, OrderStatusCodes.cancelledWithFee);
     expect(fakeService.fetchHistoryCalls, 0);
+    expect(fakeService.transitionNotes['99'], 'Rute aktual lebih jauh.');
+    expect(fakeService.transitionCancellationBases['99'], 100000);
   });
 
   test(
@@ -1608,6 +1612,8 @@ class _FakeDriverOrderService extends DriverOrderService {
   int fetchDetailCalls = 0;
   int fetchHistoryCalls = 0;
   final List<String> transitionedOrderIds = <String>[];
+  final Map<String, String?> transitionNotes = <String, String?>{};
+  final Map<String, double?> transitionCancellationBases = <String, double?>{};
   final List<_DriverLocationUpdate> locationUpdates = <_DriverLocationUpdate>[];
   List<DriverHistoryOrderModel> history = const <DriverHistoryOrderModel>[];
 
@@ -1769,14 +1775,15 @@ class _FakeDriverOrderService extends DriverOrderService {
     required String actionCode,
     String? targetStatusCode,
     String? note,
-    double? latitude,
-    double? longitude,
+    double? cancellationPenaltyBaseDeliveryFee,
   }) async {
     final completer = transitionCompleter;
     if (completer != null) {
       await completer.future;
     }
     transitionedOrderIds.add(orderId);
+    transitionNotes[orderId] = note;
+    transitionCancellationBases[orderId] = cancellationPenaltyBaseDeliveryFee;
     final updated = payload.running
         .firstWhere((order) => order.id == orderId)
         .copyWith(

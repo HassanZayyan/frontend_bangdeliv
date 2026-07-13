@@ -72,7 +72,8 @@ class _TrackShoppingOrderItemsCardState
         .toList(growable: false);
     final showFailedStopNotices =
         widget.showGlobalActions &&
-        !detail.shoppingCapabilities.hasCheckoutSaved;
+        !detail.shoppingCapabilities.hasCheckoutSaved &&
+        !detail.isCancelledWithFee;
 
     return Container(
       padding: const EdgeInsets.all(16),

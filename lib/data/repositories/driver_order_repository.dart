@@ -18,6 +18,7 @@ abstract class DriverOrderRepository {
     required String actionCode,
     String? targetStatusCode,
     String? note,
+    double? cancellationPenaltyBaseDeliveryFee,
   });
 
   Future<void> collectCod({
@@ -189,12 +190,14 @@ class ApiDriverOrderRepository implements DriverOrderRepository {
     required String actionCode,
     String? targetStatusCode,
     String? note,
+    double? cancellationPenaltyBaseDeliveryFee,
   }) {
     return _service.transitionStatus(
       orderId: orderId,
       actionCode: actionCode,
       targetStatusCode: targetStatusCode,
       note: note,
+      cancellationPenaltyBaseDeliveryFee: cancellationPenaltyBaseDeliveryFee,
     );
   }
 

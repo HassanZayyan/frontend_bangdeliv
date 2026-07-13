@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:frontend_bangdeliv/core/widgets/bang_swipe_action_button.dart';
+import 'package:frontend_bangdeliv/features/driver_orders/presentation/widgets/driver_active_order_fee_widgets.dart';
 import 'package:frontend_bangdeliv/features/driver_orders/presentation/widgets/driver_active_order_meta_widgets.dart';
 import 'package:frontend_bangdeliv/models/amount_negotiation_model.dart';
 import 'package:frontend_bangdeliv/models/delivery_fee_negotiation_model.dart';
@@ -10,6 +11,95 @@ import 'package:frontend_bangdeliv/utils/order_status.dart';
 import 'package:frontend_bangdeliv/utils/service_type.dart';
 
 void main() {
+  test('shopping pricing parses cancellation base and percent', () {
+    final pricing = DriverShoppingPricingModel.fromJson({
+      'subtotal': 0,
+      'delivery_fee': 0,
+      'service_fee': 50000,
+      'total_price': 50000,
+      'cancellation_penalty': 50000,
+      'cancellation_penalty_base_delivery_fee': 100000,
+      'cancellation_penalty_percent': 50,
+    });
+
+    expect(pricing.cancellationPenaltyBaseDeliveryFee, 100000);
+    expect(pricing.cancellationPenaltyPercent, 50);
+  });
+
+  testWidgets('shopping cancellation dialog previews half fee and validates', (
+    tester,
+  ) async {
+    DriverShoppingCancellationInput? result;
+    final order = _order(
+      serviceTypeCode: ServiceTypeCodes.shopping,
+      deliveryFee: 80000,
+      shoppingPricing: const DriverShoppingPricingModel(
+        subtotal: 0,
+        deliveryFee: 80000,
+        serviceFee: 0,
+        totalPrice: 80000,
+        cancellationPenalty: 40000,
+        cancellationPenaltyBaseDeliveryFee: 100000,
+        cancellationPenaltyPercent: 50,
+        recalculationVersion: 1,
+        hasPendingManualPrices: false,
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: FilledButton(
+              onPressed: () async {
+                result = await showDriverShoppingCancelWithFeeDialog(
+                  context,
+                  order: order,
+                );
+              },
+              child: const Text('Buka dialog'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Buka dialog'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Batalkan Order dengan Fee 50%'), findsOneWidget);
+    expect(find.text('Fee pembatalan (50%)'), findsOneWidget);
+    expect(find.text('Rp 50.000'), findsOneWidget);
+    expect(
+      tester.widget<TextField>(find.byType(TextField).first).controller?.text,
+      '100000',
+    );
+
+    await tester.enterText(find.byType(TextField).first, '120000');
+    await tester.pump();
+    expect(find.text('Rp 60.000'), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const ValueKey('confirm-shopping-cancellation-fee')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Alasan koreksi ongkir wajib diisi.'), findsOneWidget);
+    expect(result, isNull);
+
+    await tester.enterText(
+      find.byType(TextField).last,
+      'Rute aktual lebih jauh dari estimasi.',
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('confirm-shopping-cancellation-fee')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(result?.baseDeliveryFee, 120000);
+    expect(result?.reason, 'Rute aktual lebih jauh dari estimasi.');
+    expect(find.text('Batalkan Order dengan Fee 50%'), findsNothing);
+  });
+
   testWidgets('manual delivery fee edit requires reason before submit', (
     tester,
   ) async {

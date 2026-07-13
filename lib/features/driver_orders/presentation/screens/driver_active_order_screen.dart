@@ -26,6 +26,7 @@ import '../../application/driver_order_providers.dart';
 import '../models/driver_active_order_point.dart';
 import 'driver_shopping_change_wizard_screen.dart';
 import '../widgets/driver_active_order_action_widgets.dart';
+import '../widgets/driver_active_order_fee_widgets.dart';
 import '../widgets/driver_active_order_map_widgets.dart';
 import '../widgets/driver_active_order_meta_widgets.dart';
 import '../widgets/driver_active_order_proof_widgets.dart';
@@ -1954,6 +1955,20 @@ class _DriverActiveOrderScreenState
     DriverOrderActionModel action,
   ) async {
     final notifier = ref.read(driverOrdersProvider.notifier);
+    DriverShoppingCancellationInput? cancellationInput;
+    final isShoppingCancellationWithFee =
+        normalizeServiceTypeCode(order.serviceTypeCode) ==
+            ServiceTypeCodes.shopping &&
+        action.actionCode.trim().toUpperCase() == 'CANCEL_WITH_FEE';
+    if (isShoppingCancellationWithFee) {
+      cancellationInput = await showDriverShoppingCancelWithFeeDialog(
+        context,
+        order: order,
+      );
+      if (cancellationInput == null || !context.mounted) {
+        return;
+      }
+    }
 
     String? error;
     if (action.isCodCollection) {
@@ -1971,6 +1986,8 @@ class _DriverActiveOrderScreenState
         orderId: order.id,
         actionCode: action.actionCode,
         targetStatusCode: action.targetStatusCode,
+        note: cancellationInput?.reason,
+        cancellationPenaltyBaseDeliveryFee: cancellationInput?.baseDeliveryFee,
       );
     }
 

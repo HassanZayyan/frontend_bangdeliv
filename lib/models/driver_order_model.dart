@@ -869,6 +869,8 @@ class DriverShoppingPricingModel {
   final double serviceFee;
   final double totalPrice;
   final double cancellationPenalty;
+  final double cancellationPenaltyBaseDeliveryFee;
+  final double cancellationPenaltyPercent;
   final double failedTripCompensation;
   final int recalculationVersion;
   final bool hasPendingManualPrices;
@@ -882,6 +884,8 @@ class DriverShoppingPricingModel {
     required this.serviceFee,
     required this.totalPrice,
     required this.cancellationPenalty,
+    this.cancellationPenaltyBaseDeliveryFee = 0,
+    this.cancellationPenaltyPercent = 50,
     this.failedTripCompensation = 0,
     required this.recalculationVersion,
     required this.hasPendingManualPrices,
@@ -894,6 +898,9 @@ class DriverShoppingPricingModel {
     final cancellationPenalty = DriverOrderModel._asDouble(
       json['cancellation_penalty'],
     );
+    final cancellationPenaltyPercent = DriverOrderModel._asDouble(
+      json['cancellation_penalty_percent'],
+    );
 
     return DriverShoppingPricingModel(
       subtotal: DriverOrderModel._asDouble(json['subtotal']),
@@ -901,6 +908,12 @@ class DriverShoppingPricingModel {
       serviceFee: DriverOrderModel._asDouble(json['service_fee']),
       totalPrice: DriverOrderModel._asDouble(json['total_price']),
       cancellationPenalty: cancellationPenalty,
+      cancellationPenaltyBaseDeliveryFee: DriverOrderModel._asDouble(
+        json['cancellation_penalty_base_delivery_fee'],
+      ),
+      cancellationPenaltyPercent: cancellationPenaltyPercent > 0
+          ? cancellationPenaltyPercent
+          : 50,
       failedTripCompensation: DriverOrderModel._asDouble(
         json['failed_trip_compensation'],
       ),

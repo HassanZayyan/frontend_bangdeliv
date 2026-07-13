@@ -95,6 +95,23 @@ void main() {
     );
   });
 
+  test('shopping cancel with fee opens full delivery fee dialog', () {
+    final source = File(screenPath).readAsStringSync();
+
+    expect(
+      source,
+      contains("action.actionCode.trim().toUpperCase() == 'CANCEL_WITH_FEE'"),
+    );
+    expect(source, contains('showDriverShoppingCancelWithFeeDialog'));
+    expect(source, contains('note: cancellationInput?.reason'));
+    expect(
+      source,
+      contains(
+        'cancellationPenaltyBaseDeliveryFee: cancellationInput?.baseDeliveryFee',
+      ),
+    );
+  });
+
   test('driver active order uses a snapping map-first task sheet', () {
     final source = File(screenPath).readAsStringSync();
 
