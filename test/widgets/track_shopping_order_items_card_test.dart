@@ -289,6 +289,51 @@ void main() {
     expect(find.text('Biaya layanan'), findsNothing);
   });
 
+  testWidgets('active pricing hides zero service fee after compensation', (
+    tester,
+  ) async {
+    await _pumpCard(
+      tester,
+      _FakeCustomerOrderRepository(),
+      detail: _shoppingDetail(
+        shoppingPricing: const CustomerShoppingPricingModel(
+          subtotal: 75000,
+          deliveryFee: 155000,
+          serviceFee: 21250,
+          totalPrice: 251250,
+          cancellationPenalty: 0,
+          failedTripCompensation: 21250,
+        ),
+      ),
+    );
+
+    expect(find.text('Biaya layanan'), findsNothing);
+    expect(find.text('Kompensasi perjalanan gagal (50%)'), findsOneWidget);
+    expect(find.text('Total pembayaran customer'), findsOneWidget);
+  });
+
+  testWidgets('active pricing keeps positive service fee remainder', (
+    tester,
+  ) async {
+    await _pumpCard(
+      tester,
+      _FakeCustomerOrderRepository(),
+      detail: _shoppingDetail(
+        shoppingPricing: const CustomerShoppingPricingModel(
+          subtotal: 75000,
+          deliveryFee: 155000,
+          serviceFee: 25000,
+          totalPrice: 255000,
+          cancellationPenalty: 0,
+          failedTripCompensation: 21250,
+        ),
+      ),
+    );
+
+    expect(find.text('Biaya layanan'), findsOneWidget);
+    expect(find.text('Kompensasi perjalanan gagal (50%)'), findsOneWidget);
+  });
+
   testWidgets('add merchant action is hidden after three active stops', (
     tester,
   ) async {
