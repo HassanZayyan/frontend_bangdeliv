@@ -18,6 +18,7 @@ import '../../../../models/payment_proof_feedback_model.dart';
 import '../../../../core/di/app_providers.dart';
 import '../../../orders/application/customer_order_providers.dart';
 import '../../../orders/application/order_chat_unread_provider.dart';
+import '../../../orders/presentation/screens/order_chat_screen.dart';
 import '../../../orders/presentation/widgets/customer_order_cancel_sheet.dart';
 import '../../application/customer_order_tracking_provider.dart';
 import '../../application/tracking_focus_target.dart';
@@ -592,6 +593,11 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                                     vehiclePlate: driverVehiclePlate,
                                     onChat: () => context.push(
                                       AppRoutes.orderChatPath(order.id),
+                                      extra: OrderChatRouteArgs(
+                                        returnPath: GoRouterState.of(
+                                          context,
+                                        ).uri.toString(),
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(height: 12),
@@ -723,7 +729,12 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                   avatarUrl: detail.driverAvatarUrl,
                   vehicleLabel: driverVehicleLabel,
                   vehiclePlate: driverVehiclePlate,
-                  onChat: () => context.push(AppRoutes.orderChatPath(order.id)),
+                  onChat: () => context.push(
+                    AppRoutes.orderChatPath(order.id),
+                    extra: OrderChatRouteArgs(
+                      returnPath: GoRouterState.of(context).uri.toString(),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 12),
               ],

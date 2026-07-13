@@ -141,7 +141,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           title: 'BangBot AI - Antar Jemput',
           iconAsset: 'assets/images/services/service_ride_motor_simplified.png',
           welcomeMessage:
-              'Halo! Saya BangBot untuk layanan Antar Jemput. Kamu bisa kirim tujuan lewat chat atau atur titik jemput dan tujuan di map.',
+              'Halo! Saya BangBot untuk layanan Antar Jemput. Tulis tujuan perjalanan lewat chat, atau atur titik jemput dan tujuan di map.\n\nContoh:\nAntar ke Ramayana Salatiga',
           addressRequiredMessage:
               'Sebelum pesan Antar Jemput, isi Alamat Saya dulu supaya titik jemput utama kamu siap dipakai.',
           suggestions: [],
@@ -153,7 +153,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           iconAsset:
               'assets/images/services/service_courier_box_simplified.png',
           welcomeMessage:
-              'Halo! Saya BangBot untuk layanan Kurir. Kirim barang seperti laundry, dokumen, skincare, atau paket kecil. Tulis tujuan dan isi paket lewat chat, atau atur titik ambil dan tujuan di map.',
+              'Halo! Saya BangBot untuk layanan Kurir. Tulis detail pengiriman menggunakan format berikut, atau atur rute di map.\n\nContoh:\nAmbil: Laundry Berkah Salatiga\nTujuan: Universitas Kristen Satya Wacana\nBarang: 1 tas laundry',
           addressRequiredMessage:
               'Sebelum pesan Kurir, isi Alamat Saya dulu supaya titik ambil utama kamu siap dipakai.',
           suggestions: [],

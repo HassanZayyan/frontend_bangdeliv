@@ -133,11 +133,22 @@ void main() {
 
     expect(find.text('Catat Pembayaran QRIS'), findsOneWidget);
     expect(find.text('Catatan'), findsNothing);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      '18.000',
+    );
+
+    await tester.enterText(find.byType(TextField), '50000');
+    await tester.pump();
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      '50.000',
+    );
 
     await tester.tap(find.text('Catat'));
     await tester.pumpAndSettle();
 
-    expect(recordedAmount, 18000);
+    expect(recordedAmount, 50000);
   });
 
   testWidgets('shows rejected QRIS feedback without verification action', (

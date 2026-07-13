@@ -24,14 +24,22 @@ class OrderChatScreen extends ConsumerStatefulWidget {
   const OrderChatScreen({
     super.key,
     required this.orderId,
+    this.returnPath,
     this.whatsAppLauncher,
   });
 
   final int orderId;
+  final String? returnPath;
   final OrderWhatsAppLauncher? whatsAppLauncher;
 
   @override
   ConsumerState<OrderChatScreen> createState() => _OrderChatScreenState();
+}
+
+class OrderChatRouteArgs {
+  const OrderChatRouteArgs({this.returnPath});
+
+  final String? returnPath;
 }
 
 class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
@@ -163,18 +171,83 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
   }
 
   void _handleBack() {
-    if (context.canPop()) {
-      context.pop();
+    if (_canPopRoute()) {
+      _popRoute();
+      return;
+    }
+
+    _goToFallbackRoute();
+  }
+
+  bool _canPopRoute() {
+    final router = GoRouter.maybeOf(context);
+    if (router != null) {
+      return router.canPop();
+    }
+
+    return Navigator.of(context).canPop();
+  }
+
+  void _popRoute() {
+    final router = GoRouter.maybeOf(context);
+    if (router != null) {
+      router.pop();
+      return;
+    }
+
+    Navigator.of(context).pop();
+  }
+
+  void _goToFallbackRoute() {
+    final returnPath = _normalizedReturnPath();
+    if (returnPath != null) {
+      _goRoute(returnPath);
       return;
     }
 
     final session = ref.read(authSessionProvider);
     if (session.role == SessionUserRole.driver) {
-      context.go(AppRoutes.driverHome);
+      _goRoute(AppRoutes.driverOrderActivePath(widget.orderId.toString()));
       return;
     }
 
-    context.go(AppRoutes.home);
+    _goRoute(AppRoutes.home);
+  }
+
+  void _goRoute(String location) {
+    final router = GoRouter.maybeOf(context);
+    if (router != null) {
+      router.go(location);
+      return;
+    }
+
+    Navigator.of(context).maybePop();
+  }
+
+  String? _normalizedReturnPath() {
+    final rawPath = widget.returnPath?.trim();
+    if (rawPath == null || rawPath.isEmpty) {
+      return null;
+    }
+
+    final uri = Uri.tryParse(rawPath);
+    if (uri == null ||
+        !uri.hasAbsolutePath ||
+        uri.hasScheme ||
+        uri.host.isNotEmpty) {
+      return null;
+    }
+
+    final normalizedPath = uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path;
+    final currentRoute = GoRouter.maybeOf(
+      context,
+    )?.routeInformationProvider.value.uri.toString();
+    if (normalizedPath == currentRoute ||
+        normalizedPath == AppRoutes.orderChatPath(widget.orderId)) {
+      return null;
+    }
+
+    return normalizedPath;
   }
 
   Future<void> _openWhatsApp(Uri uri) async {
@@ -253,8 +326,10 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
       }
     });
 
+    final canPopRoute = _canPopRoute();
+
     return PopScope<void>(
-      canPop: false,
+      canPop: canPopRoute,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) {
           return;

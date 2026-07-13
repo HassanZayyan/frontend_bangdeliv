@@ -8,7 +8,9 @@ import 'package:frontend_bangdeliv/features/driver_orders/presentation/widgets/d
 import 'package:frontend_bangdeliv/features/driver_orders/presentation/widgets/driver_active_order_shopping_widgets.dart';
 import 'package:frontend_bangdeliv/core/widgets/bang_swipe_action_button.dart';
 import 'package:frontend_bangdeliv/models/amount_negotiation_model.dart';
+import 'package:frontend_bangdeliv/models/delivery_fee_negotiation_model.dart';
 import 'package:frontend_bangdeliv/models/driver_order_model.dart';
+import 'package:frontend_bangdeliv/models/payment_proof_feedback_model.dart';
 import 'package:frontend_bangdeliv/models/shopping_negotiation_model.dart';
 import 'package:frontend_bangdeliv/models/shopping_order_capability_model.dart';
 import 'package:frontend_bangdeliv/utils/order_status.dart';
@@ -110,7 +112,7 @@ void main() {
     );
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    expect(find.text('Upload'), findsOneWidget);
+    expect(find.text('Ambil Foto'), findsOneWidget);
     expect(find.text('Pengambilan'), findsOneWidget);
     expect(find.text('Diterima'), findsOneWidget);
   });
@@ -154,12 +156,41 @@ void main() {
     );
 
     expect(find.byType(CircularProgressIndicator), findsNothing);
-    expect(find.text('Upload Foto Struk Opsional'), findsOneWidget);
+    expect(find.text('Ambil Foto Struk (Opsional)'), findsOneWidget);
     expect(find.text('Simpan Checkout Nitip'), findsNothing);
 
     final checkoutTitle = tester.widget<Text>(find.text('Checkout Belanja'));
     expect(checkoutTitle.style?.fontSize, 16);
     expect(checkoutTitle.style?.fontWeight, FontWeight.w800);
+  });
+
+  testWidgets('shopping receipt action opens camera without source picker', (
+    tester,
+  ) async {
+    await _pumpShoppingItemsCard(
+      tester,
+      order: _order(
+        serviceTypeCode: ServiceTypeCodes.shopping,
+        shoppingItems: const [
+          DriverShoppingItemModel(
+            id: 1,
+            itemSource: 'MANUAL',
+            name: 'Mie ayam',
+            quantity: 1,
+            unitPrice: 12000,
+            subtotal: 12000,
+            isAvailable: true,
+          ),
+        ],
+      ),
+      canUploadReceipt: true,
+    );
+
+    await tester.tap(find.text('Ambil Foto Struk (Opsional)'));
+    await tester.pump();
+
+    expect(find.text('Ambil dari kamera'), findsNothing);
+    expect(find.text('Pilih dari galeri'), findsNothing);
   });
 
   testWidgets('saved shopping checkout is not rendered inside checkout card', (
@@ -190,7 +221,7 @@ void main() {
 
     expect(find.text('Checkout Nitip Tersimpan'), findsNothing);
     expect(find.text('Simpan Checkout Nitip'), findsNothing);
-    expect(find.text('Upload Foto Struk Opsional'), findsOneWidget);
+    expect(find.text('Ambil Foto Struk (Opsional)'), findsOneWidget);
   });
 
   testWidgets('shopping sticky bar saves checkout before finish action', (
@@ -270,6 +301,678 @@ void main() {
     expect(find.text('Simpan Checkout Nitip'), findsNothing);
     expect(find.text('Belanja Selesai'), findsOneWidget);
   });
+
+  testWidgets('compact shopping footer keeps fee edit beside checkout action', (
+    tester,
+  ) async {
+    var editTapped = false;
+    var saveTapped = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          bottomNavigationBar: DriverOrderStickyActionBar(
+            order: _order(
+              serviceTypeCode: ServiceTypeCodes.shopping,
+              statusCode: OrderStatusCodes.arrivedMerchant,
+              deliveryFee: 13000,
+              deliveryFeeNegotiation: const DeliveryFeeNegotiationModel(
+                amount: AmountNegotiationModel(
+                  status: 'APPROVED',
+                  canDriverSubmitQuote: true,
+                  isApproved: true,
+                ),
+              ),
+              availableActions: const [
+                DriverOrderActionModel(
+                  actionCode: 'CONFIRM_PICKED_UP',
+                  label: 'Belanja Selesai',
+                  targetStatusCode: OrderStatusCodes.pickedUp,
+                  blocked: true,
+                  blockedReason: 'Checkout Nitip belum disimpan.',
+                ),
+              ],
+            ),
+            isProcessing: false,
+            compactForSheet: true,
+            onEditDeliveryFee: () async {
+              editTapped = true;
+            },
+            onSaveShoppingCheckout: () async {
+              saveTapped = true;
+            },
+            onTapAction: (_) async {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Ongkir perlu disesuaikan?'), findsNothing);
+    expect(find.text('Simpan Checkout Nitip'), findsNothing);
+    expect(find.text('Ubah Ongkir'), findsOneWidget);
+    expect(find.text('Simpan checkout'), findsOneWidget);
+
+    final editCenter = tester.getCenter(find.text('Ubah Ongkir'));
+    final saveCenter = tester.getCenter(find.text('Simpan checkout'));
+    expect((editCenter.dy - saveCenter.dy).abs(), lessThan(2));
+    expect(editCenter.dx, lessThan(saveCenter.dx));
+
+    await tester.tap(find.text('Ubah Ongkir'));
+    await tester.pump();
+    await tester.tap(find.text('Simpan checkout'));
+    await tester.pump();
+
+    expect(editTapped, isTrue);
+    expect(saveTapped, isTrue);
+  });
+
+  testWidgets(
+    'pending shopping delivery fee replaces checkout with bypass resolution',
+    (tester) async {
+      var bypassTapped = false;
+      var saveTapped = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: DriverOrderStickyActionBar(
+              order: _order(
+                serviceTypeCode: ServiceTypeCodes.shopping,
+                statusCode: OrderStatusCodes.arrivedMerchant,
+                deliveryFee: 13000,
+                deliveryFeeNegotiation: const DeliveryFeeNegotiationModel(
+                  oldDeliveryFee: 13000,
+                  amount: AmountNegotiationModel(
+                    status: 'PENDING_CUSTOMER',
+                    quotedAmount: 18000,
+                    canCustomerRespond: true,
+                    approvalRequired: true,
+                    isPending: true,
+                  ),
+                ),
+                availableActions: const [
+                  DriverOrderActionModel(
+                    actionCode: 'CONFIRM_PICKED_UP',
+                    label: 'Belanja Selesai',
+                    targetStatusCode: OrderStatusCodes.pickedUp,
+                    blocked: true,
+                    blockedReason: 'Checkout Nitip belum disimpan.',
+                  ),
+                ],
+              ),
+              isProcessing: false,
+              compactForSheet: true,
+              onSaveShoppingCheckout: () async {
+                saveTapped = true;
+              },
+              onBypassDeliveryFee: () async {
+                bypassTapped = true;
+              },
+              onTapAction: (_) async {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Ongkir menunggu persetujuan'), findsOneWidget);
+      expect(find.text('Lanjut Tanpa Persetujuan'), findsOneWidget);
+      expect(find.text('Simpan checkout'), findsNothing);
+      expect(find.text('Simpan Checkout Nitip'), findsNothing);
+
+      await tester.tap(find.text('Lanjut Tanpa Persetujuan'));
+      await tester.pump();
+
+      expect(bypassTapped, isTrue);
+      expect(saveTapped, isFalse);
+    },
+  );
+
+  testWidgets(
+    'shopping customer counter replaces checkout with accept action',
+    (tester) async {
+      var counterAccepted = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: DriverOrderStickyActionBar(
+              order: _order(
+                serviceTypeCode: ServiceTypeCodes.shopping,
+                statusCode: OrderStatusCodes.arrivedMerchant,
+                deliveryFee: 13000,
+                deliveryFeeNegotiation: const DeliveryFeeNegotiationModel(
+                  amount: AmountNegotiationModel(
+                    status: 'PENDING_DRIVER',
+                    counterAmount: 15000,
+                    canDriverAcceptCounter: true,
+                    approvalRequired: true,
+                    isPending: true,
+                  ),
+                ),
+                availableActions: const [
+                  DriverOrderActionModel(
+                    actionCode: 'CONFIRM_PICKED_UP',
+                    label: 'Belanja Selesai',
+                    targetStatusCode: OrderStatusCodes.pickedUp,
+                    blocked: true,
+                    blockedReason: 'Checkout Nitip belum disimpan.',
+                  ),
+                ],
+              ),
+              isProcessing: false,
+              compactForSheet: true,
+              onSaveShoppingCheckout: () async {},
+              onAcceptDeliveryFeeCounter: () async {
+                counterAccepted = true;
+              },
+              onTapAction: (_) async {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Terima Tawaran Customer'), findsOneWidget);
+      expect(find.text('Simpan checkout'), findsNothing);
+
+      await tester.tap(find.text('Terima Tawaran Customer'));
+      await tester.pump();
+
+      expect(counterAccepted, isTrue);
+    },
+  );
+
+  testWidgets(
+    'delivery fee bypass confirmation explains amount and requires swipe',
+    (tester) async {
+      bool? confirmed;
+      final order = _order(
+        serviceTypeCode: ServiceTypeCodes.shopping,
+        statusCode: OrderStatusCodes.arrivedMerchant,
+        deliveryFee: 13000,
+        deliveryFeeNegotiation: const DeliveryFeeNegotiationModel(
+          oldDeliveryFee: 13000,
+          amount: AmountNegotiationModel(
+            status: 'PENDING_CUSTOMER',
+            quotedAmount: 18000,
+            canCustomerRespond: true,
+            approvalRequired: true,
+            isPending: true,
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () async {
+                  confirmed = await showDriverDeliveryFeeBypassConfirmation(
+                    context,
+                    order: order,
+                  );
+                },
+                child: const Text('Buka konfirmasi'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Buka konfirmasi'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Lanjut tanpa persetujuan?'), findsOneWidget);
+      expect(find.text('Ongkir sebelumnya'), findsOneWidget);
+      expect(find.text('Rp13.000'), findsOneWidget);
+      expect(find.text('Ongkir usulan driver'), findsOneWidget);
+      expect(find.text('Rp18.000'), findsOneWidget);
+      expect(confirmed, isNull);
+
+      await tester.drag(
+        find.byType(BangSwipeActionButton),
+        const Offset(500, 0),
+      );
+      await tester.pumpAndSettle();
+
+      expect(confirmed, isTrue);
+    },
+  );
+
+  testWidgets(
+    'transfer payment blocker opens manual QRIS resolution instead of disabled finish',
+    (tester) async {
+      var resolveTapped = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: DriverOrderStickyActionBar(
+              order: _order(
+                paymentMethod: 'TRANSFER',
+                paymentStatus: 'unpaid',
+                availableActions: const [
+                  DriverOrderActionModel(
+                    actionCode: 'COMPLETE_ORDER',
+                    label: 'Selesaikan Order',
+                    targetStatusCode: OrderStatusCodes.completed,
+                    blocked: true,
+                    blockedReason: 'Pembayaran belum dicatat.',
+                  ),
+                ],
+              ),
+              isProcessing: false,
+              onResolveTransferPayment: () async {
+                resolveTapped = true;
+              },
+              onTapAction: (_) async {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Pembayaran QRIS belum selesai'), findsOneWidget);
+      expect(find.text('Catat Pembayaran QRIS Manual'), findsOneWidget);
+      expect(find.text('Selesaikan Order'), findsNothing);
+
+      await tester.tap(find.text('Catat Pembayaran QRIS Manual'));
+      await tester.pump();
+
+      expect(resolveTapped, isTrue);
+    },
+  );
+
+  testWidgets(
+    'transfer payment blocker shows verify QRIS CTA when proof exists',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: DriverOrderStickyActionBar(
+              order: _order(
+                paymentMethod: 'TRANSFER',
+                paymentStatus: 'unpaid',
+                proofs: [
+                  DriverOrderProofModel(
+                    id: 7,
+                    type: 'payment_transfer',
+                    label: 'Bukti QRIS',
+                    photoUrl: 'https://example.com/qris.jpg',
+                    status: 'pending',
+                    createdAt: DateTime.utc(2026, 7, 13),
+                  ),
+                ],
+                availableActions: const [
+                  DriverOrderActionModel(
+                    actionCode: 'COMPLETE_ORDER',
+                    label: 'Selesaikan Order',
+                    targetStatusCode: OrderStatusCodes.completed,
+                    blocked: true,
+                    blockedReason: 'Pembayaran belum dicatat.',
+                  ),
+                ],
+              ),
+              isProcessing: false,
+              onResolveTransferPayment: () async {},
+              onTapAction: (_) async {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Bukti QRIS menunggu verifikasi'), findsOneWidget);
+      expect(find.text('Verifikasi QRIS'), findsOneWidget);
+      expect(find.text('Selesaikan Order'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'transfer payment blocker shows rejected QRIS status without new proof',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: DriverOrderStickyActionBar(
+              order: _order(
+                paymentMethod: 'TRANSFER',
+                paymentStatus: 'unpaid',
+                paymentProofFeedback: const PaymentProofFeedbackModel(
+                  status: 'rejected',
+                  reason: 'Foto terlalu blur.',
+                ),
+                availableActions: const [
+                  DriverOrderActionModel(
+                    actionCode: 'COMPLETE_ORDER',
+                    label: 'Selesaikan Order',
+                    targetStatusCode: OrderStatusCodes.completed,
+                    blocked: true,
+                    blockedReason: 'Pembayaran belum dicatat.',
+                  ),
+                ],
+              ),
+              isProcessing: false,
+              onResolveTransferPayment: () async {},
+              onTapAction: (_) async {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Bukti QRIS ditolak'), findsOneWidget);
+      expect(find.text('Lihat Status QRIS'), findsOneWidget);
+      expect(find.text('Selesaikan Order'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'courier pickup proof blocker shows camera CTA instead of disabled pickup action',
+    (tester) async {
+      String? resolvedProofType;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: DriverOrderStickyActionBar(
+              order: _order(
+                serviceTypeCode: ServiceTypeCodes.courier,
+                statusCode: OrderStatusCodes.arrivedPickup,
+                paymentStatus: 'paid',
+                availableActions: const [
+                  DriverOrderActionModel(
+                    actionCode: 'CONFIRM_PICKED_UP',
+                    label: 'Paket Diambil',
+                    targetStatusCode: OrderStatusCodes.pickedUp,
+                    blocked: true,
+                    blockedReason: 'Bukti foto pickup belum diupload.',
+                  ),
+                ],
+              ),
+              isProcessing: false,
+              onResolveProof: (proofType) async {
+                resolvedProofType = proofType;
+              },
+              onTapAction: (_) async {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Bukti pengambilan belum ada'), findsOneWidget);
+      expect(find.text('Ambil Foto Pengambilan'), findsOneWidget);
+      expect(find.text('Paket Diambil'), findsNothing);
+
+      await tester.tap(find.text('Ambil Foto Pengambilan'));
+      await tester.pump();
+
+      expect(resolvedProofType, 'pickup');
+    },
+  );
+
+  testWidgets(
+    'compact courier footer prioritizes pickup proof before QRIS blocker',
+    (tester) async {
+      String? resolvedProofType;
+      var qrisTapped = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: DriverOrderStickyActionBar(
+              order: _order(
+                serviceTypeCode: ServiceTypeCodes.courier,
+                statusCode: OrderStatusCodes.arrivedPickup,
+                paymentMethod: 'TRANSFER',
+                paymentStatus: 'unpaid',
+                availableActions: const [
+                  DriverOrderActionModel(
+                    actionCode: 'CONFIRM_PICKED_UP',
+                    label: 'Paket Diambil',
+                    targetStatusCode: OrderStatusCodes.pickedUp,
+                    blocked: true,
+                    blockedReason:
+                        'Pembayaran belum dicatat. Bukti foto pickup belum diupload.',
+                  ),
+                ],
+              ),
+              isProcessing: false,
+              compactForSheet: true,
+              onResolveTransferPayment: () async {
+                qrisTapped = true;
+              },
+              onResolveProof: (proofType) async {
+                resolvedProofType = proofType;
+              },
+              onTapAction: (_) async {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Bukti pengambilan belum ada'), findsOneWidget);
+      expect(find.text('Ambil Foto Pengambilan'), findsOneWidget);
+      expect(find.text('Pembayaran QRIS belum selesai'), findsNothing);
+      expect(find.text('Catat Pembayaran QRIS Manual'), findsNothing);
+      expect(find.text('Paket Diambil'), findsNothing);
+
+      await tester.tap(find.text('Ambil Foto Pengambilan'));
+      await tester.pump();
+
+      expect(resolvedProofType, 'pickup');
+      expect(qrisTapped, isFalse);
+    },
+  );
+
+  testWidgets(
+    'compact courier footer shows COD collection after pickup proof',
+    (tester) async {
+      DriverOrderActionModel? tappedAction;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: DriverOrderStickyActionBar(
+              order: _order(
+                serviceTypeCode: ServiceTypeCodes.courier,
+                statusCode: OrderStatusCodes.arrivedPickup,
+                paymentMethod: 'COD',
+                paymentStatus: 'unpaid',
+                proofs: [
+                  DriverOrderProofModel(
+                    id: 12,
+                    type: 'pickup',
+                    label: 'Bukti pengambilan',
+                    photoUrl: 'https://example.com/pickup.jpg',
+                    status: 'approved',
+                    createdAt: DateTime.utc(2026),
+                  ),
+                ],
+                availableActions: const [
+                  DriverOrderActionModel(
+                    actionCode: 'CONFIRM_PICKED_UP',
+                    label: 'Paket Diambil',
+                    targetStatusCode: OrderStatusCodes.pickedUp,
+                    blocked: true,
+                    blockedReason: 'Pembayaran belum dicatat.',
+                  ),
+                  DriverOrderActionModel(
+                    actionCode: 'COLLECT_COD',
+                    label: 'Catat Pembayaran COD',
+                  ),
+                ],
+              ),
+              isProcessing: false,
+              compactForSheet: true,
+              singlePrimaryAction: true,
+              onTapAction: (action) async {
+                tappedAction = action;
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Catat Pembayaran COD'), findsOneWidget);
+      expect(find.text('Paket Diambil'), findsNothing);
+
+      await tester.tap(find.text('Catat Pembayaran COD'));
+      await tester.pump();
+
+      expect(tappedAction?.actionCode, 'COLLECT_COD');
+    },
+  );
+
+  testWidgets(
+    'courier delivery proof blocker shows camera CTA before finish action',
+    (tester) async {
+      String? resolvedProofType;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: DriverOrderStickyActionBar(
+              order: _order(
+                serviceTypeCode: ServiceTypeCodes.courier,
+                statusCode: OrderStatusCodes.delivered,
+                paymentStatus: 'paid',
+                availableActions: const [
+                  DriverOrderActionModel(
+                    actionCode: 'COMPLETE_ORDER',
+                    label: 'Selesaikan Order',
+                    targetStatusCode: OrderStatusCodes.completed,
+                    blocked: true,
+                    blockedReason:
+                        'Bukti foto selesai pengantaran belum diupload.',
+                  ),
+                ],
+              ),
+              isProcessing: false,
+              onResolveProof: (proofType) async {
+                resolvedProofType = proofType;
+              },
+              onTapAction: (_) async {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Bukti diterima belum ada'), findsOneWidget);
+      expect(find.text('Ambil Foto Diterima'), findsOneWidget);
+      expect(find.text('Selesaikan Order'), findsNothing);
+
+      await tester.tap(find.text('Ambil Foto Diterima'));
+      await tester.pump();
+
+      expect(resolvedProofType, 'delivery');
+    },
+  );
+
+  testWidgets(
+    'delivery fee edit shortcut is visible from active sticky footer',
+    (tester) async {
+      var editTapped = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: DriverOrderStickyActionBar(
+              order: _order(
+                serviceTypeCode: ServiceTypeCodes.courier,
+                statusCode: OrderStatusCodes.driverAssigned,
+                deliveryFee: 13000,
+                deliveryFeeNegotiation: const DeliveryFeeNegotiationModel(
+                  amount: AmountNegotiationModel(
+                    status: 'APPROVED',
+                    canDriverSubmitQuote: true,
+                    isApproved: true,
+                  ),
+                ),
+                availableActions: const [
+                  DriverOrderActionModel(
+                    actionCode: 'ARRIVE_PICKUP',
+                    label: 'Tiba di Titik Pickup',
+                    targetStatusCode: OrderStatusCodes.arrivedPickup,
+                  ),
+                ],
+              ),
+              isProcessing: false,
+              compactForSheet: true,
+              onEditDeliveryFee: () async {
+                editTapped = true;
+              },
+              onTapAction: (_) async {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Ongkir perlu disesuaikan?'), findsNothing);
+      expect(find.text('Ubah Ongkir'), findsOneWidget);
+      expect(find.text('Tiba di Titik Pickup'), findsOneWidget);
+      final editCenter = tester.getCenter(find.text('Ubah Ongkir'));
+      final primaryCenter = tester.getCenter(find.text('Tiba di Titik Pickup'));
+      expect((editCenter.dy - primaryCenter.dy).abs(), lessThan(2));
+      expect(editCenter.dx, lessThan(primaryCenter.dx));
+
+      await tester.tap(find.text('Ubah Ongkir'));
+      await tester.pump();
+
+      expect(editTapped, isTrue);
+    },
+  );
+
+  testWidgets(
+    'pending delivery fee blocker shows bypass CTA instead of disabled action',
+    (tester) async {
+      var bypassTapped = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: DriverOrderStickyActionBar(
+              order: _order(
+                serviceTypeCode: ServiceTypeCodes.courier,
+                statusCode: OrderStatusCodes.arrivedPickup,
+                paymentStatus: 'paid',
+                deliveryFee: 13000,
+                deliveryFeeNegotiation: const DeliveryFeeNegotiationModel(
+                  amount: AmountNegotiationModel(
+                    status: 'PENDING_CUSTOMER',
+                    quotedAmount: 18000,
+                    canCustomerRespond: true,
+                    approvalRequired: true,
+                    isPending: true,
+                  ),
+                ),
+                availableActions: const [
+                  DriverOrderActionModel(
+                    actionCode: 'CONFIRM_PICKED_UP',
+                    label: 'Paket Diambil',
+                    targetStatusCode: OrderStatusCodes.pickedUp,
+                    blocked: true,
+                    blockedReason: 'Revisi ongkir belum disetujui customer.',
+                  ),
+                ],
+              ),
+              isProcessing: false,
+              onBypassDeliveryFee: () async {
+                bypassTapped = true;
+              },
+              onTapAction: (_) async {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Ongkir menunggu persetujuan'), findsOneWidget);
+      expect(find.text('Lanjut Tanpa Persetujuan'), findsOneWidget);
+      expect(find.text('Paket Diambil'), findsNothing);
+
+      await tester.tap(find.text('Lanjut Tanpa Persetujuan'));
+      await tester.pump();
+
+      expect(bypassTapped, isTrue);
+    },
+  );
 
   testWidgets('shopping closure fee hint only appears for three stops', (
     tester,
@@ -1002,12 +1705,18 @@ ShoppingNegotiationModel _shoppingCheckoutBlocked() {
 DriverOrderModel _order({
   String serviceTypeCode = ServiceTypeCodes.ride,
   String statusCode = OrderStatusCodes.driverAssigned,
+  String paymentMethod = 'COD',
+  String paymentStatus = 'unpaid',
   List<DriverOrderActionModel> availableActions =
       const <DriverOrderActionModel>[],
   List<DriverShoppingItemModel> shoppingItems =
       const <DriverShoppingItemModel>[],
   List<DriverShoppingStopModel> shoppingStops =
       const <DriverShoppingStopModel>[],
+  List<DriverOrderProofModel> proofs = const <DriverOrderProofModel>[],
+  PaymentProofFeedbackModel? paymentProofFeedback,
+  double? deliveryFee,
+  DeliveryFeeNegotiationModel? deliveryFeeNegotiation,
   DriverShoppingPricingModel? shoppingPricing,
   ShoppingOrderCapabilitiesModel shoppingCapabilities =
       const ShoppingOrderCapabilitiesModel(canDriverUploadReceipt: true),
@@ -1021,15 +1730,19 @@ DriverOrderModel _order({
     dropoffAddress: 'Dropoff',
     etaMinutes: 8,
     fee: 9000,
+    deliveryFee: deliveryFee,
     totalPrice: 9000,
     itemCount: 1,
     statusCode: statusCode,
-    paymentMethod: 'COD',
-    paymentStatus: 'unpaid',
+    paymentMethod: paymentMethod,
+    paymentStatus: paymentStatus,
     availableActions: availableActions,
     shoppingItems: shoppingItems,
     shoppingStops: shoppingStops,
+    proofs: proofs,
+    paymentProofFeedback: paymentProofFeedback,
     shoppingPricing: shoppingPricing,
+    deliveryFeeNegotiation: deliveryFeeNegotiation,
     shoppingCapabilities: shoppingCapabilities,
     shoppingNegotiation:
         shoppingNegotiation ??
