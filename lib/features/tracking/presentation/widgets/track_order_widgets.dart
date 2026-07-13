@@ -60,6 +60,11 @@ class _TrackShoppingOrderItemsCardState
         )
         .toList(growable: false);
     final pricing = detail.shoppingPricing;
+    final serviceFeeWithoutCompensation = pricing == null
+        ? 0.0
+        : (pricing.serviceFee - pricing.failedTripCompensation)
+              .clamp(0, double.infinity)
+              .toDouble();
     final failedStops = stops
         .where((stop) => stop.isFailed)
         .toList(growable: false);
@@ -151,13 +156,11 @@ class _TrackShoppingOrderItemsCardState
             const Divider(height: 18, color: AppColors.border),
             _pricingRow('Subtotal barang', pricing.subtotal),
             _pricingRow('Ongkir aktif', pricing.deliveryFee),
-            _pricingRow(
-              detail.shoppingServiceFeeLabel,
-              (pricing.serviceFee - pricing.failedTripCompensation).clamp(
-                0,
-                double.infinity,
+            if (serviceFeeWithoutCompensation > 0)
+              _pricingRow(
+                detail.shoppingServiceFeeLabel,
+                serviceFeeWithoutCompensation,
               ),
-            ),
             if (pricing.failedTripCompensation > 0)
               _pricingRow(
                 'Kompensasi perjalanan gagal (50%)',
@@ -1045,7 +1048,11 @@ class TrackDeliveryFeeNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final normalizedReason = reason?.trim();
+    final trimmedReason = reason?.trim();
+    final normalizedReason =
+        trimmedReason == 'Ongkir diperbarui karena merchant Nitip diganti.'
+        ? 'Ongkir diperbarui karena toko/resto diganti.'
+        : trimmedReason;
 
     return _TrackNotice(
       tone: _TrackNoticeTone.info,
