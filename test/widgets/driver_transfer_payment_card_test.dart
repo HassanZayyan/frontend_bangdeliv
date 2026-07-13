@@ -67,6 +67,7 @@ void main() {
   testWidgets('requires reason before rejecting transfer proof', (
     tester,
   ) async {
+    addTearDown(tester.view.resetViewInsets);
     String? rejectionReason;
 
     await _pumpCard(
@@ -95,7 +96,10 @@ void main() {
 
     await tester.tap(find.text('Tolak'));
     await tester.pumpAndSettle();
+    tester.view.viewInsets = const FakeViewPadding(bottom: 320);
+    await tester.pumpAndSettle();
 
+    expect(tester.takeException(), isNull);
     expect(find.text('Alasan penolakan'), findsOneWidget);
 
     await tester.tap(find.text('Tolak Bukti'));
@@ -149,6 +153,27 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(recordedAmount, 50000);
+  });
+
+  testWidgets('manual QRIS dialog remains usable above keyboard', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetViewInsets);
+
+    await _pumpCard(
+      tester,
+      order: _order(proofs: const []),
+      onConfirmTransfer: ({required amount}) async {},
+    );
+
+    await tester.tap(find.text('Catat Pembayaran QRIS Manual'));
+    await tester.pumpAndSettle();
+    tester.view.viewInsets = const FakeViewPadding(bottom: 320);
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Catat Pembayaran QRIS'), findsOneWidget);
+    expect(find.text('Catat'), findsOneWidget);
   });
 
   testWidgets('shows rejected QRIS feedback without verification action', (
