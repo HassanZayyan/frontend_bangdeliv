@@ -118,6 +118,11 @@ void main() {
     expect(source, contains('DraggableScrollableSheet('));
     expect(source, contains('snap: true'));
     expect(source, contains('const mediumExtent = 0.52'));
+    expect(source, contains('ModalRoute.of(context)?.isCurrent ?? true'));
+    expect(
+      source,
+      contains('resizeToAvoidBottomInset: shouldResizeForKeyboard'),
+    );
     expect(source, contains('driver-active-order-point-selector'));
     expect(source, contains("'Petunjuk arah'"));
     expect(source, contains('selectedPickupLocationId:'));

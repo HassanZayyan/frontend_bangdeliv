@@ -29,6 +29,7 @@ void main() {
   testWidgets('shopping cancellation dialog previews half fee and validates', (
     tester,
   ) async {
+    addTearDown(tester.view.resetViewInsets);
     DriverShoppingCancellationInput? result;
     final order = _order(
       serviceTypeCode: ServiceTypeCodes.shopping,
@@ -66,7 +67,10 @@ void main() {
 
     await tester.tap(find.text('Buka dialog'));
     await tester.pumpAndSettle();
+    tester.view.viewInsets = const FakeViewPadding(bottom: 320);
+    await tester.pumpAndSettle();
 
+    expect(tester.takeException(), isNull);
     expect(find.text('Batalkan Order dengan Fee 50%'), findsOneWidget);
     expect(find.text('Fee pembatalan (50%)'), findsOneWidget);
     expect(find.text('Rp 50.000'), findsOneWidget);
@@ -74,6 +78,9 @@ void main() {
       tester.widget<TextField>(find.byType(TextField).first).controller?.text,
       '100.000',
     );
+
+    tester.view.resetViewInsets();
+    await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField).first, '120000');
     await tester.pump();
@@ -128,6 +135,33 @@ void main() {
     expect(find.text('Alasan edit ongkir wajib diisi.'), findsOneWidget);
     expect(find.text('Edit Ongkir Manual'), findsOneWidget);
     expect(submitCount, 0);
+  });
+
+  testWidgets('manual delivery fee dialog remains usable above keyboard', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetViewInsets);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DriverOrderPricingCard(
+            order: _order(deliveryFee: 15000),
+            onEditDeliveryFee: ({required amount, required reason}) async =>
+                null,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    tester.view.viewInsets = const FakeViewPadding(bottom: 320);
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Edit Ongkir Manual'), findsOneWidget);
+    expect(find.text('Simpan'), findsOneWidget);
   });
 
   testWidgets('shopping fee edit uses all-in total and explanation', (

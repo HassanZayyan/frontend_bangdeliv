@@ -298,114 +298,94 @@ class _ManualDeliveryFeeDialogState extends State<_ManualDeliveryFeeDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final viewInsets = MediaQuery.viewInsetsOf(context);
-
-    return SafeArea(
-      child: AnimatedPadding(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          bottom: viewInsets.bottom + 16,
-        ),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Material(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(10),
-              clipBehavior: Clip.antiAlias,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.isShoppingTotalTransport
-                          ? 'Edit Total Ongkir Nitip'
-                          : 'Edit Ongkir Manual',
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: _amountController,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: const [RupiahInputFormatter()],
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w400,
-                      ),
-                      decoration: driverDialogInputDecoration(
-                        labelText: widget.isShoppingTotalTransport
-                            ? 'Total ongkir Nitip'
-                            : 'Ongkir dasar manual',
-                        prefixText: 'Rp ',
-                        errorText: _amountErrorText,
-                      ),
-                      onChanged: (_) {
-                        if (_amountErrorText != null) {
-                          setState(() => _amountErrorText = null);
-                        }
-                      },
-                    ),
-                    if (widget.isShoppingTotalTransport) ...[
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Nominal ini mencakup ongkir aktif dan kompensasi perjalanan gagal.',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 12,
-                          height: 1.35,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: _reasonController,
-                      minLines: 2,
-                      maxLines: 3,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w400,
-                      ),
-                      decoration: driverDialogInputDecoration(
-                        labelText: 'Alasan edit',
-                        hintText: 'Contoh: rute sistem kurang akurat',
-                        errorText: _reasonErrorText,
-                      ),
-                      onChanged: (_) {
-                        if (_reasonErrorText != null) {
-                          setState(() => _reasonErrorText = null);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: _close,
-                          child: const Text('Batal'),
-                        ),
-                        const SizedBox(width: 8),
-                        FilledButton(
-                          onPressed: _submit,
-                          child: const Text('Simpan'),
-                        ),
-                      ],
-                    ),
-                  ],
+    return Dialog(
+      backgroundColor: AppColors.white,
+      insetPadding: const EdgeInsets.all(16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.isShoppingTotalTransport
+                    ? 'Edit Total Ongkir Nitip'
+                    : 'Edit Ongkir Manual',
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-            ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _amountController,
+                keyboardType: TextInputType.number,
+                inputFormatters: const [RupiahInputFormatter()],
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                ),
+                decoration: driverDialogInputDecoration(
+                  labelText: widget.isShoppingTotalTransport
+                      ? 'Total ongkir Nitip'
+                      : 'Ongkir dasar manual',
+                  prefixText: 'Rp ',
+                  errorText: _amountErrorText,
+                ),
+                onChanged: (_) {
+                  if (_amountErrorText != null) {
+                    setState(() => _amountErrorText = null);
+                  }
+                },
+              ),
+              if (widget.isShoppingTotalTransport) ...[
+                const SizedBox(height: 6),
+                const Text(
+                  'Nominal ini mencakup ongkir aktif dan kompensasi perjalanan gagal.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 10),
+              TextField(
+                controller: _reasonController,
+                minLines: 2,
+                maxLines: 3,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                ),
+                decoration: driverDialogInputDecoration(
+                  labelText: 'Alasan edit',
+                  hintText: 'Contoh: rute sistem kurang akurat',
+                  errorText: _reasonErrorText,
+                ),
+                onChanged: (_) {
+                  if (_reasonErrorText != null) {
+                    setState(() => _reasonErrorText = null);
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(onPressed: _close, child: const Text('Batal')),
+                  const SizedBox(width: 8),
+                  FilledButton(onPressed: _submit, child: const Text('Simpan')),
+                ],
+              ),
+            ],
           ),
         ),
       ),

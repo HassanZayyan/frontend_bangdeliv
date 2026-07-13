@@ -1329,10 +1329,13 @@ class _DriverActiveOrderScreenState
       });
     }
 
+    final shouldResizeForKeyboard = ModalRoute.of(context)?.isCurrent ?? true;
+
     return DriverActiveOrderSnackBarScope(
       stickyActionBarKey: _stickyActionBarKey,
       child: Scaffold(
         backgroundColor: AppColors.background,
+        resizeToAvoidBottomInset: shouldResizeForKeyboard,
         body: detailState.when(
           skipLoadingOnRefresh: true,
           skipLoadingOnReload: true,

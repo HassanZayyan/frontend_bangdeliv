@@ -477,82 +477,64 @@ class _TransferProofReviewDialogState
 
   @override
   Widget build(BuildContext context) {
-    final viewInsets = MediaQuery.viewInsetsOf(context);
-
-    return SafeArea(
-      child: AnimatedPadding(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          bottom: viewInsets.bottom + 16,
-        ),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Material(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(10),
-              clipBehavior: Clip.antiAlias,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Verifikasi Bukti QRIS',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Pastikan nominal dan bukti pembayaran sudah sesuai.',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        height: 1.35,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    _reviewSummary(context),
-                    if (_isRejecting) ...[
-                      const SizedBox(height: 14),
-                      TextField(
-                        controller: _reasonController,
-                        maxLength: 1000,
-                        maxLines: 3,
-                        textInputAction: TextInputAction.done,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        decoration:
-                            _transferDialogInputDecoration(
-                              labelText: 'Alasan penolakan',
-                            ).copyWith(
-                              errorText: _reasonError,
-                              alignLabelWithHint: true,
-                            ),
-                        onChanged: (_) {
-                          if (_reasonError != null) {
-                            setState(() => _reasonError = null);
-                          }
-                        },
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    _actions(context),
-                  ],
+    return Dialog(
+      backgroundColor: AppColors.white,
+      insetPadding: const EdgeInsets.all(16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Verifikasi Bukti QRIS',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-            ),
+              const SizedBox(height: 6),
+              const Text(
+                'Pastikan nominal dan bukti pembayaran sudah sesuai.',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 14),
+              _reviewSummary(context),
+              if (_isRejecting) ...[
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _reasonController,
+                  maxLength: 1000,
+                  maxLines: 3,
+                  textInputAction: TextInputAction.done,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  decoration: _transferDialogInputDecoration(
+                    labelText: 'Alasan penolakan',
+                  ).copyWith(errorText: _reasonError, alignLabelWithHint: true),
+                  onChanged: (_) {
+                    if (_reasonError != null) {
+                      setState(() => _reasonError = null);
+                    }
+                  },
+                ),
+              ],
+              const SizedBox(height: 16),
+              _actions(context),
+            ],
           ),
         ),
       ),
@@ -842,79 +824,60 @@ class _TransferPaymentDialogState extends State<_TransferPaymentDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final viewInsets = MediaQuery.viewInsetsOf(context);
-
-    return SafeArea(
-      child: AnimatedPadding(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          bottom: viewInsets.bottom + 16,
-        ),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Material(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(10),
-              clipBehavior: Clip.antiAlias,
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Catat Pembayaran QRIS',
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      TextField(
-                        controller: _amountController,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: const [RupiahInputFormatter()],
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w400,
-                        ),
-                        decoration: _transferDialogInputDecoration(
-                          labelText: 'Nominal QRIS',
-                          prefixText: 'Rp ',
-                        ).copyWith(errorText: _amountError),
-                        onChanged: (_) {
-                          if (_amountError != null) {
-                            setState(() => _amountError = null);
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            child: const Text('Batal'),
-                          ),
-                          const SizedBox(width: 8),
-                          FilledButton(
-                            onPressed: _submit,
-                            child: const Text('Catat'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+    return Dialog(
+      backgroundColor: AppColors.white,
+      insetPadding: const EdgeInsets.all(16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Catat Pembayaran QRIS',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-            ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _amountController,
+                keyboardType: TextInputType.number,
+                inputFormatters: const [RupiahInputFormatter()],
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                ),
+                decoration: _transferDialogInputDecoration(
+                  labelText: 'Nominal QRIS',
+                  prefixText: 'Rp ',
+                ).copyWith(errorText: _amountError),
+                onChanged: (_) {
+                  if (_amountError != null) {
+                    setState(() => _amountError = null);
+                  }
+                },
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Batal'),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(onPressed: _submit, child: const Text('Catat')),
+                ],
+              ),
+            ],
           ),
         ),
       ),
