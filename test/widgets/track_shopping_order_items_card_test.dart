@@ -119,6 +119,34 @@ void main() {
     expect(find.text('Total pembayaran customer'), findsOneWidget);
   });
 
+  testWidgets('cancelled with fee hides failed merchant replacement cards', (
+    tester,
+  ) async {
+    await _pumpCard(
+      tester,
+      _FakeCustomerOrderRepository(),
+      detail: _shoppingDetail(
+        statusCode: 'CANCELLED_WITH_FEE',
+        shoppingStops: [
+          _failedShoppingStop(77, 'Kedai Tinari'),
+          _failedShoppingStop(78, 'Warung Sejahtera'),
+        ],
+        shoppingPricing: const CustomerShoppingPricingModel(
+          subtotal: 0,
+          deliveryFee: 0,
+          serviceFee: 50000,
+          totalPrice: 50000,
+          cancellationPenalty: 50000,
+        ),
+      ),
+    );
+
+    expect(find.textContaining('Tempat tutup/order batal'), findsNothing);
+    expect(find.text('Ganti toko/resto'), findsNothing);
+    expect(find.text('Fee pembatalan'), findsOneWidget);
+    expect(find.text('Total pembayaran customer'), findsOneWidget);
+  });
+
   testWidgets('multiple unavailable items can be selected in one decision', (
     tester,
   ) async {

@@ -861,6 +861,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     required String actionCode,
     String? targetStatusCode,
     String? note,
+    double? cancellationPenaltyBaseDeliveryFee,
   }) async {
     final current = state.asData?.value;
     if (current == null) {
@@ -883,6 +884,8 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
             actionCode: actionCode,
             targetStatusCode: targetStatusCode,
             note: note,
+            cancellationPenaltyBaseDeliveryFee:
+                cancellationPenaltyBaseDeliveryFee,
           );
 
       final latest = state.asData?.value;

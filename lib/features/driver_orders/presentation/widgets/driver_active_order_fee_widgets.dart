@@ -2,8 +2,212 @@ import 'package:flutter/material.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../models/driver_order_model.dart';
+import '../../../../utils/order_formatters.dart';
 import '../../../../utils/service_type.dart';
 import 'driver_active_order_widget_helpers.dart';
+
+typedef DriverShoppingCancellationInput = ({
+  double baseDeliveryFee,
+  String reason,
+});
+
+Future<DriverShoppingCancellationInput?> showDriverShoppingCancelWithFeeDialog(
+  BuildContext context, {
+  required DriverOrderModel order,
+}) {
+  final pricing = order.shoppingPricing;
+  final automaticPenalty = pricing == null
+      ? 0.0
+      : pricing.cancellationPenalty > pricing.failedTripCompensation
+      ? pricing.cancellationPenalty
+      : pricing.failedTripCompensation;
+  final initialBase = (pricing?.cancellationPenaltyBaseDeliveryFee ?? 0) > 0
+      ? pricing!.cancellationPenaltyBaseDeliveryFee
+      : (order.deliveryFee ?? 0) > 0
+      ? order.deliveryFee!
+      : automaticPenalty * 2;
+  final percent = (pricing?.cancellationPenaltyPercent ?? 0) > 0
+      ? pricing!.cancellationPenaltyPercent
+      : 50.0;
+
+  return showDialog<DriverShoppingCancellationInput>(
+    context: context,
+    builder: (_) => _ShoppingCancelWithFeeDialog(
+      initialBaseDeliveryFee: initialBase,
+      cancellationPercent: percent,
+    ),
+  );
+}
+
+class _ShoppingCancelWithFeeDialog extends StatefulWidget {
+  const _ShoppingCancelWithFeeDialog({
+    required this.initialBaseDeliveryFee,
+    required this.cancellationPercent,
+  });
+
+  final double initialBaseDeliveryFee;
+  final double cancellationPercent;
+
+  @override
+  State<_ShoppingCancelWithFeeDialog> createState() =>
+      _ShoppingCancelWithFeeDialogState();
+}
+
+class _ShoppingCancelWithFeeDialogState
+    extends State<_ShoppingCancelWithFeeDialog> {
+  late final TextEditingController _amountController;
+  late final TextEditingController _reasonController;
+  String? _amountErrorText;
+  String? _reasonErrorText;
+
+  double get _baseDeliveryFee =>
+      parseDriverCurrencyInput(_amountController.text);
+
+  double get _cancellationFee =>
+      (_baseDeliveryFee * widget.cancellationPercent / 100).roundToDouble();
+
+  @override
+  void initState() {
+    super.initState();
+    _amountController = TextEditingController(
+      text: widget.initialBaseDeliveryFee > 0
+          ? widget.initialBaseDeliveryFee.round().toString()
+          : '',
+    );
+    _reasonController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _reasonController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppColors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      title: const Text('Batalkan Order dengan Fee 50%'),
+      content: SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Periksa ongkir penuh berdasarkan perjalanan aktual. Customer hanya akan ditagih 50% dari nominal ini.',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _amountController,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                decoration: driverDialogInputDecoration(
+                  labelText: 'Ongkir penuh',
+                  prefixText: 'Rp ',
+                  errorText: _amountErrorText,
+                ),
+                onChanged: (_) => setState(() => _amountErrorText = null),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight.withValues(alpha: 0.45),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Fee pembatalan (50%)',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      formatCurrency(_cancellationFee),
+                      key: const ValueKey('shopping-cancellation-fee-preview'),
+                      style: const TextStyle(
+                        color: AppColors.primaryDark,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _reasonController,
+                minLines: 2,
+                maxLines: 3,
+                decoration: driverDialogInputDecoration(
+                  labelText: 'Alasan koreksi',
+                  hintText: 'Contoh: rute aktual lebih jauh dari estimasi',
+                  errorText: _reasonErrorText,
+                ),
+                onChanged: (_) {
+                  if (_reasonErrorText != null) {
+                    setState(() => _reasonErrorText = null);
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Kembali'),
+        ),
+        FilledButton(
+          key: const ValueKey('confirm-shopping-cancellation-fee'),
+          style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+          onPressed: _submit,
+          child: const Text('Batalkan & Tagih 50%'),
+        ),
+      ],
+    );
+  }
+
+  void _submit() {
+    final baseDeliveryFee = _baseDeliveryFee;
+    final reason = _reasonController.text.trim();
+    final amountError = baseDeliveryFee <= 0
+        ? 'Ongkir penuh wajib lebih dari Rp 0.'
+        : null;
+    final reasonError = reason.isEmpty
+        ? 'Alasan koreksi ongkir wajib diisi.'
+        : null;
+    if (amountError != null || reasonError != null) {
+      setState(() {
+        _amountErrorText = amountError;
+        _reasonErrorText = reasonError;
+      });
+      return;
+    }
+
+    FocusManager.instance.primaryFocus?.unfocus();
+    Navigator.of(
+      context,
+    ).pop((baseDeliveryFee: baseDeliveryFee, reason: reason));
+  }
+}
 
 Future<void> showDriverManualDeliveryFeeEditDialog(
   BuildContext context, {

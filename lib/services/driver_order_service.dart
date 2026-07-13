@@ -79,6 +79,7 @@ class DriverOrderService {
     required String actionCode,
     String? targetStatusCode,
     String? note,
+    double? cancellationPenaltyBaseDeliveryFee,
   }) async {
     final normalizedTargetStatusCode = targetStatusCode?.trim();
     final normalizedNote = note?.trim();
@@ -92,6 +93,8 @@ class DriverOrderService {
           'target_status_code': normalizedTargetStatusCode,
         if (normalizedNote != null && normalizedNote.isNotEmpty)
           'note': normalizedNote,
+        'cancellation_penalty_base_delivery_fee':
+            ?cancellationPenaltyBaseDeliveryFee,
       },
       fallback: 'Gagal memproses transisi status order.',
     );
