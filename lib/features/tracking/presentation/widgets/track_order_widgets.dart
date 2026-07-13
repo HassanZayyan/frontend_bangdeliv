@@ -70,6 +70,9 @@ class _TrackShoppingOrderItemsCardState
     final failedStops = stops
         .where((stop) => stop.isFailed)
         .toList(growable: false);
+    final showFailedStopNotices =
+        widget.showGlobalActions &&
+        !detail.shoppingCapabilities.hasCheckoutSaved;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -124,7 +127,7 @@ class _TrackShoppingOrderItemsCardState
             ],
           ),
           const Divider(height: 18, color: AppColors.border),
-          if (widget.showGlobalActions && failedStops.isNotEmpty) ...[
+          if (showFailedStopNotices && failedStops.isNotEmpty) ...[
             ...failedStops.map((stop) => _failedStopNotice(context, ref, stop)),
             const SizedBox(height: 4),
           ],
