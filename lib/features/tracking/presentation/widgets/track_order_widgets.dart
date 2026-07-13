@@ -14,6 +14,7 @@ import '../../../../core/widgets/bang_unavailable_item_picker.dart';
 import '../../../../models/customer_order_model.dart';
 import '../../../../models/shopping_order_capability_model.dart';
 import '../../../../utils/order_formatters.dart';
+import '../../../../utils/order_status.dart';
 import '../../../orders/application/customer_order_providers.dart';
 import '../../../shopping/presentation/screens/shopping_add_item_screen.dart';
 import '../../application/customer_order_tracking_provider.dart';
@@ -73,7 +74,8 @@ class _TrackShoppingOrderItemsCardState
     final showFailedStopNotices =
         widget.showGlobalActions &&
         !detail.shoppingCapabilities.hasCheckoutSaved &&
-        !detail.isCancelledWithFee;
+        !detail.summary.isTerminalStatus &&
+        !isTerminalOrderStatus(detail.summary.effectiveStatusCode);
 
     return Container(
       padding: const EdgeInsets.all(16),

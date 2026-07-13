@@ -147,6 +147,50 @@ void main() {
     expect(find.text('Total pembayaran customer'), findsOneWidget);
   });
 
+  testWidgets('completed order hides stale failed merchant replacement cards', (
+    tester,
+  ) async {
+    await _pumpCard(
+      tester,
+      _FakeCustomerOrderRepository(),
+      detail: _shoppingDetail(
+        statusCode: 'COMPLETED',
+        shoppingStops: [
+          _failedShoppingStop(77, 'Kedai Tinari'),
+          _failedShoppingStop(78, 'Warung Sejahtera'),
+        ],
+      ),
+    );
+
+    expect(find.textContaining('Tempat tutup/order batal'), findsNothing);
+    expect(find.text('Ganti toko/resto'), findsNothing);
+    expect(find.textContaining('Item tidak tersedia:'), findsOneWidget);
+    expect(find.text('Total pembayaran customer'), findsOneWidget);
+  });
+
+  testWidgets('legacy completed cancellation uses cancellation fee outcome', (
+    tester,
+  ) async {
+    await _pumpCard(
+      tester,
+      _FakeCustomerOrderRepository(),
+      detail: _shoppingDetail(
+        statusCode: 'COMPLETED',
+        wasCancelledWithFee: true,
+        shoppingPricing: const CustomerShoppingPricingModel(
+          subtotal: 0,
+          deliveryFee: 0,
+          serviceFee: 65000,
+          totalPrice: 65000,
+          cancellationPenalty: 65000,
+        ),
+      ),
+    );
+
+    expect(find.text('Fee pembatalan'), findsOneWidget);
+    expect(find.text('Biaya layanan'), findsNothing);
+  });
+
   testWidgets('multiple unavailable items can be selected in one decision', (
     tester,
   ) async {
@@ -677,6 +721,7 @@ CustomerOrderDetailModel _shoppingDetail({
   bool canCancelUnavailableMerchant = true,
   bool includeSecondUnavailableItem = false,
   String statusCode = 'ARRIVED_MERCHANT',
+  bool wasCancelledWithFee = false,
   CustomerShoppingPricingModel? shoppingPricing,
   ShoppingOrderCapabilitiesModel? shoppingCapabilities,
   List<CustomerShoppingStopModel>? shoppingStops,
@@ -745,12 +790,17 @@ CustomerOrderDetailModel _shoppingDetail({
       totalAmount: 9000,
       statusCode: statusCode,
       statusLabel: 'Driver di tempat',
-      isTerminalStatus: false,
+      isTerminalStatus: const {
+        'COMPLETED',
+        'CANCELLED',
+        'CANCELLED_WITH_FEE',
+      }.contains(statusCode),
       createdAt: DateTime(2026, 6, 18),
       estimatedDelivery: null,
       deliveryAddress: 'Jl. Customer',
       paymentStatus: 'unpaid',
       paymentMethod: 'COD',
+      wasCancelledWithFee: wasCancelledWithFee,
     ),
     paymentStatus: 'PENDING',
     paymentMethod: 'COD',

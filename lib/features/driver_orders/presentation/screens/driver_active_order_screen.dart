@@ -173,6 +173,7 @@ class _DriverActiveOrderScreenState
   String? _selectedPointId;
   String? _lastActivePointId;
   bool _isRefreshingOrder = false;
+  bool _resolvedCancellationNavigationScheduled = false;
 
   String get orderId => widget.orderId;
 
@@ -862,6 +863,25 @@ class _DriverActiveOrderScreenState
     context.go(AppRoutes.driverHome);
   }
 
+  void _scheduleResolvedCancellationNavigation(DriverOrderModel? order) {
+    final isResolvedCancellation =
+        order != null &&
+        normalizeOrderStatusCode(order.statusCode) ==
+            OrderStatusCodes.cancelledWithFee &&
+        order.paymentStatus.trim().toLowerCase() == 'paid';
+    if (!isResolvedCancellation || _resolvedCancellationNavigationScheduled) {
+      return;
+    }
+
+    _resolvedCancellationNavigationScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!context.mounted) {
+        return;
+      }
+      context.go(AppRoutes.driverHome);
+    });
+  }
+
   Widget _buildBackNavigationGuard() {
     return PopScope<void>(
       canPop: context.canPop(),
@@ -888,6 +908,13 @@ class _DriverActiveOrderScreenState
     }
 
     final detailState = ref.watch(driverOrderDetailProvider(orderId));
+    ref.listen<AsyncValue<DriverOrderModel>>(
+      driverOrderDetailProvider(orderId),
+      (previous, next) {
+        _scheduleResolvedCancellationNavigation(next.asData?.value);
+      },
+    );
+    _scheduleResolvedCancellationNavigation(detailState.asData?.value);
     final pendingSnackBarMessage = ref.watch(
       driverActiveOrderSnackBarMessageProvider,
     );

@@ -41,7 +41,7 @@ class CustomerOrderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = orderStatusColor(order.statusCode);
+    final statusColor = orderStatusColor(order.effectiveStatusCode);
     final serviceCode = normalizeServiceTypeCode(order.serviceTypeCode);
     final hideItemsSummary =
         serviceCode == 'RIDE' &&
@@ -459,7 +459,7 @@ class CustomerOrderCard extends StatelessWidget {
           const SizedBox(width: 6),
           Flexible(
             child: Text(
-              order.statusLabel,
+              order.effectiveStatusLabel,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
