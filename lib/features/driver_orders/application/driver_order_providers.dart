@@ -275,6 +275,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
   bool _disposed = false;
   bool _silentRefreshInFlight = false;
   bool _refreshedAfterRealtimeSubscribe = false;
+  Future<DriverOrdersState?>? _pendingReadyState;
 
   bool get _isMounted => !_disposed && ref.mounted;
 
@@ -300,17 +301,32 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       );
     }
 
-    final payload = await ref.read(driverOrderRepositoryProvider).fetchOrders();
-    _syncRealtimeSubscription(session);
-    _startIncomingReconciliation();
+    final readyCompleter = Completer<DriverOrdersState?>();
+    final pendingReadyState = readyCompleter.future;
+    _pendingReadyState = pendingReadyState;
+    try {
+      final payload = await ref
+          .read(driverOrderRepositoryProvider)
+          .fetchOrders();
+      _syncRealtimeSubscription(session);
+      _startIncomingReconciliation();
 
-    final next = DriverOrdersState(
-      incoming: payload.incoming,
-      running: payload.running,
-      processingActionKeys: const <String>{},
-    );
-    _syncRunningOrderRealtime(next);
-    return next;
+      final next = DriverOrdersState(
+        incoming: payload.incoming,
+        running: payload.running,
+        processingActionKeys: const <String>{},
+      );
+      _syncRunningOrderRealtime(next);
+      readyCompleter.complete(next);
+      return next;
+    } catch (_) {
+      readyCompleter.complete(null);
+      rethrow;
+    } finally {
+      if (identical(_pendingReadyState, pendingReadyState)) {
+        _pendingReadyState = null;
+      }
+    }
   }
 
   Future<void> refresh({bool showLoading = true}) async {
@@ -340,8 +356,13 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     }
 
     final previous = state.asData?.value;
+    Completer<DriverOrdersState?>? readyCompleter;
+    Future<DriverOrdersState?>? pendingReadyState;
 
     if (showLoading) {
+      readyCompleter = Completer<DriverOrdersState?>();
+      pendingReadyState = readyCompleter.future;
+      _pendingReadyState = pendingReadyState;
       state = const AsyncLoading<DriverOrdersState>();
     }
 
@@ -381,6 +402,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       );
       state = AsyncData(next);
       _syncRunningOrderRealtime(next);
+      readyCompleter?.complete(next);
     } catch (error, stackTrace) {
       if (!_isMounted) {
         return;
@@ -391,7 +413,14 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       }
 
       state = AsyncError(error, stackTrace);
+      readyCompleter?.complete(previous);
     } finally {
+      if (readyCompleter != null && !readyCompleter.isCompleted) {
+        readyCompleter.complete(previous);
+      }
+      if (identical(_pendingReadyState, pendingReadyState)) {
+        _pendingReadyState = null;
+      }
       if (!showLoading) {
         _silentRefreshInFlight = false;
       }
@@ -1297,7 +1326,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     required String reason,
     XFile? storeClosedPhoto,
   }) async {
-    final current = state.asData?.value;
+    final current = await _waitForReadyOrdersState();
     if (current == null) {
       return 'Data order belum siap.';
     }
@@ -1348,6 +1377,21 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       state = AsyncData(_clearActionProcessing(latest, actionKey: actionKey));
       return error.toString();
     }
+  }
+
+  Future<DriverOrdersState?> _waitForReadyOrdersState() async {
+    final current = state.asData?.value;
+    if (current != null) {
+      return current;
+    }
+
+    final pendingReadyState = _pendingReadyState;
+    if (pendingReadyState == null) {
+      return null;
+    }
+
+    final ready = await pendingReadyState;
+    return _isMounted ? ready : null;
   }
 
   List<DriverOrderModel> _upsertRunningOrder(

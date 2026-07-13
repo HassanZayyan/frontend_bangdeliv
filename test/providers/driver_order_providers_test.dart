@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:frontend_bangdeliv/data/repositories/realtime_order_client.dart';
 import 'package:frontend_bangdeliv/models/driver_order_model.dart';
@@ -895,6 +896,100 @@ void main() {
     },
   );
 
+  test('merchant closed upload waits until orders state is ready', () async {
+    final fetchCompleter = Completer<void>();
+    final runningOrder = _runningOrder('99');
+    final fakeService = _FakeDriverOrderService(
+      payload: DriverOrdersPayload(
+        incoming: const <DriverOrderModel>[],
+        running: <DriverOrderModel>[runningOrder],
+      ),
+      fetchCompleters: [fetchCompleter],
+    );
+    final container = ProviderContainer(
+      overrides: [
+        authSessionProvider.overrideWith(
+          () => _FakeAuthSessionNotifier(_driverSession(77)),
+        ),
+        driverOrderServiceProvider.overrideWithValue(fakeService),
+        orderRealtimeClientProvider.overrideWithValue(
+          FakeOrderRealtimeClient(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final ordersFuture = container.read(driverOrdersProvider.future);
+    final resultFuture = container
+        .read(driverOrdersProvider.notifier)
+        .recordShoppingPickupFailed(
+          orderId: '99',
+          pickupLocationId: 77,
+          reason: 'Tempat tutup/order batal saat driver tiba.',
+          storeClosedPhoto: XFile('store-closed.jpg'),
+        );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(fakeService.failedPickupOrderIds, isEmpty);
+    fetchCompleter.complete();
+    await ordersFuture;
+
+    expect(await resultFuture, isNull);
+    expect(fakeService.failedPickupOrderIds, ['99']);
+    expect(fakeService.failedPickupPhotos.single?.path, 'store-closed.jpg');
+    expect(container.read(driverOrdersProvider).asData?.value.running, [
+      runningOrder,
+    ]);
+  });
+
+  test('merchant closed upload waits for an active orders refresh', () async {
+    final runningOrder = _runningOrder('99');
+    final fakeService = _FakeDriverOrderService(
+      payload: DriverOrdersPayload(
+        incoming: const <DriverOrderModel>[],
+        running: <DriverOrderModel>[runningOrder],
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        authSessionProvider.overrideWith(
+          () => _FakeAuthSessionNotifier(_driverSession(77)),
+        ),
+        driverOrderServiceProvider.overrideWithValue(fakeService),
+        orderRealtimeClientProvider.overrideWithValue(
+          FakeOrderRealtimeClient(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container.read(driverOrdersProvider.future);
+
+    final refreshCompleter = Completer<void>();
+    fakeService.fetchCompleters.add(refreshCompleter);
+    final refreshFuture = container
+        .read(driverOrdersProvider.notifier)
+        .refresh();
+    expect(container.read(driverOrdersProvider).isLoading, isTrue);
+
+    final resultFuture = container
+        .read(driverOrdersProvider.notifier)
+        .recordShoppingPickupFailed(
+          orderId: '99',
+          pickupLocationId: 77,
+          reason: 'Tempat tutup/order batal saat driver tiba.',
+          storeClosedPhoto: XFile('store-closed.jpg'),
+        );
+    await Future<void>.delayed(Duration.zero);
+    expect(fakeService.failedPickupOrderIds, isEmpty);
+
+    refreshCompleter.complete();
+    await refreshFuture;
+
+    expect(await resultFuture, isNull);
+    expect(fakeService.failedPickupOrderIds, ['99']);
+    expect(fakeService.failedPickupPhotos.single?.path, 'store-closed.jpg');
+  });
+
   test(
     'driverOrdersProvider does not show duplicate heads-up for existing incoming order',
     () async {
@@ -1503,7 +1598,10 @@ class _FakeDriverOrderService extends DriverOrderService {
   final Completer<void>? rejectTransferCompleter;
   final Completer<void>? transitionCompleter;
   final Completer<void>? detailCompleter;
+  final List<Completer<void>> fetchCompleters;
   final List<String> acceptedOrderIds = <String>[];
+  final List<String> failedPickupOrderIds = <String>[];
+  final List<XFile?> failedPickupPhotos = <XFile?>[];
   final Map<String, String> rejectedTransferReasons = <String, String>{};
   final List<DriverOrderModel> detailResponses;
   int fetchCalls = 0;
@@ -1523,15 +1621,33 @@ class _FakeDriverOrderService extends DriverOrderService {
     this.rejectTransferCompleter,
     this.transitionCompleter,
     this.detailCompleter,
+    List<Completer<void>>? fetchCompleters,
     List<DriverOrderModel>? detailResponses,
-  }) : detailResponses = List<DriverOrderModel>.from(
+  }) : fetchCompleters = fetchCompleters ?? <Completer<void>>[],
+       detailResponses = List<DriverOrderModel>.from(
          detailResponses ?? const <DriverOrderModel>[],
        );
 
   @override
   Future<DriverOrdersPayload> fetchOrders() async {
     fetchCalls += 1;
+    if (fetchCompleters.isNotEmpty) {
+      final completer = fetchCompleters.removeAt(0);
+      await completer.future;
+    }
     return payload;
+  }
+
+  @override
+  Future<DriverOrderModel> recordShoppingPickupFailed({
+    required String orderId,
+    required int pickupLocationId,
+    required String reason,
+    XFile? merchantClosedPhoto,
+  }) async {
+    failedPickupOrderIds.add(orderId);
+    failedPickupPhotos.add(merchantClosedPhoto);
+    return payload.running.firstWhere((order) => order.id == orderId);
   }
 
   @override
