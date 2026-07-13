@@ -40,6 +40,51 @@ void main() {
     expect(submitCount, 0);
   });
 
+  testWidgets('shopping fee edit uses all-in total and explanation', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DriverOrderPricingCard(
+            order: _order(
+              serviceTypeCode: ServiceTypeCodes.shopping,
+              deliveryFee: 15000,
+              shoppingPricing: const DriverShoppingPricingModel(
+                subtotal: 50000,
+                deliveryFee: 15000,
+                serviceFee: 10000,
+                totalPrice: 75000,
+                cancellationPenalty: 0,
+                failedTripCompensation: 10000,
+                recalculationVersion: 1,
+                hasPendingManualPrices: false,
+              ),
+            ),
+            onEditDeliveryFee: ({required amount, required reason}) async =>
+                null,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit Total Ongkir Nitip'), findsOneWidget);
+    expect(find.text('Total ongkir Nitip'), findsOneWidget);
+    expect(
+      find.text(
+        'Nominal ini mencakup ongkir aktif dan kompensasi perjalanan gagal.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester.widget<TextField>(find.byType(TextField).first).controller?.text,
+      '25000',
+    );
+  });
+
   testWidgets('pricing card hides delivery fee edit when callback is omitted', (
     tester,
   ) async {
@@ -133,6 +178,40 @@ void main() {
     final button = tester.widget<FilledButton>(find.byType(FilledButton));
     expect(button.onPressed, isNull);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
+  });
+
+  testWidgets('shopping counter uses all-in total transport labels', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DriverOrderPricingCard(
+            order: _order(
+              serviceTypeCode: ServiceTypeCodes.shopping,
+              deliveryFee: 15000,
+              deliveryFeeNegotiation: const DeliveryFeeNegotiationModel(
+                amount: AmountNegotiationModel(
+                  status: 'PENDING_DRIVER',
+                  quotedAmount: 26000,
+                  counterAmount: 24000,
+                  canDriverAcceptCounter: true,
+                ),
+                pricingScope: 'SHOPPING_TOTAL_TRANSPORT',
+                previousTotalTransport: 30000,
+              ),
+            ),
+            onAcceptDeliveryFeeCounter: () async {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Tawaran total ongkir customer'), findsOneWidget);
+    expect(find.text('Total usulan driver'), findsOneWidget);
+    expect(find.text('Total transport sebelumnya'), findsOneWidget);
+    expect(find.text('Tawaran ongkir customer'), findsNothing);
+    expect(find.text('Ongkir saat ini'), findsNothing);
   });
 
   testWidgets('pricing card shows delivery fee bypass when waiting customer', (
@@ -260,6 +339,44 @@ void main() {
     expect(find.text('Pendapatan transport'), findsNothing);
     expect(find.text('Fee Driver'), findsNothing);
     expect(find.text('Total pembayaran customer'), findsOneWidget);
+  });
+
+  testWidgets('approved shopping all-in pricing renders one transport line', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DriverOrderPricingCard(
+            order: _order(
+              serviceTypeCode: ServiceTypeCodes.shopping,
+              deliveryFee: 26000,
+              fee: 26000,
+              deliveryFeeNegotiation: const DeliveryFeeNegotiationModel(
+                amount: AmountNegotiationModel(status: 'APPROVED'),
+                pricingScope: 'SHOPPING_TOTAL_TRANSPORT',
+                activePricingScope: 'SHOPPING_TOTAL_TRANSPORT',
+              ),
+              shoppingPricing: const DriverShoppingPricingModel(
+                subtotal: 50000,
+                deliveryFee: 26000,
+                serviceFee: 0,
+                totalPrice: 76000,
+                cancellationPenalty: 0,
+                failedTripCompensation: 10000,
+                recalculationVersion: 2,
+                hasPendingManualPrices: false,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Total ongkir Nitip'), findsOneWidget);
+    expect(find.text('Ongkir aktif'), findsNothing);
+    expect(find.text('Kompensasi perjalanan gagal (50%)'), findsNothing);
+    expect(find.text('Pendapatan transport'), findsNothing);
   });
 }
 

@@ -491,6 +491,8 @@ class DriverOrderPricingCard extends StatelessWidget {
         order.driverAdminFee > 0 &&
         order.driverIncomeGross > order.driverIncomeNet;
     final deliveryFeeNegotiation = order.deliveryFeeNegotiation;
+    final isShoppingTotalTransport =
+        deliveryFeeNegotiation?.isActiveShoppingTotalTransport == true;
     final counterAmount = deliveryFeeNegotiation?.counterAmount ?? 0;
     final showCounterOffer =
         onAcceptDeliveryFeeCounter != null &&
@@ -561,10 +563,14 @@ class DriverOrderPricingCard extends StatelessWidget {
           if (!showDriverAdminFeeBreakdown &&
               order.deliveryFee != null &&
               order.deliveryFee! > 0) ...[
-            _pricingLine('Ongkir aktif', formatRupiah(order.deliveryFee!)),
+            _pricingLine(
+              isShoppingTotalTransport ? 'Total ongkir Nitip' : 'Ongkir aktif',
+              formatRupiah(order.deliveryFee!),
+            ),
             const SizedBox(height: 8),
           ],
           if (!showDriverAdminFeeBreakdown &&
+              !isShoppingTotalTransport &&
               (order.shoppingPricing?.failedTripCompensation ?? 0) > 0) ...[
             _pricingLine(
               'Kompensasi perjalanan gagal (50%)',
@@ -603,8 +609,12 @@ class DriverOrderPricingCard extends StatelessWidget {
   }
 
   Widget _buildDeliveryFeeBypassAction(double quotedAmount) {
-    final currentAmount =
-        order.deliveryFee ?? order.deliveryFeeNegotiation?.oldDeliveryFee;
+    final negotiation = order.deliveryFeeNegotiation;
+    final isShoppingTotalTransport =
+        negotiation?.isShoppingTotalTransport == true;
+    final currentAmount = isShoppingTotalTransport
+        ? negotiation?.previousTotalTransport
+        : order.deliveryFee ?? negotiation?.oldDeliveryFee;
 
     return Container(
       width: double.infinity,
@@ -617,23 +627,35 @@ class DriverOrderPricingCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Menunggu persetujuan ongkir customer',
-            style: TextStyle(
+          Text(
+            isShoppingTotalTransport
+                ? 'Menunggu persetujuan total ongkir Nitip'
+                : 'Menunggu persetujuan ongkir customer',
+            style: const TextStyle(
               color: AppColors.textPrimary,
               fontSize: 13,
               fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: 8),
-          _counterDetailLine('Revisi driver', formatRupiah(quotedAmount)),
+          _counterDetailLine(
+            isShoppingTotalTransport ? 'Total usulan driver' : 'Revisi driver',
+            formatRupiah(quotedAmount),
+          ),
           if (currentAmount != null && currentAmount > 0) ...[
             const SizedBox(height: 6),
-            _counterDetailLine('Ongkir saat ini', formatRupiah(currentAmount)),
+            _counterDetailLine(
+              isShoppingTotalTransport
+                  ? 'Total transport sebelumnya'
+                  : 'Ongkir saat ini',
+              formatRupiah(currentAmount),
+            ),
           ],
           const SizedBox(height: 10),
           BangSwipeActionButton(
-            label: 'Geser untuk bypass ongkir',
+            label: isShoppingTotalTransport
+                ? 'Geser untuk bypass total ongkir'
+                : 'Geser untuk bypass ongkir',
             loadingLabel: 'Memproses bypass...',
             isLoading: isBypassingDeliveryFee,
             isEnabled: !isProcessing && !isBypassingDeliveryFee,
@@ -646,8 +668,12 @@ class DriverOrderPricingCard extends StatelessWidget {
 
   Widget _buildDeliveryFeeCounterOffer(double counterAmount) {
     final negotiation = order.deliveryFeeNegotiation;
+    final isShoppingTotalTransport =
+        negotiation?.isShoppingTotalTransport == true;
     final quotedAmount = negotiation?.quotedAmount;
-    final currentAmount = order.deliveryFee ?? negotiation?.oldDeliveryFee;
+    final currentAmount = isShoppingTotalTransport
+        ? negotiation?.previousTotalTransport
+        : order.deliveryFee ?? negotiation?.oldDeliveryFee;
 
     return Container(
       width: double.infinity,
@@ -685,9 +711,11 @@ class DriverOrderPricingCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Tawaran ongkir customer',
-                      style: TextStyle(
+                    Text(
+                      isShoppingTotalTransport
+                          ? 'Tawaran total ongkir customer'
+                          : 'Tawaran ongkir customer',
+                      style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
@@ -709,11 +737,21 @@ class DriverOrderPricingCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           if (quotedAmount != null && quotedAmount > 0) ...[
-            _counterDetailLine('Revisi driver', formatRupiah(quotedAmount)),
+            _counterDetailLine(
+              isShoppingTotalTransport
+                  ? 'Total usulan driver'
+                  : 'Revisi driver',
+              formatRupiah(quotedAmount),
+            ),
             const SizedBox(height: 6),
           ],
           if (currentAmount != null && currentAmount > 0) ...[
-            _counterDetailLine('Ongkir saat ini', formatRupiah(currentAmount)),
+            _counterDetailLine(
+              isShoppingTotalTransport
+                  ? 'Total transport sebelumnya'
+                  : 'Ongkir saat ini',
+              formatRupiah(currentAmount),
+            ),
             const SizedBox(height: 10),
           ],
           SizedBox(

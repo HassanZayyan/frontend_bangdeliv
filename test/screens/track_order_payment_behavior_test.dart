@@ -154,6 +154,10 @@ void main() {
       source,
       contains(r"return 'Ongkir diperbarui menjadi $amountText.';"),
     );
+    expect(
+      source,
+      contains(r"return 'Total ongkir Nitip diperbarui menjadi $amountText.';"),
+    );
     expect(source, isNot(contains('Ongkir diperbarui driver')));
     expect(source, contains('reason: deliveryFeeNoticeReason'));
 
@@ -167,6 +171,15 @@ void main() {
       noticeReason,
       isNot(contains('detail.deliveryFeeNegotiation?.note')),
     );
+  });
+
+  test('shopping all-in negotiation uses total transport labels', () {
+    final source = File(_trackOrderSourcePath).readAsStringSync();
+
+    expect(source, contains('Konfirmasi total ongkir Nitip'));
+    expect(source, contains("'Total ongkir Nitip'"));
+    expect(source, contains('negotiation?.previousTotalTransport'));
+    expect(source, contains("'Total transport sebelumnya'"));
   });
 
   test('customer cancellation action lives in tracking, not activity card', () {
