@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../models/driver_order_model.dart';
+import '../../../../utils/service_type.dart';
 import 'driver_active_order_widget_helpers.dart';
 
 Future<void> showDriverManualDeliveryFeeEditDialog(
@@ -13,11 +14,19 @@ Future<void> showDriverManualDeliveryFeeEditDialog(
   })
   onSave,
 }) async {
+  final isShopping =
+      normalizeServiceTypeCode(order.serviceTypeCode) ==
+      ServiceTypeCodes.shopping;
+  final initialAmount = isShopping
+      ? (order.deliveryFee ?? 0) +
+            (order.shoppingPricing?.failedTripCompensation ?? 0)
+      : order.deliveryFee;
   final result = await showDialog<_ManualDeliveryFeeInput>(
     context: context,
     builder: (context) => _ManualDeliveryFeeDialog(
-      initialAmount: order.deliveryFee,
+      initialAmount: initialAmount,
       initialReason: '',
+      isShoppingTotalTransport: isShopping,
     ),
   );
 
@@ -33,7 +42,11 @@ Future<void> showDriverManualDeliveryFeeEditDialog(
 
   showDriverActiveOrderSnackBar(
     context,
-    message: error ?? 'Ongkir manual berhasil disimpan.',
+    message:
+        error ??
+        (isShopping
+            ? 'Total ongkir Nitip berhasil diajukan.'
+            : 'Ongkir manual berhasil disimpan.'),
     isError: error != null,
   );
 }
@@ -42,10 +55,12 @@ class _ManualDeliveryFeeDialog extends StatefulWidget {
   const _ManualDeliveryFeeDialog({
     required this.initialAmount,
     required this.initialReason,
+    required this.isShoppingTotalTransport,
   });
 
   final double? initialAmount;
   final String initialReason;
+  final bool isShoppingTotalTransport;
 
   @override
   State<_ManualDeliveryFeeDialog> createState() =>
@@ -101,9 +116,11 @@ class _ManualDeliveryFeeDialogState extends State<_ManualDeliveryFeeDialog> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Edit Ongkir Manual',
-                      style: TextStyle(
+                    Text(
+                      widget.isShoppingTotalTransport
+                          ? 'Edit Total Ongkir Nitip'
+                          : 'Edit Ongkir Manual',
+                      style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
@@ -119,7 +136,9 @@ class _ManualDeliveryFeeDialogState extends State<_ManualDeliveryFeeDialog> {
                         fontWeight: FontWeight.w400,
                       ),
                       decoration: driverDialogInputDecoration(
-                        labelText: 'Ongkir dasar manual',
+                        labelText: widget.isShoppingTotalTransport
+                            ? 'Total ongkir Nitip'
+                            : 'Ongkir dasar manual',
                         prefixText: 'Rp ',
                         errorText: _amountErrorText,
                       ),
@@ -129,6 +148,17 @@ class _ManualDeliveryFeeDialogState extends State<_ManualDeliveryFeeDialog> {
                         }
                       },
                     ),
+                    if (widget.isShoppingTotalTransport) ...[
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Nominal ini mencakup ongkir aktif dan kompensasi perjalanan gagal.',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     TextField(
                       controller: _reasonController,

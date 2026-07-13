@@ -1612,15 +1612,25 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
   ) {
     final negotiation = detail.deliveryFeeNegotiation;
     final amount = negotiation?.quotedAmount ?? 0;
+    final isShoppingTotalTransport =
+        negotiation?.isShoppingTotalTransport == true;
 
     return KeyedSubtree(
       key: _deliveryFeeFocusKey,
       child: BangAmountNegotiationCard(
-        label: 'Konfirmasi revisi ongkir',
+        label: isShoppingTotalTransport
+            ? 'Konfirmasi total ongkir Nitip'
+            : 'Konfirmasi revisi ongkir',
         amount: amount,
-        amountLabel: 'Ongkir baru',
-        previousAmount: negotiation?.oldDeliveryFee,
-        previousAmountLabel: 'Ongkir awal',
+        amountLabel: isShoppingTotalTransport
+            ? 'Total ongkir Nitip'
+            : 'Ongkir baru',
+        previousAmount: isShoppingTotalTransport
+            ? negotiation?.previousTotalTransport
+            : negotiation?.oldDeliveryFee,
+        previousAmountLabel: isShoppingTotalTransport
+            ? 'Total transport sebelumnya'
+            : 'Ongkir awal',
         reasonLabel: 'Alasan',
         reason: negotiation?.note,
         approveLabel: 'Setujui',
@@ -1776,6 +1786,10 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     }
 
     final amountText = formatCurrency(deliveryFee);
+    if (detail.deliveryFeeNegotiation?.isActiveShoppingTotalTransport == true) {
+      return 'Total ongkir Nitip diperbarui menjadi $amountText.';
+    }
+
     return 'Ongkir diperbarui menjadi $amountText.';
   }
 

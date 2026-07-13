@@ -9,6 +9,7 @@ import 'package:frontend_bangdeliv/data/repositories/customer_order_repository.d
 import 'package:frontend_bangdeliv/features/tracking/presentation/widgets/track_order_widgets.dart';
 import 'package:frontend_bangdeliv/models/amount_negotiation_model.dart';
 import 'package:frontend_bangdeliv/models/customer_order_model.dart';
+import 'package:frontend_bangdeliv/models/delivery_fee_negotiation_model.dart';
 import 'package:frontend_bangdeliv/models/shopping_order_capability_model.dart';
 import 'package:frontend_bangdeliv/models/shopping_negotiation_model.dart';
 import 'package:frontend_bangdeliv/services/customer_order_api_service.dart';
@@ -334,6 +335,35 @@ void main() {
     expect(find.text('Kompensasi perjalanan gagal (50%)'), findsOneWidget);
   });
 
+  testWidgets('approved shopping all-in pricing renders one transport line', (
+    tester,
+  ) async {
+    await _pumpCard(
+      tester,
+      _FakeCustomerOrderRepository(),
+      detail: _shoppingDetail(
+        deliveryFeeNegotiation: const DeliveryFeeNegotiationModel(
+          amount: AmountNegotiationModel(status: 'APPROVED'),
+          pricingScope: 'SHOPPING_TOTAL_TRANSPORT',
+          activePricingScope: 'SHOPPING_TOTAL_TRANSPORT',
+        ),
+        shoppingPricing: const CustomerShoppingPricingModel(
+          subtotal: 99000,
+          deliveryFee: 26000,
+          serviceFee: 0,
+          totalPrice: 125000,
+          cancellationPenalty: 0,
+          failedTripCompensation: 21250,
+        ),
+      ),
+    );
+
+    expect(find.text('Total ongkir Nitip'), findsOneWidget);
+    expect(find.text('Ongkir aktif'), findsNothing);
+    expect(find.text('Kompensasi perjalanan gagal (50%)'), findsNothing);
+    expect(find.text('Total pembayaran customer'), findsOneWidget);
+  });
+
   testWidgets('add merchant action is hidden after three active stops', (
     tester,
   ) async {
@@ -572,6 +602,7 @@ CustomerOrderDetailModel _shoppingDetail({
   ShoppingOrderCapabilitiesModel? shoppingCapabilities,
   List<CustomerShoppingStopModel>? shoppingStops,
   ShoppingNegotiationModel? shoppingNegotiation,
+  DeliveryFeeNegotiationModel? deliveryFeeNegotiation,
 }) {
   const unavailableItem = CustomerShoppingItemModel(
     id: 12,
@@ -698,6 +729,7 @@ CustomerOrderDetailModel _shoppingDetail({
           canCustomerEditUnavailableItems: true,
         ),
     shoppingNegotiation: shoppingNegotiation,
+    deliveryFeeNegotiation: deliveryFeeNegotiation,
   );
 }
 

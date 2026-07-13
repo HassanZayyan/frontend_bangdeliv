@@ -60,6 +60,8 @@ class _TrackShoppingOrderItemsCardState
         )
         .toList(growable: false);
     final pricing = detail.shoppingPricing;
+    final isShoppingTotalTransport =
+        detail.deliveryFeeNegotiation?.isActiveShoppingTotalTransport == true;
     final serviceFeeWithoutCompensation = pricing == null
         ? 0.0
         : (pricing.serviceFee - pricing.failedTripCompensation)
@@ -155,13 +157,16 @@ class _TrackShoppingOrderItemsCardState
           if (widget.showPricing && pricing != null) ...[
             const Divider(height: 18, color: AppColors.border),
             _pricingRow('Subtotal barang', pricing.subtotal),
-            _pricingRow('Ongkir aktif', pricing.deliveryFee),
+            _pricingRow(
+              isShoppingTotalTransport ? 'Total ongkir Nitip' : 'Ongkir aktif',
+              pricing.deliveryFee,
+            ),
             if (serviceFeeWithoutCompensation > 0)
               _pricingRow(
                 detail.shoppingServiceFeeLabel,
                 serviceFeeWithoutCompensation,
               ),
-            if (pricing.failedTripCompensation > 0)
+            if (!isShoppingTotalTransport && pricing.failedTripCompensation > 0)
               _pricingRow(
                 'Kompensasi perjalanan gagal (50%)',
                 pricing.failedTripCompensation,
