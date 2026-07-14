@@ -317,6 +317,9 @@ void main() {
               statusCode: OrderStatusCodes.arrivedMerchant,
               deliveryFee: 13000,
               deliveryFeeNegotiation: const DeliveryFeeNegotiationModel(
+                pricingScope:
+                    DeliveryFeeNegotiationModel.shoppingTotalTransportScope,
+                previousTotalTransport: 13000,
                 amount: AmountNegotiationModel(
                   status: 'APPROVED',
                   canDriverSubmitQuote: true,
@@ -382,6 +385,9 @@ void main() {
                 deliveryFee: 13000,
                 deliveryFeeNegotiation: const DeliveryFeeNegotiationModel(
                   oldDeliveryFee: 13000,
+                  pricingScope:
+                      DeliveryFeeNegotiationModel.shoppingTotalTransportScope,
+                  previousTotalTransport: 13000,
                   amount: AmountNegotiationModel(
                     status: 'PENDING_CUSTOMER',
                     quotedAmount: 18000,
@@ -424,6 +430,65 @@ void main() {
 
       expect(bypassTapped, isTrue);
       expect(saveTapped, isFalse);
+    },
+  );
+
+  testWidgets(
+    'pending Nitip footer disables bypass while request is processing',
+    (tester) async {
+      var bypassCount = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: DriverOrderStickyActionBar(
+              order: _order(
+                serviceTypeCode: ServiceTypeCodes.shopping,
+                statusCode: OrderStatusCodes.arrivedMerchant,
+                deliveryFee: 13000,
+                deliveryFeeNegotiation: const DeliveryFeeNegotiationModel(
+                  pricingScope:
+                      DeliveryFeeNegotiationModel.shoppingTotalTransportScope,
+                  previousTotalTransport: 13000,
+                  amount: AmountNegotiationModel(
+                    status: 'PENDING_CUSTOMER',
+                    quotedAmount: 18000,
+                    canCustomerRespond: true,
+                    approvalRequired: true,
+                    isPending: true,
+                  ),
+                ),
+                availableActions: const [
+                  DriverOrderActionModel(
+                    actionCode: 'CONFIRM_PICKED_UP',
+                    label: 'Belanja Selesai',
+                    targetStatusCode: OrderStatusCodes.pickedUp,
+                    blocked: true,
+                    blockedReason: 'Checkout Nitip belum disimpan.',
+                  ),
+                ],
+              ),
+              isProcessing: false,
+              isBypassingDeliveryFee: true,
+              compactForSheet: true,
+              onSaveShoppingCheckout: () async {},
+              onBypassDeliveryFee: () async {
+                bypassCount += 1;
+              },
+              onTapAction: (_) async {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Lanjut Tanpa Persetujuan'), findsOneWidget);
+      expect(find.text('Simpan checkout'), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      await tester.tap(find.text('Lanjut Tanpa Persetujuan'));
+      await tester.pump();
+
+      expect(bypassCount, 0);
     },
   );
 
@@ -491,6 +556,8 @@ void main() {
         deliveryFee: 13000,
         deliveryFeeNegotiation: const DeliveryFeeNegotiationModel(
           oldDeliveryFee: 13000,
+          pricingScope: DeliveryFeeNegotiationModel.shoppingTotalTransportScope,
+          previousTotalTransport: 13000,
           amount: AmountNegotiationModel(
             status: 'PENDING_CUSTOMER',
             quotedAmount: 18000,
@@ -523,9 +590,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Lanjut tanpa persetujuan?'), findsOneWidget);
-      expect(find.text('Ongkir sebelumnya'), findsOneWidget);
+      expect(find.text('Total transport sebelumnya'), findsOneWidget);
       expect(find.text('Rp13.000'), findsOneWidget);
-      expect(find.text('Ongkir usulan driver'), findsOneWidget);
+      expect(find.text('Total usulan driver'), findsOneWidget);
       expect(find.text('Rp18.000'), findsOneWidget);
       expect(confirmed, isNull);
 
@@ -917,6 +984,52 @@ void main() {
       await tester.pump();
 
       expect(editTapped, isTrue);
+    },
+  );
+
+  testWidgets(
+    'ride footer keeps its existing fee shortcut and primary action',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: DriverOrderStickyActionBar(
+              order: _order(
+                serviceTypeCode: ServiceTypeCodes.ride,
+                statusCode: OrderStatusCodes.driverAssigned,
+                deliveryFee: 13000,
+                deliveryFeeNegotiation: const DeliveryFeeNegotiationModel(
+                  amount: AmountNegotiationModel(
+                    status: 'APPROVED',
+                    canDriverSubmitQuote: true,
+                    isApproved: true,
+                  ),
+                ),
+                availableActions: const [
+                  DriverOrderActionModel(
+                    actionCode: 'ARRIVE_PICKUP',
+                    label: 'Tiba di Titik Jemput',
+                    targetStatusCode: OrderStatusCodes.arrivedPickup,
+                  ),
+                ],
+              ),
+              isProcessing: false,
+              compactForSheet: true,
+              onEditDeliveryFee: () async {},
+              onTapAction: (_) async {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Ubah Ongkir'), findsOneWidget);
+      expect(find.text('Tiba di Titik Jemput'), findsOneWidget);
+      expect(find.text('Simpan checkout'), findsNothing);
+
+      final editCenter = tester.getCenter(find.text('Ubah Ongkir'));
+      final primaryCenter = tester.getCenter(find.text('Tiba di Titik Jemput'));
+      expect((editCenter.dy - primaryCenter.dy).abs(), lessThan(2));
+      expect(editCenter.dx, lessThan(primaryCenter.dx));
     },
   );
 
