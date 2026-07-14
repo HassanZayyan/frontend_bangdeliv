@@ -1166,7 +1166,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       'Alamat antar sudah dipilih. Sekarang pilih toko/resto agar driver tahu lokasi pembelian.';
 
   static const String _merchantMapFallbackMessage =
-      'Nama toko/resto itu belum ada di daftar Bang Deliv. Cari lewat Maps supaya driver mendapat titik yang tepat.';
+      'Nama toko/resto itu belum terdaftar di BangDeliv. Ketuk Cari lewat Maps agar driver mendapatkan titik yang tepat.';
 
   bool _shouldUseDeliveryAddressResponse({
     required String serviceType,
