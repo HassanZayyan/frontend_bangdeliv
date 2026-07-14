@@ -55,6 +55,11 @@ void main() {
     await _sendMessage(tester, 'butuh alamat profil');
 
     expect(find.text('Isi Alamat Saya'), findsOneWidget);
+    _expectEnabledFilledAction(
+      tester,
+      label: 'Isi Alamat Saya',
+      backgroundColor: AppColors.primary,
+    );
   });
 
   testWidgets('courier bootstrap shows one route picker action', (
@@ -67,6 +72,11 @@ void main() {
     );
 
     expect(find.text('Atur Lokasi Ambil/Tujuan'), findsOneWidget);
+    _expectEnabledFilledAction(
+      tester,
+      label: 'Atur Lokasi Ambil/Tujuan',
+      backgroundColor: AppColors.primary,
+    );
     expect(find.text('Pilih Titik Ambil'), findsNothing);
     expect(find.text('Pilih Titik Tujuan'), findsNothing);
   });
@@ -81,6 +91,11 @@ void main() {
     );
 
     expect(find.text('Atur Lokasi Jemput/Tujuan'), findsOneWidget);
+    _expectEnabledFilledAction(
+      tester,
+      label: 'Atur Lokasi Jemput/Tujuan',
+      backgroundColor: AppColors.primary,
+    );
     expect(find.text('Pilih Titik Jemput'), findsNothing);
     expect(find.text('Pilih Titik Tujuan'), findsNothing);
   });
@@ -102,9 +117,11 @@ void main() {
     );
     expect(find.textContaining('klik tombol'), findsNothing);
     expect(find.text('Tujuan baru'), findsOneWidget);
-    expect(
-      find.widgetWithText(OutlinedButton, 'Pilih Tujuan Baru'),
-      findsOneWidget,
+    expect(_filledIconButtonWithText('Pilih Tujuan Baru'), findsOneWidget);
+    _expectEnabledFilledAction(
+      tester,
+      label: 'Pilih Tujuan Baru',
+      backgroundColor: AppColors.primary,
     );
     expect(find.text('Atur Lokasi Jemput/Tujuan'), findsNothing);
   });
@@ -120,17 +137,20 @@ void main() {
     );
 
     await _sendMessage(tester, 'draft transport payment');
-    await tester.tap(find.widgetWithText(OutlinedButton, 'QRIS'));
+    await tester.tap(_filledIconButtonWithText('QRIS'));
     await _pumpChatbotFrame(tester);
 
     expect(
-      find.widgetWithText(OutlinedButton, 'Ubah Lokasi Jemput/Tujuan'),
+      _filledIconButtonWithText('Ubah Lokasi Jemput/Tujuan'),
       findsOneWidget,
     );
-
-    await tester.tap(
-      find.widgetWithText(OutlinedButton, 'Ubah Lokasi Jemput/Tujuan'),
+    _expectEnabledFilledAction(
+      tester,
+      label: 'Ubah Lokasi Jemput/Tujuan',
+      backgroundColor: AppColors.primary,
     );
+
+    await tester.tap(_filledIconButtonWithText('Ubah Lokasi Jemput/Tujuan'));
     await _pumpChatbotFrame(tester);
 
     expect(find.text('Atur Rute Antar Jemput'), findsOneWidget);
@@ -148,18 +168,31 @@ void main() {
       chatbotApiService: _FakeChatbotApiService(),
     );
 
-    expect(find.textContaining('pilih toko/resto dari daftar'), findsOneWidget);
+    expect(
+      find.textContaining('memilih toko/resto dan alamat antar'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('sudah terdaftar di BangDeliv'), findsOneWidget);
+    expect(find.textContaining('tombol Cari lewat Maps'), findsOneWidget);
+    expect(find.textContaining('dapat ditemukan di Google Maps'), findsNothing);
     expect(find.textContaining('Alamat antar utama'), findsNothing);
     expect(find.textContaining('masih draft'), findsNothing);
-    expect(find.textContaining('sampai 3 toko/resto'), findsOneWidget);
+    expect(find.textContaining('maksimal 3 toko/resto'), findsOneWidget);
     expect(find.textContaining('Beli di Nasgor Gajah'), findsOneWidget);
     expect(find.text('Beli ayam geprek'), findsNothing);
     expect(find.text('Beli sembako'), findsNothing);
     expect(find.text('Belanja minimarket'), findsNothing);
-    expect(
-      find.widgetWithText(OutlinedButton, 'Pilih Toko/Resto'),
-      findsOneWidget,
+    expect(_filledIconButtonWithText('Pilih Toko/Resto'), findsOneWidget);
+    _expectEnabledFilledAction(
+      tester,
+      label: 'Pilih Toko/Resto',
+      backgroundColor: AppColors.primary,
     );
+    expect(
+      tester.getSize(_filledIconButtonWithText('Pilih Toko/Resto')).height,
+      greaterThanOrEqualTo(48),
+    );
+    expect(find.text('Ketuk tombol untuk atur pesanan'), findsOneWidget);
   });
 
   testWidgets('antar jemput welcome shows a destination writing example', (
@@ -171,9 +204,11 @@ void main() {
       chatbotApiService: _FakeChatbotApiService(),
     );
 
-    expect(find.textContaining('Tulis tujuan perjalanan'), findsOneWidget);
+    expect(find.textContaining('menulis tujuan perjalanan'), findsOneWidget);
     expect(find.textContaining('Contoh:'), findsOneWidget);
     expect(find.textContaining('Antar ke Ramayana Salatiga'), findsOneWidget);
+    expect(find.textContaining('Google Maps'), findsOneWidget);
+    expect(find.text('Ketuk tombol untuk atur lokasi'), findsOneWidget);
   });
 
   testWidgets('courier welcome shows the complete writing format', (
@@ -195,6 +230,8 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('Barang: 1 tas laundry'), findsOneWidget);
+    expect(find.textContaining('Google Maps'), findsOneWidget);
+    expect(find.text('Ketuk tombol untuk atur lokasi'), findsOneWidget);
   });
 
   testWidgets('chatbot input keyboard uses newline instead of keyboard send', (
@@ -213,26 +250,40 @@ void main() {
     expect(input.onSubmitted, isNull);
   });
 
-  testWidgets('chatbot app bar menu only shows restart action', (
+  testWidgets('chatbot app bar refresh asks for confirmation and can cancel', (
     WidgetTester tester,
   ) async {
+    final fakeService = _FakeChatbotApiService();
     await _pumpChatbot(
       tester,
       serviceType: 'antar_jemput',
-      chatbotApiService: _FakeChatbotApiService(),
+      chatbotApiService: fakeService,
     );
 
-    await tester.tap(find.byIcon(Icons.more_vert));
+    expect(find.byIcon(Icons.more_vert), findsNothing);
+    expect(find.byTooltip('Refresh chat'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Refresh chat'));
     await _pumpChatbotFrame(tester);
 
-    expect(find.text('Riwayat Sesi'), findsNothing);
-    expect(find.text('Mulai ulang pesanan?'), findsNothing);
-    expect(find.text('Mulai Ulang'), findsNothing);
-    expect(find.text('Mulai Ulang Pesanan'), findsOneWidget);
-    expect(find.text('Pilih Sesi Chat'), findsNothing);
+    expect(find.text('Refresh chat?'), findsOneWidget);
+    expect(
+      find.text(
+        'Percakapan dan draft pesanan saat ini akan dihapus. Kamu yakin ingin memulai chat dari awal?',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Batal'), findsOneWidget);
+    expect(find.text('Refresh Chat'), findsOneWidget);
+
+    await tester.tap(find.text('Batal'));
+    await _pumpChatbotFrame(tester);
+
+    expect(find.text('Refresh chat?'), findsNothing);
+    expect(fakeService.clearSessionCallCount, 0);
   });
 
-  testWidgets('restart menu starts a fresh chatbot session', (
+  testWidgets('refresh confirmation starts a fresh chatbot session', (
     WidgetTester tester,
   ) async {
     final fakeService = _FakeChatbotApiService();
@@ -246,12 +297,12 @@ void main() {
     await _sendMessage(tester, 'antar ke polines');
     final oldSessionId = fakeService.lastSessionId;
 
-    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.tap(find.byTooltip('Refresh chat'));
     await _pumpChatbotFrame(tester);
 
-    expect(find.text('Mulai ulang pesanan?'), findsNothing);
+    expect(find.text('Refresh chat?'), findsOneWidget);
 
-    await tester.tap(find.text('Mulai Ulang Pesanan'));
+    await tester.tap(find.text('Refresh Chat'));
     await _pumpChatbotFrame(tester);
 
     expect(fakeService.clearSessionCallCount, 1);
@@ -307,12 +358,9 @@ void main() {
 
       await _sendMessage(tester, 'COD');
 
-      expect(
-        find.widgetWithText(OutlinedButton, 'Buat Pesanan'),
-        findsOneWidget,
-      );
-      expect(find.widgetWithText(OutlinedButton, 'COD'), findsNothing);
-      expect(find.widgetWithText(OutlinedButton, 'QRIS'), findsNothing);
+      expect(_filledIconButtonWithText('Buat Pesanan'), findsOneWidget);
+      expect(_filledIconButtonWithText('COD'), findsNothing);
+      expect(_filledIconButtonWithText('QRIS'), findsNothing);
       expect(
         find.textContaining('kompensasi 50% tarif segmen gagal'),
         findsNothing,
@@ -332,16 +380,16 @@ void main() {
 
     await _sendMessage(tester, 'draft nitip payment');
 
-    expect(find.widgetWithText(OutlinedButton, 'COD'), findsOneWidget);
-    expect(find.widgetWithText(OutlinedButton, 'QRIS'), findsOneWidget);
+    expect(_filledIconButtonWithText('COD'), findsOneWidget);
+    expect(_filledIconButtonWithText('QRIS'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'COD'));
+    await tester.tap(_filledIconButtonWithText('COD'));
     await _pumpChatbotFrame(tester);
 
     expect(fakeService.callCount, 2);
-    expect(find.widgetWithText(OutlinedButton, 'Buat Pesanan'), findsOneWidget);
-    expect(find.widgetWithText(OutlinedButton, 'COD'), findsNothing);
-    expect(find.widgetWithText(OutlinedButton, 'QRIS'), findsNothing);
+    expect(_filledIconButtonWithText('Buat Pesanan'), findsOneWidget);
+    expect(_filledIconButtonWithText('COD'), findsNothing);
+    expect(_filledIconButtonWithText('QRIS'), findsNothing);
   });
 
   for (final entry
@@ -371,33 +419,32 @@ void main() {
 
       await _sendMessage(tester, entry.value.draftMessage);
 
-      expect(find.widgetWithText(OutlinedButton, 'COD'), findsOneWidget);
-      expect(find.widgetWithText(OutlinedButton, 'QRIS'), findsOneWidget);
+      expect(_filledIconButtonWithText('COD'), findsOneWidget);
+      expect(_filledIconButtonWithText('QRIS'), findsOneWidget);
 
       for (final label in const ['COD', 'QRIS']) {
-        final button = tester.widget<OutlinedButton>(
-          find.widgetWithText(OutlinedButton, label),
-        );
-        expect(
-          button.style?.foregroundColor?.resolve(<WidgetState>{}),
-          AppColors.success,
-        );
-        expect(
-          button.style?.side?.resolve(<WidgetState>{})?.color,
-          AppColors.success,
+        _expectEnabledFilledAction(
+          tester,
+          label: label,
+          backgroundColor: AppColors.success,
         );
       }
 
-      await tester.tap(find.widgetWithText(OutlinedButton, 'QRIS'));
+      await tester.tap(_filledIconButtonWithText('QRIS'));
       await _pumpChatbotFrame(tester);
 
       expect(fakeService.lastMessage, 'QRIS');
       expect(
-        find.widgetWithText(OutlinedButton, entry.value.confirmLabel),
+        _filledIconButtonWithText(entry.value.confirmLabel),
         findsOneWidget,
       );
-      expect(find.widgetWithText(OutlinedButton, 'COD'), findsNothing);
-      expect(find.widgetWithText(OutlinedButton, 'QRIS'), findsNothing);
+      _expectEnabledFilledAction(
+        tester,
+        label: entry.value.confirmLabel,
+        backgroundColor: AppColors.success,
+      );
+      expect(_filledIconButtonWithText('COD'), findsNothing);
+      expect(_filledIconButtonWithText('QRIS'), findsNothing);
     });
   }
 
@@ -412,10 +459,14 @@ void main() {
 
     await _sendMessage(tester, 'beli sembako');
 
+    expect(find.textContaining('belum terdaftar di BangDeliv'), findsOneWidget);
     expect(
-      find.widgetWithText(OutlinedButton, 'Cari lewat Maps'),
+      find.textContaining(
+        'Ketuk Cari lewat Maps agar driver mendapatkan titik yang tepat',
+      ),
       findsOneWidget,
     );
+    expect(_filledIconButtonWithText('Cari lewat Maps'), findsOneWidget);
   });
 
   testWidgets(
@@ -437,13 +488,10 @@ void main() {
       );
       expect(find.textContaining('Resto Paling Dekat'), findsOneWidget);
       expect(
-        find.textContaining('Nama toko/resto itu belum ada'),
+        find.textContaining('Nama toko/resto itu belum terdaftar'),
         findsNothing,
       );
-      expect(
-        find.widgetWithText(OutlinedButton, 'Pilih Toko/Resto'),
-        findsOneWidget,
-      );
+      expect(_filledIconButtonWithText('Pilih Toko/Resto'), findsOneWidget);
     },
   );
 
@@ -541,7 +589,7 @@ void main() {
 
     await _sendMessage(tester, 'beli sembako');
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Cari lewat Maps'));
+    await tester.tap(_filledIconButtonWithText('Cari lewat Maps'));
     await _pumpChatbotFrame(tester);
     await tester.tap(find.text('Pilih Kedai Kedua'));
     await _pumpChatbotFrame(tester);
@@ -672,7 +720,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Pilih Toko/Resto'));
+    await tester.tap(_filledIconButtonWithText('Pilih Toko/Resto'));
     await _pumpChatbotFrame(tester);
     await tester.tap(find.text('Pilih Kedai Kedua'));
     await _pumpChatbotFrame(tester);
@@ -749,7 +797,7 @@ void main() {
       ],
     );
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Pilih Toko/Resto'));
+    await tester.tap(_filledIconButtonWithText('Pilih Toko/Resto'));
     await _pumpChatbotFrame(tester);
     await tester.tap(find.text('Pilih Kedai Kedua'));
     await _pumpChatbotFrame(tester);
@@ -786,7 +834,7 @@ void main() {
 
     await _sendMessage(tester, 'beli sembako');
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Cari lewat Maps'));
+    await tester.tap(_filledIconButtonWithText('Cari lewat Maps'));
     await _pumpChatbotFrame(tester);
     await tester.tap(find.text('Pilih Kedai Kedua'));
     await _pumpChatbotFrame(tester);
@@ -833,19 +881,19 @@ void main() {
         find.textContaining('Pilih toko/resto dari daftar atau peta'),
         findsOneWidget,
       );
-      expect(
-        find.widgetWithText(OutlinedButton, 'Tambah Toko/Resto'),
-        findsOneWidget,
+      expect(_filledIconButtonWithText('Tambah Toko/Resto'), findsOneWidget);
+      _expectEnabledFilledAction(
+        tester,
+        label: 'Tambah Toko/Resto',
+        backgroundColor: AppColors.primary,
       );
       expect(find.text('Beli ayam geprek'), findsNothing);
 
       await tester.ensureVisible(
-        find.widgetWithText(OutlinedButton, 'Tambah Toko/Resto'),
+        _filledIconButtonWithText('Tambah Toko/Resto'),
       );
       await _pumpChatbotFrame(tester);
-      await tester.tap(
-        find.widgetWithText(OutlinedButton, 'Tambah Toko/Resto'),
-      );
+      await tester.tap(_filledIconButtonWithText('Tambah Toko/Resto'));
       await _pumpChatbotFrame(tester);
       await tester.tap(find.text('Pilih Kedai Kedua'));
       await _pumpChatbotFrame(tester);
@@ -884,9 +932,22 @@ void main() {
       tester.getTopLeft(amountFinder).dy,
       greaterThan(tester.getTopLeft(labelFinder).dy),
     );
+    for (final label in const [
+      'COD',
+      'QRIS',
+      'Ganti Alamat Antar',
+      'Tambah Toko/Resto',
+    ]) {
+      expect(_filledIconButtonWithText(label), findsOneWidget);
+      expect(
+        tester.getSize(_filledIconButtonWithText(label)).height,
+        greaterThanOrEqualTo(48),
+      );
+    }
+    expect(tester.takeException(), isNull);
   });
 
-  testWidgets('only latest chatbot action buttons stay enabled', (
+  testWidgets('chatbot action buttons define a neutral disabled style', (
     WidgetTester tester,
   ) async {
     await _pumpChatbot(
@@ -895,16 +956,22 @@ void main() {
       chatbotApiService: _FakeChatbotApiService(),
     );
 
-    await _sendMessage(tester, 'draft nitip payment');
-    await _sendMessage(tester, 'COD');
-
-    final oldCodButtons = find.widgetWithText(OutlinedButton, 'COD');
-    expect(oldCodButtons, findsNothing);
-
-    final confirmButton = tester.widget<OutlinedButton>(
-      find.widgetWithText(OutlinedButton, 'Buat Pesanan'),
+    final button = tester.widget<FilledButton>(
+      _filledIconButtonWithText('Pilih Toko/Resto'),
     );
-    expect(confirmButton.onPressed, isNotNull);
+    expect(button.onPressed, isNotNull);
+    expect(
+      button.style?.backgroundColor?.resolve(<WidgetState>{
+        WidgetState.disabled,
+      }),
+      AppColors.surfaceAlt,
+    );
+    expect(
+      button.style?.foregroundColor?.resolve(<WidgetState>{
+        WidgetState.disabled,
+      }),
+      AppColors.textMuted,
+    );
   });
 
   testWidgets('back button from root chatbot falls back to home', (
@@ -923,9 +990,9 @@ void main() {
   });
 
   for (final entry in const <String, String>{
-    'nitip': 'Sebelum pesan Nitip',
-    'antar_jemput': 'Sebelum pesan Antar Jemput',
-    'kurir': 'Sebelum pesan Kurir',
+    'nitip': 'layanan Nitip. Sebelum membuat pesanan',
+    'antar_jemput': 'layanan Antar Jemput. Sebelum membuat pesanan',
+    'kurir': 'layanan Kurir. Sebelum membuat pesanan',
   }.entries) {
     testWidgets('${entry.key} without address opens Alamat Saya once', (
       WidgetTester tester,
@@ -992,6 +1059,11 @@ void main() {
     );
     expect(find.textContaining('Ongkir: Rp 9.000.'), findsNothing);
     expect(find.text('Lacak Pesanan'), findsOneWidget);
+    _expectEnabledFilledAction(
+      tester,
+      label: 'Lacak Pesanan',
+      backgroundColor: AppColors.primary,
+    );
     expect(find.textContaining('belum bisa digunakan'), findsNothing);
   });
 
@@ -1267,9 +1339,11 @@ void main() {
     );
 
     await _sendMessage(tester, 'draft nitip merchant siap');
-    final deliveryButton = find.widgetWithText(
-      OutlinedButton,
-      'Ganti Alamat Antar',
+    final deliveryButton = _filledIconButtonWithText('Ganti Alamat Antar');
+    _expectEnabledFilledAction(
+      tester,
+      label: 'Ganti Alamat Antar',
+      backgroundColor: AppColors.primary,
     );
     await tester.ensureVisible(deliveryButton);
     await _pumpChatbotFrame(tester);
@@ -1398,6 +1472,33 @@ void main() {
     expect(uploadMethod, contains('source: ImageSource.gallery'));
     expect(uploadMethod, isNot(contains('source: ImageSource.camera')));
   });
+}
+
+Finder _filledIconButtonWithText(String label) {
+  return find.ancestor(
+    of: find.text(label),
+    matching: find.byWidgetPredicate((widget) => widget is FilledButton),
+  );
+}
+
+void _expectEnabledFilledAction(
+  WidgetTester tester, {
+  required String label,
+  required Color backgroundColor,
+}) {
+  final finder = _filledIconButtonWithText(label);
+  final button = tester.widget<FilledButton>(finder);
+
+  expect(button.onPressed, isNotNull);
+  expect(
+    button.style?.backgroundColor?.resolve(<WidgetState>{}),
+    backgroundColor,
+  );
+  expect(
+    button.style?.foregroundColor?.resolve(<WidgetState>{}),
+    AppColors.white,
+  );
+  expect(tester.getSize(finder).height, greaterThanOrEqualTo(48));
 }
 
 Future<GoRouter> _pumpChatbot(

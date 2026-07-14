@@ -41,8 +41,6 @@ class ChatbotScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatbotScreen> createState() => _ChatbotScreenState();
 }
 
-enum _ChatbotMenuAction { restart }
-
 class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   static const TextStyle _assistantNoticeLabelStyle = TextStyle(
     color: AppColors.textPrimary,
@@ -141,9 +139,9 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           title: 'BangBot AI - Antar Jemput',
           iconAsset: 'assets/images/services/service_ride_motor_simplified.png',
           welcomeMessage:
-              'Halo! Saya BangBot untuk layanan Antar Jemput. Tulis tujuan perjalanan lewat chat, atau atur titik jemput dan tujuan di map.\n\nContoh:\nAntar ke Ramayana Salatiga',
+              'Halo! Saya BangBot untuk layanan Antar Jemput. Kamu bisa menulis tujuan perjalanan lewat chat atau mengatur titik jemput dan tujuan lewat tombol di bawah.\n\nJika menulis tujuan secara manual lewat chat, pastikan lokasi tersebut dapat ditemukan di Google Maps agar titiknya dapat diproses dengan tepat.\n\nContoh:\nAntar ke Ramayana Salatiga\n\nUntuk mengatur lokasi lewat peta, ketuk tombol aksi di bawah ini.',
           addressRequiredMessage:
-              'Sebelum pesan Antar Jemput, isi Alamat Saya dulu supaya titik jemput utama kamu siap dipakai.',
+              'Halo! Saya BangBot untuk layanan Antar Jemput. Sebelum membuat pesanan, ketuk tombol Isi Alamat Saya di bawah untuk menyimpan alamat jemput utama. Pastikan alamat tersebut dapat ditemukan di Google Maps agar titiknya dapat diproses dengan tepat.',
           suggestions: [],
         );
       case 'kurir':
@@ -153,9 +151,9 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           iconAsset:
               'assets/images/services/service_courier_box_simplified.png',
           welcomeMessage:
-              'Halo! Saya BangBot untuk layanan Kurir. Tulis detail pengiriman menggunakan format berikut, atau atur rute di map.\n\nContoh:\nAmbil: Laundry Berkah Salatiga\nTujuan: Universitas Kristen Satya Wacana\nBarang: 1 tas laundry',
+              'Halo! Saya BangBot untuk layanan Kurir. Kamu bisa menulis detail pengiriman lewat chat dengan format berikut atau mengatur titik ambil dan tujuan lewat tombol di bawah.\n\nJika menulis lokasi secara manual lewat chat, pastikan lokasi ambil dan tujuan dapat ditemukan di Google Maps agar titiknya dapat diproses dengan tepat.\n\nContoh:\nAmbil: Laundry Berkah Salatiga\nTujuan: Universitas Kristen Satya Wacana\nBarang: 1 tas laundry\n\nUntuk mengatur rute lewat peta, ketuk tombol aksi di bawah ini.',
           addressRequiredMessage:
-              'Sebelum pesan Kurir, isi Alamat Saya dulu supaya titik ambil utama kamu siap dipakai.',
+              'Halo! Saya BangBot untuk layanan Kurir. Sebelum membuat pesanan, ketuk tombol Isi Alamat Saya di bawah untuk menyimpan alamat ambil utama. Pastikan alamat tersebut dapat ditemukan di Google Maps agar titiknya dapat diproses dengan tepat.',
           suggestions: [],
         );
       default:
@@ -165,9 +163,9 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           iconAsset:
               'assets/images/services/service_shopping_basket_simplified.png',
           welcomeMessage:
-              'Halo! Saya BangBot untuk layanan Nitip. Tulis nama toko/resto dan barang yang ingin dibeli, atau pilih toko/resto dari daftar.\n\nContoh:\nBeli di Nasgor Gajah:\n- Nasi Goreng 1\n- Es Teh 1\n\nKamu bisa tambah sampai 3 toko/resto dalam satu pesanan.',
+              'Halo! Saya BangBot untuk layanan Nitip. Kamu bisa menulis nama toko/resto dan barang yang ingin dibeli lewat chat atau memilih toko/resto dan alamat antar melalui tombol di bawah.\n\nJika menulis nama toko/resto secara manual lewat chat, pastikan toko/resto tersebut sudah terdaftar di BangDeliv. Jika belum terdaftar, ketuk tombol Cari lewat Maps yang muncul untuk memilih lokasi toko/resto agar driver mendapatkan titik yang tepat.\n\nContoh:\nBeli di Nasgor Gajah:\n- Nasi Goreng 1\n- Es Teh 1\n\nKamu bisa menambahkan maksimal 3 toko/resto dalam satu pesanan.\n\nUntuk memilih toko/resto dan alamat antar, ketuk tombol aksi di bawah ini.',
           addressRequiredMessage:
-              'Sebelum pesan Nitip, pilih alamat antar dulu supaya ongkir bisa dihitung. Setelah itu kamu bisa pilih toko/resto atau tulis pesanan lewat chat.',
+              'Halo! Saya BangBot untuk layanan Nitip. Sebelum membuat pesanan, ketuk tombol Isi Alamat Saya di bawah untuk menyimpan alamat antar agar ongkir dapat dihitung. Pastikan alamat tersebut dapat ditemukan di Google Maps agar titiknya dapat diproses dengan tepat.',
           suggestions: [],
         );
     }
@@ -364,12 +362,20 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     );
   }
 
-  Future<void> _handleMenuAction(_ChatbotMenuAction action) async {
-    switch (action) {
-      case _ChatbotMenuAction.restart:
-        await _handleRestartConversation();
-        return;
+  Future<void> _handleRefreshConversation() async {
+    final confirmed = await showBangConfirmationDialog(
+      context,
+      title: 'Refresh chat?',
+      message:
+          'Percakapan dan draft pesanan saat ini akan dihapus. Kamu yakin ingin memulai chat dari awal?',
+      confirmLabel: 'Refresh Chat',
+      isDestructive: true,
+    );
+    if (!confirmed || !mounted) {
+      return;
     }
+
+    await _handleRestartConversation();
   }
 
   Future<void> _handleRestartConversation() async {
@@ -782,48 +788,12 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           ],
         ),
         actions: [
-          PopupMenuButton<_ChatbotMenuAction>(
-            tooltip: 'Opsi chat',
-            enabled: !effectiveBusy,
-            icon: Icon(
-              Icons.more_vert,
-              color: !effectiveBusy
-                  ? AppColors.textPrimary
-                  : AppColors.textSecondary,
-            ),
-            color: AppColors.white,
-            constraints: const BoxConstraints(minWidth: 220),
-            offset: const Offset(0, 12),
-            position: PopupMenuPosition.under,
-            onSelected: _handleMenuAction,
-            itemBuilder: (context) {
-              return const [
-                PopupMenuItem<_ChatbotMenuAction>(
-                  value: _ChatbotMenuAction.restart,
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.restart_alt,
-                        color: AppColors.primary,
-                        size: 20,
-                      ),
-                      SizedBox(width: 12),
-                      Flexible(
-                        child: Text(
-                          'Mulai Ulang Pesanan',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ];
-            },
+          IconButton(
+            tooltip: 'Refresh chat',
+            onPressed: effectiveBusy ? null : _handleRefreshConversation,
+            icon: const Icon(Icons.refresh_rounded),
+            color: AppColors.textPrimary,
+            disabledColor: AppColors.textSecondary,
           ),
         ],
       ),
@@ -1597,7 +1567,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             actions: locationSetupActions,
             actionsEnabled: actionsEnabled,
             isUser: isUser,
-            isPrimaryChoice: true,
           ),
           if (destinationResetActions.isNotEmpty) ...[
             if (locationSetupActions.isNotEmpty) const SizedBox(height: 14),
@@ -1612,7 +1581,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                     actionHint: actionHint,
                     actionsEnabled: actionsEnabled,
                     isUser: isUser,
-                    isPrimaryChoice: true,
                   ),
               ],
             ),
@@ -1641,7 +1609,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             actions: confirmationActions,
             actionsEnabled: actionsEnabled,
             isUser: isUser,
-            isPrimaryChoice: true,
             hasPreviousGroup:
                 locationSetupActions.isNotEmpty ||
                 destinationResetActions.isNotEmpty ||
@@ -1697,7 +1664,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                 actionHint: actionHint,
                 actionsEnabled: actionsEnabled,
                 isUser: isUser,
-                isPrimaryChoice: true,
               ),
           ],
         ),
@@ -1706,7 +1672,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           actions: locationSetupActions,
           actionsEnabled: actionsEnabled,
           isUser: isUser,
-          isPrimaryChoice: true,
           hasPreviousGroup: true,
         ),
         if (routeEditActions.isNotEmpty) ...[
@@ -1739,7 +1704,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                   actionHint: actionHint,
                   actionsEnabled: actionsEnabled,
                   isUser: isUser,
-                  isPrimaryChoice: true,
                 ),
             ],
           ),
@@ -1749,7 +1713,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           actions: confirmationActions,
           actionsEnabled: actionsEnabled,
           isUser: isUser,
-          isPrimaryChoice: true,
           hasPreviousGroup: true,
         ),
         _buildAddMerchantActionGroup(
@@ -1781,8 +1744,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
   String _locationSetupActionTitle() {
     return _serviceContext.serviceType == 'nitip'
-        ? 'Atur pesanan'
-        : 'Atur lokasi';
+        ? 'Ketuk tombol untuk atur pesanan'
+        : 'Ketuk tombol untuk atur lokasi';
   }
 
   Widget _buildAddMerchantActionGroup({
@@ -1820,7 +1783,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                 actionHint: actionHint,
                 actionsEnabled: actionsEnabled,
                 isUser: isUser,
-                isPrimaryChoice: true,
               ),
           ],
         ),
@@ -1845,7 +1807,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     required List<ChatbotMessageActionHint> actions,
     required bool actionsEnabled,
     required bool isUser,
-    bool isPrimaryChoice = false,
     bool hasPreviousGroup = false,
   }) {
     if (actions.isEmpty) {
@@ -1867,7 +1828,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                 actionHint: actionHint,
                 actionsEnabled: actionsEnabled,
                 isUser: isUser,
-                isPrimaryChoice: isPrimaryChoice,
               ),
           ],
         ),
@@ -1897,29 +1857,25 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     required ChatbotMessageActionHint actionHint,
     required bool actionsEnabled,
     required bool isUser,
-    bool isPrimaryChoice = false,
   }) {
-    final isConfirmationAction = _isConfirmationActionHint(actionHint);
-    final isPositiveAction =
-        isConfirmationAction || _isPaymentActionHint(actionHint);
-    final foregroundColor = isUser
-        ? Colors.white
-        : (isPositiveAction ? AppColors.success : AppColors.primaryDark);
-    final borderColor = isUser
-        ? Colors.white.withValues(alpha: 0.35)
-        : (isPositiveAction ? AppColors.success : AppColors.primary);
+    final usesSuccessTone =
+        _isConfirmationActionHint(actionHint) ||
+        _isPaymentActionHint(actionHint);
+    final semanticColor = usesSuccessTone
+        ? AppColors.success
+        : AppColors.primary;
 
-    return OutlinedButton.icon(
+    return FilledButton.icon(
       onPressed: actionsEnabled ? () => _handleActionHint(actionHint) : null,
-      icon: Icon(_iconForActionHint(actionHint), size: 16),
+      icon: Icon(_iconForActionHint(actionHint), size: 17),
       label: Text(_displayLabelForActionHint(actionHint)),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: foregroundColor,
-        side: BorderSide(color: borderColor, width: 1.2),
-        padding: EdgeInsets.symmetric(
-          horizontal: isPrimaryChoice ? 14 : 12,
-          vertical: isPrimaryChoice ? 9 : 8,
-        ),
+      style: FilledButton.styleFrom(
+        backgroundColor: isUser ? AppColors.white : semanticColor,
+        foregroundColor: isUser ? semanticColor : AppColors.white,
+        disabledBackgroundColor: AppColors.surfaceAlt,
+        disabledForegroundColor: AppColors.textMuted,
+        minimumSize: const Size(0, 48),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(_chatbotButtonRadius),
@@ -3271,7 +3227,10 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     }
 
     final headline = lines.take(pickupIndex).join('\n').trim();
-    if (headline.isEmpty || !headline.toLowerCase().contains('tujuan')) {
+    final normalizedHeadline = headline.toLowerCase();
+    if (headline.isEmpty ||
+        !normalizedHeadline.contains('tujuan sebelumnya') ||
+        !normalizedHeadline.contains('reset')) {
       return null;
     }
 
