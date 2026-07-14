@@ -32,6 +32,10 @@ abstract class DriverOrderRepository {
     required double amount,
   });
 
+  Future<DriverOrderModel> bypassRejectedTransferPayment({
+    required String orderId,
+  });
+
   Future<DriverOrderModel> rejectTransferPayment({
     required String orderId,
     required String reason,
@@ -216,6 +220,13 @@ class ApiDriverOrderRepository implements DriverOrderRepository {
     required double amount,
   }) {
     return _service.confirmTransferPayment(orderId: orderId, amount: amount);
+  }
+
+  @override
+  Future<DriverOrderModel> bypassRejectedTransferPayment({
+    required String orderId,
+  }) {
+    return _service.bypassRejectedTransferPayment(orderId: orderId);
   }
 
   @override

@@ -72,6 +72,31 @@ void main() {
     },
   );
 
+  test('rejected QRIS bypass posts without a client-supplied amount', () async {
+    http.Request? capturedRequest;
+    final service = DriverOrderService(
+      httpClient: MockClient((request) async {
+        capturedRequest = request;
+        return http.Response(
+          '{"success":true,"data":{"id":"42","service_type_code":"RIDE","payment_method":"TRANSFER","payment_status":"paid"}}',
+          200,
+        );
+      }),
+    );
+
+    final order = await service.bypassRejectedTransferPayment(orderId: '42');
+
+    final request = capturedRequest!;
+    expect(request.method, 'POST');
+    expect(
+      request.url.path,
+      endsWith('/api/v1/orders/42/payment/transfer/bypass'),
+    );
+    expect(request.headers['Authorization'], 'Bearer test-token');
+    expect(jsonDecode(request.body), isEmpty);
+    expect(order.paymentStatus, 'paid');
+  });
+
   test('driver unavailable decision sends batch item ids', () async {
     http.Request? capturedRequest;
     final service = DriverOrderService(

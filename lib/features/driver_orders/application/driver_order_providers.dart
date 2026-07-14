@@ -131,6 +131,8 @@ class DriverOrderActionKeys {
 
   static String confirmQris(String orderId) => _build(orderId, 'confirmQris');
 
+  static String bypassQris(String orderId) => _build(orderId, 'bypassQris');
+
   static String rejectQris(String orderId) => _build(orderId, 'rejectQris');
 
   static String updateFee(String orderId) => _build(orderId, 'updateFee');
@@ -996,6 +998,17 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       actionKey: DriverOrderActionKeys.confirmQris(orderId),
       request: (service) =>
           service.confirmTransferPayment(orderId: orderId, amount: amount),
+    );
+  }
+
+  Future<String?> bypassRejectedTransferPayment({
+    required String orderId,
+  }) async {
+    return _mutateRunningOrder(
+      orderId: orderId,
+      actionKey: DriverOrderActionKeys.bypassQris(orderId),
+      request: (service) =>
+          service.bypassRejectedTransferPayment(orderId: orderId),
     );
   }
 

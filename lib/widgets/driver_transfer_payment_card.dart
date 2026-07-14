@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../config/app_colors.dart';
 import '../core/widgets/bang_action_button.dart';
+import '../core/widgets/bang_swipe_action_button.dart';
 import '../models/driver_order_model.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/currency_input_parser.dart';
@@ -13,6 +14,7 @@ typedef DriverTransferPaymentCallback =
     Future<void> Function({required double amount});
 typedef DriverTransferRejectCallback =
     Future<void> Function({required String reason});
+typedef DriverTransferBypassCallback = Future<void> Function();
 
 class DriverTransferPaymentCard extends StatelessWidget {
   const DriverTransferPaymentCard({
@@ -21,16 +23,20 @@ class DriverTransferPaymentCard extends StatelessWidget {
     required this.isOrderBusy,
     required this.isConfirmingQris,
     this.isRejectingQris = false,
+    this.isBypassingQris = false,
     required this.onConfirmTransfer,
     this.onRejectTransfer,
+    this.onBypassRejectedTransfer,
   });
 
   final DriverOrderModel order;
   final bool isOrderBusy;
   final bool isConfirmingQris;
   final bool isRejectingQris;
+  final bool isBypassingQris;
   final DriverTransferPaymentCallback? onConfirmTransfer;
   final DriverTransferRejectCallback? onRejectTransfer;
+  final DriverTransferBypassCallback? onBypassRejectedTransfer;
 
   static bool shouldShow(DriverOrderModel order) {
     final method = order.paymentMethod.trim().toUpperCase();
@@ -134,11 +140,21 @@ class DriverTransferPaymentCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          if (isRejectedWithoutNewProof)
+          if (isRejectedWithoutNewProof) ...[
             _RejectedProofState(
               reason: order.paymentProofFeedback?.displayReason,
-            )
-          else if (hasProof)
+            ),
+            if (onBypassRejectedTransfer != null) ...[
+              const SizedBox(height: 14),
+              BangSwipeActionButton(
+                label: 'Geser untuk bypass QRIS',
+                loadingLabel: 'Memproses bypass QRIS...',
+                isLoading: isBypassingQris,
+                isEnabled: !isOrderBusy || isBypassingQris,
+                onSubmit: onBypassRejectedTransfer,
+              ),
+            ],
+          ] else if (hasProof)
             _proofPreview(context, proof)
           else
             const _WaitingProofState(),
@@ -353,7 +369,7 @@ class DriverTransferPaymentCard extends StatelessWidget {
     }
 
     if (isRejectedWithoutNewProof) {
-      return 'Bukti QRIS ditolak. Menunggu customer mengirim bukti baru.';
+      return 'Bukti QRIS ditolak. Tunggu bukti baru atau bypass jika pembayaran sudah dipastikan.';
     }
 
     if (hasProof) {
@@ -731,7 +747,7 @@ class _RejectedProofState extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Menunggu customer mengirim bukti baru.',
+            'Customer dapat mengirim bukti baru. Jika pembayaran sudah dipastikan, driver dapat melakukan bypass.',
             style: TextStyle(
               color: AppColors.textPrimary,
               fontSize: 12.5,
