@@ -875,7 +875,8 @@ class _DriverActiveOrderScreenState
       isProcessingAction(DriverOrderActionKeys.shoppingCheckout(order.id)),
       isResolvingTransferPayment:
           isProcessingAction(DriverOrderActionKeys.confirmQris(order.id)) ||
-          isProcessingAction(DriverOrderActionKeys.rejectQris(order.id)),
+          isProcessingAction(DriverOrderActionKeys.rejectQris(order.id)) ||
+          isProcessingAction(DriverOrderActionKeys.bypassQris(order.id)),
       onResolveTransferPayment: () => _showTransferPaymentSheet(context, order),
       isResolvingProof:
           isProcessingAction(
@@ -965,6 +966,27 @@ class _DriverActiveOrderScreenState
     _showActionSnackBar(
       context,
       message: error ?? 'Pembayaran QRIS berhasil diverifikasi.',
+      isError: error != null,
+    );
+    if (error == null) {
+      ref.invalidate(driverOrderDetailProvider(order.id));
+    }
+
+    return error;
+  }
+
+  Future<String?> _bypassRejectedTransferPayment(DriverOrderModel order) async {
+    final error = await ref
+        .read(driverOrdersProvider.notifier)
+        .bypassRejectedTransferPayment(orderId: order.id);
+
+    if (!mounted) {
+      return error;
+    }
+
+    _showActionSnackBar(
+      context,
+      message: error ?? 'Pembayaran QRIS yang ditolak berhasil dibypass.',
       isError: error != null,
     );
     if (error == null) {
@@ -1110,6 +1132,9 @@ class _DriverActiveOrderScreenState
             final isRejectingQris = sheetIsProcessingAction(
               DriverOrderActionKeys.rejectQris(order.id),
             );
+            final isBypassingQris = sheetIsProcessingAction(
+              DriverOrderActionKeys.bypassQris(order.id),
+            );
             final bottomInset = MediaQuery.viewInsetsOf(sheetContext).bottom;
             final maxSheetHeight =
                 MediaQuery.sizeOf(sheetContext).height * 0.86;
@@ -1140,9 +1165,13 @@ class _DriverActiveOrderScreenState
                           ),
                           DriverTransferPaymentCard(
                             order: order,
-                            isOrderBusy: isConfirmingQris || isRejectingQris,
+                            isOrderBusy:
+                                isConfirmingQris ||
+                                isRejectingQris ||
+                                isBypassingQris,
                             isConfirmingQris: isConfirmingQris,
                             isRejectingQris: isRejectingQris,
+                            isBypassingQris: isBypassingQris,
                             onConfirmTransfer: ({required amount}) async {
                               final error = await _confirmTransferPayment(
                                 order,
@@ -1157,6 +1186,13 @@ class _DriverActiveOrderScreenState
                                 order,
                                 reason: reason,
                               );
+                              if (error == null && sheetContext.mounted) {
+                                Navigator.of(sheetContext).pop();
+                              }
+                            },
+                            onBypassRejectedTransfer: () async {
+                              final error =
+                                  await _bypassRejectedTransferPayment(order);
                               if (error == null && sheetContext.mounted) {
                                 Navigator.of(sheetContext).pop();
                               }
@@ -1958,6 +1994,11 @@ class _DriverActiveOrderScreenState
                                               order.id,
                                             ),
                                           ),
+                                          isBypassingQris: isProcessingAction(
+                                            DriverOrderActionKeys.bypassQris(
+                                              order.id,
+                                            ),
+                                          ),
                                           onConfirmTransfer:
                                               ({required amount}) async {
                                                 await _confirmTransferPayment(
@@ -1972,6 +2013,11 @@ class _DriverActiveOrderScreenState
                                                   reason: reason,
                                                 );
                                               },
+                                          onBypassRejectedTransfer: () async {
+                                            await _bypassRejectedTransferPayment(
+                                              order,
+                                            );
+                                          },
                                         ),
                                         const SizedBox(height: 12),
                                       ],

@@ -443,6 +443,61 @@ void main() {
   );
 
   test(
+    'bypassRejectedTransferPayment tracks only bypass qris action',
+    () async {
+      final completer = Completer<void>();
+      final fakeService = _FakeDriverOrderService(
+        payload: DriverOrdersPayload(
+          incoming: const <DriverOrderModel>[],
+          running: <DriverOrderModel>[_transferOrder('99')],
+        ),
+        bypassQrisCompleter: completer,
+      );
+      final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+      final fakeRealtime = FakeOrderRealtimeClient();
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          driverOrderServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(driverOrdersProvider.future);
+
+      final mutation = container
+          .read(driverOrdersProvider.notifier)
+          .bypassRejectedTransferPayment(orderId: '99');
+      await Future<void>.delayed(Duration.zero);
+
+      var state = container.read(driverOrdersProvider).asData!.value;
+      expect(state.isProcessing('99'), isTrue);
+      expect(
+        state.isProcessingAction(DriverOrderActionKeys.bypassQris('99')),
+        isTrue,
+      );
+      expect(
+        state.isProcessingAction(DriverOrderActionKeys.confirmQris('99')),
+        isFalse,
+      );
+      expect(
+        state.isProcessingAction(DriverOrderActionKeys.rejectQris('99')),
+        isFalse,
+      );
+
+      completer.complete();
+      final error = await mutation;
+      state = container.read(driverOrdersProvider).asData!.value;
+
+      expect(error, isNull);
+      expect(fakeService.bypassedQrisOrderIds, ['99']);
+      expect(state.running.single.paymentStatus, 'paid');
+      expect(state.processingActionKeys, isEmpty);
+    },
+  );
+
+  test(
     'rejectTransferPayment tracks reject qris action and updates order',
     () async {
       final completer = Completer<void>();
@@ -1739,6 +1794,7 @@ class _FakeDriverOrderService extends DriverOrderService {
   final bool failReject;
   final Completer<void>? acceptCompleter;
   final Completer<void>? confirmTransferCompleter;
+  final Completer<void>? bypassQrisCompleter;
   final Completer<void>? rejectTransferCompleter;
   final Completer<void>? bypassDeliveryFeeCompleter;
   final Completer<void>? transitionCompleter;
@@ -1748,6 +1804,7 @@ class _FakeDriverOrderService extends DriverOrderService {
   final List<String> failedPickupOrderIds = <String>[];
   final List<XFile?> failedPickupPhotos = <XFile?>[];
   final Map<String, String> rejectedTransferReasons = <String, String>{};
+  final List<String> bypassedQrisOrderIds = <String>[];
   final bool failBypassDeliveryFee;
   int bypassDeliveryFeeCalls = 0;
   final List<DriverOrderModel> detailResponses;
@@ -1767,6 +1824,7 @@ class _FakeDriverOrderService extends DriverOrderService {
     this.failReject = false,
     this.acceptCompleter,
     this.confirmTransferCompleter,
+    this.bypassQrisCompleter,
     this.rejectTransferCompleter,
     this.bypassDeliveryFeeCompleter,
     this.failBypassDeliveryFee = false,
@@ -1954,6 +2012,23 @@ class _FakeDriverOrderService extends DriverOrderService {
       await completer.future;
     }
 
+    final updated = payload.running
+        .firstWhere((order) => order.id == orderId)
+        .copyWith(paymentStatus: 'paid');
+    _upsertPayloadOrder(updated);
+    return updated;
+  }
+
+  @override
+  Future<DriverOrderModel> bypassRejectedTransferPayment({
+    required String orderId,
+  }) async {
+    final completer = bypassQrisCompleter;
+    if (completer != null) {
+      await completer.future;
+    }
+
+    bypassedQrisOrderIds.add(orderId);
     final updated = payload.running
         .firstWhere((order) => order.id == orderId)
         .copyWith(paymentStatus: 'paid');

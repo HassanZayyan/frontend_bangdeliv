@@ -1512,7 +1512,7 @@ _TransferPaymentResolution? _transferPaymentResolutionFor(
   if (isRejectedWithoutNewProof) {
     return const _TransferPaymentResolution(
       title: 'Bukti QRIS ditolak',
-      message: 'Minta customer mengirim bukti baru sebelum order diselesaikan.',
+      message: 'Minta bukti baru atau bypass jika pembayaran sudah dipastikan.',
       buttonLabel: 'Lihat Status QRIS',
       icon: Icons.error_outline,
     );

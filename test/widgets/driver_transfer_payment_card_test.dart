@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:frontend_bangdeliv/core/widgets/bang_swipe_action_button.dart';
 import 'package:frontend_bangdeliv/models/driver_order_model.dart';
 import 'package:frontend_bangdeliv/models/payment_proof_feedback_model.dart';
 import 'package:frontend_bangdeliv/utils/service_type.dart';
@@ -41,6 +42,7 @@ void main() {
         expect(find.text('Bukti QRIS Customer'), findsOneWidget);
         expect(find.text('Lihat Bukti'), findsOneWidget);
         expect(find.text('Verifikasi QRIS'), findsOneWidget);
+        expect(find.byType(BangSwipeActionButton), findsNothing);
 
         await tester.tap(find.text('Lihat Bukti'));
         await tester.pumpAndSettle();
@@ -131,6 +133,7 @@ void main() {
     expect(find.text('Menunggu bukti QRIS dari customer.'), findsOneWidget);
     expect(find.text('Catat Pembayaran QRIS Manual'), findsOneWidget);
     expect(find.text('Verifikasi QRIS'), findsNothing);
+    expect(find.byType(BangSwipeActionButton), findsNothing);
 
     await tester.tap(find.text('Catat Pembayaran QRIS Manual'));
     await tester.pumpAndSettle();
@@ -176,35 +179,97 @@ void main() {
     expect(find.text('Catat'), findsOneWidget);
   });
 
-  testWidgets('shows rejected QRIS feedback without verification action', (
+  testWidgets('swipes rejected QRIS bypass for every service type', (
     tester,
   ) async {
-    bool called = false;
+    for (final serviceType in const [
+      ServiceTypeCodes.ride,
+      ServiceTypeCodes.courier,
+      ServiceTypeCodes.shopping,
+    ]) {
+      var bypassCalls = 0;
 
+      await _pumpCard(
+        tester,
+        order: _order(
+          serviceTypeCode: serviceType,
+          proofs: const [],
+          paymentProofFeedback: const PaymentProofFeedbackModel(
+            status: 'rejected',
+            reason: 'Nominal tidak sesuai.',
+          ),
+        ),
+        onConfirmTransfer: ({required amount}) async {},
+        onBypassRejectedTransfer: () async {
+          bypassCalls += 1;
+        },
+      );
+
+      expect(find.text('Ditolak'), findsOneWidget);
+      expect(
+        find.text(
+          'Bukti QRIS ditolak. Tunggu bukti baru atau bypass jika pembayaran sudah dipastikan.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Customer dapat mengirim bukti baru. Jika pembayaran sudah dipastikan, driver dapat melakukan bypass.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Nominal tidak sesuai.'), findsOneWidget);
+      expect(find.text('Verifikasi QRIS'), findsNothing);
+      expect(find.text('Catat Pembayaran QRIS Manual'), findsNothing);
+      expect(find.text('Geser untuk bypass QRIS'), findsOneWidget);
+
+      await tester.drag(
+        find.byType(BangSwipeActionButton),
+        const Offset(800, 0),
+      );
+      await tester.pumpAndSettle();
+
+      expect(bypassCalls, 1);
+    }
+  });
+
+  testWidgets('hides rejected QRIS bypass after payment is paid', (
+    tester,
+  ) async {
     await _pumpCard(
       tester,
       order: _order(
-        proofs: const [],
+        paymentStatus: 'paid',
         paymentProofFeedback: const PaymentProofFeedbackModel(
           status: 'rejected',
           reason: 'Nominal tidak sesuai.',
         ),
       ),
-      onConfirmTransfer: ({required amount}) async {
-        called = true;
-      },
+      onConfirmTransfer: ({required amount}) async {},
+      onBypassRejectedTransfer: () async {},
     );
 
-    expect(find.text('Ditolak'), findsOneWidget);
-    expect(
-      find.text('Bukti QRIS ditolak. Menunggu customer mengirim bukti baru.'),
-      findsOneWidget,
+    expect(find.byType(BangSwipeActionButton), findsNothing);
+    expect(find.text('Pembayaran QRIS sudah diverifikasi.'), findsOneWidget);
+  });
+
+  testWidgets('shows rejected QRIS bypass loading state', (tester) async {
+    await _pumpCard(
+      tester,
+      order: _order(
+        paymentProofFeedback: const PaymentProofFeedbackModel(
+          status: 'rejected',
+          reason: 'Nominal tidak sesuai.',
+        ),
+      ),
+      isOrderBusy: true,
+      isBypassingQris: true,
+      onConfirmTransfer: ({required amount}) async {},
+      onBypassRejectedTransfer: () async {},
     );
-    expect(find.text('Menunggu customer mengirim bukti baru.'), findsOneWidget);
-    expect(find.text('Nominal tidak sesuai.'), findsOneWidget);
-    expect(find.text('Verifikasi QRIS'), findsNothing);
-    expect(find.text('Catat Pembayaran QRIS Manual'), findsNothing);
-    expect(called, isFalse);
+
+    expect(find.text('Memproses bypass QRIS...'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
 
   testWidgets('shows QRIS loading only on verification action', (tester) async {
@@ -258,6 +323,9 @@ Future<void> _pumpCard(
   required DriverOrderModel order,
   required DriverTransferPaymentCallback onConfirmTransfer,
   DriverTransferRejectCallback? onRejectTransfer,
+  DriverTransferBypassCallback? onBypassRejectedTransfer,
+  bool isOrderBusy = false,
+  bool isBypassingQris = false,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -266,11 +334,13 @@ Future<void> _pumpCard(
           padding: const EdgeInsets.all(16),
           child: DriverTransferPaymentCard(
             order: order,
-            isOrderBusy: false,
+            isOrderBusy: isOrderBusy,
             isConfirmingQris: false,
             isRejectingQris: false,
+            isBypassingQris: isBypassingQris,
             onConfirmTransfer: onConfirmTransfer,
             onRejectTransfer: onRejectTransfer,
+            onBypassRejectedTransfer: onBypassRejectedTransfer,
           ),
         ),
       ),
@@ -281,6 +351,7 @@ Future<void> _pumpCard(
 DriverOrderModel _order({
   String serviceTypeCode = ServiceTypeCodes.ride,
   String paymentMethod = 'TRANSFER',
+  String paymentStatus = 'unpaid',
   List<DriverOrderProofModel> proofs = const <DriverOrderProofModel>[],
   PaymentProofFeedbackModel? paymentProofFeedback,
 }) {
@@ -295,7 +366,7 @@ DriverOrderModel _order({
     totalPrice: 18000,
     itemCount: 1,
     paymentMethod: paymentMethod,
-    paymentStatus: 'unpaid',
+    paymentStatus: paymentStatus,
     proofs: proofs,
     paymentProofFeedback: paymentProofFeedback,
   );

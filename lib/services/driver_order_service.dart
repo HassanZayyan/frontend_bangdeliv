@@ -159,6 +159,17 @@ class DriverOrderService {
     }
   }
 
+  Future<DriverOrderModel> bypassRejectedTransferPayment({
+    required String orderId,
+  }) async {
+    final response = await _post(
+      '/v1/orders/$orderId/payment/transfer/bypass',
+      fallback: 'Gagal membypass bukti QRIS yang ditolak.',
+    );
+
+    return _orderFromMutationResponse(response, orderId);
+  }
+
   Future<DriverOrderModel> rejectTransferPayment({
     required String orderId,
     required String reason,
