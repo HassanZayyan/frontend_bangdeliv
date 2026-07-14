@@ -518,6 +518,7 @@ class _DriverOrderActionControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isShoppingOrder = _isShoppingOrder(order);
     final showSaveShoppingCheckout =
         _shouldShowShoppingCheckoutAction(order) &&
         onSaveShoppingCheckout != null;
@@ -588,6 +589,7 @@ class _DriverOrderActionControls extends StatelessWidget {
         renderedActions.length == 1;
     final useCompactShoppingCheckoutActionRow =
         compact &&
+        isShoppingOrder &&
         showSaveShoppingCheckout &&
         visibleDeliveryFeeResolution != null &&
         !visibleDeliveryFeeResolution.blocksProgress &&
@@ -595,6 +597,7 @@ class _DriverOrderActionControls extends StatelessWidget {
         visibleProofResolution == null &&
         renderedActions.isEmpty;
     final deliveryFeeBlocksShoppingCheckout =
+        isShoppingOrder &&
         showSaveShoppingCheckout &&
         deliveryFeeResolution?.blocksProgress == true;
 
@@ -1746,12 +1749,16 @@ bool _shouldShowShoppingClosureFeeHint(DriverOrderModel order) {
 }
 
 bool _shouldShowShoppingCheckoutAction(DriverOrderModel order) {
-  return normalizeServiceTypeCode(order.serviceTypeCode) ==
-          ServiceTypeCodes.shopping &&
+  return _isShoppingOrder(order) &&
       order.shoppingCapabilities.canDriverUploadReceipt &&
       !order.shoppingCapabilities.hasCheckoutSaved &&
       !order.shoppingCapabilities.hasPendingItemChangeRequest &&
       (order.shoppingNegotiation?.checkoutAllowed ?? false);
+}
+
+bool _isShoppingOrder(DriverOrderModel order) {
+  return normalizeServiceTypeCode(order.serviceTypeCode) ==
+      ServiceTypeCodes.shopping;
 }
 
 bool _shouldShowDeliveryFeeShortcut(DriverOrderModel order) {

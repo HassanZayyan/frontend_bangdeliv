@@ -185,9 +185,7 @@ void main() {
     },
   );
 
-  testWidgets('courier shows QRIS on summary and pickup but not dropoff', (
-    tester,
-  ) async {
+  testWidgets('courier keeps QRIS on pickup only', (tester) async {
     final router = await _pumpActiveOrder(
       tester,
       order: _qrisOrder(ServiceTypeCodes.courier),
@@ -203,9 +201,8 @@ void main() {
     await tester.pumpAndSettle();
     await _resetDetailsScroll(tester);
 
-    await _scrollDetailsToText(tester, 'Pengambilan');
-    expect(find.text('Diterima'), findsOneWidget);
-    await _scrollDetailsToText(tester, 'Bukti QRIS Customer');
+    await _scrollDetailsToBottom(tester);
+    expect(find.text('Bukti QRIS Customer'), findsNothing);
 
     await tester.tap(_pointTab('Antar'));
     await tester.pumpAndSettle();
@@ -293,10 +290,9 @@ Future<void> _scrollDetailsToBottom(WidgetTester tester) async {
 }
 
 Future<void> _resetDetailsScroll(WidgetTester tester) async {
-  for (var index = 0; index < 6; index++) {
-    await tester.drag(_detailsScrollable(), const Offset(0, 500));
-    await tester.pumpAndSettle();
-  }
+  final scrollable = tester.state<ScrollableState>(_detailsScrollable());
+  scrollable.position.jumpTo(scrollable.position.minScrollExtent);
+  await tester.pumpAndSettle();
 }
 
 Future<GoRouter> _pumpActiveOrder(

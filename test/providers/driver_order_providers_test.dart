@@ -7,6 +7,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:frontend_bangdeliv/data/repositories/realtime_order_client.dart';
+import 'package:frontend_bangdeliv/models/amount_negotiation_model.dart';
+import 'package:frontend_bangdeliv/models/delivery_fee_negotiation_model.dart';
 import 'package:frontend_bangdeliv/models/driver_order_model.dart';
 import 'package:frontend_bangdeliv/models/order_chat_model.dart';
 import 'package:frontend_bangdeliv/models/payment_proof_feedback_model.dart';
@@ -23,6 +25,7 @@ import 'package:frontend_bangdeliv/services/api_client.dart';
 import 'package:frontend_bangdeliv/services/driver_order_service.dart';
 import 'package:frontend_bangdeliv/services/order_chat_api_service.dart';
 import 'package:frontend_bangdeliv/utils/order_status.dart';
+import 'package:frontend_bangdeliv/utils/service_type.dart';
 import '../fakes/fake_order_realtime_client.dart';
 
 void main() {
@@ -507,6 +510,102 @@ void main() {
       expect(state.running.single.proofs, isEmpty);
       expect(state.running.single.paymentProofFeedback?.isRejected, isTrue);
       expect(state.processingActionKeys, isEmpty);
+    },
+  );
+
+  test(
+    'bypassDeliveryFeeOverride tracks its action and rejects duplicate requests',
+    () async {
+      final completer = Completer<void>();
+      final fakeService = _FakeDriverOrderService(
+        payload: DriverOrdersPayload(
+          incoming: const <DriverOrderModel>[],
+          running: <DriverOrderModel>[_pendingShoppingDeliveryFeeOrder('99')],
+        ),
+        bypassDeliveryFeeCompleter: completer,
+      );
+      final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+      final fakeRealtime = FakeOrderRealtimeClient();
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          driverOrderServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(driverOrdersProvider.future);
+
+      final mutation = container
+          .read(driverOrdersProvider.notifier)
+          .bypassDeliveryFeeOverride(orderId: '99');
+      await Future<void>.delayed(Duration.zero);
+
+      var state = container.read(driverOrdersProvider).asData!.value;
+      expect(state.isProcessing('99'), isTrue);
+      expect(
+        state.isProcessingAction(DriverOrderActionKeys.bypassDeliveryFee('99')),
+        isTrue,
+      );
+      expect(
+        state.running.single.deliveryFeeNegotiation?.isPendingCustomer,
+        isTrue,
+      );
+
+      final duplicateError = await container
+          .read(driverOrdersProvider.notifier)
+          .bypassDeliveryFeeOverride(orderId: '99');
+      expect(duplicateError, contains('Aksi order sebelumnya'));
+      expect(fakeService.bypassDeliveryFeeCalls, 1);
+
+      completer.complete();
+      final error = await mutation;
+      state = container.read(driverOrdersProvider).asData!.value;
+
+      expect(error, isNull);
+      expect(state.isProcessing('99'), isFalse);
+      expect(state.processingActionKeys, isEmpty);
+    },
+  );
+
+  test(
+    'failed delivery fee bypass keeps pending Nitip negotiation recoverable',
+    () async {
+      final fakeService = _FakeDriverOrderService(
+        payload: DriverOrdersPayload(
+          incoming: const <DriverOrderModel>[],
+          running: <DriverOrderModel>[_pendingShoppingDeliveryFeeOrder('99')],
+        ),
+        failBypassDeliveryFee: true,
+      );
+      final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+      final fakeRealtime = FakeOrderRealtimeClient();
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          driverOrderServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(driverOrdersProvider.future);
+
+      final error = await container
+          .read(driverOrdersProvider.notifier)
+          .bypassDeliveryFeeOverride(orderId: '99');
+      final state = container.read(driverOrdersProvider).asData!.value;
+
+      expect(error, contains('bypass failed'));
+      expect(state.isProcessing('99'), isFalse);
+      expect(state.processingActionKeys, isEmpty);
+      expect(state.running, hasLength(1));
+      expect(
+        state.running.single.deliveryFeeNegotiation?.isPendingCustomer,
+        isTrue,
+      );
+      expect(state.running.single.deliveryFeeNegotiation?.quotedAmount, 18000);
     },
   );
 
@@ -1641,6 +1740,7 @@ class _FakeDriverOrderService extends DriverOrderService {
   final Completer<void>? acceptCompleter;
   final Completer<void>? confirmTransferCompleter;
   final Completer<void>? rejectTransferCompleter;
+  final Completer<void>? bypassDeliveryFeeCompleter;
   final Completer<void>? transitionCompleter;
   final Completer<void>? detailCompleter;
   final List<Completer<void>> fetchCompleters;
@@ -1648,6 +1748,8 @@ class _FakeDriverOrderService extends DriverOrderService {
   final List<String> failedPickupOrderIds = <String>[];
   final List<XFile?> failedPickupPhotos = <XFile?>[];
   final Map<String, String> rejectedTransferReasons = <String, String>{};
+  final bool failBypassDeliveryFee;
+  int bypassDeliveryFeeCalls = 0;
   final List<DriverOrderModel> detailResponses;
   int fetchCalls = 0;
   int fetchDetailCalls = 0;
@@ -1666,6 +1768,8 @@ class _FakeDriverOrderService extends DriverOrderService {
     this.acceptCompleter,
     this.confirmTransferCompleter,
     this.rejectTransferCompleter,
+    this.bypassDeliveryFeeCompleter,
+    this.failBypassDeliveryFee = false,
     this.transitionCompleter,
     this.detailCompleter,
     List<Completer<void>>? fetchCompleters,
@@ -1882,6 +1986,23 @@ class _FakeDriverOrderService extends DriverOrderService {
   }
 
   @override
+  Future<DriverOrderModel> bypassDeliveryFeeOverride({
+    required String orderId,
+    String? note,
+  }) async {
+    bypassDeliveryFeeCalls += 1;
+    final completer = bypassDeliveryFeeCompleter;
+    if (completer != null) {
+      await completer.future;
+    }
+    if (failBypassDeliveryFee) {
+      throw const DriverOrderApiException('bypass failed', statusCode: 500);
+    }
+
+    return payload.running.firstWhere((order) => order.id == orderId);
+  }
+
+  @override
   Future<List<DriverHistoryOrderModel>> fetchHistory() async {
     fetchHistoryCalls += 1;
     return history;
@@ -2039,6 +2160,32 @@ DriverOrderModel _transferOrder(
     paymentMethod: 'TRANSFER',
     paymentStatus: 'unpaid',
     proofs: proofs,
+  );
+}
+
+DriverOrderModel _pendingShoppingDeliveryFeeOrder(String id) {
+  return DriverOrderModel(
+    id: id,
+    customerName: 'Customer $id',
+    serviceTypeCode: ServiceTypeCodes.shopping,
+    pickupAddress: 'Pickup',
+    dropoffAddress: 'Dropoff',
+    etaMinutes: 8,
+    fee: 13000,
+    deliveryFee: 13000,
+    itemCount: 1,
+    statusCode: OrderStatusCodes.arrivedMerchant,
+    deliveryFeeNegotiation: const DeliveryFeeNegotiationModel(
+      pricingScope: DeliveryFeeNegotiationModel.shoppingTotalTransportScope,
+      previousTotalTransport: 13000,
+      amount: AmountNegotiationModel(
+        status: 'PENDING_CUSTOMER',
+        quotedAmount: 18000,
+        canCustomerRespond: true,
+        approvalRequired: true,
+        isPending: true,
+      ),
+    ),
   );
 }
 
