@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../features/auth/presentation/screens/login_screen.dart';
 import '../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../features/auth/presentation/screens/complete_phone_screen.dart';
+import '../features/auth/presentation/screens/verify_otp_screen.dart';
 import '../features/auth/presentation/screens/register_screen.dart';
 import '../features/auth/presentation/screens/register_success_screen.dart';
 import '../features/auth/presentation/screens/register_driver_screen.dart';
@@ -163,6 +164,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       _rootRoute(
         path: AppRoutes.completePhone,
         builder: (context, state) => const CompletePhoneScreen(),
+      ),
+      _rootRoute(
+        path: AppRoutes.verifyOtp,
+        builder: (context, state) => const VerifyOtpScreen(),
       ),
       _rootRoute(
         path: AppRoutes.registerDriver,
@@ -558,7 +563,13 @@ String? _resolveRedirect({
     return location == AppRoutes.completePhone ? null : AppRoutes.completePhone;
   }
 
-  if (location == AppRoutes.completePhone) {
+  final requiresPhoneVerification =
+      session.profile?.requiresPhoneVerification == true;
+  if (requiresPhoneVerification) {
+    return location == AppRoutes.verifyOtp ? null : AppRoutes.verifyOtp;
+  }
+
+  if (location == AppRoutes.completePhone || location == AppRoutes.verifyOtp) {
     return _defaultRouteFor(session);
   }
 
@@ -757,5 +768,9 @@ bool _shouldRefreshRouter(AuthSessionState? previous, AuthSessionState next) {
   return previous.initialized != next.initialized ||
       previous.isAuthenticated != next.isAuthenticated ||
       previous.role != next.role ||
-      previous.driverAccessState != next.driverAccessState;
+      previous.driverAccessState != next.driverAccessState ||
+      previous.profile?.requiresPhoneCompletion !=
+          next.profile?.requiresPhoneCompletion ||
+      previous.profile?.requiresPhoneVerification !=
+          next.profile?.requiresPhoneVerification;
 }

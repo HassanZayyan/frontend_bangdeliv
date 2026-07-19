@@ -27,6 +27,8 @@ void main() {
 
       expect(routerSource, contains('requiresPhoneCompletion'));
       expect(routerSource, contains('AppRoutes.completePhone'));
+      expect(routerSource, contains('requiresPhoneVerification'));
+      expect(routerSource, contains('AppRoutes.verifyOtp'));
       expect(routerSource, contains('RegisterScreen'));
       expect(routerSource, contains('RegisterSuccessScreen'));
       expect(routerSource, contains('PasswordFormMode.create'));
