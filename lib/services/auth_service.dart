@@ -324,6 +324,101 @@ class AuthService {
     }
   }
 
+  /// Meminta kode OTP dikirim ke nomor WhatsApp user yang sedang login.
+  static Future<OtpSendResult> sendPhoneOtp() async {
+    final uri = Uri.parse('${AppEnv.apiBaseUrl}/auth/otp/send');
+
+    try {
+      final response = await http
+          .post(uri, headers: await authorizedHeaders())
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> payload =
+            jsonDecode(response.body) as Map<String, dynamic>;
+        final Map<String, dynamic> data =
+            (payload['data'] as Map<String, dynamic>?) ?? const {};
+
+        return OtpSendResult(
+          alreadyVerified: data['already_verified'] == true,
+          resendAvailableIn: _asIntOr(data['resend_available_in'], 60),
+        );
+      }
+
+      if (response.statusCode == 429) {
+        final int retryAfter = _retryAfterSeconds(response);
+        throw OtpCooldownException(
+          _extractErrorMessage(
+            response,
+            fallback: 'Tunggu beberapa saat sebelum meminta kode baru.',
+          ),
+          retryAfter,
+        );
+      }
+
+      throw AuthException(
+        _extractErrorMessage(
+          response,
+          fallback: 'Gagal mengirim kode verifikasi.',
+        ),
+      );
+    } on TimeoutException {
+      throw const AuthException(ApiException.timeoutMessage);
+    } on AuthException {
+      rethrow;
+    } catch (_) {
+      throw const AuthException(ApiException.noInternetMessage);
+    }
+  }
+
+  /// Memverifikasi kode OTP dan mengembalikan profil terbaru.
+  static Future<UserProfileModel> verifyPhoneOtp({required String code}) async {
+    final uri = Uri.parse('${AppEnv.apiBaseUrl}/auth/otp/verify');
+
+    try {
+      final response = await http
+          .post(
+            uri,
+            headers: await authorizedHeaders(),
+            body: jsonEncode({'code': code.trim()}),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 200) {
+        return _parseProfileResponse(response);
+      }
+
+      throw AuthException(
+        _extractErrorMessage(response, fallback: 'Verifikasi kode gagal.'),
+      );
+    } on TimeoutException {
+      throw const AuthException(ApiException.timeoutMessage);
+    } on AuthException {
+      rethrow;
+    } catch (_) {
+      throw const AuthException(ApiException.noInternetMessage);
+    }
+  }
+
+  static int _retryAfterSeconds(http.Response response) {
+    try {
+      final Map<String, dynamic> payload =
+          jsonDecode(response.body) as Map<String, dynamic>;
+
+      return _asIntOr(payload['retry_after_seconds'], 60);
+    } catch (_) {
+      return 60;
+    }
+  }
+
+  static int _asIntOr(dynamic value, int fallback) {
+    if (value is int) {
+      return value;
+    }
+
+    return int.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
   static Future<UserProfileModel> completePhone({required String phone}) async {
     final uri = Uri.parse('${AppEnv.apiBaseUrl}/user/phone');
 
@@ -967,6 +1062,23 @@ class AuthException implements Exception {
 
   @override
   String toString() => message;
+}
+
+/// Dilempar saat server menolak permintaan OTP karena masih dalam jeda kirim ulang.
+class OtpCooldownException extends AuthException {
+  final int retryAfterSeconds;
+
+  const OtpCooldownException(super.message, this.retryAfterSeconds);
+}
+
+class OtpSendResult {
+  final bool alreadyVerified;
+  final int resendAvailableIn;
+
+  const OtpSendResult({
+    required this.alreadyVerified,
+    required this.resendAvailableIn,
+  });
 }
 
 class AddressValidationResult {

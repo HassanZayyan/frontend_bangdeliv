@@ -5,6 +5,7 @@ class AppRoutes {
   static const String registerSuccess = '/register-success';
   static const String forgotPassword = '/forgot-password';
   static const String completePhone = '/complete-phone';
+  static const String verifyOtp = '/verify-otp';
   static const String home = '/home';
   static const String driverHome = '/driver/home';
   static const String driverOrders = '/driver/orders';
