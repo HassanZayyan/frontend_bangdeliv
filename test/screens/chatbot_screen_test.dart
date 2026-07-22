@@ -22,6 +22,7 @@ import 'package:frontend_bangdeliv/services/api_client.dart';
 import 'package:frontend_bangdeliv/services/api_exception.dart';
 import 'package:frontend_bangdeliv/services/chatbot_api_service.dart';
 import 'package:frontend_bangdeliv/services/customer_order_api_service.dart';
+import 'package:frontend_bangdeliv/widgets/bang_ui.dart';
 
 void main() {
   testWidgets('antar_jemput now uses backend chatbot response', (
@@ -173,7 +174,13 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('sudah terdaftar di BangDeliv'), findsOneWidget);
-    expect(find.textContaining('tombol Cari lewat Maps'), findsOneWidget);
+    expect(
+      find.textContaining('ketuk tombol Pilih Toko/Resto'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('lalu ketuk Cari lewat Maps'), findsOneWidget);
+    // Penanda bold **...** harus di-strip (dirender tebal), tidak tampil literal.
+    expect(find.textContaining('**'), findsNothing);
     expect(find.textContaining('dapat ditemukan di Google Maps'), findsNothing);
     expect(find.textContaining('Alamat antar utama'), findsNothing);
     expect(find.textContaining('masih draft'), findsNothing);
@@ -195,7 +202,7 @@ void main() {
     expect(find.text('Ketuk tombol untuk atur pesanan'), findsOneWidget);
   });
 
-  testWidgets('antar jemput welcome shows a destination writing example', (
+  testWidgets('antar jemput welcome shows pickup and destination examples', (
     WidgetTester tester,
   ) async {
     await _pumpChatbot(
@@ -204,9 +211,22 @@ void main() {
       chatbotApiService: _FakeChatbotApiService(),
     );
 
-    expect(find.textContaining('menulis tujuan perjalanan'), findsOneWidget);
+    expect(
+      find.textContaining('menulis titik jemput dan tujuan'),
+      findsOneWidget,
+    );
+    // Peringatan Maps menyebut kedua titik, bukan hanya tujuan.
+    expect(
+      find.textContaining('lokasi jemput dan tujuan dapat ditemukan'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('menulis tujuan perjalanan'), findsNothing);
     expect(find.textContaining('Contoh:'), findsOneWidget);
     expect(find.textContaining('Antar ke Ramayana Salatiga'), findsOneWidget);
+    expect(
+      find.textContaining('Jemput saya di Kopi Kenangan Tembalang'),
+      findsOneWidget,
+    );
     expect(find.textContaining('Google Maps'), findsOneWidget);
     expect(find.text('Ketuk tombol untuk atur lokasi'), findsOneWidget);
   });
@@ -617,6 +637,111 @@ void main() {
     await _pumpChatbotFrame(tester);
 
     expect(fakeService.lastMessage, 'Dimsum Ayam 2\nEs Teh 1');
+  });
+
+  testWidgets('lihat menu untuk resto terdaftar otomatis membuka menu selector', (
+    WidgetTester tester,
+  ) async {
+    final fakeService = _FakeChatbotApiService();
+    final fakeRepository = _FakeCustomerOrderRepository(
+      menusByMerchantId: const <int, List<ShoppingMenuOption>>{
+        77: <ShoppingMenuOption>[
+          ShoppingMenuOption(id: 1, name: 'Nasi Goreng Spesial', price: 15000),
+          ShoppingMenuOption(id: 2, name: 'Es Teh', price: 3000),
+        ],
+      },
+    );
+
+    await _pumpChatbot(
+      tester,
+      serviceType: 'nitip',
+      chatbotApiService: fakeService,
+      customerOrderRepository: fakeRepository,
+    );
+
+    await _sendMessage(tester, 'Lihat menu Nasgor Gajah');
+
+    // Sinyal menu_selector memicu pemuatan menu resto otomatis.
+    expect(fakeRepository.searchMenuCallCount, 1);
+    expect(fakeRepository.lastMerchantId, 77);
+    expect(find.text('Pilih menu'), findsOneWidget);
+    expect(find.text('Nasgor Gajah'), findsOneWidget);
+    expect(find.text('Nasi Goreng Spesial'), findsOneWidget);
+    expect(find.text('Rp15.000'), findsOneWidget);
+  });
+
+  testWidgets('menu selector search filters and keeps hidden selection counted', (
+    WidgetTester tester,
+  ) async {
+    final fakeService = _FakeChatbotApiService();
+    final fakeRepository = _FakeCustomerOrderRepository(
+      menusByMerchantId: <int, List<ShoppingMenuOption>>{
+        42: <ShoppingMenuOption>[
+          for (var i = 1; i <= 11; i++)
+            ShoppingMenuOption(id: i, name: 'Menu $i', price: 10000),
+          const ShoppingMenuOption(id: 12, name: 'Bakso Spesial', price: 12000),
+        ],
+      },
+    );
+
+    await _pumpChatbot(
+      tester,
+      serviceType: 'nitip',
+      chatbotApiService: fakeService,
+      customerOrderRepository: fakeRepository,
+      merchantPickerResult: const ShoppingMerchantPickerResult(
+        merchantId: 42,
+        place: ShoppingMerchantPlacePayload(
+          placeId: 'official-42',
+          name: 'Dimsum Dan Seblak Wolu',
+          address: 'Lokasi Bang Deliv',
+          latitude: -7.3178,
+          longitude: 110.463,
+          types: <String>['restaurant'],
+        ),
+      ),
+    );
+
+    await _sendMessage(tester, 'beli sembako');
+    await tester.tap(_filledIconButtonWithText('Cari lewat Maps'));
+    await _pumpChatbotFrame(tester);
+    await tester.tap(find.text('Pilih Kedai Kedua'));
+    await _pumpChatbotFrame(tester);
+
+    expect(find.text('Pilih menu'), findsOneWidget);
+    expect(find.text('Menu 1'), findsOneWidget);
+    expect(find.text('Bakso Spesial'), findsNothing);
+    expect(find.text('Tampilkan 2 menu lainnya'), findsOneWidget);
+
+    final searchField = find.descendant(
+      of: find.byType(BangSearchField),
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(searchField, 'bakso');
+    await _pumpChatbotFrame(tester);
+
+    expect(find.text('Bakso Spesial'), findsOneWidget);
+    expect(find.text('Menu 1'), findsNothing);
+
+    await tester.ensureVisible(find.byTooltip('Tambah Bakso Spesial'));
+    await tester.tap(find.byTooltip('Tambah Bakso Spesial'));
+    await _pumpChatbotFrame(tester);
+
+    await tester.enterText(searchField, '');
+    await _pumpChatbotFrame(tester);
+
+    expect(find.text('Bakso Spesial'), findsNothing);
+    expect(
+      find.widgetWithText(FilledButton, 'Konfirmasi Pilihan (1)'),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Konfirmasi Pilihan (1)'),
+    );
+    await _pumpChatbotFrame(tester);
+
+    expect(fakeService.lastMessage, 'Bakso Spesial 1');
   });
 
   testWidgets('menu selector asks before switching to manual item input', (
@@ -1460,6 +1585,138 @@ void main() {
     expect(find.textContaining('0 kg'), findsNothing);
   });
 
+  testWidgets('quick chat templates show per service type before first message', (
+    WidgetTester tester,
+  ) async {
+    const expectedTemplates = <String, List<String>>{
+      'kurir': [
+        'Anter [barang] ke [tujuan]',
+        'Kirim [barang] dari [lokasi] ke [tujuan]',
+        'Ambil / Tujuan / Barang',
+      ],
+      'antar_jemput': [
+        'Antar saya ke [tujuan]',
+        'Jemput saya di [lokasi], antar ke [tujuan]',
+      ],
+      'nitip': [
+        'Beli di resto + menu',
+        'Lihat menu [resto]',
+        'Rekomendasi makanan dong',
+      ],
+    };
+
+    for (final entry in expectedTemplates.entries) {
+      await _pumpChatbot(
+        tester,
+        serviceType: entry.key,
+        chatbotApiService: _FakeChatbotApiService(),
+      );
+
+      for (final label in entry.value) {
+        expect(
+          find.text(label),
+          findsOneWidget,
+          reason: 'Template "$label" missing for ${entry.key}',
+        );
+      }
+    }
+  });
+
+  testWidgets('placeholder template fills input with first slot selected', (
+    WidgetTester tester,
+  ) async {
+    final fakeService = _FakeChatbotApiService();
+    await _pumpChatbot(
+      tester,
+      serviceType: 'kurir',
+      chatbotApiService: fakeService,
+    );
+
+    await tester.ensureVisible(find.text('Anter [barang] ke [tujuan]'));
+    await tester.tap(find.text('Anter [barang] ke [tujuan]'));
+    await _pumpChatbotFrame(tester);
+
+    expect(fakeService.callCount, 0);
+
+    final controller = tester
+        .widget<TextField>(find.byType(TextField))
+        .controller!;
+    expect(controller.text, 'Anter [barang] ke [tujuan]');
+    expect(
+      controller.selection,
+      const TextSelection(baseOffset: 6, extentOffset: 14),
+    );
+
+    expect(find.text('Kirim [barang] dari [lokasi] ke [tujuan]'), findsOneWidget);
+  });
+
+  testWidgets('full sentence template sends immediately', (
+    WidgetTester tester,
+  ) async {
+    final fakeService = _FakeChatbotApiService();
+    await _pumpChatbot(
+      tester,
+      serviceType: 'nitip',
+      chatbotApiService: fakeService,
+    );
+
+    await tester.ensureVisible(find.text('Rekomendasi makanan dong'));
+    await tester.tap(find.text('Rekomendasi makanan dong'));
+    await _pumpChatbotFrame(tester);
+
+    expect(fakeService.callCount, 1);
+    expect(fakeService.lastMessage, 'Rekomendasi makanan dong');
+    expect(fakeService.lastServiceType, 'nitip');
+    expect(find.text('Beli di resto + menu'), findsNothing);
+    expect(find.text('Lihat menu [resto]'), findsNothing);
+  });
+
+  testWidgets('quick chat templates disappear after first user message', (
+    WidgetTester tester,
+  ) async {
+    await _pumpChatbot(
+      tester,
+      serviceType: 'kurir',
+      chatbotApiService: _FakeChatbotApiService(),
+    );
+
+    await _sendMessage(tester, 'kirim laptop ke polines');
+
+    expect(find.text('Anter [barang] ke [tujuan]'), findsNothing);
+    expect(find.text('Kirim [barang] dari [lokasi] ke [tujuan]'), findsNothing);
+    expect(find.text('Ambil / Tujuan / Barang'), findsNothing);
+  });
+
+  testWidgets('multi-line chip fills input with full body and first slot', (
+    WidgetTester tester,
+  ) async {
+    final fakeService = _FakeChatbotApiService();
+    await _pumpChatbot(
+      tester,
+      serviceType: 'kurir',
+      chatbotApiService: fakeService,
+    );
+
+    await tester.ensureVisible(find.text('Ambil / Tujuan / Barang'));
+    await tester.tap(find.text('Ambil / Tujuan / Barang'));
+    await _pumpChatbotFrame(tester);
+
+    // Chip fills input (does not send) with the full multi-line body.
+    expect(fakeService.callCount, 0);
+    final controller = tester
+        .widget<TextField>(find.byType(TextField))
+        .controller!;
+    expect(
+      controller.text,
+      'Ambil: [lokasi ambil]\nTujuan: [lokasi tujuan]\nBarang: [nama barang]',
+    );
+    // First placeholder "[lokasi ambil]" selected (after "Ambil: ").
+    expect(
+      controller.selection,
+      const TextSelection(baseOffset: 7, extentOffset: 21),
+    );
+  });
+
   test('customer transfer evidence picker uses gallery', () {
     final source = File(
       'lib/features/tracking/presentation/screens/track_order_screen.dart',
@@ -1910,6 +2167,44 @@ class _FakeChatbotApiService extends ChatbotApiService {
             },
           },
           'order': {'created': false, 'payment_method': null},
+        },
+      });
+    }
+
+    if (serviceType == 'nitip' && normalized == 'lihat menu nasgor gajah') {
+      return ChatbotResult.fromApiJson({
+        'status': 'success',
+        'session_id': sessionId,
+        'service_context': {'service_type': serviceType},
+        'model_used': 'deterministic-assistant',
+        'data': {
+          'intent': 'shopping_order',
+          'assistant_text': 'Ini menu Nasgor Gajah. Pilih item yang ingin dibeli.',
+          'menu_selector': {
+            'merchant_id': 77,
+            'merchant_name': 'Nasgor Gajah',
+            'mode': 'select',
+          },
+          'shopping': {
+            'ready_to_confirm': false,
+            'merchant': {'id': 77, 'name': 'Nasgor Gajah'},
+            'stops': [
+              {
+                'index': 1,
+                'is_active': true,
+                'merchant': {'id': 77, 'name': 'Nasgor Gajah'},
+                'items': <dynamic>[],
+                'ready': false,
+              },
+            ],
+          },
+          'validation': {
+            'is_valid_order': false,
+            'rejection_reasons': <dynamic>[],
+            'missing_fields': ['items'],
+            'next_actions': <dynamic>[],
+          },
+          'order': {'created': false},
         },
       });
     }
