@@ -1,7 +1,43 @@
 {
   "permissions": {
     "allow": [
-      "Bash(php artisan *)"
+      "Bash(php artisan *)",
+      "PowerShell(Get-ChildItem 'C:\\\\laragon\\\\bin\\\\mysql' -Directory | ForEach-Object FullName; Test-Path 'C:\\\\laragon\\\\data')",
+      "PowerShell(Start-Process -FilePath 'C:\\\\laragon\\\\bin\\\\mysql\\\\mysql-8.4.3-winx64\\\\bin\\\\mysqld.exe' -ArgumentList '--datadir=C:\\\\laragon\\\\data\\\\mysql-8' -WindowStyle Hidden)",
+      "PowerShell(& 'C:\\\\laragon\\\\bin\\\\mysql\\\\mysql-8.4.3-winx64\\\\bin\\\\mysql.exe' -u root -h 127.0.0.1 -e \"SELECT VERSION\\(\\);\" 2>$null)",
+      "PowerShell(Get-ChildItem 'C:\\\\laragon\\\\data' -Directory | ForEach-Object Name; Get-Process mysqld -ErrorAction SilentlyContinue | Format-Table Id, ProcessName)",
+      "PowerShell(Start-Process -FilePath 'C:\\\\laragon\\\\bin\\\\mysql\\\\mysql-8.4.3-winx64\\\\bin\\\\mysqld.exe' -ArgumentList '--datadir=C:\\\\laragon\\\\data\\\\mysql-8.4' -WindowStyle Hidden)",
+      "PowerShell(& 'C:\\\\laragon\\\\bin\\\\mysql\\\\mysql-8.4.3-winx64\\\\bin\\\\mysql.exe' -u root -h 127.0.0.1 -e \"SELECT VERSION\\(\\);\")",
+      "PowerShell(php \"C:\\\\Users\\\\acer\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--AA-Kuliah-Hassan-TA-frontend-bangdeliv\\\\847f72dd-6557-4d52-817f-4d02007c4e1c\\\\scratchpad\\\\verify_photos_menus.php\")",
+      "PowerShell(Set-Location \"d:\\\\AA_Kuliah_Hassan\\\\TA\\\\Backend_Bangdeliv\"; git ls-files | Select-String -Pattern \"firebase|service.?account|credentials|\\\\.json$\" | ForEach-Object Line | Select-Object -First 15; \"---env check---\"; git ls-files | Select-String -Pattern \"^\\\\.env\" | ForEach-Object Line)",
+      "Bash(flutter analyze *)",
+      "Bash(flutter test *)",
+      "PowerShell(Get-ChildItem \"d:\\\\AA_Kuliah_Hassan\\\\TA\\\\Backend_Bangdeliv\\\\app\\\\Services\\\\Order\" -File | ForEach-Object { \"{0,6} {1}\" -f \\(Get-Content $_.FullName | Measure-Object -Line\\).Lines, $_.Name })",
+      "Bash(php -l app/Services/Order/OrderService.php)",
+      "Bash(php -l app/Services/Order/OrderStatusResolver.php)",
+      "Bash(php -l app/Services/Order/OrderRealtimeNotifier.php)",
+      "Bash(php -l app/Services/Order/OrderPaymentProofService.php)",
+      "Bash(php -l app/Services/Order/DriverOrderResolver.php)",
+      "Bash(awk -F: '{print $1\"\\\\t\"$2}')",
+      "Bash(sed -i -e '3969,4034d' -e '4163,4254d' app/Services/Order/OrderService.php)",
+      "Bash(php -l app/Services/Order/DeliveryFeeNegotiationOrchestrator.php)",
+      "Bash(php -l app/Services/Order/OrderTotalsSynchronizer.php)",
+      "Bash(php -l app/Services/Order/ShoppingUnavailableItemPurger.php)",
+      "Bash(php -l app/Services/Order/ShoppingNegotiationOrchestrator.php)",
+      "Bash(python \"C:\\\\Users\\\\acer\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--AA-Kuliah-Hassan-TA-frontend-bangdeliv\\\\b51f633b-d975-4f0e-97f0-454f4282eccc\\\\scratchpad\\\\refactor_methods.py\" \"D:\\\\AA_Kuliah_Hassan\\\\TA\\\\Backend_Bangdeliv\\\\app\\\\Services\\\\Order\\\\OrderService.php\" \"C:\\\\Users\\\\acer\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--AA-Kuliah-Hassan-TA-frontend-bangdeliv\\\\b51f633b-d975-4f0e-97f0-454f4282eccc\\\\scratchpad\\\\phase6_spec.json\")",
+      "Bash(php -l app/Services/Order/DriverOrderWorkflowService.php)",
+      "Bash(python \"C:\\\\Users\\\\acer\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--AA-Kuliah-Hassan-TA-frontend-bangdeliv\\\\b51f633b-d975-4f0e-97f0-454f4282eccc\\\\scratchpad\\\\refactor_methods.py\" \"D:\\\\AA_Kuliah_Hassan\\\\TA\\\\Backend_Bangdeliv\\\\app\\\\Services\\\\Order\\\\OrderService.php\" \"C:\\\\Users\\\\acer\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--AA-Kuliah-Hassan-TA-frontend-bangdeliv\\\\b51f633b-d975-4f0e-97f0-454f4282eccc\\\\scratchpad\\\\phase7_spec.json\")",
+      "Bash(php -l app/Services/Order/CustomerOrderService.php)",
+      "Bash(echo \"---private-fn-exit:$?\")",
+      "Bash(grep -oE '\\\\$this->[a-zA-Z]+' app/Services/Order/OrderService.php)",
+      "Bash(./vendor/bin/pint --dirty)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(echo \"callers-exit:$?\")",
+      "PowerShell(Set-Location \"d:\\\\AA_Kuliah_Hassan\\\\TA\\\\Backend_Bangdeliv\"; php artisan test 2>&1 | Select-Object -Last 3; Get-ChildItem \"app\\\\Services\\\\Order\" -File | ForEach-Object { \"{0,6} {1}\" -f \\(Get-Content $_.FullName | Measure-Object -Line\\).Lines, $_.Name })",
+      "Bash(awk '$1 > 1')",
+      "Bash(vendor/bin/pint app/Services/Order/OrderStatusResolver.php app/Services/Order/CustomerOrderService.php app/Services/Order/DeliveryFeeNegotiationOrchestrator.php app/Services/Order/ShoppingNegotiationOrchestrator.php app/Services/Order/OrderPaymentProofService.php app/Services/Order/DriverOrderWorkflowService.php)",
+      "Bash(vendor/bin/pint app/Services/Order/OrderEtaTargetResolver.php app/Services/Order/DriverArrivalEtaService.php)",
+      "Bash(vendor/bin/pint app/Services/Chatbot/ChatbotRideOrderService.php app/Services/Chatbot/ChatbotGeminiService.php app/Services/Chatbot/ChatbotPromptLibrary.php app/Services/Chatbot/ChatbotShoppingOrderService.php tests/Feature/ChatbotRideFlowTest.php tests/Feature/Api/ChatbotShoppingFlowTest.php tests/Unit/ChatbotPromptLibraryTest.php)"
     ]
   }
 }

@@ -9,6 +9,9 @@ import '../../../utils/address_readiness.dart';
 import '../../../utils/order_formatters.dart';
 import '../../auth/application/auth_session_provider.dart';
 import '../../../core/di/app_providers.dart';
+import 'chatbot_conversation_models.dart';
+
+export 'chatbot_conversation_models.dart';
 
 String _normalizeConversationServiceType(String serviceType) {
   switch (serviceType.trim().toLowerCase()) {
@@ -21,199 +24,7 @@ String _normalizeConversationServiceType(String serviceType) {
   }
 }
 
-enum ChatbotMessageActionType {
-  openAddresses,
-  openMapPicker,
-  openMerchantPicker,
-  openRoutePicker,
-  sendPresetMessage,
-  openTrackOrder,
-  openActivity,
-  openDriverVerificationStatus,
-}
-
 enum _MessageResultContext { general, mapPin }
-
-class ChatbotCommandParser {
-  const ChatbotCommandParser._();
-
-  static bool isRestartCommand(String rawMessage) {
-    final normalized = rawMessage.trim().toLowerCase();
-
-    return normalized == 'refresh' || normalized == '/refresh';
-  }
-}
-
-class ChatbotRoutePointHint {
-  const ChatbotRoutePointHint({
-    required this.target,
-    required this.label,
-    this.initialLatitude,
-    this.initialLongitude,
-    this.address,
-  });
-
-  final String target;
-  final String label;
-  final double? initialLatitude;
-  final double? initialLongitude;
-  final String? address;
-}
-
-class ChatbotLocationPatch {
-  const ChatbotLocationPatch({
-    required this.target,
-    required this.latitude,
-    required this.longitude,
-    this.address,
-  });
-
-  final String target;
-  final double latitude;
-  final double longitude;
-  final String? address;
-}
-
-class ChatbotMessageActionHint {
-  const ChatbotMessageActionHint({
-    required this.type,
-    required this.label,
-    this.target,
-    this.presetMessage,
-    this.orderId,
-    this.merchantMode,
-    this.initialLatitude,
-    this.initialLongitude,
-    this.routePoints = const <ChatbotRoutePointHint>[],
-  });
-
-  final ChatbotMessageActionType type;
-  final String label;
-  final String? target;
-  final String? presetMessage;
-  final int? orderId;
-  final String? merchantMode;
-  final double? initialLatitude;
-  final double? initialLongitude;
-  final List<ChatbotRoutePointHint> routePoints;
-}
-
-class ChatbotConversationMessage {
-  const ChatbotConversationMessage({
-    required this.text,
-    required this.timestamp,
-    required this.isUser,
-    this.meta,
-    this.actionHints = const <ChatbotMessageActionHint>[],
-  });
-
-  final String text;
-  final String timestamp;
-  final bool isUser;
-  final String? meta;
-  final List<ChatbotMessageActionHint> actionHints;
-}
-
-class ChatbotMenuSelectorDraft {
-  const ChatbotMenuSelectorDraft({
-    required this.merchantName,
-    required this.merchantMode,
-    required this.menus,
-    required this.quantities,
-  });
-
-  final String merchantName;
-  final String merchantMode;
-  final List<ChatbotMenuSuggestion> menus;
-  final List<int> quantities;
-
-  ChatbotMenuSelectorDraft copyWith({
-    String? merchantName,
-    String? merchantMode,
-    List<ChatbotMenuSuggestion>? menus,
-    List<int>? quantities,
-  }) {
-    return ChatbotMenuSelectorDraft(
-      merchantName: merchantName ?? this.merchantName,
-      merchantMode: merchantMode ?? this.merchantMode,
-      menus: menus ?? this.menus,
-      quantities: quantities ?? this.quantities,
-    );
-  }
-}
-
-class ChatbotConversationState {
-  const ChatbotConversationState({
-    required this.serviceType,
-    required this.sessionId,
-    required this.messages,
-    required this.isBootstrapping,
-    required this.isSending,
-    required this.isApplyingAction,
-    required this.hasInitialized,
-    required this.errorMessage,
-    required this.activeOrderId,
-    required this.menuSelectorDraft,
-    required this.menuSelectorNotice,
-  });
-
-  final String serviceType;
-  final String? sessionId;
-  final List<ChatbotConversationMessage> messages;
-  final bool isBootstrapping;
-  final bool isSending;
-  final bool isApplyingAction;
-  final bool hasInitialized;
-  final String? errorMessage;
-  final int? activeOrderId;
-  final ChatbotMenuSelectorDraft? menuSelectorDraft;
-  final String? menuSelectorNotice;
-
-  bool get isBusy => isBootstrapping || isSending || isApplyingAction;
-  bool get hasActiveOrder => (activeOrderId ?? 0) > 0;
-  bool get hasMenuSelectorSurface =>
-      menuSelectorDraft != null || (menuSelectorNotice ?? '').trim().isNotEmpty;
-
-  ChatbotConversationState copyWith({
-    String? serviceType,
-    String? sessionId,
-    List<ChatbotConversationMessage>? messages,
-    bool? isBootstrapping,
-    bool? isSending,
-    bool? isApplyingAction,
-    bool? hasInitialized,
-    String? errorMessage,
-    int? activeOrderId,
-    ChatbotMenuSelectorDraft? menuSelectorDraft,
-    String? menuSelectorNotice,
-    bool clearSessionId = false,
-    bool clearErrorMessage = false,
-    bool clearActiveOrderId = false,
-    bool clearMenuSelectorSurface = false,
-  }) {
-    return ChatbotConversationState(
-      serviceType: serviceType ?? this.serviceType,
-      sessionId: clearSessionId ? null : (sessionId ?? this.sessionId),
-      messages: messages ?? this.messages,
-      isBootstrapping: isBootstrapping ?? this.isBootstrapping,
-      isSending: isSending ?? this.isSending,
-      isApplyingAction: isApplyingAction ?? this.isApplyingAction,
-      hasInitialized: hasInitialized ?? this.hasInitialized,
-      errorMessage: clearErrorMessage
-          ? null
-          : (errorMessage ?? this.errorMessage),
-      activeOrderId: clearActiveOrderId
-          ? null
-          : (activeOrderId ?? this.activeOrderId),
-      menuSelectorDraft: clearMenuSelectorSurface
-          ? null
-          : (menuSelectorDraft ?? this.menuSelectorDraft),
-      menuSelectorNotice: clearMenuSelectorSurface
-          ? null
-          : (menuSelectorNotice ?? this.menuSelectorNotice),
-    );
-  }
-}
 
 class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
   ChatbotConversationNotifier(this._initialServiceType);
@@ -353,6 +164,8 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         ],
         clearErrorMessage: true,
         clearMenuSelectorSurface: true,
+        pendingMenuSelectorRequest: result.menuSelector,
+        clearPendingMenuSelectorRequest: result.menuSelector == null,
       );
       return true;
     } on ApiException catch (error) {
@@ -797,6 +610,15 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     }
 
     state = state.copyWith(clearMenuSelectorSurface: true);
+  }
+
+  /// Konsumsi sinyal menu selector (sekali pakai) setelah layar menanganinya.
+  void consumeMenuSelectorRequest() {
+    if (state.pendingMenuSelectorRequest == null) {
+      return;
+    }
+
+    state = state.copyWith(clearPendingMenuSelectorRequest: true);
   }
 
   bool _hasSameMenuSuggestions(

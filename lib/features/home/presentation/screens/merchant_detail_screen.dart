@@ -10,6 +10,7 @@ import '../../../../models/chatbot_launch_args.dart';
 import '../../../../models/food_model.dart';
 import '../../../../models/merchant_detail_model.dart';
 import '../../../../models/merchant_model.dart';
+import '../../../../widgets/menu_item_row.dart';
 import '../../../auth/application/auth_session_provider.dart';
 import '../../../auth/presentation/widgets/guest_login_prompt.dart';
 
@@ -923,64 +924,27 @@ class _MenuTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.border),
       ),
-      child: Row(
-        children: [
-          if (hasImage) ...[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: SizedBox.square(
-                dimension: 64,
-                child: Image.network(
-                  imageUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      color: AppColors.primaryLight,
-                      child: const Icon(
-                        Icons.broken_image_outlined,
-                        color: AppColors.primary,
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-          ],
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  menu.name,
-                  maxLines: hasImage ? 2 : 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w800,
-                    height: 1.25,
-                  ),
-                ),
-                const SizedBox(height: 7),
-                Text(
-                  menu.formattedPrice,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: hasReferencePrice
-                        ? AppColors.primary
-                        : AppColors.textSecondary,
-                    fontSize: 14,
-                    fontWeight: hasReferencePrice
-                        ? FontWeight.w800
-                        : FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+      child: MenuItemRow(
+        name: menu.name,
+        priceLabel: menu.formattedPrice,
+        imageUrl: imageUrl,
+        thumbnailSize: 64,
+        showThumbnailFallback: true,
+        maxNameLines: hasImage ? 2 : 3,
+        namePriceSpacing: 7,
+        nameStyle: const TextStyle(
+          color: AppColors.textPrimary,
+          fontSize: 14.5,
+          fontWeight: FontWeight.w800,
+          height: 1.25,
+        ),
+        priceStyle: TextStyle(
+          color: hasReferencePrice
+              ? AppColors.primary
+              : AppColors.textSecondary,
+          fontSize: 14,
+          fontWeight: hasReferencePrice ? FontWeight.w800 : FontWeight.w600,
+        ),
       ),
     );
   }

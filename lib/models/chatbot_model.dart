@@ -209,6 +209,37 @@ class ChatbotValidation {
   });
 }
 
+/// Sinyal dari backend agar frontend membuka menu selector untuk resto terdaftar
+/// (mis. balasan `Lihat menu [resto]`).
+class ChatbotMenuSelectorRequest {
+  const ChatbotMenuSelectorRequest({
+    required this.merchantId,
+    required this.merchantName,
+    required this.mode,
+  });
+
+  final int merchantId;
+  final String merchantName;
+  final String mode;
+
+  static ChatbotMenuSelectorRequest? fromJson(Object? raw) {
+    if (raw is! Map) {
+      return null;
+    }
+    final merchantId = int.tryParse(raw['merchant_id']?.toString() ?? '');
+    final merchantName = raw['merchant_name']?.toString().trim();
+    if (merchantId == null || merchantName == null || merchantName.isEmpty) {
+      return null;
+    }
+    final mode = raw['mode']?.toString().trim();
+    return ChatbotMenuSelectorRequest(
+      merchantId: merchantId,
+      merchantName: merchantName,
+      mode: (mode == null || mode.isEmpty) ? 'select' : mode,
+    );
+  }
+}
+
 class ChatbotResult {
   final String? sessionId;
   final String? serviceType;
@@ -227,6 +258,7 @@ class ChatbotResult {
   final int? createdOrderId;
   final String? createdOrderNumber;
   final String? createdOrderStatus;
+  final ChatbotMenuSelectorRequest? menuSelector;
 
   const ChatbotResult({
     required this.sessionId,
@@ -246,6 +278,7 @@ class ChatbotResult {
     required this.createdOrderId,
     required this.createdOrderNumber,
     required this.createdOrderStatus,
+    this.menuSelector,
   });
 
   factory ChatbotResult.fromApiJson(Map<String, dynamic> json) {
@@ -340,6 +373,7 @@ class ChatbotResult {
       createdOrderId: int.tryParse(orderRaw['id']?.toString() ?? ''),
       createdOrderNumber: orderRaw['order_number']?.toString(),
       createdOrderStatus: orderRaw['status']?.toString(),
+      menuSelector: ChatbotMenuSelectorRequest.fromJson(data['menu_selector']),
     );
   }
 

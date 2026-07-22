@@ -4,6 +4,8 @@ import '../../../../config/app_colors.dart';
 import '../../../../config/app_text_scaling.dart';
 import '../../../../models/chatbot_launch_args.dart';
 import '../../../../utils/currency_formatter.dart';
+import '../../../../widgets/bang_ui.dart';
+import '../../../../widgets/menu_item_row.dart';
 
 const double _chatbotButtonRadius = 10;
 
@@ -28,6 +30,12 @@ class ChatbotMenuSelector extends StatefulWidget {
 }
 
 class _ChatbotMenuSelectorState extends State<ChatbotMenuSelector> {
+  /// Jumlah baris menu yang tampil sebelum tombol "Tampilkan ... lainnya".
+  static const int _defaultVisibleCount = 10;
+
+  final TextEditingController _searchController = TextEditingController();
+  bool _showAll = false;
+
   List<int> get _quantities => List<int>.generate(
     widget.menus.length,
     (index) => index < widget.quantities.length
@@ -36,12 +44,80 @@ class _ChatbotMenuSelectorState extends State<ChatbotMenuSelector> {
     growable: false,
   );
 
+  bool get _searchEnabled => widget.menus.length > _defaultVisibleCount;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(_handleSearchChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant ChatbotMenuSelector oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.merchantName != widget.merchantName ||
+        !_hasSameMenuNames(oldWidget.menus, widget.menus)) {
+      _showAll = false;
+      _searchController.clear();
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _handleSearchChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  bool _hasSameMenuNames(
+    List<ChatbotMenuSuggestion> previous,
+    List<ChatbotMenuSuggestion> next,
+  ) {
+    if (previous.length != next.length) {
+      return false;
+    }
+    for (var index = 0; index < previous.length; index++) {
+      if (previous[index].name != next[index].name) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Indeks item (ke list menu PENUH) yang sedang tampil — qty stepper dan
+  /// draft di provider selalu memakai indeks asli, bukan indeks tampilan.
+  List<int> _visibleOriginalIndices() {
+    final query = _searchController.text.trim().toLowerCase();
+    final matches = <int>[
+      for (var index = 0; index < widget.menus.length; index++)
+        if (query.isEmpty ||
+            widget.menus[index].name.toLowerCase().contains(query))
+          index,
+    ];
+
+    if (query.isNotEmpty || _showAll || !_searchEnabled) {
+      return matches;
+    }
+
+    return matches.take(_defaultVisibleCount).toList(growable: false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final merchantName = widget.merchantName.trim().isEmpty
         ? 'tempat ini'
         : widget.merchantName.trim();
     final quantities = _quantities;
+    final visibleIndices = _visibleOriginalIndices();
+    final query = _searchController.text.trim();
+    final hiddenCount = _searchEnabled && query.isEmpty && !_showAll
+        ? widget.menus.length - visibleIndices.length
+        : 0;
 
     return Align(
       alignment: Alignment.centerLeft,
@@ -66,15 +142,68 @@ class _ChatbotMenuSelectorState extends State<ChatbotMenuSelector> {
                 onChangeMerchant: widget.onChangeMerchant,
               ),
               const SizedBox(height: 12),
-              for (var index = 0; index < widget.menus.length; index++) ...[
-                _MenuSelectorRow(
-                  menu: widget.menus[index],
-                  quantity: quantities[index],
-                  onDecrease: () => widget.onQuantityDelta(index, -1),
-                  onIncrease: () => widget.onQuantityDelta(index, 1),
+              if (_searchEnabled) ...[
+                BangSearchField(
+                  controller: _searchController,
+                  hintText: 'Cari menu...',
                 ),
-                if (index != widget.menus.length - 1)
+                const SizedBox(height: 12),
+              ],
+              if (query.isNotEmpty && visibleIndices.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    'Menu tidak ditemukan. Coba kata lain atau tulis item manual.',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: AppTextScaling.adaptive(
+                        context,
+                        normal: 12.5,
+                        large: 12,
+                      ),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              for (var order = 0; order < visibleIndices.length; order++) ...[
+                _MenuSelectorRow(
+                  menu: widget.menus[visibleIndices[order]],
+                  quantity: quantities[visibleIndices[order]],
+                  onDecrease: () =>
+                      widget.onQuantityDelta(visibleIndices[order], -1),
+                  onIncrease: () =>
+                      widget.onQuantityDelta(visibleIndices[order], 1),
+                ),
+                if (order != visibleIndices.length - 1)
                   const Divider(height: 18, color: AppColors.border),
+              ],
+              if (hiddenCount > 0) ...[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () => setState(() => _showAll = true),
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+                  label: Text(
+                    'Tampilkan $hiddenCount menu lainnya',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: AppTextScaling.adaptive(
+                        context,
+                        normal: 12.5,
+                        large: 12,
+                      ),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primaryDark,
+                    side: const BorderSide(color: AppColors.border),
+                    minimumSize: const Size(0, 40),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(_chatbotButtonRadius),
+                    ),
+                  ),
+                ),
               ],
               const SizedBox(height: 4),
             ],
@@ -171,135 +300,21 @@ class _MenuSelectorRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final priceLabel = (menu.priceLabel ?? '').trim();
-    final imageUrl = (menu.imageUrl ?? '').trim();
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final useStackedControls = constraints.maxWidth < 340;
-        final hasThumbnail = imageUrl.isNotEmpty;
-        final thumbnail = hasThumbnail
-            ? _MenuThumbnail(imageUrl: imageUrl)
-            : null;
-        final details = _MenuDetails(
-          menuName: menu.name,
-          priceLabel: priceLabel,
-          maxNameLines: useStackedControls ? 3 : 2,
-        );
-        final stepper = _QuantityStepper(
-          label: menu.name,
-          quantity: quantity,
-          onDecrease: onDecrease,
-          onIncrease: onIncrease,
-        );
-
-        if (useStackedControls) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (thumbnail != null) ...[thumbnail, const SizedBox(width: 12)],
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    details,
-                    const SizedBox(height: 10),
-                    Align(alignment: Alignment.centerRight, child: stepper),
-                  ],
-                ),
-              ),
-            ],
-          );
-        }
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            if (thumbnail != null) ...[thumbnail, const SizedBox(width: 12)],
-            Expanded(child: details),
-            const SizedBox(width: 10),
-            stepper,
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _MenuThumbnail extends StatelessWidget {
-  const _MenuThumbnail({required this.imageUrl});
-
-  final String imageUrl;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: SizedBox(
-        width: 48,
-        height: 48,
-        child: Image.network(
-          imageUrl,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            return const SizedBox.shrink();
-          },
-        ),
+    return MenuItemRow(
+      name: menu.name,
+      priceLabel: priceLabel,
+      pendingPrice: priceLabel == shoppingPendingPriceLabel,
+      imageUrl: menu.imageUrl,
+      maxNameLines: 2,
+      stackedMaxNameLines: 3,
+      stackTrailingOnNarrow: true,
+      trailing: _QuantityStepper(
+        label: menu.name,
+        quantity: quantity,
+        onDecrease: onDecrease,
+        onIncrease: onIncrease,
       ),
-    );
-  }
-}
-
-class _MenuDetails extends StatelessWidget {
-  const _MenuDetails({
-    required this.menuName,
-    required this.priceLabel,
-    required this.maxNameLines,
-  });
-
-  final String menuName;
-  final String priceLabel;
-  final int maxNameLines;
-
-  @override
-  Widget build(BuildContext context) {
-    final isPendingPrice = priceLabel == shoppingPendingPriceLabel;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          menuName,
-          maxLines: maxNameLines,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: AppTextScaling.adaptive(context, normal: 13, large: 12.4),
-            fontWeight: FontWeight.w800,
-            height: 1.24,
-          ),
-        ),
-        if (priceLabel.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Text(
-            priceLabel,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: isPendingPrice
-                  ? AppColors.textSecondary
-                  : AppColors.primary,
-              fontSize: AppTextScaling.adaptive(
-                context,
-                normal: 12,
-                large: 11.4,
-              ),
-              fontWeight: isPendingPrice ? FontWeight.w600 : FontWeight.w700,
-            ),
-          ),
-        ],
-      ],
     );
   }
 }
@@ -365,6 +380,211 @@ class _QuantityStepper extends StatelessWidget {
             onTap: onIncrease,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class ChatbotMenuSelectionActionBar extends StatelessWidget {
+  const ChatbotMenuSelectionActionBar({
+    super.key,
+    required this.selectedCount,
+    required this.isSending,
+    required this.onWriteManual,
+    required this.onConfirm,
+  });
+
+  final int selectedCount;
+  final bool isSending;
+  final VoidCallback onWriteManual;
+  final VoidCallback onConfirm;
+
+  @override
+  Widget build(BuildContext context) {
+    final canConfirm = selectedCount > 0 && !isSending;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        border: Border(top: BorderSide(color: AppColors.border)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.shopping_bag_outlined,
+                  color: AppColors.primaryDark,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '$selectedCount item dipilih',
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const Text(
+                  'Selesaikan pilihan menu',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: OutlinedButton(
+                    onPressed: isSending ? null : onWriteManual,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primaryDark,
+                      side: const BorderSide(color: AppColors.primary),
+                      minimumSize: const Size(0, 48),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          _chatbotButtonRadius,
+                        ),
+                      ),
+                    ),
+                    child: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'Tulis item manual',
+                        maxLines: 1,
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 6,
+                  child: FilledButton(
+                    onPressed: canConfirm ? onConfirm : null,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.white,
+                      disabledBackgroundColor: AppColors.primary.withValues(
+                        alpha: 0.34,
+                      ),
+                      disabledForegroundColor: AppColors.white,
+                      minimumSize: const Size(0, 48),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          _chatbotButtonRadius,
+                        ),
+                      ),
+                    ),
+                    child: isSending
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.white,
+                            ),
+                          )
+                        : FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              'Konfirmasi Pilihan ($selectedCount)',
+                              maxLines: 1,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class ChatbotMenuSelectionLoadingBar extends StatelessWidget {
+  const ChatbotMenuSelectionLoadingBar({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        border: Border(top: BorderSide(color: AppColors.border)),
+      ),
+      child: const SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.primary,
+              ),
+            ),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Memuat menu tempat...',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class ChatbotMenuSelectorInfoBubble extends StatelessWidget {
+  const ChatbotMenuSelectorInfoBubble({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.sizeOf(context).width * 0.78,
+        ),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            border: Border.all(color: AppColors.border),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: child,
+        ),
       ),
     );
   }

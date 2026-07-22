@@ -22,6 +22,10 @@ import '../../../orders/application/customer_order_providers.dart';
 import '../../application/chatbot_conversation_provider.dart';
 import '../../../../utils/address_readiness.dart';
 import '../../../shopping/presentation/screens/shopping_merchant_map_picker_screen.dart';
+import '../models/chatbot_screen_models.dart';
+import '../utils/chatbot_action_hint_utils.dart';
+import '../utils/chatbot_message_text.dart';
+import '../widgets/chatbot_message_content.dart';
 import '../widgets/chatbot_menu_selector.dart';
 
 const double _chatbotButtonRadius = 10;
@@ -126,7 +130,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     super.dispose();
   }
 
-  _ServiceContext get _serviceContext {
+  ChatbotServiceContext get _serviceContext {
     final rawServiceType =
         widget.launchArgs?.serviceType ??
         GoRouterState.of(context).uri.queryParameters['service_type'] ??
@@ -134,18 +138,21 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
     switch (rawServiceType) {
       case 'antar_jemput':
-        return const _ServiceContext(
+        return const ChatbotServiceContext(
           serviceType: 'antar_jemput',
           title: 'BangBot AI - Antar Jemput',
           iconAsset: 'assets/images/services/service_ride_motor_simplified.png',
           welcomeMessage:
-              'Halo! Saya BangBot untuk layanan Antar Jemput. Kamu bisa menulis tujuan perjalanan lewat chat atau mengatur titik jemput dan tujuan lewat tombol di bawah.\n\nJika menulis tujuan secara manual lewat chat, pastikan lokasi tersebut dapat ditemukan di Google Maps agar titiknya dapat diproses dengan tepat.\n\nContoh:\nAntar ke Ramayana Salatiga\n\nUntuk mengatur lokasi lewat peta, ketuk tombol aksi di bawah ini.',
+              'Halo! Saya BangBot untuk layanan Antar Jemput. Kamu bisa menulis titik jemput dan tujuan lewat chat atau mengaturnya lewat tombol di bawah.\n\nJika menulis lokasi secara manual lewat chat, pastikan lokasi jemput dan tujuan dapat ditemukan di Google Maps agar titiknya dapat diproses dengan tepat.\n\nContoh:\nAntar ke Ramayana Salatiga\nJemput saya di Kopi Kenangan Tembalang, antar ke Alun-Alun Semarang\n\nUntuk mengatur lokasi lewat peta, ketuk tombol aksi di bawah ini.',
           addressRequiredMessage:
               'Halo! Saya BangBot untuk layanan Antar Jemput. Sebelum membuat pesanan, ketuk tombol Isi Alamat Saya di bawah untuk menyimpan alamat jemput utama. Pastikan alamat tersebut dapat ditemukan di Google Maps agar titiknya dapat diproses dengan tepat.',
-          suggestions: [],
+          suggestions: [
+            ChatbotQuickTemplate('Antar saya ke [tujuan]'),
+            ChatbotQuickTemplate('Jemput saya di [lokasi], antar ke [tujuan]'),
+          ],
         );
       case 'kurir':
-        return const _ServiceContext(
+        return const ChatbotServiceContext(
           serviceType: 'kurir',
           title: 'BangBot AI - Kurir',
           iconAsset:
@@ -154,19 +161,33 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
               'Halo! Saya BangBot untuk layanan Kurir. Kamu bisa menulis detail pengiriman lewat chat dengan format berikut atau mengatur titik ambil dan tujuan lewat tombol di bawah.\n\nJika menulis lokasi secara manual lewat chat, pastikan lokasi ambil dan tujuan dapat ditemukan di Google Maps agar titiknya dapat diproses dengan tepat.\n\nContoh:\nAmbil: Laundry Berkah Salatiga\nTujuan: Universitas Kristen Satya Wacana\nBarang: 1 tas laundry\n\nUntuk mengatur rute lewat peta, ketuk tombol aksi di bawah ini.',
           addressRequiredMessage:
               'Halo! Saya BangBot untuk layanan Kurir. Sebelum membuat pesanan, ketuk tombol Isi Alamat Saya di bawah untuk menyimpan alamat ambil utama. Pastikan alamat tersebut dapat ditemukan di Google Maps agar titiknya dapat diproses dengan tepat.',
-          suggestions: [],
+          suggestions: [
+            ChatbotQuickTemplate('Anter [barang] ke [tujuan]'),
+            ChatbotQuickTemplate('Kirim [barang] dari [lokasi] ke [tujuan]'),
+            ChatbotQuickTemplate(
+              'Ambil: [lokasi ambil]\nTujuan: [lokasi tujuan]\nBarang: [nama barang]',
+              chipLabel: 'Ambil / Tujuan / Barang',
+            ),
+          ],
         );
       default:
-        return const _ServiceContext(
+        return const ChatbotServiceContext(
           serviceType: 'nitip',
           title: 'BangBot AI - Nitip',
           iconAsset:
               'assets/images/services/service_shopping_basket_simplified.png',
           welcomeMessage:
-              'Halo! Saya BangBot untuk layanan Nitip. Kamu bisa menulis nama toko/resto dan barang yang ingin dibeli lewat chat atau memilih toko/resto dan alamat antar melalui tombol di bawah.\n\nJika menulis nama toko/resto secara manual lewat chat, pastikan toko/resto tersebut sudah terdaftar di BangDeliv. Jika belum terdaftar, ketuk tombol Cari lewat Maps yang muncul untuk memilih lokasi toko/resto agar driver mendapatkan titik yang tepat.\n\nContoh:\nBeli di Nasgor Gajah:\n- Nasi Goreng 1\n- Es Teh 1\n\nKamu bisa menambahkan maksimal 3 toko/resto dalam satu pesanan.\n\nUntuk memilih toko/resto dan alamat antar, ketuk tombol aksi di bawah ini.',
+              'Halo! Saya BangBot untuk layanan Nitip. Kamu bisa menulis nama toko/resto dan barang yang ingin dibeli lewat chat atau memilih toko/resto dan alamat antar melalui tombol di bawah.\n\nJika menulis nama toko/resto secara manual lewat chat, pastikan toko/resto tersebut **sudah terdaftar di BangDeliv**. Jika belum terdaftar, ketuk tombol **Pilih Toko/Resto** lalu ketuk **Cari lewat Maps** untuk memilih lokasi toko/resto agar driver mendapatkan titik yang tepat.\n\nContoh:\nBeli di Nasgor Gajah:\n- Nasi Goreng 1\n- Es Teh 1\n\nKamu bisa menambahkan maksimal 3 toko/resto dalam satu pesanan.\n\nUntuk memilih toko/resto dan alamat antar, ketuk tombol aksi di bawah ini.',
           addressRequiredMessage:
               'Halo! Saya BangBot untuk layanan Nitip. Sebelum membuat pesanan, ketuk tombol Isi Alamat Saya di bawah untuk menyimpan alamat antar agar ongkir dapat dihitung. Pastikan alamat tersebut dapat ditemukan di Google Maps agar titiknya dapat diproses dengan tepat.',
-          suggestions: [],
+          suggestions: [
+            ChatbotQuickTemplate(
+              'Beli di [nama resto]:\n- [menu] [jumlah]\n- [menu] [jumlah]',
+              chipLabel: 'Beli di resto + menu',
+            ),
+            ChatbotQuickTemplate('Lihat menu [resto]'),
+            ChatbotQuickTemplate('Rekomendasi makanan dong'),
+          ],
         );
     }
   }
@@ -557,7 +578,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   Future<void> _handleMenuSelectorConfirm(
     ChatbotMenuSelectorDraft selector,
   ) async {
-    final message = _menuSelectorConfirmationMessage(selector);
+    final message = selector.confirmationMessage();
     if (message.isEmpty) {
       return;
     }
@@ -566,7 +587,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   }
 
   Future<void> _handleWriteManualItem(ChatbotMenuSelectorDraft selector) async {
-    final selectedCount = _menuSelectorSelectedCount(selector);
+    final selectedCount = selector.selectedCount;
     if (selectedCount > 0) {
       final confirmed = await showBangConfirmationDialog(
         context,
@@ -716,6 +737,19 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           ref.read(customerOrdersProvider.notifier).refresh(showLoading: false),
         );
       }
+
+      final menuRequest = next.pendingMenuSelectorRequest;
+      if (menuRequest != null &&
+          !identical(menuRequest, previous?.pendingMenuSelectorRequest)) {
+        _conversationNotifier().consumeMenuSelectorRequest();
+        unawaited(
+          _loadOfficialMerchantMenus(
+            merchantId: menuRequest.merchantId,
+            merchantName: menuRequest.merchantName,
+            merchantMode: menuRequest.mode == 'add' ? 'add' : 'select',
+          ),
+        );
+      }
     });
     ref.listen<AuthSessionState>(authSessionProvider, (previous, next) {
       if (previous != null &&
@@ -845,12 +879,16 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                   ),
           ),
           if (state.menuSelectorDraft != null)
-            _buildMenuSelectionActionBar(
-              state.menuSelectorDraft!,
+            ChatbotMenuSelectionActionBar(
+              selectedCount: state.menuSelectorDraft!.selectedCount,
               isSending: state.isSending,
+              onWriteManual: () =>
+                  _handleWriteManualItem(state.menuSelectorDraft!),
+              onConfirm: () =>
+                  _handleMenuSelectorConfirm(state.menuSelectorDraft!),
             )
           else if (_isLoadingMenuSelector)
-            _buildMenuSelectionLoadingBar()
+            const ChatbotMenuSelectionLoadingBar()
           else
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
@@ -982,200 +1020,29 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     );
   }
 
-  int _menuSelectorSelectedCount(ChatbotMenuSelectorDraft selector) {
-    return selector.quantities.fold<int>(
-      0,
-      (total, quantity) => total + quantity.clamp(0, 99).toInt(),
+  void _applyTemplateToInput(ChatbotQuickTemplate template) {
+    final match = ChatbotQuickTemplate.placeholderPattern.firstMatch(template.label);
+    _inputController.value = TextEditingValue(
+      text: template.label,
+      selection: match == null
+          ? TextSelection.collapsed(offset: template.label.length)
+          : TextSelection(baseOffset: match.start, extentOffset: match.end),
     );
+    _inputFocusNode.requestFocus();
   }
 
-  String _menuSelectorConfirmationMessage(ChatbotMenuSelectorDraft selector) {
-    final lines = <String>[];
-    for (var index = 0; index < selector.menus.length; index++) {
-      final quantity = index < selector.quantities.length
-          ? selector.quantities[index].clamp(0, 99).toInt()
-          : 0;
-      if (quantity <= 0) {
-        continue;
-      }
-
-      lines.add('${selector.menus[index].name.trim()} $quantity');
-    }
-
-    return lines.join('\n');
-  }
-
-  Widget _buildMenuSelectionActionBar(
-    ChatbotMenuSelectorDraft selector, {
-    required bool isSending,
-  }) {
-    final selectedCount = _menuSelectorSelectedCount(selector);
-    final canConfirm = selectedCount > 0 && !isSending;
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      decoration: const BoxDecoration(
-        color: AppColors.white,
-        border: Border(top: BorderSide(color: AppColors.border)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.shopping_bag_outlined,
-                  color: AppColors.primaryDark,
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '$selectedCount item dipilih',
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                const Text(
-                  'Selesaikan pilihan menu',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  flex: 4,
-                  child: OutlinedButton(
-                    onPressed: isSending
-                        ? null
-                        : () => _handleWriteManualItem(selector),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.primaryDark,
-                      side: const BorderSide(color: AppColors.primary),
-                      minimumSize: const Size(0, 48),
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          _chatbotButtonRadius,
-                        ),
-                      ),
-                    ),
-                    child: const FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        'Tulis item manual',
-                        maxLines: 1,
-                        style: TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  flex: 6,
-                  child: FilledButton(
-                    onPressed: canConfirm
-                        ? () => _handleMenuSelectorConfirm(selector)
-                        : null,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: AppColors.white,
-                      disabledBackgroundColor: AppColors.primary.withValues(
-                        alpha: 0.34,
-                      ),
-                      disabledForegroundColor: AppColors.white,
-                      minimumSize: const Size(0, 48),
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          _chatbotButtonRadius,
-                        ),
-                      ),
-                    ),
-                    child: isSending
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.white,
-                            ),
-                          )
-                        : FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              'Konfirmasi Pilihan ($selectedCount)',
-                              maxLines: 1,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMenuSelectionLoadingBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: const BoxDecoration(
-        color: AppColors.white,
-        border: Border(top: BorderSide(color: AppColors.border)),
-      ),
-      child: const SafeArea(
-        top: false,
-        child: Row(
-          children: [
-            SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: AppColors.primary,
-              ),
-            ),
-            SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Memuat menu tempat...',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSuggestionChip(String label, {required bool enabled}) {
+  Widget _buildSuggestionChip(ChatbotQuickTemplate template, {required bool enabled}) {
+    final label = template.label;
     return AppTextScaling.clampForCompactComponent(
       context: context,
       maxScaleFactor: AppTextScaling.compactComponentMaxScaleFactor,
       child: InkWell(
         borderRadius: BorderRadius.circular(_chatbotButtonRadius),
-        onTap: enabled ? () => _sendMessage(label) : null,
+        onTap: !enabled
+            ? null
+            : template.sendsImmediately
+                ? () => _sendMessage(label)
+                : () => _applyTemplateToInput(template),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
@@ -1186,7 +1053,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             ),
           ),
           child: Text(
-            label,
+            template.chipLabel ?? label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
@@ -1234,7 +1101,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     }
 
     if (_isLoadingMenuSelector) {
-      return _buildMenuSelectorInfoBubble(
+      return ChatbotMenuSelectorInfoBubble(
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1268,7 +1135,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
     final notice = (state.menuSelectorNotice ?? '').trim();
     if (notice.isNotEmpty) {
-      return _buildMenuSelectorInfoBubble(
+      return ChatbotMenuSelectorInfoBubble(
         child: Text(
           notice,
           style: TextStyle(
@@ -1282,27 +1149,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     }
 
     return const SizedBox.shrink();
-  }
-
-  Widget _buildMenuSelectorInfoBubble({required Widget child}) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width * 0.78,
-        ),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            border: Border.all(color: AppColors.border),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: child,
-        ),
-      ),
-    );
   }
 
   Widget _buildMessageItem(
@@ -1390,9 +1236,9 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     required Color textColor,
   }) {
     if (message.isUser) {
-      final routeCommandParts = _tryParseUserRouteCommand(message.text);
+      final routeCommandParts = tryParseUserRouteCommand(message.text);
       if (routeCommandParts != null) {
-        return _buildUserRouteCommandContent(
+        return buildChatbotUserRouteCommandContent(
           parts: routeCommandParts,
           textColor: textColor,
         );
@@ -1404,9 +1250,9 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       );
     }
 
-    final parts = _tryParseDraftMessage(message.text);
+    final parts = tryParseDraftMessage(message.text);
     if (parts == null) {
-      final shoppingParts = _tryParseShoppingDraftMessage(message.text);
+      final shoppingParts = tryParseShoppingDraftMessage(message.text);
       if (shoppingParts != null) {
         return _buildShoppingDraftContent(
           parts: shoppingParts,
@@ -1414,7 +1260,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         );
       }
 
-      final incompleteShoppingParts = _tryParseIncompleteShoppingDraftMessage(
+      final incompleteShoppingParts = tryParseIncompleteShoppingDraftMessage(
         message.text,
       );
       if (incompleteShoppingParts != null) {
@@ -1424,7 +1270,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         );
       }
 
-      final resetParts = _tryParseResetDestinationMessage(message.text);
+      final resetParts = tryParseResetDestinationMessage(message.text);
       if (resetParts != null) {
         return _buildResetDestinationContent(
           parts: resetParts,
@@ -1432,7 +1278,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         );
       }
 
-      final inlineResetParts = _tryParseInlineCourierResetMessage(message.text);
+      final inlineResetParts = tryParseInlineCourierResetMessage(message.text);
       if (inlineResetParts != null) {
         return _buildResetDestinationContent(
           parts: inlineResetParts,
@@ -1440,7 +1286,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         );
       }
 
-      final shoppingSuccessParts = _tryParseShoppingSuccessMessage(
+      final shoppingSuccessParts = tryParseShoppingSuccessMessage(
         message.text,
       );
       if (shoppingSuccessParts != null) {
@@ -1450,18 +1296,15 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         );
       }
 
-      final promptParts = _tryParseCourierRouteSavedPrompt(message.text);
+      final promptParts = tryParseCourierRouteSavedPrompt(message.text);
       if (promptParts != null) {
-        return _buildSimplePromptContent(
+        return buildChatbotSimplePromptContent(
           parts: promptParts,
           textColor: textColor,
         );
       }
 
-      return Text(
-        message.text,
-        style: TextStyle(color: textColor, height: 1.5),
-      );
+      return buildChatbotInlineText(message.text, color: textColor);
     }
 
     return Column(
@@ -1476,13 +1319,13 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           ),
         ),
         const SizedBox(height: 10),
-        _buildDraftField(
+        buildChatbotDraftField(
           label: parts.pickupLabel,
           value: parts.pickupAddress,
           textColor: textColor,
         ),
         const SizedBox(height: 8),
-        _buildDraftField(
+        buildChatbotDraftField(
           label: 'Tujuan',
           value: parts.destinationAddress,
           textColor: textColor,
@@ -1490,7 +1333,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         if (parts.packageDescription != null &&
             parts.packageDescription!.isNotEmpty) ...[
           const SizedBox(height: 8),
-          _buildDraftField(
+          buildChatbotDraftField(
             label: 'Barang',
             value: parts.packageDescription!,
             textColor: textColor,
@@ -1501,7 +1344,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           _buildAssistantNotice(parts.feeLine),
         ],
         if (parts.instructionLine.isNotEmpty &&
-            !_hasPaymentActionHints(message.actionHints)) ...[
+            !hasPaymentActionHints(message.actionHints)) ...[
           const SizedBox(height: 10),
           _buildAssistantInstructionText(
             parts.instructionLine,
@@ -1519,42 +1362,42 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     required bool isUser,
   }) {
     final paymentActions = actionHints
-        .where(_isPaymentActionHint)
+        .where(isPaymentActionHint)
         .toList(growable: false);
     final destinationResetActions = actionHints
-        .where(_isDestinationResetActionHint)
+        .where(isDestinationResetActionHint)
         .toList(growable: false);
     final routeEditActions = actionHints
         .where(
           (actionHint) =>
-              _isRouteEditActionHint(actionHint) &&
-              !_isDestinationResetActionHint(actionHint),
+              isRouteEditActionHint(actionHint) &&
+              !isDestinationResetActionHint(actionHint),
         )
         .toList(growable: false);
     final locationSetupActions = actionHints
         .where(
           (actionHint) =>
-              _isLocationSetupActionHint(actionHint) &&
-              !_isDestinationResetActionHint(actionHint) &&
-              !_isRouteEditActionHint(actionHint) &&
-              !_isAddMerchantActionHint(actionHint),
+              isLocationSetupActionHint(actionHint) &&
+              !isDestinationResetActionHint(actionHint) &&
+              !isRouteEditActionHint(actionHint) &&
+              !isAddMerchantActionHint(actionHint),
         )
         .toList(growable: false);
     final confirmationActions = actionHints
-        .where(_isConfirmationActionHint)
+        .where(isConfirmationActionHint)
         .toList(growable: false);
     final addMerchantActions = actionHints
-        .where(_isAddMerchantActionHint)
+        .where(isAddMerchantActionHint)
         .toList(growable: false);
     final otherActions = actionHints
         .where(
           (actionHint) =>
-              !_isPaymentActionHint(actionHint) &&
-              !_isDestinationResetActionHint(actionHint) &&
-              !_isRouteEditActionHint(actionHint) &&
-              !_isLocationSetupActionHint(actionHint) &&
-              !_isConfirmationActionHint(actionHint) &&
-              !_isAddMerchantActionHint(actionHint),
+              !isPaymentActionHint(actionHint) &&
+              !isDestinationResetActionHint(actionHint) &&
+              !isRouteEditActionHint(actionHint) &&
+              !isLocationSetupActionHint(actionHint) &&
+              !isConfirmationActionHint(actionHint) &&
+              !isAddMerchantActionHint(actionHint),
         )
         .toList(growable: false);
 
@@ -1835,12 +1678,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     );
   }
 
-  bool _isDestinationResetActionHint(ChatbotMessageActionHint actionHint) {
-    final label = actionHint.label.trim().toLowerCase();
-    return actionHint.type == ChatbotMessageActionType.openRoutePicker &&
-        label == 'pilih tujuan baru';
-  }
-
   Widget _buildActionGroupTitle(String title) {
     return Text(
       title,
@@ -1859,8 +1696,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     required bool isUser,
   }) {
     final usesSuccessTone =
-        _isConfirmationActionHint(actionHint) ||
-        _isPaymentActionHint(actionHint);
+        isConfirmationActionHint(actionHint) ||
+        isPaymentActionHint(actionHint);
     final semanticColor = usesSuccessTone
         ? AppColors.success
         : AppColors.primary;
@@ -1885,19 +1722,19 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   }
 
   IconData _iconForActionHint(ChatbotMessageActionHint actionHint) {
-    if (_isPaymentActionHint(actionHint)) {
+    if (isPaymentActionHint(actionHint)) {
       return Icons.payments_outlined;
     }
 
-    if (_isConfirmationActionHint(actionHint)) {
+    if (isConfirmationActionHint(actionHint)) {
       return Icons.check_circle_outline_rounded;
     }
 
-    if (_isRouteEditActionHint(actionHint)) {
+    if (isRouteEditActionHint(actionHint)) {
       return Icons.edit_location_alt_outlined;
     }
 
-    if (_isMerchantMapPickerActionHint(actionHint)) {
+    if (isMerchantMapPickerActionHint(actionHint)) {
       return Icons.map_outlined;
     }
 
@@ -1915,7 +1752,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   }
 
   String _displayLabelForActionHint(ChatbotMessageActionHint actionHint) {
-    if (_isConfirmationActionHint(actionHint)) {
+    if (isConfirmationActionHint(actionHint)) {
       return 'Buat Pesanan';
     }
 
@@ -1924,102 +1761,11 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       return label;
     }
 
-    return _friendlyLocationActionLabel(label);
-  }
-
-  String _friendlyLocationActionLabel(String label) {
-    var text = label;
-    const replacements = <String, String>{
-      'Titik Jemput/Tujuan': 'Lokasi Jemput/Tujuan',
-      'Titik Jemput & Tujuan': 'Lokasi Jemput/Tujuan',
-      'Titik Ambil & Tujuan': 'Lokasi Ambil/Tujuan',
-      'Titik Ambil/Tujuan': 'Lokasi Ambil/Tujuan',
-      'Titik Jemput': 'Lokasi Jemput',
-      'Titik Ambil': 'Lokasi Ambil',
-      'Titik Tujuan': 'Lokasi Tujuan',
-      'Titik Antar': 'Lokasi Antar',
-      'Titik di Peta': 'Lokasi di Peta',
-      'Pilih Tempat di Map': 'Pilih Toko/Resto',
-      'Pilih Tempat': 'Pilih Toko/Resto',
-      'Tambah Tempat': 'Tambah Toko/Resto',
-      'Lokasi Antar': 'Alamat Antar',
-    };
-
-    for (final entry in replacements.entries) {
-      text = text.replaceAll(entry.key, entry.value);
-    }
-
-    return text;
-  }
-
-  bool _hasPaymentActionHints(List<ChatbotMessageActionHint> actionHints) {
-    return actionHints.any(_isPaymentActionHint);
-  }
-
-  bool _isPaymentActionHint(ChatbotMessageActionHint actionHint) {
-    final label = actionHint.label.trim().toLowerCase();
-    final message = (actionHint.presetMessage ?? '').trim().toLowerCase();
-    const paymentKeywords = <String>{
-      'cod',
-      'cash',
-      'tunai',
-      'transfer',
-      'qris',
-    };
-    return actionHint.type == ChatbotMessageActionType.sendPresetMessage &&
-        (paymentKeywords.contains(label) || paymentKeywords.contains(message));
-  }
-
-  bool _isRouteEditActionHint(ChatbotMessageActionHint actionHint) {
-    final label = actionHint.label.trim().toLowerCase();
-    final message = (actionHint.presetMessage ?? '').trim().toLowerCase();
-
-    return (label.contains('ubah') || label.contains('ganti')) &&
-        (label.contains('tujuan') ||
-            label.contains('jemput') ||
-            label.contains('antar') ||
-            label.contains('ambil') ||
-            label.contains('lokasi') ||
-            message.contains('tujuan'));
-  }
-
-  bool _isLocationSetupActionHint(ChatbotMessageActionHint actionHint) {
-    final label = actionHint.label.trim().toLowerCase();
-    return (actionHint.type == ChatbotMessageActionType.openMapPicker ||
-            actionHint.type == ChatbotMessageActionType.openMerchantPicker ||
-            actionHint.type == ChatbotMessageActionType.openRoutePicker ||
-            actionHint.type == ChatbotMessageActionType.openAddresses) &&
-        (label.contains('atur') ||
-            label.contains('pilih') ||
-            label.contains('cari') ||
-            label.contains('isi alamat'));
-  }
-
-  bool _isMerchantMapPickerActionHint(ChatbotMessageActionHint actionHint) {
-    final mode = (actionHint.merchantMode ?? '').trim().toLowerCase();
-    return actionHint.type == ChatbotMessageActionType.openMerchantPicker &&
-        (mode == 'maps' || mode == 'maps_add');
-  }
-
-  bool _isAddMerchantActionHint(ChatbotMessageActionHint actionHint) {
-    final mode = (actionHint.merchantMode ?? '').trim().toLowerCase();
-    final label = actionHint.label.trim().toLowerCase();
-    return actionHint.type == ChatbotMessageActionType.openMerchantPicker &&
-        (mode == 'add' ||
-            mode == 'maps_add' ||
-            label.contains('tambah toko') ||
-            label.contains('tambah resto'));
-  }
-
-  bool _isConfirmationActionHint(ChatbotMessageActionHint actionHint) {
-    final label = actionHint.label.trim().toLowerCase();
-    final message = (actionHint.presetMessage ?? '').trim().toLowerCase();
-    return actionHint.type == ChatbotMessageActionType.sendPresetMessage &&
-        (label.contains('konfirmasi') || message == 'konfirmasi');
+    return friendlyLocationActionLabel(label);
   }
 
   Widget _buildResetDestinationContent({
-    required _ResetDestinationMessageParts parts,
+    required ChatbotResetDestinationMessageParts parts,
     required Color textColor,
   }) {
     return Column(
@@ -2034,7 +1780,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           ),
         ),
         const SizedBox(height: 10),
-        _buildDraftField(
+        buildChatbotDraftField(
           label: parts.pickupLabel,
           value: parts.pickupAddress,
           textColor: textColor,
@@ -2052,7 +1798,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   }
 
   Widget _buildShoppingSuccessContent({
-    required _ShoppingSuccessMessageParts parts,
+    required ChatbotShoppingSuccessMessageParts parts,
     required Color textColor,
   }) {
     return Column(
@@ -2084,7 +1830,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   }
 
   Widget _buildIncompleteShoppingDraftContent({
-    required _IncompleteShoppingDraftMessageParts parts,
+    required ChatbotIncompleteShoppingDraftMessageParts parts,
     required Color textColor,
   }) {
     return Column(
@@ -2099,7 +1845,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           ),
         ),
         const SizedBox(height: 10),
-        _buildDraftField(
+        buildChatbotDraftField(
           label: parts.merchantLabel,
           value: parts.merchantName,
           textColor: textColor,
@@ -2165,85 +1911,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     );
   }
 
-  Widget _buildSimplePromptContent({
-    required _SimplePromptMessageParts parts,
-    required Color textColor,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          parts.headline,
-          style: TextStyle(
-            color: textColor,
-            height: 1.45,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        if (parts.instructionLine.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          _buildSimplePromptInstruction(parts.instructionLine),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildSimplePromptInstruction(String text) {
-    final lines = _splitSimplePromptInstruction(text);
-    if (lines.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (var index = 0; index < lines.length; index += 1) ...[
-          Text(
-            lines[index],
-            style: TextStyle(
-              color: _isExampleInstructionLine(lines[index])
-                  ? AppColors.textSecondary
-                  : AppColors.textPrimary,
-              fontSize: 14.5,
-              height: 1.45,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          if (index < lines.length - 1) const SizedBox(height: 4),
-        ],
-      ],
-    );
-  }
-
-  List<String> _splitSimplePromptInstruction(String text) {
-    final lines = text
-        .split('\n')
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .toList(growable: false);
-
-    if (lines.length != 1) {
-      return lines;
-    }
-
-    final line = lines.single;
-    final exampleIndex = line.toLowerCase().indexOf(' contoh:');
-    if (exampleIndex <= 0) {
-      return lines;
-    }
-
-    return [
-      line.substring(0, exampleIndex).trim(),
-      line.substring(exampleIndex + 1).trim(),
-    ].where((line) => line.isNotEmpty).toList(growable: false);
-  }
-
-  bool _isExampleInstructionLine(String line) {
-    return line.trim().toLowerCase().startsWith('contoh:');
-  }
-
   Widget _buildAssistantNotice(String text) {
-    final rows = _parseAssistantNoticeRows(text);
+    final rows = parseAssistantNoticeRows(text);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -2283,7 +1952,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   }
 
   Widget _buildAssistantNoticeRow({
-    required _AssistantNoticeRow row,
+    required ChatbotAssistantNoticeRow row,
     required bool isLast,
     required double maxWidth,
     required TextScaler textScaler,
@@ -2328,7 +1997,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   }
 
   bool _shouldStackAssistantNoticeRow({
-    required _AssistantNoticeRow row,
+    required ChatbotAssistantNoticeRow row,
     required double maxWidth,
     required TextScaler textScaler,
   }) {
@@ -2365,99 +2034,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     return painter.width;
   }
 
-  List<_AssistantNoticeRow> _parseAssistantNoticeRows(String text) {
-    final rows = <_AssistantNoticeRow>[];
-    final rowPattern = RegExp(
-      r'^(.+?):\s*(Rp\s*[\d.]+(?:,\d+)?|Sesuai nota|Menunggu harga barang)(?:\s*(\(.+\)))?\.?$',
-      caseSensitive: false,
-    );
-
-    for (final rawLine in text.split('\n')) {
-      final line = rawLine.trim();
-      if (line.isEmpty) {
-        continue;
-      }
-
-      final match = rowPattern.firstMatch(line);
-      if (match == null) {
-        return const [];
-      }
-
-      rows.add(
-        _AssistantNoticeRow(
-          label: _normalizeAssistantNoticeLabel(match.group(1)!.trim()),
-          amount: match.group(2)!.trim().replaceFirst(RegExp(r'\.$'), ''),
-          note: (match.group(3) ?? '').trim().replaceFirst(RegExp(r'\.$'), ''),
-        ),
-      );
-    }
-
-    return rows;
-  }
-
-  String _normalizeAssistantNoticeLabel(String label) {
-    final normalized = label.replaceAll(RegExp(r'\s+'), ' ').trim();
-    final lower = normalized.toLowerCase();
-
-    if (lower == 'estimasi ongkir sementara' || lower == 'ongkir') {
-      return 'Estimasi ongkir';
-    }
-
-    if (lower == 'harga barang') {
-      return 'Harga barang';
-    }
-
-    if (lower == 'estimasi total sementara') {
-      return 'Estimasi total';
-    }
-
-    return normalized;
-  }
-
-  Widget _buildUserRouteCommandContent({
-    required _UserRouteCommandParts parts,
-    required Color textColor,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Rute dipilih',
-          style: TextStyle(
-            color: textColor,
-            height: 1.35,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 10),
-        for (final point in parts.points) ...[
-          Text(
-            point.label,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.78),
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.2,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            point.value,
-            style: TextStyle(
-              color: textColor,
-              fontSize: 13.5,
-              height: 1.4,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          if (point != parts.points.last) const SizedBox(height: 8),
-        ],
-      ],
-    );
-  }
-
   Widget _buildShoppingDraftContent({
-    required _ShoppingDraftMessageParts parts,
+    required ChatbotShoppingDraftMessageParts parts,
     required Color textColor,
   }) {
     return Column(
@@ -2473,7 +2051,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         ),
         const SizedBox(height: 10),
         for (final stop in parts.stops) ...[
-          _buildDraftField(
+          buildChatbotDraftField(
             label: stop.label,
             value: stop.merchant,
             textColor: textColor,
@@ -2526,7 +2104,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           ),
           const SizedBox(height: 8),
         ],
-        _buildDraftField(
+        buildChatbotDraftField(
           label: 'Alamat antar',
           value: parts.deliveryAddress,
           textColor: textColor,
@@ -2544,37 +2122,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             fontWeight: FontWeight.w600,
           ),
         ],
-      ],
-    );
-  }
-
-  Widget _buildDraftField({
-    required String label,
-    required String value,
-    required Color textColor,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.2,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: TextStyle(
-            color: textColor,
-            fontSize: 14,
-            height: 1.45,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
       ],
     );
   }
@@ -2645,630 +2192,6 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         height: isPaymentMethodLine ? 1.35 : height,
         fontWeight: isPaymentMethodLine ? FontWeight.w800 : fontWeight,
       ),
-    );
-  }
-
-  _ShoppingSuccessMessageParts? _tryParseShoppingSuccessMessage(String raw) {
-    final normalized = raw.replaceAll('\r\n', '\n').trim();
-    if (normalized.isEmpty) {
-      return null;
-    }
-
-    final lines = normalized
-        .split('\n')
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .toList(growable: false);
-    if (lines.isEmpty ||
-        !lines.first.toLowerCase().startsWith('order nitip berhasil dibuat')) {
-      return null;
-    }
-
-    var deliveryFeeLine = '';
-    final instructionLines = <String>[];
-    for (final line in lines.skip(1)) {
-      if (line.toLowerCase().startsWith('estimasi ongkir sementara:')) {
-        deliveryFeeLine = line;
-      } else {
-        instructionLines.add(line);
-      }
-    }
-
-    return _ShoppingSuccessMessageParts(
-      headline: lines.first,
-      deliveryFeeLine: deliveryFeeLine,
-      instructionLine: instructionLines.join(' ').trim(),
-    );
-  }
-
-  _IncompleteShoppingDraftMessageParts? _tryParseIncompleteShoppingDraftMessage(
-    String raw,
-  ) {
-    final normalized = raw.replaceAll('\r\n', '\n').trim();
-    if (normalized.isEmpty) {
-      return null;
-    }
-
-    final lines = normalized
-        .split('\n')
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .toList(growable: false);
-    if (lines.length < 6) {
-      return null;
-    }
-
-    final headline = lines.first;
-    final lowerHeadline = headline.toLowerCase();
-    if (!lowerHeadline.startsWith('draft nitip belum lengkap') ||
-        !lowerHeadline.contains('items')) {
-      return null;
-    }
-
-    final merchantLabelIndex = lines.indexWhere(
-      (line) => line.toLowerCase() == 'tempat',
-    );
-    final exampleLabelIndex = lines.indexWhere(
-      (line) => line.toLowerCase() == 'contoh:',
-    );
-    if (merchantLabelIndex < 0 ||
-        exampleLabelIndex < 0 ||
-        merchantLabelIndex + 1 >= exampleLabelIndex) {
-      return null;
-    }
-
-    final instructionStartIndex = lines.indexWhere(
-      (line) => line.toLowerCase().startsWith('tulis item'),
-      merchantLabelIndex + 1,
-    );
-    if (instructionStartIndex < 0 ||
-        instructionStartIndex >= exampleLabelIndex) {
-      return null;
-    }
-
-    final merchantName = lines
-        .sublist(merchantLabelIndex + 1, instructionStartIndex)
-        .join(' ')
-        .trim();
-    if (merchantName.isEmpty) {
-      return null;
-    }
-
-    final instructionLines = lines
-        .sublist(instructionStartIndex, exampleLabelIndex)
-        .where((line) => line.trim().isNotEmpty)
-        .toList(growable: false);
-    final examples = lines
-        .skip(exampleLabelIndex + 1)
-        .map((line) => line.replaceFirst(RegExp(r'^-\s*'), '').trim())
-        .where((line) => line.isNotEmpty)
-        .toList(growable: false);
-    if (instructionLines.isEmpty || examples.isEmpty) {
-      return null;
-    }
-
-    return _IncompleteShoppingDraftMessageParts(
-      headline: headline,
-      merchantLabel: lines[merchantLabelIndex],
-      merchantName: merchantName,
-      instructionLines: instructionLines,
-      examples: examples,
-    );
-  }
-
-  _SimplePromptMessageParts? _tryParseCourierRouteSavedPrompt(String raw) {
-    final normalized = raw.replaceAll('\r\n', '\n').trim();
-    final compact = normalized.replaceAll(RegExp(r'\s+'), ' ').trim();
-    const headline = 'Titik ambil dan tujuan sudah saya simpan.';
-    if (!compact.toLowerCase().startsWith(headline.toLowerCase())) {
-      return null;
-    }
-
-    return _SimplePromptMessageParts(
-      headline: headline,
-      instructionLine: normalized.substring(headline.length).trim(),
-    );
-  }
-
-  _ResetDestinationMessageParts? _tryParseInlineCourierResetMessage(
-    String raw,
-  ) {
-    final normalized = raw.replaceAll(RegExp(r'\s+'), ' ').trim();
-    if (normalized.isEmpty) {
-      return null;
-    }
-
-    final lower = normalized.toLowerCase();
-    const pickupMarker = 'alamat ambil kamu di ';
-    const instructionMarker = 'sekarang kirim tujuan baru';
-    final pickupIndex = lower.indexOf(pickupMarker);
-    final instructionIndex = lower.indexOf(instructionMarker);
-    if (pickupIndex < 0 ||
-        instructionIndex < 0 ||
-        instructionIndex <= pickupIndex) {
-      return null;
-    }
-
-    final headline = normalized.substring(0, pickupIndex).trim();
-    if (!headline.toLowerCase().contains('tujuan sebelumnya') ||
-        !headline.toLowerCase().contains('reset')) {
-      return null;
-    }
-
-    final pickupAddress = normalized
-        .substring(pickupIndex + pickupMarker.length, instructionIndex)
-        .trim()
-        .replaceFirst(RegExp(r'\.\s*$'), '');
-    final instruction = normalized.substring(instructionIndex).trim();
-    if (pickupAddress.isEmpty) {
-      return null;
-    }
-
-    return _ResetDestinationMessageParts(
-      headline: headline,
-      pickupLabel: 'Ambil',
-      pickupAddress: pickupAddress,
-      instructionLine: instruction,
-    );
-  }
-
-  _UserRouteCommandParts? _tryParseUserRouteCommand(String raw) {
-    final normalized = raw.trim();
-    if (!normalized.toLowerCase().startsWith('[map_route]')) {
-      return null;
-    }
-
-    final body = normalized.replaceFirst(
-      RegExp(r'^\[MAP_ROUTE\]\s*', caseSensitive: false),
-      '',
-    );
-    final points = <_UserRouteCommandPoint>[];
-    for (final segment in body.split(';')) {
-      final arrowIndex = segment.indexOf('=>');
-      if (arrowIndex < 0) {
-        continue;
-      }
-
-      final rawTarget = segment.substring(0, arrowIndex).trim().toLowerCase();
-      final value = segment.substring(arrowIndex + 2).trim();
-      if (value.isEmpty) {
-        continue;
-      }
-
-      final label = switch (rawTarget) {
-        'pickup' => 'Ambil',
-        'dropoff' => 'Tujuan',
-        'destination' => 'Tujuan',
-        _ => rawTarget.isEmpty ? 'Lokasi' : rawTarget,
-      };
-      points.add(_UserRouteCommandPoint(label: label, value: value));
-    }
-
-    if (points.isEmpty) {
-      return null;
-    }
-
-    return _UserRouteCommandParts(points: points);
-  }
-
-  _ShoppingDraftMessageParts? _tryParseShoppingDraftMessage(String raw) {
-    final normalized = raw.replaceAll('\r\n', '\n').trim();
-    if (normalized.isEmpty) {
-      return null;
-    }
-
-    final lines = normalized
-        .split('\n')
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .toList(growable: false);
-
-    if (lines.length < 8) {
-      return null;
-    }
-
-    final merchantIndexes = <int>[];
-    for (var index = 0; index < lines.length; index += 1) {
-      if (_isShoppingMerchantHeader(lines[index])) {
-        merchantIndexes.add(index);
-      }
-    }
-    final deliveryIndex = lines.indexWhere((line) {
-      final lower = line.toLowerCase();
-      return lower == 'alamat antar' || lower == 'alamat kirim';
-    });
-    final firstFeeIndex = lines.indexWhere(
-      (line) => line.toLowerCase().startsWith('estimasi ongkir sementara:'),
-    );
-
-    if (merchantIndexes.isEmpty ||
-        merchantIndexes.first <= 0 ||
-        deliveryIndex < 0 ||
-        firstFeeIndex <= deliveryIndex) {
-      return null;
-    }
-
-    final headline = lines.take(merchantIndexes.first).join(' ').trim();
-    final lowerHeadline = headline.toLowerCase();
-    if (!lowerHeadline.contains('titip belanja') &&
-        !lowerHeadline.contains('nitip')) {
-      return null;
-    }
-
-    final firstItemHeaderAfterDelivery = lines.indexWhere(
-      (line) => line.toLowerCase() == 'daftar belanja',
-      deliveryIndex + 1,
-    );
-    final deliveryEndCandidates = <int>[
-      firstFeeIndex,
-      if (firstItemHeaderAfterDelivery > deliveryIndex)
-        firstItemHeaderAfterDelivery,
-      ...merchantIndexes.where((index) => index > deliveryIndex),
-    ]..sort();
-    final deliveryEndIndex = deliveryEndCandidates.first;
-    final deliveryAddress = lines
-        .sublist(deliveryIndex + 1, deliveryEndIndex)
-        .join(' ')
-        .trim();
-    final stops = <_ShoppingDraftStopParts>[];
-    for (var index = 0; index < merchantIndexes.length; index += 1) {
-      final merchantIndex = merchantIndexes[index];
-      final nextMerchantIndex = index + 1 < merchantIndexes.length
-          ? merchantIndexes[index + 1]
-          : lines.length;
-      final segmentEndCandidates = <int>[
-        nextMerchantIndex,
-        if (deliveryIndex > merchantIndex) deliveryIndex,
-        firstFeeIndex,
-      ]..sort();
-      final segmentEnd = segmentEndCandidates
-          .where((candidate) => candidate > merchantIndex)
-          .first;
-      if (merchantIndex + 1 >= segmentEnd) {
-        continue;
-      }
-
-      final itemHeaderIndex = lines.indexWhere(
-        (line) => line.toLowerCase() == 'daftar belanja',
-        merchantIndex + 1,
-      );
-      if (itemHeaderIndex < 0 || itemHeaderIndex >= segmentEnd) {
-        continue;
-      }
-
-      final merchant = lines
-          .sublist(merchantIndex + 1, itemHeaderIndex)
-          .join(' ')
-          .trim();
-      final itemLines = lines.sublist(itemHeaderIndex + 1, segmentEnd);
-      final items = _normalizeShoppingItemLines(itemLines);
-      if (merchant.isEmpty || items.isEmpty) {
-        continue;
-      }
-
-      stops.add(
-        _ShoppingDraftStopParts(
-          label: lines[merchantIndex],
-          merchant: merchant,
-          items: items,
-        ),
-      );
-    }
-
-    if (stops.isEmpty) {
-      final oldItemsIndex = lines.indexWhere(
-        (line) => line.toLowerCase() == 'daftar belanja',
-      );
-      if (deliveryIndex <= merchantIndexes.first ||
-          oldItemsIndex <= deliveryIndex ||
-          firstFeeIndex <= oldItemsIndex) {
-        return null;
-      }
-
-      final merchant = lines
-          .sublist(merchantIndexes.first + 1, deliveryIndex)
-          .join(' ')
-          .trim();
-      final items = _normalizeShoppingItemLines(
-        lines.sublist(oldItemsIndex + 1, firstFeeIndex),
-      );
-      if (merchant.isNotEmpty && items.isNotEmpty) {
-        stops.add(
-          _ShoppingDraftStopParts(
-            label: lines[merchantIndexes.first],
-            merchant: merchant,
-            items: items,
-          ),
-        );
-      }
-    }
-
-    final estimateLines = _normalizeShoppingEstimateLines(lines, firstFeeIndex);
-    final instructionLines = _normalizeShoppingInstructionLines(
-      lines,
-      firstFeeIndex,
-    );
-
-    if (deliveryAddress.isEmpty || stops.isEmpty) {
-      return null;
-    }
-
-    return _ShoppingDraftMessageParts(
-      headline: headline,
-      stops: stops,
-      deliveryAddress: deliveryAddress,
-      estimateLines: estimateLines,
-      instructionLines: instructionLines,
-    );
-  }
-
-  bool _isShoppingMerchantHeader(String line) {
-    return RegExp(
-      r'^(?:merchant|tempat)(?:\s+\d+)?$',
-      caseSensitive: false,
-    ).hasMatch(line.trim());
-  }
-
-  bool _isShoppingEstimateLine(String line) {
-    final lower = line.toLowerCase();
-    return lower.startsWith('estimasi ongkir sementara:') ||
-        lower.startsWith('harga barang:') ||
-        lower.startsWith('estimasi total sementara:');
-  }
-
-  List<String> _normalizeShoppingItemLines(List<String> lines) {
-    final items = <String>[];
-    final current = StringBuffer();
-    final itemStartPattern = RegExp(r'^\d+\.\s*');
-
-    void flush() {
-      final value = current.toString().trim();
-      if (value.isNotEmpty) {
-        items.add(value);
-      }
-      current.clear();
-    }
-
-    for (final line in lines) {
-      final cleaned = line.replaceFirst(itemStartPattern, '').trim();
-      if (cleaned.isEmpty) {
-        continue;
-      }
-
-      if (itemStartPattern.hasMatch(line)) {
-        flush();
-        current.write(cleaned);
-      } else if (current.isNotEmpty) {
-        current.write(' $cleaned');
-      }
-    }
-
-    flush();
-    return items;
-  }
-
-  List<String> _normalizeShoppingEstimateLines(
-    List<String> lines,
-    int startIndex,
-  ) {
-    final estimateLines = <String>[];
-    var index = startIndex;
-
-    while (index < lines.length) {
-      final line = lines[index].trim();
-      final isEstimateLine = _isShoppingEstimateLine(line);
-
-      if (!isEstimateLine) {
-        index += 1;
-        continue;
-      }
-
-      if (line.toLowerCase().endsWith('rp') && index + 1 < lines.length) {
-        estimateLines.add('$line ${lines[index + 1].trim()}');
-        index += 2;
-      } else {
-        estimateLines.add(line);
-        index += 1;
-      }
-    }
-
-    return estimateLines;
-  }
-
-  List<String> _normalizeShoppingInstructionLines(
-    List<String> lines,
-    int startIndex,
-  ) {
-    final instructions = <String>[];
-    var hasSeenFee = false;
-    var skippingAddMerchantExample = false;
-
-    for (final line in lines.skip(startIndex)) {
-      if (_isShoppingEstimateLine(line)) {
-        hasSeenFee = true;
-        continue;
-      }
-      if (!hasSeenFee) {
-        continue;
-      }
-
-      final lower = line.toLowerCase();
-      final isAddMerchantPrompt =
-          lower.contains('mau tambah tempat') ||
-          lower.contains('mau tambah toko') ||
-          lower.contains('mau tambah resto') ||
-          lower.contains('tambah pesanan dari toko') ||
-          lower.contains('tambah pesanan dari resto') ||
-          lower.contains('contoh setelah tempat berikutnya') ||
-          lower.contains('contoh isi pesan') ||
-          lower.contains('contoh:');
-
-      if (isAddMerchantPrompt) {
-        skippingAddMerchantExample = true;
-        continue;
-      }
-
-      if (skippingAddMerchantExample) {
-        final looksLikeExampleItem = RegExp(r'^[-•]\s*').hasMatch(line);
-        if (looksLikeExampleItem) {
-          continue;
-        }
-        skippingAddMerchantExample = false;
-      }
-
-      instructions.add(line);
-    }
-
-    return instructions;
-  }
-
-  _DraftMessageParts? _tryParseDraftMessage(String raw) {
-    final normalized = raw.replaceAll('\r\n', '\n').trim();
-    if (normalized.isEmpty) {
-      return null;
-    }
-
-    final lines = normalized
-        .split('\n')
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .toList(growable: false);
-
-    if (lines.length < 4) {
-      return null;
-    }
-
-    final pickupIndex = lines.indexWhere(
-      (line) =>
-          line.toLowerCase().startsWith('jemput:') ||
-          line.toLowerCase().startsWith('ambil:'),
-    );
-    final destinationIndex = lines.indexWhere(
-      (line) => line.toLowerCase().startsWith('tujuan:'),
-    );
-    final packageIndex = lines.indexWhere(
-      (line) => line.toLowerCase().startsWith('barang:'),
-    );
-    final feeIndex = lines.indexWhere((line) {
-      final lower = line.toLowerCase();
-      return lower.startsWith('estimasi ongkir sementara:') ||
-          lower.startsWith('ongkir:');
-    });
-
-    if (pickupIndex < 0 || destinationIndex < 0 || feeIndex < 0) {
-      return null;
-    }
-
-    final introText = lines.take(pickupIndex).join('\n').trim();
-    if (introText.isEmpty ||
-        (!introText.toLowerCase().contains('antar jemput') &&
-            !introText.toLowerCase().contains('kurir'))) {
-      return null;
-    }
-
-    final pickupAddress = lines[pickupIndex].replaceFirst(
-      RegExp(r'^(Jemput|Ambil):\s*', caseSensitive: false),
-      '',
-    );
-    final destinationAddress = lines[destinationIndex].replaceFirst(
-      RegExp(r'^Tujuan:\s*', caseSensitive: false),
-      '',
-    );
-
-    final packageDescription = packageIndex >= 0
-        ? lines[packageIndex].replaceFirst(
-            RegExp(r'^Barang:\s*', caseSensitive: false),
-            '',
-          )
-        : null;
-    if (pickupAddress.isEmpty || destinationAddress.isEmpty) {
-      return null;
-    }
-
-    final instructionLine = feeIndex + 1 < lines.length
-        ? lines.skip(feeIndex + 1).join(' ').trim()
-        : '';
-
-    return _DraftMessageParts(
-      headline: introText,
-      pickupLabel: lines[pickupIndex].toLowerCase().startsWith('ambil:')
-          ? 'Ambil'
-          : 'Jemput',
-      pickupAddress: pickupAddress,
-      destinationAddress: destinationAddress,
-      packageDescription: packageDescription,
-      feeLine: lines[feeIndex],
-      instructionLine: instructionLine,
-    );
-  }
-
-  _ResetDestinationMessageParts? _tryParseResetDestinationMessage(String raw) {
-    final normalized = raw.replaceAll('\r\n', '\n').trim();
-    if (normalized.isEmpty) {
-      return null;
-    }
-
-    final lines = normalized
-        .split('\n')
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .toList(growable: false);
-    if (lines.length < 3) {
-      return null;
-    }
-
-    final pickupIndex = lines.indexWhere(
-      (line) =>
-          line.toLowerCase().startsWith('jemput:') ||
-          line.toLowerCase().startsWith('ambil:'),
-    );
-    if (pickupIndex < 0) {
-      return null;
-    }
-
-    final headline = lines.take(pickupIndex).join('\n').trim();
-    final normalizedHeadline = headline.toLowerCase();
-    if (headline.isEmpty ||
-        !normalizedHeadline.contains('tujuan sebelumnya') ||
-        !normalizedHeadline.contains('reset')) {
-      return null;
-    }
-
-    final pickupLabel = lines[pickupIndex].toLowerCase().startsWith('ambil:')
-        ? 'Ambil'
-        : 'Jemput';
-    final pickupFirstLine = lines[pickupIndex].replaceFirst(
-      RegExp(r'^(Jemput|Ambil):\s*', caseSensitive: false),
-      '',
-    );
-
-    int instructionStartIndex = lines.length;
-    for (int i = pickupIndex + 1; i < lines.length; i++) {
-      final lower = lines[i].toLowerCase();
-      if (lower.startsWith('silakan klik tombol') ||
-          lower.startsWith('setelah itu,')) {
-        instructionStartIndex = i;
-        break;
-      }
-    }
-
-    final pickupLines = <String>[
-      if (pickupFirstLine.isNotEmpty) pickupFirstLine,
-      ...lines.sublist(pickupIndex + 1, instructionStartIndex),
-    ].where((line) => line.trim().isNotEmpty).toList(growable: false);
-    if (pickupLines.isEmpty) {
-      return null;
-    }
-
-    final instructionLine = instructionStartIndex < lines.length
-        ? lines.sublist(instructionStartIndex).join(' ').trim()
-        : '';
-
-    return _ResetDestinationMessageParts(
-      headline: headline,
-      pickupLabel: pickupLabel,
-      pickupAddress: pickupLines.join('\n'),
-      instructionLine: instructionLine,
     );
   }
 
@@ -3497,7 +2420,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       return;
     }
 
-    final openMapsDirectly = _isMerchantMapPickerActionHint(actionHint);
+    final openMapsDirectly = isMerchantMapPickerActionHint(actionHint);
     final result = await context.push<ShoppingMerchantPickerResult>(
       openMapsDirectly
           ? AppRoutes.chatbotShoppingMerchantMapPickerPath()
@@ -3704,149 +2627,3 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   }
 }
 
-class _DraftMessageParts {
-  const _DraftMessageParts({
-    required this.headline,
-    required this.pickupLabel,
-    required this.pickupAddress,
-    required this.destinationAddress,
-    this.packageDescription,
-    required this.feeLine,
-    required this.instructionLine,
-  });
-
-  final String headline;
-  final String pickupLabel;
-  final String pickupAddress;
-  final String destinationAddress;
-  final String? packageDescription;
-  final String feeLine;
-  final String instructionLine;
-}
-
-class _ShoppingDraftMessageParts {
-  const _ShoppingDraftMessageParts({
-    required this.headline,
-    required this.stops,
-    required this.deliveryAddress,
-    required this.estimateLines,
-    required this.instructionLines,
-  });
-
-  final String headline;
-  final List<_ShoppingDraftStopParts> stops;
-  final String deliveryAddress;
-  final List<String> estimateLines;
-  final List<String> instructionLines;
-}
-
-class _ShoppingDraftStopParts {
-  const _ShoppingDraftStopParts({
-    required this.label,
-    required this.merchant,
-    required this.items,
-  });
-
-  final String label;
-  final String merchant;
-  final List<String> items;
-}
-
-class _ResetDestinationMessageParts {
-  const _ResetDestinationMessageParts({
-    required this.headline,
-    required this.pickupLabel,
-    required this.pickupAddress,
-    required this.instructionLine,
-  });
-
-  final String headline;
-  final String pickupLabel;
-  final String pickupAddress;
-  final String instructionLine;
-}
-
-class _ShoppingSuccessMessageParts {
-  const _ShoppingSuccessMessageParts({
-    required this.headline,
-    required this.deliveryFeeLine,
-    required this.instructionLine,
-  });
-
-  final String headline;
-  final String deliveryFeeLine;
-  final String instructionLine;
-}
-
-class _IncompleteShoppingDraftMessageParts {
-  const _IncompleteShoppingDraftMessageParts({
-    required this.headline,
-    required this.merchantLabel,
-    required this.merchantName,
-    required this.instructionLines,
-    required this.examples,
-  });
-
-  final String headline;
-  final String merchantLabel;
-  final String merchantName;
-  final List<String> instructionLines;
-  final List<String> examples;
-}
-
-class _SimplePromptMessageParts {
-  const _SimplePromptMessageParts({
-    required this.headline,
-    required this.instructionLine,
-  });
-
-  final String headline;
-  final String instructionLine;
-}
-
-class _UserRouteCommandParts {
-  const _UserRouteCommandParts({required this.points});
-
-  final List<_UserRouteCommandPoint> points;
-}
-
-class _UserRouteCommandPoint {
-  const _UserRouteCommandPoint({required this.label, required this.value});
-
-  final String label;
-  final String value;
-}
-
-class _AssistantNoticeRow {
-  const _AssistantNoticeRow({
-    required this.label,
-    required this.amount,
-    required this.note,
-  });
-
-  final String label;
-  final String amount;
-  final String note;
-}
-
-class _ServiceContext {
-  final String serviceType;
-  final String title;
-  final String iconAsset;
-  final String welcomeMessage;
-  final String addressRequiredMessage;
-  final List<String> suggestions;
-
-  const _ServiceContext({
-    required this.serviceType,
-    required this.title,
-    required this.iconAsset,
-    required this.welcomeMessage,
-    required this.addressRequiredMessage,
-    required this.suggestions,
-  });
-
-  String welcomeMessageFor(bool hasSavedAddress) {
-    return hasSavedAddress ? welcomeMessage : addressRequiredMessage;
-  }
-}
