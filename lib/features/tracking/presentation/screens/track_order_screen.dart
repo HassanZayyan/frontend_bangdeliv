@@ -1002,10 +1002,10 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     if (_selectedShoppingPointId == 'dropoff') {
       _selectedShoppingPointId = 'summary';
     }
-    // Stop gagal tetap punya tab (seperti sisi driver); hanya yang REPLACED /
-    // SKIPPED yang benar-benar hilang.
+    // Semua tempat (termasuk yang gagal & yang sudah diganti) tetap bisa dibuka
+    // sebagai history; hanya SKIPPED yang tak pernah tampil.
     final selectableIds = detail.shoppingStops
-        .where((stop) => !stop.isReplaced && !stop.isSkipped)
+        .where((stop) => !stop.isSkipped)
         .map((stop) => stop.pickupLocationId)
         .toSet();
     final focusedPickup = focusTarget?.pickupLocationId;
@@ -1037,22 +1037,31 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
       detail.isShoppingOrder && _selectedShoppingPickupId != null;
 
   Widget _buildShoppingPointSelector(CustomerOrderDetailModel detail) {
-    // Tab dipertahankan untuk stop gagal (tutup), hanya REPLACED/SKIPPED yang
-    // hilang. Penomoran berurutan tanpa gap mengikuti urutan tampilan.
+    // History lengkap: semua tempat yang pernah didatangi tetap tampil sebagai
+    // tab (gagal maupun sudah diganti) -- maksimal 3 sesuai kuota BangDeliv.
+    // Nomor tab STABIL mengikuti urutan pembuatan (pickupLocationId menaik),
+    // bukan sequence_no rute yang bisa berubah saat ongkir dioptimasi ulang.
     final stops =
         detail.shoppingStops
-            .where((stop) => !stop.isReplaced && !stop.isSkipped)
+            .where((stop) => !stop.isSkipped)
             .toList(growable: false)
-          ..sort((a, b) => a.sequenceNo.compareTo(b.sequenceNo));
-    final entries = <(String, String, bool)>[
-      ('summary', 'Ringkasan', false),
-      ...stops.indexed.map(
-        (entry) => (
-          'pickup:${entry.$2.pickupLocationId}',
+          ..sort((a, b) => a.pickupLocationId.compareTo(b.pickupLocationId));
+    final entries = <(String, String, IconData?, Color?)>[
+      ('summary', 'Ringkasan', null, null),
+      ...stops.indexed.map((entry) {
+        final stop = entry.$2;
+        final (IconData? icon, Color? color) = stop.isReplaced
+            ? (Icons.swap_horiz_rounded, AppColors.textSecondary)
+            : (stop.isFailed || stop.isAbandoned)
+            ? (Icons.cancel_outlined, AppColors.error)
+            : (null, null);
+        return (
+          'pickup:${stop.pickupLocationId}',
           'Tempat ${entry.$1 + 1}',
-          entry.$2.isFailed || entry.$2.isAbandoned,
-        ),
-      ),
+          icon,
+          color,
+        );
+      }),
     ];
 
     return Semantics(
@@ -1067,14 +1076,17 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
           itemBuilder: (context, index) {
             final entry = entries[index];
             final selected = _selectedShoppingPointId == entry.$1;
-            final isFailed = entry.$3;
+            final icon = entry.$3;
             return ChoiceChip(
               selected: selected,
-              avatar: isFailed
+              // Jangan pakai centang bawaan chip: biar ikon status (✕/diganti)
+              // tetap terlihat saat tab dipilih.
+              showCheckmark: false,
+              avatar: icon != null
                   ? Icon(
-                      Icons.cancel_outlined,
+                      icon,
                       size: 16,
-                      color: selected ? AppColors.primary : AppColors.error,
+                      color: selected ? AppColors.primary : entry.$4,
                     )
                   : null,
               label: Text(entry.$2),

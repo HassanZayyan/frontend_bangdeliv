@@ -592,11 +592,13 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
             ],
           ] else
             ...widget.order.shoppingStops
-                .where((stop) => !stop.isSkipped && !stop.isReplaced)
+                .where((stop) => !stop.isSkipped)
                 .where(
-                  (stop) =>
-                      widget.selectedPickupLocationId == null ||
-                      stop.pickupLocationId == widget.selectedPickupLocationId,
+                  (stop) => widget.selectedPickupLocationId != null
+                      // Tab spesifik dipilih: tampilkan apa adanya sebagai
+                      // history, termasuk yang sudah diganti (REPLACED).
+                      ? stop.pickupLocationId == widget.selectedPickupLocationId
+                      : !stop.isReplaced,
                 )
                 .map(_buildStopSection),
           if (showCheckoutFields && _shoppingProofs().isNotEmpty) ...[

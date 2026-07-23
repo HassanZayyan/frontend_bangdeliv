@@ -92,11 +92,13 @@ class DriverActiveOrderPointPresenter {
     ];
 
     if (serviceType == ServiceTypeCodes.shopping) {
-      final stops = _orderedOperationalStops(order);
+      // Tab pakai _displayStops: history lengkap (termasuk REPLACED) & nomor
+      // STABIL per urutan pembuatan (id). Logika tugas-aktif tetap memakai
+      // _orderedOperationalStops (urutan rute) di bawah, jadi routing tak
+      // terpengaruh.
+      final stops = _displayStops(order);
       for (var index = 0; index < stops.length; index++) {
         final stop = stops[index];
-        // Penomoran berurutan tanpa gap: stop REPLACED/SKIPPED sudah difilter,
-        // jadi index+1 memberi "Tempat 1,2,3" rapat walau sequenceNo asli lompat.
         final sequence = index + 1;
         points.add(
           DriverActiveOrderPoint(
@@ -238,6 +240,15 @@ class DriverActiveOrderPointPresenter {
       }
     }
     return null;
+  }
+
+  /// Stop untuk DITAMPILKAN sebagai tab (history): semua kecuali SKIPPED,
+  /// termasuk yang sudah diganti (REPLACED). Diurutkan STABIL per urutan
+  /// pembuatan (pickupLocationId menaik) agar nomor "Tempat N" tidak berubah
+  /// saat rute/ongkir dihitung ulang.
+  static List<DriverShoppingStopModel> _displayStops(DriverOrderModel order) {
+    return order.shoppingStops.where((stop) => !stop.isSkipped).toList()
+      ..sort((a, b) => a.pickupLocationId.compareTo(b.pickupLocationId));
   }
 
   static List<DriverShoppingStopModel> _orderedOperationalStops(
