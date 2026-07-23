@@ -865,18 +865,18 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     String? note,
     double? cancellationPenaltyBaseDeliveryFee,
   }) async {
+    // Daftar order berjalan boleh belum termuat: transisi hanya butuh orderId.
     final current = state.asData?.value;
-    if (current == null) {
-      return 'Data order belum siap.';
-    }
 
-    if (current.isProcessing(orderId)) {
+    if (current != null && current.isProcessing(orderId)) {
       return 'Aksi order sebelumnya masih diproses. Tunggu sebentar.';
     }
 
     final actionKey = DriverOrderActionKeys.transition(orderId, actionCode);
 
-    state = AsyncData(_markActionProcessing(current, actionKey: actionKey));
+    if (current != null) {
+      state = AsyncData(_markActionProcessing(current, actionKey: actionKey));
+    }
 
     try {
       final updated = await ref
@@ -892,6 +892,8 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
 
       final latest = state.asData?.value;
       if (latest == null) {
+        ref.invalidate(driverOrderDetailProvider(orderId));
+        ref.invalidate(driverAvailabilityProvider);
         return null;
       }
 
@@ -1240,22 +1242,24 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     required Future<DriverOrderModel> Function(DriverOrderRepository repository)
     request,
   }) async {
+    // Daftar order berjalan boleh belum termuat: aksi hanya butuh orderId,
+    // jadi jangan gagalkan permintaan. Bookkeeping flag lokal saja yang dilewati.
     final current = state.asData?.value;
-    if (current == null) {
-      return 'Data order belum siap.';
-    }
 
-    if (current.isProcessing(orderId)) {
+    if (current != null && current.isProcessing(orderId)) {
       return 'Aksi order sebelumnya masih diproses. Tunggu sebentar.';
     }
 
-    state = AsyncData(_markActionProcessing(current, actionKey: actionKey));
+    if (current != null) {
+      state = AsyncData(_markActionProcessing(current, actionKey: actionKey));
+    }
 
     try {
       final updated = await request(ref.read(driverOrderRepositoryProvider));
 
       final latest = state.asData?.value;
       if (latest == null) {
+        ref.invalidate(driverOrderDetailProvider(orderId));
         return null;
       }
 

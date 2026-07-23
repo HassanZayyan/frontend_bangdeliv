@@ -80,6 +80,12 @@ final orderPriceHeadsUpNotificationProvider = Provider<void>((ref) {
         }
 
         final pricing = _mapValue(payload['pricing']);
+        // Pembatalan sudah dikabarkan lewat notifikasi status order. Ongkir
+        // sengaja dinolkan pada pembatalan berbiaya, jadi notifikasi harga di
+        // sini hanya akan melaporkan Rp0.
+        if (_isCancelledOrder(payload, pricing)) {
+          return;
+        }
         final priceEventId = _intValue(
           payload['price_event_id'] ?? pricing['price_event_id'],
         );
@@ -116,6 +122,17 @@ final orderPriceHeadsUpNotificationProvider = Provider<void>((ref) {
     unawaited(subscription.cancel());
   });
 });
+
+bool _isCancelledOrder(
+  Map<String, dynamic> payload,
+  Map<String, dynamic> pricing,
+) {
+  final statusCode = _stringValue(
+    payload['status_code'] ?? pricing['status_code'],
+  ).toUpperCase();
+
+  return statusCode == 'CANCELLED' || statusCode == 'CANCELLED_WITH_FEE';
+}
 
 bool _isPricingChange(String changeType) {
   if (changeType.isEmpty) {

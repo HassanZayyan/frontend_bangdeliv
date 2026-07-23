@@ -286,7 +286,12 @@ class _HistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isCompleted = order.status == 'Selesai';
+    // Warna label status mengikuti status order.
+    final isCompleted =
+        order.statusCode == 'COMPLETED' || order.status == 'Selesai';
+    // Nominal pendapatan mengikuti nilainya, bukan statusnya: pembatalan
+    // berbiaya yang sudah lunas tetap menghasilkan pendapatan bagi driver.
+    final hasIncome = order.netIncomeRounded > 0;
 
     return Material(
       color: AppColors.white,
@@ -351,7 +356,7 @@ class _HistoryCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                isCompleted ? 'Pendapatan Bersih' : 'Pendapatan',
+                hasIncome ? 'Pendapatan Bersih' : 'Pendapatan',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -363,17 +368,17 @@ class _HistoryCard extends StatelessWidget {
               ),
               const SizedBox(height: 3),
               Text(
-                isCompleted
+                hasIncome
                     ? formatter(order.netIncomeRounded)
                     : 'Tidak ada pendapatan',
                 style: TextStyle(
-                  color: isCompleted
+                  color: hasIncome
                       ? AppColors.primaryDark
                       : AppColors.textSecondary,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              if (isCompleted && order.hasAdminFeeBreakdown) ...[
+              if (hasIncome && order.hasAdminFeeBreakdown) ...[
                 const SizedBox(height: 4),
                 Text(
                   'Bruto ${formatter(order.driverIncomeGross.round())} - Admin ${_formatPercent(order.driverAdminFeePercent)} ${formatter(order.driverAdminFee.round())}',

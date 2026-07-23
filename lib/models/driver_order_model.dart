@@ -55,6 +55,10 @@ class DriverOrderModel {
   final ShoppingOrderCapabilitiesModel shoppingCapabilities;
   final ShoppingItemChangeRequestModel? shoppingItemChangeRequest;
   final List<DriverOrderProofModel> proofs;
+
+  /// Aturan status untuk unggah bukti foto, dikirim backend agar aplikasi
+  /// tidak menduplikasi pemetaan status -> bukti yang diizinkan.
+  final Map<String, DriverOrderProofCapability> proofCapabilities;
   final PaymentProofFeedbackModel? paymentProofFeedback;
   final bool hasPendingShoppingPrices;
   final DriverDispatchModel? dispatch;
@@ -105,6 +109,7 @@ class DriverOrderModel {
     this.shoppingCapabilities = const ShoppingOrderCapabilitiesModel(),
     this.shoppingItemChangeRequest,
     this.proofs = const <DriverOrderProofModel>[],
+    this.proofCapabilities = const <String, DriverOrderProofCapability>{},
     this.paymentProofFeedback,
     this.hasPendingShoppingPrices = false,
     this.dispatch,
@@ -133,6 +138,12 @@ class DriverOrderModel {
     }
 
     return proofs.any((proof) => proof.type == normalizedType);
+  }
+
+  /// Izin unggah bukti [type] pada status order saat ini.
+  DriverOrderProofCapability proofCapability(String type) {
+    return proofCapabilities[type.trim().toLowerCase()] ??
+        DriverOrderProofCapability.unrestricted;
   }
 
   DriverOrderModel copyWith({
@@ -190,6 +201,7 @@ class DriverOrderModel {
       shoppingCapabilities: shoppingCapabilities,
       shoppingItemChangeRequest: shoppingItemChangeRequest,
       proofs: proofs ?? this.proofs,
+      proofCapabilities: proofCapabilities,
       paymentProofFeedback: paymentProofFeedback ?? this.paymentProofFeedback,
       hasPendingShoppingPrices: hasPendingShoppingPrices,
       dispatch: dispatch,
@@ -411,6 +423,9 @@ class DriverOrderModel {
             json['attachments'] ??
             json['payment_attachments'],
       ),
+      proofCapabilities: DriverOrderProofCapability.parseMap(
+        json['proof_capabilities'] ?? json['proofCapabilities'],
+      ),
       paymentProofFeedback: PaymentProofFeedbackModel.fromRaw(
         json['payment_proof_feedback'] ?? json['paymentProofFeedback'],
       ),
@@ -467,6 +482,47 @@ class DriverOrderModel {
     }
 
     return source == 'manual' ? 'driver_manual' : source;
+  }
+}
+
+/// Izin unggah satu tipe bukti foto pada status order saat ini.
+class DriverOrderProofCapability {
+  const DriverOrderProofCapability({required this.canUpload, this.lockedReason});
+
+  final bool canUpload;
+
+  /// Alasan tombol dikunci, siap ditampilkan ke driver.
+  final String? lockedReason;
+
+  /// Default terbuka: kalau backend belum mengirim aturan, jangan mengunci UI.
+  /// Penegakan sebenarnya tetap ada di server.
+  static const DriverOrderProofCapability unrestricted =
+      DriverOrderProofCapability(canUpload: true);
+
+  static Map<String, DriverOrderProofCapability> parseMap(dynamic raw) {
+    if (raw is! Map) {
+      return const <String, DriverOrderProofCapability>{};
+    }
+
+    final parsed = <String, DriverOrderProofCapability>{};
+    raw.forEach((key, value) {
+      if (value is! Map) {
+        return;
+      }
+
+      final type = key.toString().trim().toLowerCase();
+      if (type.isEmpty) {
+        return;
+      }
+
+      final reason = value['locked_reason']?.toString().trim();
+      parsed[type] = DriverOrderProofCapability(
+        canUpload: value['can_upload'] != false,
+        lockedReason: (reason == null || reason.isEmpty) ? null : reason,
+      );
+    });
+
+    return parsed;
   }
 }
 
@@ -871,7 +927,6 @@ class DriverShoppingPricingModel {
   final double cancellationPenalty;
   final double cancellationPenaltyBaseDeliveryFee;
   final double cancellationPenaltyPercent;
-  final double failedTripCompensation;
   final int recalculationVersion;
   final bool hasPendingManualPrices;
   final int failedAttemptCount;
@@ -886,7 +941,6 @@ class DriverShoppingPricingModel {
     required this.cancellationPenalty,
     this.cancellationPenaltyBaseDeliveryFee = 0,
     this.cancellationPenaltyPercent = 50,
-    this.failedTripCompensation = 0,
     required this.recalculationVersion,
     required this.hasPendingManualPrices,
     this.failedAttemptCount = 0,
@@ -914,9 +968,6 @@ class DriverShoppingPricingModel {
       cancellationPenaltyPercent: cancellationPenaltyPercent > 0
           ? cancellationPenaltyPercent
           : 50,
-      failedTripCompensation: DriverOrderModel._asDouble(
-        json['failed_trip_compensation'],
-      ),
       recalculationVersion: DriverOrderModel._asInt(
         json['recalculation_version'],
         fallback: 0,

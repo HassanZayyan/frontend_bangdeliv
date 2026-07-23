@@ -17,11 +17,8 @@ Future<DriverShoppingCancellationInput?> showDriverShoppingCancelWithFeeDialog(
   required DriverOrderModel order,
 }) {
   final pricing = order.shoppingPricing;
-  final automaticPenalty = pricing == null
-      ? 0.0
-      : pricing.cancellationPenalty > pricing.failedTripCompensation
-      ? pricing.cancellationPenalty
-      : pricing.failedTripCompensation;
+  // F = P: fee pembatalan tunggal, tidak ada lagi komponen kompensasi terpisah.
+  final automaticPenalty = pricing?.cancellationPenalty ?? 0.0;
   final initialBase = (pricing?.cancellationPenaltyBaseDeliveryFee ?? 0) > 0
       ? pricing!.cancellationPenaltyBaseDeliveryFee
       : (order.deliveryFee ?? 0) > 0
@@ -223,10 +220,9 @@ Future<void> showDriverManualDeliveryFeeEditDialog(
   final isShopping =
       normalizeServiceTypeCode(order.serviceTypeCode) ==
       ServiceTypeCodes.shopping;
-  final initialAmount = isShopping
-      ? (order.deliveryFee ?? 0) +
-            (order.shoppingPricing?.failedTripCompensation ?? 0)
-      : order.deliveryFee;
+  // Edit ongkir manual berlaku pada pesanan lanjut: nilai awal = ongkir aktif
+  // (tidak ada lagi komponen kompensasi yang melebur).
+  final initialAmount = order.deliveryFee;
   final result = await showDialog<_ManualDeliveryFeeInput>(
     context: context,
     builder: (context) => _ManualDeliveryFeeDialog(
@@ -347,7 +343,7 @@ class _ManualDeliveryFeeDialogState extends State<_ManualDeliveryFeeDialog> {
               if (widget.isShoppingTotalTransport) ...[
                 const SizedBox(height: 6),
                 const Text(
-                  'Nominal ini mencakup ongkir aktif dan kompensasi perjalanan gagal.',
+                  'Nominal ini adalah total ongkir Nitip yang ditagihkan.',
                   style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 12,

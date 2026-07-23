@@ -63,11 +63,6 @@ class _TrackShoppingOrderItemsCardState
     final pricing = detail.shoppingPricing;
     final isShoppingTotalTransport =
         detail.deliveryFeeNegotiation?.isActiveShoppingTotalTransport == true;
-    final serviceFeeWithoutCompensation = pricing == null
-        ? 0.0
-        : (pricing.serviceFee - pricing.failedTripCompensation)
-              .clamp(0, double.infinity)
-              .toDouble();
     final failedStops = stops
         .where((stop) => stop.isFailed)
         .toList(growable: false);
@@ -167,15 +162,10 @@ class _TrackShoppingOrderItemsCardState
               isShoppingTotalTransport ? 'Total ongkir Nitip' : 'Ongkir aktif',
               pricing.deliveryFee,
             ),
-            if (serviceFeeWithoutCompensation > 0)
+            if (pricing.serviceFee > 0)
               _pricingRow(
                 detail.shoppingServiceFeeLabel,
-                serviceFeeWithoutCompensation,
-              ),
-            if (!isShoppingTotalTransport && pricing.failedTripCompensation > 0)
-              _pricingRow(
-                'Kompensasi perjalanan gagal (50%)',
-                pricing.failedTripCompensation,
+                pricing.serviceFee,
               ),
             const SizedBox(height: 4),
             _pricingRow(

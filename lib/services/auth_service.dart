@@ -324,7 +324,7 @@ class AuthService {
     }
   }
 
-  /// Meminta kode OTP dikirim ke nomor WhatsApp user yang sedang login.
+  /// Meminta kode OTP dikirim ke email user yang sedang login.
   static Future<OtpSendResult> sendPhoneOtp() async {
     final uri = Uri.parse('${AppEnv.apiBaseUrl}/auth/otp/send');
 

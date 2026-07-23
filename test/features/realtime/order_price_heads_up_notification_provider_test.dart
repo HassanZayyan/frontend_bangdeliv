@@ -188,6 +188,60 @@ void main() {
 
     expect(notificationCount, 0);
   });
+
+  test('cancelled with fee order does not show a price notification', () async {
+    final fakeRealtime = FakeOrderRealtimeClient();
+    final hub = OrderRealtimeHub(fakeRealtime);
+    final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
+    var notificationCount = 0;
+    final container = ProviderContainer(
+      overrides: [
+        authSessionProvider.overrideWith(() => fakeAuth),
+        orderRealtimeHubProvider.overrideWithValue(hub),
+        orderPriceChangedNotificationProvider.overrideWithValue(({
+          required int orderId,
+          required String recipientRole,
+          required String changeType,
+          int priceEventId = 0,
+          bool requiresResponse = false,
+          num? amount,
+          num? oldTotalPrice,
+          num? newTotalPrice,
+          String? focus,
+          int? pickupLocationId,
+        }) async {
+          notificationCount += 1;
+        }),
+      ],
+    );
+    addTearDown(container.dispose);
+    addTearDown(hub.dispose);
+
+    final subscription = container.listen<void>(
+      orderPriceHeadsUpNotificationProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+
+    await hub.retainOrder(42);
+    await Future<void>.delayed(Duration.zero);
+
+    // DRIVER_CANCEL_WITH_FEE mengandung "FEE", sehingga dulu nominalnya
+    // diambil dari delivery_fee yang sengaja dinolkan -> "Ongkir Rp 0".
+    fakeRealtime.emitOrderContentUpdated(42, const <String, dynamic>{
+      'change_type': 'DRIVER_CANCEL_WITH_FEE',
+      'status_code': 'CANCELLED_WITH_FEE',
+      'pricing': <String, dynamic>{
+        'delivery_fee': 0,
+        'service_fee': 15000,
+        'new_total_price': 15000,
+      },
+    });
+    await Future<void>.delayed(Duration.zero);
+
+    expect(notificationCount, 0);
+  });
 }
 
 class _FakeAuthSessionNotifier extends AuthSessionNotifier {

@@ -570,15 +570,6 @@ class DriverOrderPricingCard extends StatelessWidget {
             const SizedBox(height: 8),
           ],
           if (!showDriverAdminFeeBreakdown &&
-              !isShoppingTotalTransport &&
-              (order.shoppingPricing?.failedTripCompensation ?? 0) > 0) ...[
-            _pricingLine(
-              'Kompensasi perjalanan gagal (50%)',
-              formatRupiah(order.shoppingPricing!.failedTripCompensation),
-            ),
-            const SizedBox(height: 8),
-          ],
-          if (!showDriverAdminFeeBreakdown &&
               fee > 0 &&
               order.deliveryFee != null &&
               (fee - order.deliveryFee!).abs() >= 1) ...[

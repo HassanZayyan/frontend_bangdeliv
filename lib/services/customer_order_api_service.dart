@@ -473,7 +473,6 @@ class ShoppingMerchantReplacementPreview {
     required this.oldMerchantName,
     required this.newMerchantName,
     required this.activeDeliveryFee,
-    required this.failedTripCompensation,
     required this.totalTransport,
     required this.items,
   });
@@ -484,7 +483,6 @@ class ShoppingMerchantReplacementPreview {
   final String oldMerchantName;
   final String newMerchantName;
   final double activeDeliveryFee;
-  final double failedTripCompensation;
   final double totalTransport;
   final List<Map<String, dynamic>> items;
 
@@ -512,8 +510,6 @@ class ShoppingMerchantReplacementPreview {
       oldMerchantName: (oldMerchant['name'] ?? '-').toString(),
       newMerchantName: (newMerchant['name'] ?? '-').toString(),
       activeDeliveryFee: _toNullableDouble(json['active_delivery_fee']) ?? 0,
-      failedTripCompensation:
-          _toNullableDouble(json['failed_trip_compensation']) ?? 0,
       totalTransport: _toNullableDouble(json['total_transport']) ?? 0,
       items: items,
     );

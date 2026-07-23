@@ -37,7 +37,30 @@
       "Bash(awk '$1 > 1')",
       "Bash(vendor/bin/pint app/Services/Order/OrderStatusResolver.php app/Services/Order/CustomerOrderService.php app/Services/Order/DeliveryFeeNegotiationOrchestrator.php app/Services/Order/ShoppingNegotiationOrchestrator.php app/Services/Order/OrderPaymentProofService.php app/Services/Order/DriverOrderWorkflowService.php)",
       "Bash(vendor/bin/pint app/Services/Order/OrderEtaTargetResolver.php app/Services/Order/DriverArrivalEtaService.php)",
-      "Bash(vendor/bin/pint app/Services/Chatbot/ChatbotRideOrderService.php app/Services/Chatbot/ChatbotGeminiService.php app/Services/Chatbot/ChatbotPromptLibrary.php app/Services/Chatbot/ChatbotShoppingOrderService.php tests/Feature/ChatbotRideFlowTest.php tests/Feature/Api/ChatbotShoppingFlowTest.php tests/Unit/ChatbotPromptLibraryTest.php)"
+      "Bash(vendor/bin/pint app/Services/Chatbot/ChatbotRideOrderService.php app/Services/Chatbot/ChatbotGeminiService.php app/Services/Chatbot/ChatbotPromptLibrary.php app/Services/Chatbot/ChatbotShoppingOrderService.php tests/Feature/ChatbotRideFlowTest.php tests/Feature/Api/ChatbotShoppingFlowTest.php tests/Unit/ChatbotPromptLibraryTest.php)",
+      "Read(//d/AA_Kuliah_Hassan/TA/**)",
+      "Bash(vendor/bin/pint app/Http/Controllers/Api/AuthController.php tests/Feature/Api/AuthRegisterCustomerTest.php)",
+      "Bash(dart format *)",
+      "Bash(vendor/bin/pint app/Services/Order/OrderProofPolicyService.php app/Services/Order/OrderPaymentProofService.php app/Services/Driver/DriverOrderPayloadFactory.php tests/Unit/OrderProofPolicyServiceTest.php tests/Feature/Api/OrderPayloadShapeTest.php)",
+      "Bash(cd \"d:/AA_Kuliah_Hassan/TA/Backend_Bangdeliv\" && sed -n '/private function recordCodPayment\\(/,/^    }$/p' app/Services/Order/OrderPaymentProofService.php | head -60)",
+      "Bash(cd \"d:/AA_Kuliah_Hassan/TA/Backend_Bangdeliv\" && sed -n '/private function shoppingActionRules/,/^    }$/p' app/Services/Driver/DriverOrderPayloadFactory.php)",
+      "Bash(cd \"d:/AA_Kuliah_Hassan/TA/Backend_Bangdeliv\" && sed -n '/public function setPendingTransferPayment/,/^    }$/p' app/Services/Order/OrderPaymentService.php)",
+      "Bash(cd \"d:/AA_Kuliah_Hassan/TA/Backend_Bangdeliv\" && sed -n '/public function confirmTransferPaymentByDriver/,/^    }$/p' app/Services/Order/OrderPaymentProofService.php | grep -nE \"statusCode|ApiException|isPaid|payment_method|DELIVERED|CANCELLED\" | head -20)",
+      "Bash(cd \"d:/AA_Kuliah_Hassan/TA/Backend_Bangdeliv\" && sed -n '/public function summary/,/^    }$/p' app/Services/Shopping/ShoppingFailedTripCompensationService.php)",
+      "Bash(cd \"d:/AA_Kuliah_Hassan/TA/frontend_bangdeliv\" && sed -n '/static bool shouldShow/,/^  }$/p' lib/widgets/driver_transfer_payment_card.dart)",
+      "Bash(cd \"d:/AA_Kuliah_Hassan/TA/Backend_Bangdeliv\" && sed -n '/public function confirmTransferPaymentByDriver/,/^    }$/p' app/Services/Order/OrderPaymentProofService.php | head -45)",
+      "Bash(cd \"d:/AA_Kuliah_Hassan/TA/Backend_Bangdeliv\" && sed -n '/private function assertDriverCanRecordTransferPayment/,/^    }$/p' app/Services/Order/OrderPaymentProofService.php)",
+      "Bash(cd \"d:/AA_Kuliah_Hassan/TA/Backend_Bangdeliv\" && sed -n '/public function currentMethod/,/^    }$/p' app/Services/Order/OrderPaymentService.php)",
+      "Bash(cd \"d:/AA_Kuliah_Hassan/TA/Backend_Bangdeliv\" && sed -n '/public function uploadTransferEvidenceByCustomer/,/^    }$/p' app/Services/Order/CustomerOrderService.php | grep -nE \"ApiException|statusCode|CANCELLED|DELIVERED|payment_method\" | head)",
+      "Bash(awk 'NR>=1230 && NR<=1300' app/Services/Order/ShoppingNegotiationOrchestrator.php)",
+      "Bash(grep -nE \"private function|public function|cancelledBy|Trigger|string \\\\\\\\\\\\$\")",
+      "Bash(vendor/bin/pint app/Services/Order/CustomerOrderService.php tests/Feature/ShoppingAutoCancelPenaltyPredicateTest.php)"
+    ],
+    "additionalDirectories": [
+      "d:\\AA_Kuliah_Hassan\\TA\\Backend_Bangdeliv\\app\\Services\\Order",
+      "d:\\AA_Kuliah_Hassan\\TA\\Backend_Bangdeliv\\app\\Services\\Driver",
+      "d:\\AA_Kuliah_Hassan\\TA\\Backend_Bangdeliv\\app\\Services\\Shopping",
+      "d:\\AA_Kuliah_Hassan\\TA\\frontend_bangdeliv\\lib\\widgets"
     ]
   }
 }

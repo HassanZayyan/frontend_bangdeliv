@@ -413,9 +413,7 @@ void main() {
     expect(find.text('Biaya layanan'), findsNothing);
   });
 
-  testWidgets('active pricing hides zero service fee after compensation', (
-    tester,
-  ) async {
+  testWidgets('active pricing hides zero service fee', (tester) async {
     await _pumpCard(
       tester,
       _FakeCustomerOrderRepository(),
@@ -423,22 +421,20 @@ void main() {
         shoppingPricing: const CustomerShoppingPricingModel(
           subtotal: 75000,
           deliveryFee: 155000,
-          serviceFee: 21250,
-          totalPrice: 251250,
+          serviceFee: 0,
+          totalPrice: 230000,
           cancellationPenalty: 0,
-          failedTripCompensation: 21250,
         ),
       ),
     );
 
     expect(find.text('Biaya layanan'), findsNothing);
-    expect(find.text('Kompensasi perjalanan gagal (50%)'), findsOneWidget);
+    // F = P: tidak ada lagi baris kompensasi terpisah.
+    expect(find.text('Kompensasi perjalanan gagal (50%)'), findsNothing);
     expect(find.text('Total pembayaran customer'), findsOneWidget);
   });
 
-  testWidgets('active pricing keeps positive service fee remainder', (
-    tester,
-  ) async {
+  testWidgets('active pricing shows the single service fee', (tester) async {
     await _pumpCard(
       tester,
       _FakeCustomerOrderRepository(),
@@ -449,13 +445,12 @@ void main() {
           serviceFee: 25000,
           totalPrice: 255000,
           cancellationPenalty: 0,
-          failedTripCompensation: 21250,
         ),
       ),
     );
 
     expect(find.text('Biaya layanan'), findsOneWidget);
-    expect(find.text('Kompensasi perjalanan gagal (50%)'), findsOneWidget);
+    expect(find.text('Kompensasi perjalanan gagal (50%)'), findsNothing);
   });
 
   testWidgets('approved shopping all-in pricing renders one transport line', (
@@ -476,7 +471,6 @@ void main() {
           serviceFee: 0,
           totalPrice: 125000,
           cancellationPenalty: 0,
-          failedTripCompensation: 21250,
         ),
       ),
     );

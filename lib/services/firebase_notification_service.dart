@@ -309,7 +309,8 @@ class FirebaseNotificationService {
         type != 'order_price_changed' &&
         type != 'payment_proof_required' &&
         type != 'driver_order_available' &&
-        type != 'shopping_item_unavailable') {
+        type != 'shopping_item_unavailable' &&
+        type != 'shopping_merchant_failed') {
       return null;
     }
 
@@ -346,7 +347,8 @@ class FirebaseNotificationService {
                   (data['pickup_location_id'] ?? '').toString(),
                 ),
               ),
-      'shopping_item_unavailable' => AppRoutes.orderTrackPath(
+      'shopping_item_unavailable' ||
+      'shopping_merchant_failed' => AppRoutes.orderTrackPath(
         orderId,
         focus: TrackingFocusTarget.shoppingPrice,
         pickupLocationId: int.tryParse(
