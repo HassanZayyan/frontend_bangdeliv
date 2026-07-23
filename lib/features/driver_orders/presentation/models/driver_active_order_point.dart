@@ -17,6 +17,7 @@ class DriverActiveOrderPoint {
     this.sequenceNo,
     this.isTerminal = false,
     this.isFailed = false,
+    this.isCancelled = false,
   });
 
   static const summaryId = 'summary';
@@ -34,6 +35,10 @@ class DriverActiveOrderPoint {
   final int? sequenceNo;
   final bool isTerminal;
   final bool isFailed;
+
+  /// Tempat yang batal/tak jadi (tutup, batas tercapai, atau sudah diganti) --
+  /// dipakai untuk menandai tab dengan ikon silang, beda dari yang "selesai".
+  final bool isCancelled;
 
   bool get hasCoordinates => latitude != null && longitude != null;
   bool get isSummary => kind == DriverActiveOrderPointKind.summary;
@@ -57,7 +62,8 @@ class DriverActiveOrderPoint {
             other.pickupLocationId == pickupLocationId &&
             other.sequenceNo == sequenceNo &&
             other.isTerminal == isTerminal &&
-            other.isFailed == isFailed;
+            other.isFailed == isFailed &&
+            other.isCancelled == isCancelled;
   }
 
   @override
@@ -73,6 +79,7 @@ class DriverActiveOrderPoint {
     sequenceNo,
     isTerminal,
     isFailed,
+    isCancelled,
   );
 }
 
@@ -113,6 +120,8 @@ class DriverActiveOrderPointPresenter {
             sequenceNo: sequence,
             isTerminal: stop.isTerminal,
             isFailed: stop.isFailed || stop.isAbandoned,
+            isCancelled:
+                stop.isFailed || stop.isAbandoned || stop.isReplaced,
           ),
         );
       }

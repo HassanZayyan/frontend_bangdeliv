@@ -1050,9 +1050,10 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
       ('summary', 'Ringkasan', null, null),
       ...stops.indexed.map((entry) {
         final stop = entry.$2;
-        final (IconData? icon, Color? color) = stop.isReplaced
-            ? (Icons.swap_horiz_rounded, AppColors.textSecondary)
-            : (stop.isFailed || stop.isAbandoned)
+        // Tempat yang gagal, dibatalkan, maupun sudah diganti sama-sama pakai
+        // ikon silang merah -- menandakan tempat itu batal/tidak jadi.
+        final (IconData? icon, Color? color) =
+            (stop.isReplaced || stop.isFailed || stop.isAbandoned)
             ? (Icons.cancel_outlined, AppColors.error)
             : (null, null);
         return (

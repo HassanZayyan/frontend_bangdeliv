@@ -648,8 +648,10 @@ class _DriverActiveOrderScreenState
                 child: ChoiceChip(
                   key: ValueKey('driver-order-point-${point.id}'),
                   selected: selected,
-                  showCheckmark: point.isTerminal,
-                  avatar: point.isFailed
+                  // Centang hanya untuk tempat SELESAI; tempat batal/diganti
+                  // pakai ikon silang yang tetap terlihat walau tab dipilih.
+                  showCheckmark: point.isTerminal && !point.isCancelled,
+                  avatar: point.isCancelled
                       ? const Icon(
                           Icons.close_rounded,
                           size: 16,
