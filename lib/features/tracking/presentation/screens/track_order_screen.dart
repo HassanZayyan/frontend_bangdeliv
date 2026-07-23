@@ -1674,6 +1674,10 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
         approveLabel: 'Setujui',
         counterLabel: 'Tawar',
         cancelLabel: 'Batalkan pesanan',
+        // Pada revisi total ongkir Nitip, driver sudah membeli barang sehingga
+        // customer tidak boleh membatalkan pesanan (backend juga menolaknya).
+        // Customer tetap bisa Setujui atau Tawar.
+        showCancelAction: !isShoppingTotalTransport,
         showIcon: false,
         embedded: true,
         onApprove: () => _respondDeliveryFeeOverride(
