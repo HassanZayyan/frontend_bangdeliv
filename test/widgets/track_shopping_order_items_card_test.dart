@@ -89,6 +89,58 @@ void main() {
     expect(find.text('Ganti toko/resto'), findsOneWidget);
   });
 
+  testWidgets('closed stop tab shows only replace action, not item decisions', (
+    tester,
+  ) async {
+    // Stop tutup (FAILED) yang itemnya juga tak tersedia: hanya boleh "Ganti
+    // toko/resto" (satu kali) -- tanpa "Ganti item"/"Batal tempat", tanpa dobel.
+    const failedWithUnavailable = CustomerShoppingStopModel(
+      pickupLocationId: 90,
+      sequenceNo: 2,
+      fulfillmentStatus: 'FAILED',
+      chainFailedAttemptCount: 1,
+      orderFailedTripCount: 1,
+      canReplaceMerchant: true,
+      canEditUnavailableItems: true,
+      canCancelUnavailableMerchant: true,
+      hasExplicitUnavailableItemActions: true,
+      merchant: CustomerShoppingMerchantModel(
+        id: 90,
+        name: 'Sate Ayam Cak Sabari',
+        merchantType: 'restaurant',
+        address: 'Jl. Sabari',
+      ),
+      items: [
+        CustomerShoppingItemModel(
+          id: 22,
+          pickupLocationId: 90,
+          itemSource: 'MANUAL',
+          name: 'Sate Ayam + Lontong',
+          quantity: 1,
+          unitPrice: 0,
+          subtotal: 0,
+          isAvailable: false,
+        ),
+      ],
+    );
+
+    await _pumpCard(
+      tester,
+      _FakeCustomerOrderRepository(),
+      detail: _shoppingDetail(
+        shoppingStops: const [failedWithUnavailable],
+        canReplaceMerchant: true,
+      ),
+      selectedPickupLocationId: 90,
+      showGlobalActions: false,
+      showPricing: false,
+    );
+
+    expect(find.text('Ganti toko/resto'), findsOneWidget);
+    expect(find.text('Ganti item'), findsNothing);
+    expect(find.text('Batal tempat'), findsNothing);
+  });
+
   testWidgets('failed merchant tab is not shown in the summary notice actions', (
     tester,
   ) async {
