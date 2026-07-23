@@ -5,31 +5,38 @@ import 'package:frontend_bangdeliv/models/order_route_model.dart';
 
 void main() {
   group('DriverActiveOrderPointPresenter', () {
-    test('orders shopping merchants by route and excludes replaced stops', () {
-      final order = _order(
-        serviceTypeCode: 'SHOPPING',
-        statusCode: 'ARRIVED_MERCHANT',
-        route: const OrderRouteModel(orderedPickupLocationIds: [20, 10]),
-        shoppingStops: [
-          _stop(10, sequence: 1, name: 'Resto A'),
-          _stop(20, sequence: 2, name: 'Resto B'),
-          _stop(30, sequence: 3, name: 'Resto lama', status: 'REPLACED'),
-        ],
-      );
+    test(
+      'numbers shopping tabs by stable creation order and keeps replaced history',
+      () {
+        final order = _order(
+          serviceTypeCode: 'SHOPPING',
+          statusCode: 'ARRIVED_MERCHANT',
+          route: const OrderRouteModel(orderedPickupLocationIds: [20, 10]),
+          shoppingStops: [
+            _stop(10, sequence: 1, name: 'Resto A'),
+            _stop(20, sequence: 2, name: 'Resto B'),
+            _stop(30, sequence: 3, name: 'Resto lama', status: 'REPLACED'),
+          ],
+        );
 
-      final points = DriverActiveOrderPointPresenter.build(order);
+        final points = DriverActiveOrderPointPresenter.build(order);
 
-      expect(points.map((point) => point.id), [
-        DriverActiveOrderPoint.summaryId,
-        DriverActiveOrderPoint.merchantId(20),
-        DriverActiveOrderPoint.merchantId(10),
-        DriverActiveOrderPoint.dropoffId,
-      ]);
-      expect(
-        DriverActiveOrderPointPresenter.activePoint(order, points).id,
-        DriverActiveOrderPoint.merchantId(20),
-      );
-    });
+        // Tab urut & bernomor STABIL per urutan pembuatan (id), bukan rute; dan
+        // tempat yang sudah diganti (REPLACED) tetap tampil sebagai history.
+        expect(points.map((point) => point.id), [
+          DriverActiveOrderPoint.summaryId,
+          DriverActiveOrderPoint.merchantId(10),
+          DriverActiveOrderPoint.merchantId(20),
+          DriverActiveOrderPoint.merchantId(30),
+          DriverActiveOrderPoint.dropoffId,
+        ]);
+        // Tugas-aktif tetap mengikuti urutan rute (20 lebih dulu dari 10).
+        expect(
+          DriverActiveOrderPointPresenter.activePoint(order, points).id,
+          DriverActiveOrderPoint.merchantId(20),
+        );
+      },
+    );
 
     test('moves shopping active point to dropoff during delivery', () {
       final order = _order(

@@ -53,15 +53,13 @@ class _TrackShoppingOrderItemsCardState
     final detail = widget.detail;
     final stops = detail.shoppingStops;
     // Ringkasan (selectedPickupLocationId == null) hanya menampilkan stop aktif;
-    // saat sebuah tab dipilih, stop itu ditampilkan apa adanya termasuk yang
-    // sudah FAILED (tutup) -- hanya REPLACED/SKIPPED yang tak pernah tampil.
+    // saat sebuah tab dipilih, stop itu ditampilkan apa adanya sebagai history --
+    // termasuk yang FAILED (tutup) maupun yang sudah diganti (REPLACED).
     final displayStops = widget.selectedPickupLocationId != null
         ? stops
               .where(
                 (stop) =>
-                    stop.pickupLocationId == widget.selectedPickupLocationId &&
-                    !stop.isReplaced &&
-                    !stop.isSkipped,
+                    stop.pickupLocationId == widget.selectedPickupLocationId,
               )
               .toList(growable: false)
         : stops.where((stop) => stop.isActive).toList(growable: false);
@@ -366,7 +364,9 @@ class _TrackShoppingOrderItemsCardState
                   ],
                 ),
               ),
-              if (stop.isFailed || stop.isSkipped)
+              if (stop.isReplaced)
+                _stopStatusChip('Diganti ke toko lain')
+              else if (stop.isFailed || stop.isSkipped)
                 _stopStatusChip(
                   stop.isFailed ? 'Tempat tutup/order batal' : 'Dilewati',
                 ),
@@ -395,7 +395,7 @@ class _TrackShoppingOrderItemsCardState
             const SizedBox(height: 8),
             _merchantReplacementWaitingBanner(stop),
           ],
-          if (stop.isFailed && widget.showStops) ...[
+          if ((stop.isFailed || stop.isReplaced) && widget.showStops) ...[
             const SizedBox(height: 8),
             ..._failedStopPageContent(context, ref, stop),
           ],
@@ -500,7 +500,13 @@ class _TrackShoppingOrderItemsCardState
         ),
         const SizedBox(height: 10),
       ],
-      if (!isPending)
+      // Tempat yang sudah diganti = riwayat read-only, tanpa aksi.
+      if (stop.isReplaced)
+        const Text(
+          'Tempat ini sudah diganti ke toko/resto lain.',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+        )
+      else if (!isPending)
         if (stop.canReplaceMerchant)
           Align(
             alignment: Alignment.centerLeft,
