@@ -398,6 +398,10 @@ class _TrackShoppingOrderItemsCardState
             const SizedBox(height: 10),
           ],
           ...visibleItems.map((item) => _itemRow(context, ref, item)),
+          if (stop.pendingReplacementApproval?.isPending ?? false) ...[
+            const SizedBox(height: 8),
+            _merchantReplacementWaitingBanner(stop),
+          ],
           if (canEditUnavailable) ...[
             const SizedBox(height: 2),
             _unavailableItemDecisionActions(
@@ -452,6 +456,49 @@ class _TrackShoppingOrderItemsCardState
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _merchantReplacementWaitingBanner(CustomerShoppingStopModel stop) {
+    final approval = stop.pendingReplacementApproval;
+    final newMerchant = (approval?.newMerchantName ?? '').trim();
+    final distanceKm = approval?.distanceKm;
+    final target = newMerchant.isEmpty ? 'toko/resto pengganti' : '"$newMerchant"';
+    final distanceText = distanceKm != null
+        ? ' (±${distanceKm.toStringAsFixed(1).replaceAll('.', ',')} km)'
+        : '';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.cardYellow,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Menunggu persetujuan driver untuk pindah ke $target$distanceText. '
+              'Kalau ditolak, kamu bisa pilih opsi lain.',
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 12,
+                height: 1.4,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ],
       ),
     );

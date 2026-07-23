@@ -7,6 +7,7 @@ import 'order_route_model.dart';
 import 'payment_proof_feedback_model.dart';
 import 'shopping_order_capability_model.dart';
 import 'shopping_negotiation_model.dart';
+import 'shopping_pending_replacement_approval.dart';
 
 class OrderStatusSnapshot {
   final String code;
@@ -1312,6 +1313,7 @@ class CustomerShoppingStopModel {
   final bool canCancelUnavailableMerchant;
   final bool canReplaceMerchant;
   final String? replacementBlockReason;
+  final ShoppingPendingReplacementApproval? pendingReplacementApproval;
 
   const CustomerShoppingStopModel({
     required this.pickupLocationId,
@@ -1334,6 +1336,7 @@ class CustomerShoppingStopModel {
     this.canCancelUnavailableMerchant = false,
     this.canReplaceMerchant = false,
     this.replacementBlockReason,
+    this.pendingReplacementApproval,
   });
 
   bool get isFailed => fulfillmentStatus.toUpperCase() == 'FAILED';
@@ -1438,6 +1441,10 @@ class CustomerShoppingStopModel {
           (unavailableActions['replacement_block_reason'] ??
                   unavailableActions['replacementBlockReason'])
               ?.toString(),
+      pendingReplacementApproval: ShoppingPendingReplacementApproval.fromJson(
+        unavailableActions['pending_replacement_approval'] ??
+            unavailableActions['pendingReplacementApproval'],
+      ),
     );
   }
 

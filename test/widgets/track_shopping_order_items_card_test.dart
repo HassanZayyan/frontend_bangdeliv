@@ -607,7 +607,7 @@ class _FakeCustomerOrderRepository implements CustomerOrderRepository {
   }) => throw UnimplementedError();
 
   @override
-  Future<CustomerOrderDetailModel> replaceShoppingMerchant(
+  Future<ShoppingMerchantReplacementOutcome> replaceShoppingMerchant(
     int orderId, {
     required int pickupLocationId,
     required int expectedVersion,

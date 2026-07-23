@@ -45,6 +45,7 @@ class ShoppingAddItemResult {
     required this.newStopCount,
     this.requestSubmitted = false,
     this.merchantReplaced = false,
+    this.pendingDriverApproval = false,
   });
 
   final CustomerOrderDetailModel detail;
@@ -56,6 +57,7 @@ class ShoppingAddItemResult {
   final int newStopCount;
   final bool requestSubmitted;
   final bool merchantReplaced;
+  final bool pendingDriverApproval;
 
   bool get deliveryFeeChanged =>
       (oldDeliveryFee - newDeliveryFee).abs() >= 0.01;
@@ -63,6 +65,9 @@ class ShoppingAddItemResult {
   bool get stopCountChanged => oldStopCount != newStopCount;
 
   String get message {
+    if (pendingDriverApproval) {
+      return 'Toko/resto pengganti agak jauh. Menunggu persetujuan driver dulu.';
+    }
     if (merchantReplaced) {
       return 'Toko/resto berhasil diganti. Rute dan ongkir telah diperbarui.';
     }
@@ -946,7 +951,7 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
         }
         _replacementIdempotencyKey ??=
             '${widget.orderId}-${source.pickupLocationId}-${DateTime.now().microsecondsSinceEpoch}-${math.Random.secure().nextInt(1 << 32)}';
-        final updated = await repository.replaceShoppingMerchant(
+        final outcome = await repository.replaceShoppingMerchant(
           widget.orderId!,
           pickupLocationId: source.pickupLocationId,
           expectedVersion: preview.expectedVersion,
@@ -955,17 +960,19 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
           merchantPlace: merchant.id > 0 ? null : _selectedMerchantPlace,
           items: payload,
         );
+        final updated = outcome.detail;
         final result = ShoppingAddItemResult(
           detail: updated,
           oldDeliveryFee: oldDeliveryFee,
-          newDeliveryFee: updated.shoppingPricing?.deliveryFee ?? 0,
+          newDeliveryFee: updated.shoppingPricing?.deliveryFee ?? oldDeliveryFee,
           oldTotal: oldTotal,
           newTotal:
               updated.shoppingPricing?.totalPrice ??
               updated.summary.totalAmount,
           oldStopCount: oldStopCount,
           newStopCount: updated.shoppingStops.length,
-          merchantReplaced: true,
+          merchantReplaced: !outcome.pendingDriverApproval,
+          pendingDriverApproval: outcome.pendingDriverApproval,
         );
         if (mounted) {
           Navigator.of(context).pop(result);

@@ -78,7 +78,7 @@ abstract class CustomerOrderRepository {
     required List<ShoppingItemDraftPayload> items,
   });
 
-  Future<CustomerOrderDetailModel> replaceShoppingMerchant(
+  Future<ShoppingMerchantReplacementOutcome> replaceShoppingMerchant(
     int orderId, {
     required int pickupLocationId,
     required int expectedVersion,
@@ -242,7 +242,7 @@ class ApiCustomerOrderRepository implements CustomerOrderRepository {
   }
 
   @override
-  Future<CustomerOrderDetailModel> replaceShoppingMerchant(
+  Future<ShoppingMerchantReplacementOutcome> replaceShoppingMerchant(
     int orderId, {
     required int pickupLocationId,
     required int expectedVersion,

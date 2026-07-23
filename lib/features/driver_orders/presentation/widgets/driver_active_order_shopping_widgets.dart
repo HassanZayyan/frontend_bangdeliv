@@ -408,6 +408,10 @@ class DriverShoppingItemsCard extends StatefulWidget {
   final Future<String?> Function(DriverShoppingStopModel stop)
   onReplaceMerchant;
   final Future<String?> Function(DriverShoppingStopModel stop)
+  onApproveMerchantReplacement;
+  final Future<String?> Function(DriverShoppingStopModel stop)
+  onRejectMerchantReplacement;
+  final Future<String?> Function(DriverShoppingStopModel stop)
   onReplaceUnavailableItems;
   final Future<String?> Function(
     List<Map<String, dynamic>> items,
@@ -441,6 +445,8 @@ class DriverShoppingItemsCard extends StatefulWidget {
     required this.onMarkMerchantOpen,
     required this.onMarkMerchantClosed,
     required this.onReplaceMerchant,
+    required this.onApproveMerchantReplacement,
+    required this.onRejectMerchantReplacement,
     required this.onReplaceUnavailableItems,
     required this.onSaveItems,
   });
@@ -455,6 +461,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
   final Set<int> _localDirtyAvailabilityIds = {};
   final Map<int, String> _localQuoteDrafts = {};
   final Set<int> _replacingPickupIds = {};
+  final Set<int> _respondingApprovalPickupIds = {};
   bool _isUploadingReceipt = false;
 
   Map<int, bool> get _availability =>
@@ -902,6 +909,11 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
               ),
             ),
           if (!widget.readOnly &&
+              (stop.pendingReplacementApproval?.isPending ?? false)) ...[
+            const SizedBox(height: 10),
+            _buildMerchantReplacementApprovalCard(stop),
+          ],
+          if (!widget.readOnly &&
               (stop.canDriverReplaceUnavailableItems ||
                   stop.canReplaceMerchant ||
                   stop.canDriverContinueWithoutUnavailableItem ||
@@ -930,6 +942,91 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMerchantReplacementApprovalCard(DriverShoppingStopModel stop) {
+    final approval = stop.pendingReplacementApproval;
+    final newMerchant = (approval?.newMerchantName ?? '').trim();
+    final distanceKm = approval?.distanceKm;
+    final distanceText = distanceKm != null
+        ? '±${distanceKm.toStringAsFixed(1).replaceAll('.', ',')} km dari toko lama'
+        : 'lebih jauh dari toko lama';
+    final isResponding = _respondingApprovalPickupIds.contains(
+      stop.pickupLocationId,
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.cardYellow,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.swap_horiz_rounded,
+                size: 18,
+                color: AppColors.primaryDark,
+              ),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Text(
+                  'Customer minta ganti toko/resto',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            newMerchant.isEmpty
+                ? 'Toko/resto pengganti $distanceText. Kamu yang menempuh jaraknya — setujui hanya jika sanggup.'
+                : 'Ganti ke "$newMerchant" ($distanceText). Kamu yang menempuh jaraknya — setujui hanya jika sanggup.',
+            style: const TextStyle(
+              fontSize: 12,
+              height: 1.4,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: BangActionButton(
+                  label: 'Tolak',
+                  variant: BangActionButtonVariant.outlined,
+                  icon: Icons.close_rounded,
+                  isLoading: isResponding,
+                  isEnabled: !widget.isOrderBusy || isResponding,
+                  onPressed: () =>
+                      _respondMerchantReplacementApproval(stop, approve: false),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: BangActionButton(
+                  label: 'Terima',
+                  icon: Icons.check_rounded,
+                  isLoading: isResponding,
+                  isEnabled: !widget.isOrderBusy || isResponding,
+                  onPressed: () =>
+                      _respondMerchantReplacementApproval(stop, approve: true),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -1359,6 +1456,23 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
       return;
     }
     setState(() => _replacingPickupIds.remove(stop.pickupLocationId));
+    if (error != null) {
+      showDriverActiveOrderSnackBar(context, message: error, isError: true);
+    }
+  }
+
+  Future<void> _respondMerchantReplacementApproval(
+    DriverShoppingStopModel stop, {
+    required bool approve,
+  }) async {
+    setState(() => _respondingApprovalPickupIds.add(stop.pickupLocationId));
+    final error = approve
+        ? await widget.onApproveMerchantReplacement(stop)
+        : await widget.onRejectMerchantReplacement(stop);
+    if (!mounted) {
+      return;
+    }
+    setState(() => _respondingApprovalPickupIds.remove(stop.pickupLocationId));
     if (error != null) {
       showDriverActiveOrderSnackBar(context, message: error, isError: true);
     }

@@ -444,6 +444,40 @@ class DriverOrderService {
     return _orderFromMutationResponse(response, orderId);
   }
 
+  Future<DriverOrderModel> approveShoppingMerchantReplacement({
+    required String orderId,
+    required int pickupLocationId,
+    required int approvalEventId,
+    required String idempotencyKey,
+  }) async {
+    final response = await _post(
+      '/v1/driver/orders/$orderId/shopping-stops/$pickupLocationId/replacement-approval/approve',
+      body: <String, dynamic>{'approval_event_id': approvalEventId},
+      extraHeaders: <String, String>{'Idempotency-Key': idempotencyKey},
+      fallback: 'Gagal menyetujui penggantian toko/resto.',
+    );
+
+    return _orderFromMutationResponse(response, orderId);
+  }
+
+  Future<DriverOrderModel> rejectShoppingMerchantReplacement({
+    required String orderId,
+    required int pickupLocationId,
+    required int approvalEventId,
+    String? reason,
+  }) async {
+    final response = await _post(
+      '/v1/driver/orders/$orderId/shopping-stops/$pickupLocationId/replacement-approval/reject',
+      body: <String, dynamic>{
+        'approval_event_id': approvalEventId,
+        if ((reason ?? '').trim().isNotEmpty) 'reason': reason!.trim(),
+      },
+      fallback: 'Gagal menolak penggantian toko/resto.',
+    );
+
+    return _orderFromMutationResponse(response, orderId);
+  }
+
   Future<DriverOrderModel> markShoppingMerchantOpen({
     required String orderId,
     required int pickupLocationId,

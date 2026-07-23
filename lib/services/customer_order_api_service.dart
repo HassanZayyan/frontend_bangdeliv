@@ -284,7 +284,7 @@ class CustomerOrderApiService {
     return ShoppingMerchantReplacementPreview.fromJson(response);
   }
 
-  Future<CustomerOrderDetailModel> replaceShoppingMerchant(
+  Future<ShoppingMerchantReplacementOutcome> replaceShoppingMerchant(
     int orderId, {
     required int pickupLocationId,
     required int expectedVersion,
@@ -293,7 +293,7 @@ class CustomerOrderApiService {
     ShoppingMerchantPlacePayload? merchantPlace,
     required List<ShoppingItemDraftPayload> items,
   }) async {
-    final response = await _shoppingItemRequest(() async {
+    final data = await _shoppingItemRequest(() async {
       final headers = await AuthService.authorizedHeaders();
       headers['Idempotency-Key'] = idempotencyKey;
       return _apiClient.post(
@@ -308,7 +308,23 @@ class CustomerOrderApiService {
       );
     });
 
-    return CustomerOrderDetailModel.fromJson(response);
+    final status = (data['status'] ?? '').toString().toUpperCase();
+    if (status == 'PENDING_DRIVER_APPROVAL') {
+      final orderJson = data['order'] is Map<String, dynamic>
+          ? data['order'] as Map<String, dynamic>
+          : const <String, dynamic>{};
+      return ShoppingMerchantReplacementOutcome(
+        pendingDriverApproval: true,
+        approvalEventId: (data['approval_event_id'] as num?)?.toInt() ?? 0,
+        distanceKm: (data['distance_km'] as num?)?.toDouble(),
+        detail: CustomerOrderDetailModel.fromJson(orderJson),
+      );
+    }
+
+    return ShoppingMerchantReplacementOutcome(
+      pendingDriverApproval: false,
+      detail: CustomerOrderDetailModel.fromJson(data),
+    );
   }
 
   Future<CustomerOrderDetailModel> updateShoppingItem(
@@ -463,6 +479,23 @@ class CustomerOrderApiService {
       'items': items.map((item) => item.toJson()).toList(growable: false),
     };
   }
+}
+
+/// Hasil aksi ganti toko/resto oleh customer. Bisa langsung ter-commit
+/// (pendingDriverApproval == false) atau tertahan menunggu persetujuan driver
+/// karena resto pengganti melewati radius (pendingDriverApproval == true).
+class ShoppingMerchantReplacementOutcome {
+  const ShoppingMerchantReplacementOutcome({
+    required this.pendingDriverApproval,
+    required this.detail,
+    this.approvalEventId = 0,
+    this.distanceKm,
+  });
+
+  final bool pendingDriverApproval;
+  final CustomerOrderDetailModel detail;
+  final int approvalEventId;
+  final double? distanceKm;
 }
 
 class ShoppingMerchantReplacementPreview {

@@ -1946,6 +1946,22 @@ class _DriverActiveOrderScreenState
                                                 order,
                                                 stop,
                                               ),
+                                          onApproveMerchantReplacement: (stop) =>
+                                              _respondShoppingMerchantReplacementApproval(
+                                                context,
+                                                ref,
+                                                order,
+                                                stop,
+                                                approve: true,
+                                              ),
+                                          onRejectMerchantReplacement: (stop) =>
+                                              _respondShoppingMerchantReplacementApproval(
+                                                context,
+                                                ref,
+                                                order,
+                                                stop,
+                                                approve: false,
+                                              ),
                                           onReplaceUnavailableItems: (stop) =>
                                               _replaceUnavailableShoppingItems(
                                                 context,
@@ -2080,6 +2096,43 @@ class _DriverActiveOrderScreenState
       );
     }
     return null;
+  }
+
+  Future<String?> _respondShoppingMerchantReplacementApproval(
+    BuildContext context,
+    WidgetRef ref,
+    DriverOrderModel order,
+    DriverShoppingStopModel stop, {
+    required bool approve,
+  }) async {
+    final approval = stop.pendingReplacementApproval;
+    if (approval == null || approval.eventId <= 0) {
+      return 'Permintaan penggantian sudah tidak berlaku.';
+    }
+
+    final notifier = ref.read(driverOrdersProvider.notifier);
+    final error = approve
+        ? await notifier.approveShoppingMerchantReplacement(
+            orderId: order.id,
+            pickupLocationId: stop.pickupLocationId,
+            approvalEventId: approval.eventId,
+            idempotencyKey: 'approve-merchant-${order.id}-${approval.eventId}',
+          )
+        : await notifier.rejectShoppingMerchantReplacement(
+            orderId: order.id,
+            pickupLocationId: stop.pickupLocationId,
+            approvalEventId: approval.eventId,
+          );
+
+    if (error == null && context.mounted) {
+      _showActionSnackBar(
+        context,
+        message: approve
+            ? 'Penggantian toko/resto disetujui. Rute dan ongkir diperbarui.'
+            : 'Penggantian toko/resto ditolak. Customer diminta memilih opsi lain.',
+      );
+    }
+    return error;
   }
 
   Future<String?> _replaceUnavailableShoppingItems(
