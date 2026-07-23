@@ -1064,21 +1064,11 @@ class _ShoppingAddItemScreenState extends ConsumerState<ShoppingAddItemScreen> {
                     _replacementPriceRow(
                       'Ongkir aktif',
                       preview.activeDeliveryFee,
-                    ),
-                    if (preview.failedTripCompensation > 0)
-                      _replacementPriceRow(
-                        'Kompensasi perjalanan gagal',
-                        preview.failedTripCompensation,
-                      ),
-                    const Divider(height: 20),
-                    _replacementPriceRow(
-                      'Total biaya transport',
-                      preview.totalTransport,
                       emphasized: true,
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'Percobaan berikutnya: ${preview.nextAttemptNo}/3. Aksi pertama dari customer atau driver yang tersimpan akan berlaku.',
+                      'Toko/resto pengganti ke-${preview.nextAttemptNo} dari 3. Aksi pertama dari customer atau driver yang tersimpan akan berlaku.',
                       style: const TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 12,

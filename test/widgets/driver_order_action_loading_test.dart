@@ -6,6 +6,7 @@ import 'package:frontend_bangdeliv/config/app_colors.dart';
 import 'package:frontend_bangdeliv/features/driver_orders/presentation/widgets/driver_active_order_action_widgets.dart';
 import 'package:frontend_bangdeliv/features/driver_orders/presentation/widgets/driver_active_order_proof_widgets.dart';
 import 'package:frontend_bangdeliv/features/driver_orders/presentation/widgets/driver_active_order_shopping_widgets.dart';
+import 'package:frontend_bangdeliv/core/widgets/bang_action_button.dart';
 import 'package:frontend_bangdeliv/core/widgets/bang_swipe_action_button.dart';
 import 'package:frontend_bangdeliv/models/amount_negotiation_model.dart';
 import 'package:frontend_bangdeliv/models/delivery_fee_negotiation_model.dart';
@@ -115,6 +116,88 @@ void main() {
     expect(find.text('Ambil Foto'), findsOneWidget);
     expect(find.text('Pengambilan'), findsOneWidget);
     expect(find.text('Diterima'), findsOneWidget);
+  });
+
+  testWidgets('proof upload is locked with reason when status not allowed yet', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DriverOrderProofChecklistCard(
+            order: _order(
+              serviceTypeCode: ServiceTypeCodes.courier,
+              proofCapabilities: const <String, DriverOrderProofCapability>{
+                'pickup': DriverOrderProofCapability(
+                  canUpload: false,
+                  lockedReason: 'Tekan "Tiba di Titik Pickup" dulu.',
+                ),
+                'delivery': DriverOrderProofCapability(
+                  canUpload: false,
+                  lockedReason: 'Tekan "Tiba di Tujuan" dulu.',
+                ),
+              },
+            ),
+            isOrderBusy: false,
+            isProofUploading: (_) => false,
+            onUploadProof:
+                ({
+                  required String type,
+                  required XFile photo,
+                  String? note,
+                  int? pickupLocationId,
+                }) async => null,
+          ),
+        ),
+      ),
+    );
+
+    // Alasan terkunci tampil untuk kedua bukti.
+    expect(find.text('Tekan "Tiba di Titik Pickup" dulu.'), findsOneWidget);
+    expect(find.text('Tekan "Tiba di Tujuan" dulu.'), findsOneWidget);
+    expect(find.byIcon(Icons.lock_outline), findsNWidgets(2));
+
+    // Tombol foto tidak bisa ditekan.
+    for (final button in tester.widgetList<BangActionButton>(
+      find.byType(BangActionButton),
+    )) {
+      expect(button.isEnabled, isFalse);
+    }
+  });
+
+  testWidgets('proof upload stays enabled when backend allows the status', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DriverOrderProofChecklistCard(
+            order: _order(
+              serviceTypeCode: ServiceTypeCodes.courier,
+              proofCapabilities: const <String, DriverOrderProofCapability>{
+                'pickup': DriverOrderProofCapability(canUpload: true),
+              },
+            ),
+            visibleProofTypes: const <String>{'pickup'},
+            isOrderBusy: false,
+            isProofUploading: (_) => false,
+            onUploadProof:
+                ({
+                  required String type,
+                  required XFile photo,
+                  String? note,
+                  int? pickupLocationId,
+                }) async => null,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byIcon(Icons.lock_outline), findsNothing);
+    expect(
+      tester.widget<BangActionButton>(find.byType(BangActionButton)).isEnabled,
+      isTrue,
+    );
   });
 
   testWidgets('proof checklist filters courier requirements per active step', (
@@ -1827,6 +1910,8 @@ DriverOrderModel _order({
   List<DriverShoppingStopModel> shoppingStops =
       const <DriverShoppingStopModel>[],
   List<DriverOrderProofModel> proofs = const <DriverOrderProofModel>[],
+  Map<String, DriverOrderProofCapability> proofCapabilities =
+      const <String, DriverOrderProofCapability>{},
   PaymentProofFeedbackModel? paymentProofFeedback,
   double? deliveryFee,
   DeliveryFeeNegotiationModel? deliveryFeeNegotiation,
@@ -1853,6 +1938,7 @@ DriverOrderModel _order({
     shoppingItems: shoppingItems,
     shoppingStops: shoppingStops,
     proofs: proofs,
+    proofCapabilities: proofCapabilities,
     paymentProofFeedback: paymentProofFeedback,
     shoppingPricing: shoppingPricing,
     deliveryFeeNegotiation: deliveryFeeNegotiation,

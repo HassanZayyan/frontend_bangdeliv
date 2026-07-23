@@ -118,65 +118,93 @@ class DriverOrderProofChecklistCard extends StatelessWidget {
     final proofPhotoUrl = proof?.photoUrl;
     final isUploading = isProofUploading(requirement.type);
 
+    // Aturan status datang dari backend; UI hanya mengikutinya.
+    final capability = order.proofCapability(requirement.type);
+    final isLocked = !uploaded && !capability.canUpload;
+    final lockedReason = capability.lockedReason;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            uploaded ? Icons.check_circle : Icons.radio_button_unchecked,
-            color: uploaded ? AppColors.success : AppColors.textSecondary,
-            size: 20,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              requirement.title,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
+          Row(
+            children: [
+              Icon(
+                uploaded
+                    ? Icons.check_circle
+                    : isLocked
+                    ? Icons.lock_outline
+                    : Icons.radio_button_unchecked,
+                color: uploaded ? AppColors.success : AppColors.textSecondary,
+                size: 20,
               ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          if (proofPhotoUrl != null) ...[
-            InkWell(
-              onTap: () => _showProofPreview(context, proof!),
-              borderRadius: BorderRadius.circular(10),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Image.network(
-                  proofPhotoUrl,
-                  width: 44,
-                  height: 44,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => Container(
-                    width: 44,
-                    height: 44,
-                    color: AppColors.white,
-                    child: const Icon(
-                      Icons.image_not_supported_outlined,
-                      size: 18,
-                      color: AppColors.textSecondary,
-                    ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  requirement.title,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-          ],
-          BangActionButton(
-            label: uploaded ? 'Ganti Foto' : 'Ambil Foto',
-            icon: Icons.photo_camera_outlined,
-            variant: BangActionButtonVariant.outlined,
-            isLoading: isUploading,
-            isEnabled: !isOrderBusy || isUploading,
-            onPressed: () => _handleUpload(context, requirement),
+              const SizedBox(width: 8),
+              if (proofPhotoUrl != null) ...[
+                InkWell(
+                  onTap: () => _showProofPreview(context, proof!),
+                  borderRadius: BorderRadius.circular(10),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.network(
+                      proofPhotoUrl,
+                      width: 44,
+                      height: 44,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Container(
+                        width: 44,
+                        height: 44,
+                        color: AppColors.white,
+                        child: const Icon(
+                          Icons.image_not_supported_outlined,
+                          size: 18,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              BangActionButton(
+                label: uploaded ? 'Ganti Foto' : 'Ambil Foto',
+                icon: Icons.photo_camera_outlined,
+                variant: BangActionButtonVariant.outlined,
+                isLoading: isUploading,
+                isEnabled: !isLocked && (!isOrderBusy || isUploading),
+                onPressed: () => _handleUpload(context, requirement),
+              ),
+            ],
           ),
+          if (isLocked && lockedReason != null) ...[
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.only(left: 30),
+              child: Text(
+                lockedReason,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

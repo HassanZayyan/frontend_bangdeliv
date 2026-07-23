@@ -180,7 +180,6 @@ void main() {
                 serviceFee: 10000,
                 totalPrice: 75000,
                 cancellationPenalty: 0,
-                failedTripCompensation: 10000,
                 recalculationVersion: 1,
                 hasPendingManualPrices: false,
               ),
@@ -198,14 +197,12 @@ void main() {
     expect(find.text('Edit Total Ongkir Nitip'), findsOneWidget);
     expect(find.text('Total ongkir Nitip'), findsOneWidget);
     expect(
-      find.text(
-        'Nominal ini mencakup ongkir aktif dan kompensasi perjalanan gagal.',
-      ),
+      find.text('Nominal ini adalah total ongkir Nitip yang ditagihkan.'),
       findsOneWidget,
     );
     expect(
       tester.widget<TextField>(find.byType(TextField).first).controller?.text,
-      '25.000',
+      '15.000',
     );
   });
 
@@ -487,7 +484,6 @@ void main() {
                 serviceFee: 0,
                 totalPrice: 76000,
                 cancellationPenalty: 0,
-                failedTripCompensation: 10000,
                 recalculationVersion: 2,
                 hasPendingManualPrices: false,
               ),

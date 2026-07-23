@@ -11,7 +11,7 @@ import '../../../../services/auth_service.dart';
 import '../../../../widgets/bang_ui.dart';
 import '../../application/auth_session_provider.dart';
 
-/// Verifikasi nomor WhatsApp lewat kode OTP 6 digit.
+/// Verifikasi akun lewat kode OTP 6 digit yang dikirim ke email.
 ///
 /// Layar ini dipaksa tampil oleh redirect router selama profil masih
 /// menandai `requiresPhoneVerification`.
@@ -105,8 +105,8 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
       _startResendCountdown(result.resendAvailableIn);
       setState(() {
         _infoMessage = isResend
-            ? 'Kode baru sudah dikirim ke WhatsApp Anda.'
-            : 'Kode verifikasi dikirim ke WhatsApp Anda.';
+            ? 'Kode baru sudah dikirim ke email Anda.'
+            : 'Kode verifikasi dikirim ke email Anda.';
       });
     } on OtpCooldownException catch (e) {
       if (!mounted) {
@@ -181,22 +181,28 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
     context.go(AppRoutes.login);
   }
 
-  /// Menyamarkan nomor agar aman ditampilkan: 0812••••7890.
-  String _maskPhone(String phone) {
-    final digits = phone.trim();
-    if (digits.length <= 7) {
-      return digits;
+  /// Menyamarkan email agar aman ditampilkan: bu••••@gmail.com.
+  String _maskEmail(String email) {
+    final trimmed = email.trim();
+    final atIndex = trimmed.indexOf('@');
+    if (atIndex <= 0) {
+      return trimmed;
     }
 
-    final prefix = digits.substring(0, 4);
-    final suffix = digits.substring(digits.length - 3);
-    return '$prefix${'•' * (digits.length - 7)}$suffix';
+    final local = trimmed.substring(0, atIndex);
+    final domain = trimmed.substring(atIndex);
+    if (local.length <= 2) {
+      return '$local$domain';
+    }
+
+    final prefix = local.substring(0, 2);
+    return '$prefix${'•' * (local.length - 2)}$domain';
   }
 
   @override
   Widget build(BuildContext context) {
     final isCompact = MediaQuery.sizeOf(context).height < 820;
-    final phone = ref.watch(authSessionProvider).profile?.phone ?? '';
+    final email = ref.watch(authSessionProvider).profile?.email ?? '';
 
     return PopScope<void>(
       canPop: false,
@@ -216,7 +222,7 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
             vertical: isKeyboardOpen ? 18 : (isCompact ? 22 : 30),
           );
         },
-        child: _buildBody(context, isCompact: isCompact, phone: phone),
+        child: _buildBody(context, isCompact: isCompact, email: email),
       ),
     );
   }
@@ -250,7 +256,7 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
         ),
         const SizedBox(height: 14),
         Text(
-          'Verifikasi WhatsApp',
+          'Verifikasi Email',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
             color: AppColors.white,
@@ -265,7 +271,7 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
   Widget _buildBody(
     BuildContext context, {
     required bool isCompact,
-    required String phone,
+    required String email,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -276,9 +282,9 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          phone.isEmpty
-              ? 'Kode dikirim ke nomor WhatsApp Anda.'
-              : 'Kode 6 digit dikirim ke ${_maskPhone(phone)} lewat WhatsApp.',
+          email.isEmpty
+              ? 'Kode dikirim ke email Anda.'
+              : 'Kode 6 digit dikirim ke ${_maskEmail(email)} lewat email.',
           style: const TextStyle(
             color: AppColors.textSecondary,
             fontSize: 13,

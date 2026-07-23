@@ -1503,7 +1503,6 @@ class CustomerShoppingPricingModel {
   final double serviceFee;
   final double totalPrice;
   final double cancellationPenalty;
-  final double failedTripCompensation;
   final int failedAttemptCount;
   final int failedAttemptThreshold;
   final bool canCancelWithFee;
@@ -1514,7 +1513,6 @@ class CustomerShoppingPricingModel {
     required this.serviceFee,
     required this.totalPrice,
     required this.cancellationPenalty,
-    this.failedTripCompensation = 0,
     this.failedAttemptCount = 0,
     this.failedAttemptThreshold = 3,
     this.canCancelWithFee = false,
@@ -1527,29 +1525,6 @@ class CustomerShoppingPricingModel {
     final cancellationPenalty = CustomerOrderSummaryModel._asDouble(
       shoppingJson['cancellation_penalty'],
     );
-    final feeBreakdown = orderJson['fee_breakdown'] is List
-        ? orderJson['fee_breakdown'] as List
-        : shoppingJson['fee_breakdown'] is List
-        ? shoppingJson['fee_breakdown'] as List
-        : const <dynamic>[];
-    dynamic failedTripCompensationRaw =
-        shoppingJson['failed_trip_compensation'];
-    if (failedTripCompensationRaw == null) {
-      for (final rawLine in feeBreakdown) {
-        if (rawLine is! Map<String, dynamic>) {
-          continue;
-        }
-        if ((rawLine['code'] ?? '').toString().toUpperCase() ==
-            'FAILED_TRIP_COMPENSATION') {
-          failedTripCompensationRaw = rawLine['amount'];
-          break;
-        }
-      }
-    }
-    final failedTripCompensation = CustomerOrderSummaryModel._asDouble(
-      failedTripCompensationRaw,
-    );
-
     return CustomerShoppingPricingModel(
       subtotal: CustomerOrderSummaryModel._asDouble(orderJson['subtotal']),
       deliveryFee: CustomerOrderSummaryModel._asDouble(
@@ -1558,7 +1533,6 @@ class CustomerShoppingPricingModel {
       serviceFee: CustomerOrderSummaryModel._asDouble(orderJson['service_fee']),
       totalPrice: CustomerOrderSummaryModel._asDouble(orderJson['total_price']),
       cancellationPenalty: cancellationPenalty,
-      failedTripCompensation: failedTripCompensation,
       failedAttemptCount: CustomerOrderSummaryModel._asInt(
         shoppingJson['failed_attempt_count'],
       ),

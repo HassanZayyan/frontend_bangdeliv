@@ -58,6 +58,18 @@ void main() {
     expect(route, '/orders/42/track?focus=shopping_price&pickup_location_id=7');
   });
 
+  test('merchant closed notification opens the failed merchant', () {
+    final route = FirebaseNotificationService.routeForNotificationData(
+      const <String, dynamic>{
+        'type': 'shopping_merchant_failed',
+        'order_id': '42',
+        'pickup_location_id': '7',
+      },
+    );
+
+    expect(route, '/orders/42/track?focus=shopping_price&pickup_location_id=7');
+  });
+
   test('payment proof reminder notification routes to payment card', () {
     final route = FirebaseNotificationService.routeForNotificationData(
       const <String, dynamic>{

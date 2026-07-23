@@ -12,7 +12,7 @@ void main() {
         home: Scaffold(
           body: DriverDistanceBadge(
             dispatch: DriverDispatchModel(
-              distanceLabel: '1,3 km dari titik jemput',
+              distanceLabel: '1,3 km dari customer',
               distanceBucket: 'NEAR',
               locationFresh: true,
             ),
@@ -21,7 +21,7 @@ void main() {
       ),
     );
 
-    expect(find.text('1,3 km dari titik jemput'), findsOneWidget);
+    expect(find.text('1,3 km dari customer'), findsOneWidget);
     expect(find.byIcon(Icons.near_me_outlined), findsOneWidget);
   });
 

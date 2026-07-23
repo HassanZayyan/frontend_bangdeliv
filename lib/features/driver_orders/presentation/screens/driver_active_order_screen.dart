@@ -2172,18 +2172,10 @@ class _DriverActiveOrderScreenState
                     const SizedBox(height: 12),
                     Text(
                       'Ongkir aktif: ${formatCurrency(preview.activeDeliveryFee)}',
-                    ),
-                    if (preview.failedTripCompensation > 0)
-                      Text(
-                        'Kompensasi gagal: ${formatCurrency(preview.failedTripCompensation)}',
-                      ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Total transport: ${formatCurrency(preview.totalTransport)}',
                       style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 8),
-                    Text('Percobaan berikutnya ${preview.nextAttemptNo}/3.'),
+                    Text('Toko/resto pengganti ke-${preview.nextAttemptNo} dari 3.'),
                   ],
                 ),
               ),

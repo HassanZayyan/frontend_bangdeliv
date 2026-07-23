@@ -13,19 +13,17 @@ String formatCurrency(num value) {
   return 'Rp $withDots';
 }
 
+/// Model kuota flat: label "Gagal X/3" — X = jumlah toko/resto yang gagal dari
+/// kuota tiga untuk seluruh pesanan (bukan lagi percobaan per-rantai).
 String formatShoppingAttemptProgress({
   required int attemptNo,
   required int attemptLimit,
   required int totalFailed,
 }) {
   final safeLimit = attemptLimit > 0 ? attemptLimit : 3;
-  final safeAttempt = attemptNo.clamp(1, safeLimit);
-  final progress = 'Percobaan $safeAttempt/$safeLimit';
-  final safeTotalFailed = totalFailed.clamp(0, 1 << 31);
+  final safeFailed = totalFailed.clamp(0, safeLimit);
 
-  return safeTotalFailed > 0
-      ? '$progress • Total gagal $safeTotalFailed'
-      : progress;
+  return 'Gagal $safeFailed/$safeLimit';
 }
 
 String formatDateTime(DateTime? value, {bool includeZone = true}) {

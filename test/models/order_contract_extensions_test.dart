@@ -347,17 +347,17 @@ void main() {
     expect(customerStop.stateVersion, 88);
   });
 
-  test('customer pricing parses failed trip compensation fee line', () {
+  test('customer pricing parses the single cancellation fee', () {
     final pricing = CustomerShoppingPricingModel.fromJson({
       'subtotal': 30000,
       'delivery_fee': 12000,
       'service_fee': 6500,
       'total_price': 48500,
-      'fee_breakdown': [
-        {'code': 'FAILED_TRIP_COMPENSATION', 'amount': 4500},
-      ],
-    }, const <String, dynamic>{});
+    }, const <String, dynamic>{
+      'cancellation_penalty': 6500,
+    });
 
-    expect(pricing.failedTripCompensation, 4500);
+    expect(pricing.cancellationPenalty, 6500);
+    expect(pricing.serviceFee, 6500);
   });
 }

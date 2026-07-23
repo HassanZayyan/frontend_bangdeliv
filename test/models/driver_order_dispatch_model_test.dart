@@ -19,8 +19,8 @@ void main() {
         'distance_to_customer_meters': 1250,
         'distance_to_customer_km': 1.25,
         'distance_target_role': 'customer_pickup',
-        'distance_target_label': 'titik jemput',
-        'distance_label': '1,3 km dari titik jemput',
+        'distance_target_label': 'customer',
+        'distance_label': '1,3 km dari customer',
         'distance_bucket': 'NEAR',
         'location_fresh': true,
       },
@@ -32,8 +32,8 @@ void main() {
     expect(order.dispatch?.distanceToCustomerMeters, 1250);
     expect(order.dispatch?.distanceToCustomerKm, 1.25);
     expect(order.dispatch?.distanceTargetRole, 'customer_pickup');
-    expect(order.dispatch?.distanceTargetLabel, 'titik jemput');
-    expect(order.dispatch?.distanceLabel, '1,3 km dari titik jemput');
+    expect(order.dispatch?.distanceTargetLabel, 'customer');
+    expect(order.dispatch?.distanceLabel, '1,3 km dari customer');
     expect(order.dispatch?.distanceBucket, 'NEAR');
     expect(order.dispatch?.locationFresh, isTrue);
   });
