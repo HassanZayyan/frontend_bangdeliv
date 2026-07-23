@@ -1838,6 +1838,8 @@ Future<void> _pumpShoppingItemsCard(
           storeClosedPhoto,
         }) async => null,
     onReplaceMerchant: (_) async => null,
+    onApproveMerchantReplacement: (_) async => null,
+    onRejectMerchantReplacement: (_) async => null,
     onReplaceUnavailableItems: (stop) async =>
         onReplaceUnavailableItems?.call(stop.pickupLocationId),
     onSaveItems: (_, _) async => null,

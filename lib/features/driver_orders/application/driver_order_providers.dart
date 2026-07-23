@@ -208,6 +208,17 @@ class DriverOrderActionKeys {
     return _build(orderId, 'markShoppingMerchantOpen$suffix');
   }
 
+  static String respondMerchantReplacementApproval(
+    String orderId,
+    int pickupLocationId,
+    String action,
+  ) {
+    return _build(
+      orderId,
+      'merchantReplacementApproval:$pickupLocationId:$action',
+    );
+  }
+
   static String updateShoppingItems(String orderId, [int? pickupLocationId]) {
     final suffix = pickupLocationId != null && pickupLocationId > 0
         ? ':$pickupLocationId'
@@ -1196,6 +1207,50 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         pickupLocationId: pickupLocationId,
         idempotencyKey: idempotencyKey,
         items: items,
+      ),
+    );
+  }
+
+  Future<String?> approveShoppingMerchantReplacement({
+    required String orderId,
+    required int pickupLocationId,
+    required int approvalEventId,
+    required String idempotencyKey,
+  }) async {
+    return _mutateRunningOrder(
+      orderId: orderId,
+      actionKey: DriverOrderActionKeys.respondMerchantReplacementApproval(
+        orderId,
+        pickupLocationId,
+        'approve',
+      ),
+      request: (repository) => repository.approveShoppingMerchantReplacement(
+        orderId: orderId,
+        pickupLocationId: pickupLocationId,
+        approvalEventId: approvalEventId,
+        idempotencyKey: idempotencyKey,
+      ),
+    );
+  }
+
+  Future<String?> rejectShoppingMerchantReplacement({
+    required String orderId,
+    required int pickupLocationId,
+    required int approvalEventId,
+    String? reason,
+  }) async {
+    return _mutateRunningOrder(
+      orderId: orderId,
+      actionKey: DriverOrderActionKeys.respondMerchantReplacementApproval(
+        orderId,
+        pickupLocationId,
+        'reject',
+      ),
+      request: (repository) => repository.rejectShoppingMerchantReplacement(
+        orderId: orderId,
+        pickupLocationId: pickupLocationId,
+        approvalEventId: approvalEventId,
+        reason: reason,
       ),
     );
   }

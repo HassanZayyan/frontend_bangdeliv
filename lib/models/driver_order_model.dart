@@ -7,6 +7,7 @@ import 'order_route_model.dart';
 import 'payment_proof_feedback_model.dart';
 import 'shopping_order_capability_model.dart';
 import 'shopping_negotiation_model.dart';
+import 'shopping_pending_replacement_approval.dart';
 
 typedef DriverOrderAction = DriverOrderActionModel;
 
@@ -735,6 +736,7 @@ class DriverShoppingStopModel {
   final bool canDriverReplaceUnavailableItems;
   final bool canReplaceMerchant;
   final String? replacementBlockReason;
+  final ShoppingPendingReplacementApproval? pendingReplacementApproval;
   final DriverShoppingMerchantModel merchant;
   final List<DriverShoppingItemModel> items;
 
@@ -758,6 +760,7 @@ class DriverShoppingStopModel {
     this.canDriverReplaceUnavailableItems = false,
     this.canReplaceMerchant = false,
     this.replacementBlockReason,
+    this.pendingReplacementApproval,
     required this.merchant,
     required this.items,
   });
@@ -864,6 +867,10 @@ class DriverShoppingStopModel {
           (unavailableActions['replacement_block_reason'] ??
                   unavailableActions['replacementBlockReason'])
               ?.toString(),
+      pendingReplacementApproval: ShoppingPendingReplacementApproval.fromJson(
+        unavailableActions['pending_replacement_approval'] ??
+            unavailableActions['pendingReplacementApproval'],
+      ),
       merchant: DriverShoppingMerchantModel.fromJson(merchantJson),
       items: rawItems
           .map(DriverShoppingItemModel.fromJson)

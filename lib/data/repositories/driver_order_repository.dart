@@ -140,6 +140,20 @@ abstract class DriverOrderRepository {
     required List<ShoppingItemDraftPayload> items,
   });
 
+  Future<DriverOrderModel> approveShoppingMerchantReplacement({
+    required String orderId,
+    required int pickupLocationId,
+    required int approvalEventId,
+    required String idempotencyKey,
+  });
+
+  Future<DriverOrderModel> rejectShoppingMerchantReplacement({
+    required String orderId,
+    required int pickupLocationId,
+    required int approvalEventId,
+    String? reason,
+  });
+
   Future<DriverOrderModel> markShoppingMerchantOpen({
     required String orderId,
     required int pickupLocationId,
@@ -440,6 +454,36 @@ class ApiDriverOrderRepository implements DriverOrderRepository {
       merchantId: merchantId,
       merchantPlace: merchantPlace,
       items: items,
+    );
+  }
+
+  @override
+  Future<DriverOrderModel> approveShoppingMerchantReplacement({
+    required String orderId,
+    required int pickupLocationId,
+    required int approvalEventId,
+    required String idempotencyKey,
+  }) {
+    return _service.approveShoppingMerchantReplacement(
+      orderId: orderId,
+      pickupLocationId: pickupLocationId,
+      approvalEventId: approvalEventId,
+      idempotencyKey: idempotencyKey,
+    );
+  }
+
+  @override
+  Future<DriverOrderModel> rejectShoppingMerchantReplacement({
+    required String orderId,
+    required int pickupLocationId,
+    required int approvalEventId,
+    String? reason,
+  }) {
+    return _service.rejectShoppingMerchantReplacement(
+      orderId: orderId,
+      pickupLocationId: pickupLocationId,
+      approvalEventId: approvalEventId,
+      reason: reason,
     );
   }
 
