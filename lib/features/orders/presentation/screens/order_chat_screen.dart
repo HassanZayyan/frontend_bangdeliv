@@ -42,9 +42,13 @@ class OrderChatRouteArgs {
   final String? returnPath;
 }
 
-class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
+class _OrderChatScreenState extends ConsumerState<OrderChatScreen>
+    with WidgetsBindingObserver {
   late final TextEditingController _inputController;
   late final ScrollController _scrollController;
+  late final FocusNode _inputFocusNode;
+  Timer? _pendingScrollTimer;
+  double _lastBottomInset = 0;
   int _lastMarkedReadMessageId = 0;
 
   @override
@@ -52,23 +56,67 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
     super.initState();
     _inputController = TextEditingController();
     _scrollController = ScrollController();
+    _inputFocusNode = FocusNode();
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _pendingScrollTimer?.cancel();
+    _inputFocusNode.dispose();
     _inputController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
-  void _scrollToBottom() {
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    // Keyboard membuat viewInsets berubah tiap frame animasi. Saat inset
+    // bertambah (keyboard naik), pin ulang ke pesan terakhir supaya konten
+    // tidak tergeser ke area kosong.
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    final bottomInset = view.viewInsets.bottom;
+    if (bottomInset > _lastBottomInset) {
+      _scrollToBottom();
+    }
+    _lastBottomInset = bottomInset;
+  }
+
+  bool _isNearBottom({double threshold = 160}) {
+    if (!_scrollController.hasClients) {
+      return true;
+    }
+
+    final position = _scrollController.position;
+    return position.maxScrollExtent - position.pixels <= threshold;
+  }
+
+  void _scrollToBottom({bool force = true}) {
+    if (!force && !_isNearBottom()) {
+      return;
+    }
+
+    _pendingScrollTimer?.cancel();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) return;
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent + 120,
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOut,
-      );
+      _pendingScrollTimer?.cancel();
+      _pendingScrollTimer = Timer(const Duration(milliseconds: 40), () {
+        if (!mounted || !_scrollController.hasClients) {
+          return;
+        }
+
+        final target = _scrollController.position.maxScrollExtent;
+        if ((_scrollController.position.pixels - target).abs() < 1) {
+          return;
+        }
+
+        _scrollController.animateTo(
+          target,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+        );
+      });
     });
   }
 
@@ -482,10 +530,12 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen> {
                 ),
                 _Composer(
                   controller: _inputController,
+                  focusNode: _inputFocusNode,
                   enabled: chat.canSend,
                   isSending: chat.isSending,
                   onSend: _sendMessage,
                   onAttachPhoto: _sendPhoto,
+                  onTapInput: _scrollToBottom,
                 ),
               ],
             );
@@ -1083,17 +1133,21 @@ class _MessageAttachment extends StatelessWidget {
 class _Composer extends StatelessWidget {
   const _Composer({
     required this.controller,
+    required this.focusNode,
     required this.enabled,
     required this.isSending,
     required this.onSend,
     required this.onAttachPhoto,
+    required this.onTapInput,
   });
 
   final TextEditingController controller;
+  final FocusNode focusNode;
   final bool enabled;
   final bool isSending;
   final VoidCallback onSend;
   final VoidCallback onAttachPhoto;
+  final VoidCallback onTapInput;
 
   @override
   Widget build(BuildContext context) {
@@ -1148,10 +1202,12 @@ class _Composer extends StatelessWidget {
             Expanded(
               child: TextField(
                 controller: controller,
+                focusNode: focusNode,
                 enabled: enabled,
                 minLines: 1,
                 maxLines: 4,
                 textInputAction: TextInputAction.send,
+                onTap: onTapInput,
                 onSubmitted: canSendAction ? (_) => onSend() : null,
                 decoration: InputDecoration(
                   filled: true,

@@ -74,6 +74,7 @@ class ProfileAvatar extends StatelessWidget {
                           image: imageProvider!,
                           fit: BoxFit.cover,
                           filterQuality: FilterQuality.medium,
+                          gaplessPlayback: true,
                           errorBuilder: (context, error, stackTrace) {
                             return const SizedBox.shrink();
                           },
@@ -86,6 +87,7 @@ class ProfileAvatar extends StatelessWidget {
                           normalizedAvatarUrl,
                           fit: BoxFit.cover,
                           filterQuality: FilterQuality.medium,
+                          gaplessPlayback: true,
                           errorBuilder: (context, error, stackTrace) {
                             return const SizedBox.shrink();
                           },
