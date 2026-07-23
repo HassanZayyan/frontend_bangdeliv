@@ -917,11 +917,14 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
                 canToggleAvailability: canEditStopAvailability,
               ),
             ),
-          if (!widget.readOnly &&
-              (stop.canDriverReplaceUnavailableItems ||
-                  stop.canReplaceMerchant ||
-                  stop.canDriverContinueWithoutUnavailableItem ||
-                  stop.canDriverCancelUnavailableMerchant)) ...[
+          // Ganti toko/resto (canReplaceMerchant) boleh muncul walau stop
+          // read-only (mis. sudah FAILED/parkir) -- backend sudah memvalidasi
+          // kelayakannya. Aksi berbasis item lain tetap butuh mode edit.
+          if ((!widget.readOnly &&
+                  (stop.canDriverReplaceUnavailableItems ||
+                      stop.canDriverContinueWithoutUnavailableItem ||
+                      stop.canDriverCancelUnavailableMerchant)) ||
+              stop.canReplaceMerchant) ...[
             const SizedBox(height: 10),
             _buildUnavailableDecisionActions(stop),
           ],

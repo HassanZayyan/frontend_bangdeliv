@@ -95,7 +95,9 @@ class DriverActiveOrderPointPresenter {
       final stops = _orderedOperationalStops(order);
       for (var index = 0; index < stops.length; index++) {
         final stop = stops[index];
-        final sequence = stop.sequenceNo > 0 ? stop.sequenceNo : index + 1;
+        // Penomoran berurutan tanpa gap: stop REPLACED/SKIPPED sudah difilter,
+        // jadi index+1 memberi "Tempat 1,2,3" rapat walau sequenceNo asli lompat.
+        final sequence = index + 1;
         points.add(
           DriverActiveOrderPoint(
             id: DriverActiveOrderPoint.merchantId(stop.pickupLocationId),

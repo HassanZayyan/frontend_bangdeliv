@@ -68,9 +68,31 @@ void main() {
     expect(find.text('Batal tempat'), findsOneWidget);
   });
 
-  testWidgets('failed merchant card remains available before checkout', (
+  testWidgets('failed merchant tab keeps replace action before checkout', (
     tester,
   ) async {
+    // Aksi ganti toko/resto kini hidup di TAB stop yang gagal (bukan Ringkasan),
+    // maka dirender dalam mode per-tab (selectedPickupLocationId di-set).
+    await _pumpCard(
+      tester,
+      _FakeCustomerOrderRepository(),
+      detail: _shoppingDetail(
+        shoppingStops: [_failedShoppingStop(77, 'Kedai Tinari')],
+      ),
+      selectedPickupLocationId: 77,
+      showGlobalActions: false,
+      showPricing: false,
+    );
+
+    expect(find.text('Kedai Tinari'), findsWidgets);
+    expect(find.text('Tempat tutup/order batal'), findsWidgets);
+    expect(find.text('Ganti toko/resto'), findsOneWidget);
+  });
+
+  testWidgets('failed merchant tab is not shown in the summary notice actions', (
+    tester,
+  ) async {
+    // Di Ringkasan (summary) hanya ada notice ringkas -- tanpa tombol.
     await _pumpCard(
       tester,
       _FakeCustomerOrderRepository(),
@@ -83,7 +105,7 @@ void main() {
       find.textContaining('Kedai Tinari - Tempat tutup/order batal'),
       findsOneWidget,
     );
-    expect(find.text('Ganti toko/resto'), findsOneWidget);
+    expect(find.text('Ganti toko/resto'), findsNothing);
   });
 
   testWidgets('checkout hides all failed merchant cards and keeps order info', (
