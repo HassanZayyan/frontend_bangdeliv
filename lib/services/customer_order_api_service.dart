@@ -386,6 +386,18 @@ class CustomerOrderApiService {
     return CustomerOrderDetailModel.fromJson(response);
   }
 
+  Future<CustomerOrderDetailModel> cancelShoppingOrder(int orderId) async {
+    final response = await _shoppingItemRequest(
+      () async => _apiClient.post(
+        '/v1/orders/$orderId/shopping/cancel',
+        body: const <String, dynamic>{},
+        headers: await AuthService.authorizedHeaders(),
+      ),
+    );
+
+    return CustomerOrderDetailModel.fromJson(response);
+  }
+
   Future<CustomerOrderDetailModel> respondDeliveryFeeOverride(
     int orderId, {
     required String action,

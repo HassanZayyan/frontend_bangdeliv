@@ -139,26 +139,70 @@ void main() {
     expect(find.text('Ganti toko/resto'), findsOneWidget);
     expect(find.text('Ganti item'), findsNothing);
     expect(find.text('Batal tempat'), findsNothing);
+    // Tanpa kapabilitas give-up, tombol batal pesanan tidak muncul.
+    expect(find.text('Batalkan pesanan'), findsNothing);
   });
 
-  testWidgets('failed merchant tab is not shown in the summary notice actions', (
+  testWidgets('stranded closed stop shows free cancel-order action', (
     tester,
   ) async {
-    // Di Ringkasan (summary) hanya ada notice ringkas -- tanpa tombol.
+    // Satu-satunya toko tutup & belum ada yang dibeli: selain "Ganti toko/resto"
+    // customer juga boleh menyerah lewat "Batalkan pesanan" (kapabilitas backend).
+    const failedStop = CustomerShoppingStopModel(
+      pickupLocationId: 90,
+      sequenceNo: 1,
+      fulfillmentStatus: 'FAILED',
+      chainFailedAttemptCount: 1,
+      orderFailedTripCount: 1,
+      canReplaceMerchant: true,
+      merchant: CustomerShoppingMerchantModel(
+        id: 90,
+        name: 'Sate Ayam Cak Sabari',
+        merchantType: 'restaurant',
+        address: 'Jl. Sabari',
+      ),
+      items: [],
+    );
+
     await _pumpCard(
       tester,
       _FakeCustomerOrderRepository(),
       detail: _shoppingDetail(
-        shoppingStops: [_failedShoppingStop(77, 'Kedai Tinari')],
+        shoppingStops: const [failedStop],
+        canReplaceMerchant: true,
+        shoppingCapabilities: const ShoppingOrderCapabilitiesModel(
+          isExplicit: true,
+          canCustomerCancelShoppingOrder: true,
+        ),
       ),
+      selectedPickupLocationId: 90,
+      showGlobalActions: false,
+      showPricing: false,
     );
 
-    expect(
-      find.textContaining('Kedai Tinari - Tempat tutup/order batal'),
-      findsOneWidget,
-    );
-    expect(find.text('Ganti toko/resto'), findsNothing);
+    expect(find.text('Ganti toko/resto'), findsOneWidget);
+    expect(find.text('Batalkan pesanan'), findsOneWidget);
   });
+
+  testWidgets(
+    'failed merchant tab is not shown in the summary notice actions',
+    (tester) async {
+      // Di Ringkasan (summary) hanya ada notice ringkas -- tanpa tombol.
+      await _pumpCard(
+        tester,
+        _FakeCustomerOrderRepository(),
+        detail: _shoppingDetail(
+          shoppingStops: [_failedShoppingStop(77, 'Kedai Tinari')],
+        ),
+      );
+
+      expect(
+        find.textContaining('Kedai Tinari - Tempat tutup/order batal'),
+        findsOneWidget,
+      );
+      expect(find.text('Ganti toko/resto'), findsNothing);
+    },
+  );
 
   testWidgets('checkout hides all failed merchant cards and keeps order info', (
     tester,
@@ -750,6 +794,10 @@ class _FakeCustomerOrderRepository implements CustomerOrderRepository {
     required String action,
     int? pickupLocationId,
   }) => throw UnimplementedError();
+
+  @override
+  Future<CustomerOrderDetailModel> cancelShoppingOrder(int orderId) =>
+      throw UnimplementedError();
 
   @override
   Future<List<ShoppingMenuOption>> searchMerchantMenus(

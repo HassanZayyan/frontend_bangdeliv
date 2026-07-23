@@ -5,6 +5,7 @@ class ShoppingOrderCapabilitiesModel {
     this.isExplicit = false,
     this.canCustomerDirectEditItems = false,
     this.canCustomerAddShoppingMerchant = false,
+    this.canCustomerCancelShoppingOrder = false,
     this.canCustomerRequestItemChange = false,
     this.canCustomerRequestAddStop = false,
     this.canCustomerEditUnavailableItems = false,
@@ -22,6 +23,7 @@ class ShoppingOrderCapabilitiesModel {
   final bool isExplicit;
   final bool canCustomerDirectEditItems;
   final bool canCustomerAddShoppingMerchant;
+  final bool canCustomerCancelShoppingOrder;
   final bool canCustomerRequestItemChange;
   final bool canCustomerRequestAddStop;
   final bool canCustomerEditUnavailableItems;
@@ -51,6 +53,10 @@ class ShoppingOrderCapabilitiesModel {
             raw['canCustomerAddShoppingMerchant'] ??
             raw['can_customer_direct_edit_items'] ??
             raw['canCustomerDirectEditItems'],
+      ),
+      canCustomerCancelShoppingOrder: ModelParseUtils.boolValue(
+        raw['can_customer_cancel_shopping_order'] ??
+            raw['canCustomerCancelShoppingOrder'],
       ),
       canCustomerRequestItemChange: ModelParseUtils.boolValue(
         raw['can_customer_request_item_change'] ??

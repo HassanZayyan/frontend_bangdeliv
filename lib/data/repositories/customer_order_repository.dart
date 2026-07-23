@@ -52,6 +52,8 @@ abstract class CustomerOrderRepository {
     int? pickupLocationId,
   });
 
+  Future<CustomerOrderDetailModel> cancelShoppingOrder(int orderId);
+
   Future<CustomerOrderDetailModel> respondDeliveryFeeOverride(
     int orderId, {
     required String action,
@@ -186,6 +188,11 @@ class ApiCustomerOrderRepository implements CustomerOrderRepository {
       action: action,
       pickupLocationId: pickupLocationId,
     );
+  }
+
+  @override
+  Future<CustomerOrderDetailModel> cancelShoppingOrder(int orderId) {
+    return _service.cancelShoppingOrder(orderId);
   }
 
   @override
