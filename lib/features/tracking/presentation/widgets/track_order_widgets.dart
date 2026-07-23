@@ -194,11 +194,10 @@ class _TrackShoppingOrderItemsCardState
       tone: _TrackNoticeTone.danger,
       icon: Icons.storefront_outlined,
       // Aksi ganti toko/resto, bukti foto, dan status menunggu persetujuan kini
-      // hidup di tab "Tempat N" masing-masing (bukan lagi di Ringkasan). Notice
-      // ini cukup mengarahkan customer ke tab tersebut.
+      // hidup di tab "Tempat N" masing-masing (bukan lagi di Ringkasan).
       text:
           '${stop.merchant.name} - Tempat tutup/order batal\n${formatShoppingAttemptProgress(attemptNo: stop.chainAttemptNo, attemptLimit: stop.chainFailedAttemptLimit, totalFailed: stop.orderFailedTripCount)}'
-          '${(stop.pendingReplacementApproval?.isPending ?? false) ? '\nMenunggu persetujuan driver untuk toko/resto pengganti.' : (stop.canReplaceMerchant ? '\nBuka tab tempat ini untuk ganti toko/resto.' : '')}',
+          '${(stop.pendingReplacementApproval?.isPending ?? false) ? '\nMenunggu persetujuan driver untuk toko/resto pengganti.' : ''}',
     );
   }
 
@@ -400,7 +399,10 @@ class _TrackShoppingOrderItemsCardState
             const SizedBox(height: 8),
             ..._failedStopPageContent(context, ref, stop),
           ],
-          if (canEditUnavailable) ...[
+          // Grid keputusan item (ganti item / lanjut / batal tempat) hanya untuk
+          // stop AKTIF yang itemnya tak tersedia. Stop yang sudah tutup (FAILED)
+          // hanya menampilkan aksi ganti toko/resto lewat _failedStopPageContent.
+          if (canEditUnavailable && !stop.isFailed) ...[
             const SizedBox(height: 2),
             _unavailableItemDecisionActions(
               context,
