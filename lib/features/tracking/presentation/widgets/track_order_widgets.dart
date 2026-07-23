@@ -190,7 +190,9 @@ class _TrackShoppingOrderItemsCardState
       icon: Icons.storefront_outlined,
       text:
           '${stop.merchant.name} - Tempat tutup/order batal\n${formatShoppingAttemptProgress(attemptNo: stop.chainAttemptNo, attemptLimit: stop.chainFailedAttemptLimit, totalFailed: stop.orderFailedTripCount)}',
-      child: stop.canReplaceMerchant
+      child: (stop.pendingReplacementApproval?.isPending ?? false)
+          ? _merchantReplacementWaitingBanner(stop)
+          : stop.canReplaceMerchant
           ? Align(
               alignment: Alignment.centerLeft,
               child: OutlinedButton.icon(

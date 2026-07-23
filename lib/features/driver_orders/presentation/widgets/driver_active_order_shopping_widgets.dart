@@ -558,6 +558,15 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
             ],
           ),
           const SizedBox(height: 10),
+          // Permintaan approval ganti toko oleh customer ditampilkan di level
+          // order (memindai SEMUA stop), bukan hanya di stop terpilih -- karena
+          // permintaan biasanya jatuh di stop FAILED/parkir yang tidak sedang
+          // dilihat driver.
+          for (final stop in widget.order.shoppingStops)
+            if (stop.pendingReplacementApproval?.isPending ?? false) ...[
+              _buildMerchantReplacementApprovalCard(stop),
+              const SizedBox(height: 10),
+            ],
           if (widget.order.shoppingStops.isEmpty) ...[
             ...widget.order.shoppingItems.map(
               (item) => _buildItemEditor(
@@ -908,11 +917,6 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
                 canToggleAvailability: canEditStopAvailability,
               ),
             ),
-          if (!widget.readOnly &&
-              (stop.pendingReplacementApproval?.isPending ?? false)) ...[
-            const SizedBox(height: 10),
-            _buildMerchantReplacementApprovalCard(stop),
-          ],
           if (!widget.readOnly &&
               (stop.canDriverReplaceUnavailableItems ||
                   stop.canReplaceMerchant ||
