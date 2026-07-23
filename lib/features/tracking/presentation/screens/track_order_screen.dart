@@ -1002,8 +1002,10 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
     if (_selectedShoppingPointId == 'dropoff') {
       _selectedShoppingPointId = 'summary';
     }
-    final activeIds = detail.shoppingStops
-        .where((stop) => stop.isActive)
+    // Stop gagal tetap punya tab (seperti sisi driver); hanya yang REPLACED /
+    // SKIPPED yang benar-benar hilang.
+    final selectableIds = detail.shoppingStops
+        .where((stop) => !stop.isReplaced && !stop.isSkipped)
         .map((stop) => stop.pickupLocationId)
         .toSet();
     final focusedPickup = focusTarget?.pickupLocationId;
@@ -1011,14 +1013,14 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
         ? null
         : '${detail.summary.id}:${focusTarget.signature}';
     if (focusedPickup != null &&
-        activeIds.contains(focusedPickup) &&
+        selectableIds.contains(focusedPickup) &&
         _appliedShoppingFocusSignature != focusSignature) {
       _selectedShoppingPointId = 'pickup:$focusedPickup';
       _appliedShoppingFocusSignature = focusSignature;
       return;
     }
     final selectedPickup = _selectedShoppingPickupId;
-    if (selectedPickup != null && !activeIds.contains(selectedPickup)) {
+    if (selectedPickup != null && !selectableIds.contains(selectedPickup)) {
       _selectedShoppingPointId = 'summary';
     }
   }
@@ -1035,16 +1037,20 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
       detail.isShoppingOrder && _selectedShoppingPickupId != null;
 
   Widget _buildShoppingPointSelector(CustomerOrderDetailModel detail) {
-    final stops = detail.shoppingStops
-        .where((stop) => stop.isActive)
-        .toList(growable: false);
-    stops.sort((a, b) => a.sequenceNo.compareTo(b.sequenceNo));
-    final entries = <(String, String)>[
-      ('summary', 'Ringkasan'),
-      ...stops.map(
-        (stop) => (
-          'pickup:${stop.pickupLocationId}',
-          'Tempat ${stop.sequenceNo <= 0 ? stops.indexOf(stop) + 1 : stop.sequenceNo}',
+    // Tab dipertahankan untuk stop gagal (tutup), hanya REPLACED/SKIPPED yang
+    // hilang. Penomoran berurutan tanpa gap mengikuti urutan tampilan.
+    final stops =
+        detail.shoppingStops
+            .where((stop) => !stop.isReplaced && !stop.isSkipped)
+            .toList(growable: false)
+          ..sort((a, b) => a.sequenceNo.compareTo(b.sequenceNo));
+    final entries = <(String, String, bool)>[
+      ('summary', 'Ringkasan', false),
+      ...stops.indexed.map(
+        (entry) => (
+          'pickup:${entry.$2.pickupLocationId}',
+          'Tempat ${entry.$1 + 1}',
+          entry.$2.isFailed || entry.$2.isAbandoned,
         ),
       ),
     ];
@@ -1061,8 +1067,16 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
           itemBuilder: (context, index) {
             final entry = entries[index];
             final selected = _selectedShoppingPointId == entry.$1;
+            final isFailed = entry.$3;
             return ChoiceChip(
               selected: selected,
+              avatar: isFailed
+                  ? Icon(
+                      Icons.cancel_outlined,
+                      size: 16,
+                      color: selected ? AppColors.primary : AppColors.error,
+                    )
+                  : null,
               label: Text(entry.$2),
               onSelected: (_) {
                 if (!selected) {
@@ -1863,6 +1877,12 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
   ) {
     final visibleProofs = proofs
         .where((proof) => (proof.photoUrl ?? '').trim().isNotEmpty)
+        // Foto "toko tutup" yang tertaut ke sebuah stop kini tampil di tab
+        // "Tempat N" masing-masing, jadi tidak diduplikasi di Ringkasan.
+        .where(
+          (proof) => !(proof.type == 'store_closed' &&
+              proof.pickupLocationId != null),
+        )
         .toList(growable: false);
     if (visibleProofs.isEmpty) {
       return const SizedBox.shrink();

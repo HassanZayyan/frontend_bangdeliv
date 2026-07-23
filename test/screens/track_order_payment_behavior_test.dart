@@ -203,8 +203,8 @@ void main() {
       source.indexOf('// Progress stepper'),
     );
 
-    expect(selector, contains("('summary', 'Ringkasan')"));
-    expect(selector, contains("'Tempat \${stop.sequenceNo"));
+    expect(selector, contains("('summary', 'Ringkasan', false)"));
+    expect(selector, contains("'Tempat \${entry.\$1 + 1}'"));
     expect(selector, isNot(contains("('dropoff', 'Antar')")));
     expect(source, isNot(contains('onDropoffSelected:')));
     expect(source, contains("_selectedShoppingPointId == 'dropoff'"));

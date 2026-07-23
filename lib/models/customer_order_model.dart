@@ -1161,6 +1161,7 @@ class CustomerOrderProofModel {
     this.status,
     this.note,
     this.uploaderUserId,
+    this.pickupLocationId,
     this.createdAt,
   });
 
@@ -1171,6 +1172,7 @@ class CustomerOrderProofModel {
   final String? status;
   final String? note;
   final int? uploaderUserId;
+  final int? pickupLocationId;
   final DateTime? createdAt;
 
   factory CustomerOrderProofModel.fromJson(Map<String, dynamic> json) {
@@ -1198,6 +1200,10 @@ class CustomerOrderProofModel {
       uploaderUserId: int.tryParse(
         (json['uploader_user_id'] ?? json['user_id'] ?? json['userId'])
                 ?.toString() ??
+            '',
+      ),
+      pickupLocationId: int.tryParse(
+        (json['pickup_location_id'] ?? json['pickupLocationId'])?.toString() ??
             '',
       ),
       createdAt: CustomerOrderSummaryModel._asDateTime(

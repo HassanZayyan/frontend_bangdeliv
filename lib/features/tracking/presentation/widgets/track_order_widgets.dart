@@ -52,14 +52,19 @@ class _TrackShoppingOrderItemsCardState
   Widget build(BuildContext context) {
     final detail = widget.detail;
     final stops = detail.shoppingStops;
-    final activeStops = stops
-        .where((stop) => stop.isActive)
-        .where(
-          (stop) =>
-              widget.selectedPickupLocationId == null ||
-              stop.pickupLocationId == widget.selectedPickupLocationId,
-        )
-        .toList(growable: false);
+    // Ringkasan (selectedPickupLocationId == null) hanya menampilkan stop aktif;
+    // saat sebuah tab dipilih, stop itu ditampilkan apa adanya termasuk yang
+    // sudah FAILED (tutup) -- hanya REPLACED/SKIPPED yang tak pernah tampil.
+    final displayStops = widget.selectedPickupLocationId != null
+        ? stops
+              .where(
+                (stop) =>
+                    stop.pickupLocationId == widget.selectedPickupLocationId &&
+                    !stop.isReplaced &&
+                    !stop.isSkipped,
+              )
+              .toList(growable: false)
+        : stops.where((stop) => stop.isActive).toList(growable: false);
     final pricing = detail.shoppingPricing;
     final isShoppingTotalTransport =
         detail.deliveryFeeNegotiation?.isActiveShoppingTotalTransport == true;
@@ -141,13 +146,13 @@ class _TrackShoppingOrderItemsCardState
           ],
           if (!widget.showStops)
             const SizedBox.shrink()
-          else if (activeStops.isEmpty)
+          else if (displayStops.isEmpty)
             const Text(
               'Belum ada item belanja.',
               style: TextStyle(color: AppColors.textSecondary),
             )
           else
-            ...activeStops.indexed.map(
+            ...displayStops.indexed.map(
               (entry) => _stopSection(
                 context,
                 ref,
@@ -188,25 +193,12 @@ class _TrackShoppingOrderItemsCardState
       margin: const EdgeInsets.only(bottom: 8),
       tone: _TrackNoticeTone.danger,
       icon: Icons.storefront_outlined,
+      // Aksi ganti toko/resto, bukti foto, dan status menunggu persetujuan kini
+      // hidup di tab "Tempat N" masing-masing (bukan lagi di Ringkasan). Notice
+      // ini cukup mengarahkan customer ke tab tersebut.
       text:
-          '${stop.merchant.name} - Tempat tutup/order batal\n${formatShoppingAttemptProgress(attemptNo: stop.chainAttemptNo, attemptLimit: stop.chainFailedAttemptLimit, totalFailed: stop.orderFailedTripCount)}',
-      child: (stop.pendingReplacementApproval?.isPending ?? false)
-          ? _merchantReplacementWaitingBanner(stop)
-          : stop.canReplaceMerchant
-          ? Align(
-              alignment: Alignment.centerLeft,
-              child: OutlinedButton.icon(
-                onPressed: () => _openAddItemScreen(
-                  context,
-                  ref,
-                  targetPickupLocationId: stop.pickupLocationId,
-                  replaceMerchant: true,
-                ),
-                icon: const Icon(Icons.swap_horiz_rounded),
-                label: const Text('Ganti toko/resto'),
-              ),
-            )
-          : null,
+          '${stop.merchant.name} - Tempat tutup/order batal\n${formatShoppingAttemptProgress(attemptNo: stop.chainAttemptNo, attemptLimit: stop.chainFailedAttemptLimit, totalFailed: stop.orderFailedTripCount)}'
+          '${(stop.pendingReplacementApproval?.isPending ?? false) ? '\nMenunggu persetujuan driver untuk toko/resto pengganti.' : (stop.canReplaceMerchant ? '\nBuka tab tempat ini untuk ganti toko/resto.' : '')}',
     );
   }
 
@@ -404,6 +396,10 @@ class _TrackShoppingOrderItemsCardState
             const SizedBox(height: 8),
             _merchantReplacementWaitingBanner(stop),
           ],
+          if (stop.isFailed && widget.showStops) ...[
+            const SizedBox(height: 8),
+            ..._failedStopPageContent(context, ref, stop),
+          ],
           if (canEditUnavailable) ...[
             const SizedBox(height: 2),
             _unavailableItemDecisionActions(
@@ -459,6 +455,118 @@ class _TrackShoppingOrderItemsCardState
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  /// Konten khusus halaman stop yang FAILED (tutup): foto bukti toko tutup +
+  /// aksi ganti toko/resto (atau alasan bila kuota habis / sedang menunggu
+  /// persetujuan). Dipindah dari notice Ringkasan agar terpusat di tab stop.
+  List<Widget> _failedStopPageContent(
+    BuildContext context,
+    WidgetRef ref,
+    CustomerShoppingStopModel stop,
+  ) {
+    final photos = widget.detail.proofs
+        .where(
+          (proof) =>
+              proof.type == 'store_closed' &&
+              proof.pickupLocationId == stop.pickupLocationId &&
+              (proof.photoUrl ?? '').trim().isNotEmpty,
+        )
+        .toList(growable: false);
+    final isPending = stop.pendingReplacementApproval?.isPending ?? false;
+    final blockReason = (stop.replacementBlockReason ?? '').trim();
+
+    return [
+      if (photos.isNotEmpty) ...[
+        const Text(
+          'Bukti foto toko tutup',
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w700,
+            fontSize: 11.5,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: photos
+              .map((proof) => _storeClosedPhotoThumb(context, proof.photoUrl!))
+              .toList(growable: false),
+        ),
+        const SizedBox(height: 10),
+      ],
+      if (!isPending)
+        if (stop.canReplaceMerchant)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: () => _openAddItemScreen(
+                context,
+                ref,
+                targetPickupLocationId: stop.pickupLocationId,
+                replaceMerchant: true,
+              ),
+              icon: const Icon(Icons.swap_horiz_rounded),
+              label: const Text('Ganti toko/resto'),
+            ),
+          )
+        else if (blockReason.isNotEmpty)
+          _TrackNotice(
+            tone: _TrackNoticeTone.info,
+            icon: Icons.info_outline_rounded,
+            text: blockReason,
+          ),
+    ];
+  }
+
+  Widget _storeClosedPhotoThumb(BuildContext context, String url) {
+    return GestureDetector(
+      onTap: () => showDialog<void>(
+        context: context,
+        barrierColor: AppColors.black,
+        builder: (dialogContext) => Dialog.fullscreen(
+          backgroundColor: AppColors.black,
+          child: SafeArea(
+            child: Stack(
+              children: [
+                Center(
+                  child: InteractiveViewer(
+                    child: Image.network(url, fit: BoxFit.contain),
+                  ),
+                ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: IconButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    icon: const Icon(Icons.close_rounded, color: AppColors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.network(
+          url,
+          width: 72,
+          height: 72,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => Container(
+            width: 72,
+            height: 72,
+            color: AppColors.background,
+            child: const Icon(
+              Icons.broken_image_outlined,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
       ),
     );
   }
