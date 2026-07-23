@@ -730,6 +730,31 @@ class CustomerOrderDetailModel {
         shoppingCapabilities.canCustomerAddShoppingMerchant;
   }
 
+  /// Customer boleh menyerah/membatalkan seluruh pesanan Nitip secara gratis
+  /// saat belum ada toko yang dibeli (mis. satu-satunya toko tutup). Mengikuti
+  /// flag backend `can_customer_cancel_shopping_order`.
+  bool get canCancelShoppingOrder {
+    return isShoppingOrder &&
+        shoppingCapabilities.isExplicit &&
+        shoppingCapabilities.canCustomerCancelShoppingOrder;
+  }
+
+  /// Nomor tampilan tempat yang STABIL (mengikuti urutan pembuatan/pickup id),
+  /// dipakai bersama oleh tab "Tempat N" dan badge angka di kartu agar tidak
+  /// tertukar dengan `sequence_no` yang berubah saat rute dioptimasi ulang.
+  int stableStopNumber(CustomerShoppingStopModel stop) {
+    final ordered =
+        shoppingStops.where((item) => !item.isSkipped).toList(growable: false)
+          ..sort((a, b) => a.pickupLocationId.compareTo(b.pickupLocationId));
+    final index = ordered.indexWhere(
+      (item) => item.pickupLocationId == stop.pickupLocationId,
+    );
+    if (index < 0) {
+      return stop.sequenceNo <= 0 ? 1 : stop.sequenceNo;
+    }
+    return index + 1;
+  }
+
   CustomerOrderDetailModel copyWith({
     CustomerOrderSummaryModel? summary,
     String? paymentStatus,

@@ -166,10 +166,7 @@ class _TrackShoppingOrderItemsCardState
               pricing.deliveryFee,
             ),
             if (pricing.serviceFee > 0)
-              _pricingRow(
-                detail.shoppingServiceFeeLabel,
-                pricing.serviceFee,
-              ),
+              _pricingRow(detail.shoppingServiceFeeLabel, pricing.serviceFee),
             const SizedBox(height: 4),
             _pricingRow(
               'Total pembayaran customer',
@@ -312,7 +309,7 @@ class _TrackShoppingOrderItemsCardState
     final activeStopCount = widget.detail.shoppingStops
         .where((item) => item.isActive)
         .length;
-    final sequenceNo = stop.sequenceNo <= 0 ? 1 : stop.sequenceNo;
+    final stopNumber = widget.detail.stableStopNumber(stop);
     final stopQuote = widget.detail.shoppingNegotiation?.quoteForPickup(
       stop.pickupLocationId,
     );
@@ -343,7 +340,7 @@ class _TrackShoppingOrderItemsCardState
                     Row(
                       children: [
                         if (activeStopCount > 1) ...[
-                          _stopNumberBadge(sequenceNo),
+                          _stopNumberBadge(stopNumber),
                           const SizedBox(width: 9),
                         ],
                         Expanded(
@@ -527,7 +524,72 @@ class _TrackShoppingOrderItemsCardState
             icon: Icons.info_outline_rounded,
             text: blockReason,
           ),
+      // Jalan keluar gratis: bila belum ada toko yang dibeli dan tak ada toko
+      // aktif lagi (mis. satu-satunya toko tutup), customer boleh menyerah alih
+      // alih dipaksa mengganti toko/resto.
+      if (!isPending &&
+          !stop.isReplaced &&
+          widget.detail.canCancelShoppingOrder) ...[
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            onPressed: () => _cancelShoppingOrder(context, ref),
+            icon: const Icon(Icons.close_rounded),
+            label: const Text('Batalkan pesanan'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.error,
+              side: BorderSide(color: AppColors.error.withValues(alpha: 0.6)),
+            ),
+          ),
+        ),
+      ],
     ];
+  }
+
+  Future<void> _cancelShoppingOrder(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showBangConfirmationDialog(
+      context,
+      title: 'Batalkan pesanan Nitip?',
+      message:
+          'Karena belum ada toko/resto yang dibeli, pesanan bisa dibatalkan tanpa biaya. Tindakan ini tidak bisa dibatalkan.',
+      confirmLabel: 'Batalkan pesanan',
+      isDestructive: true,
+    );
+    if (!confirmed || !context.mounted) {
+      return;
+    }
+
+    final orderId = widget.detail.summary.id;
+    try {
+      await ref
+          .read(customerOrderRepositoryProvider)
+          .cancelShoppingOrder(orderId);
+      ref.invalidate(customerOrderTrackingProvider(orderId));
+      ref.invalidate(customerOrdersProvider);
+      await widget.onChanged?.call();
+
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pesanan Nitip dibatalkan.')),
+      );
+    } catch (error) {
+      ref.invalidate(customerOrderTrackingProvider(orderId));
+      ref.invalidate(customerOrdersProvider);
+      await widget.onChanged?.call();
+
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString()),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   Widget _storeClosedPhotoThumb(BuildContext context, String url) {
@@ -550,7 +612,10 @@ class _TrackShoppingOrderItemsCardState
                   right: 8,
                   child: IconButton(
                     onPressed: () => Navigator.of(dialogContext).pop(),
-                    icon: const Icon(Icons.close_rounded, color: AppColors.white),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: AppColors.white,
+                    ),
                   ),
                 ),
               ],
@@ -583,7 +648,9 @@ class _TrackShoppingOrderItemsCardState
     final approval = stop.pendingReplacementApproval;
     final newMerchant = (approval?.newMerchantName ?? '').trim();
     final distanceKm = approval?.distanceKm;
-    final target = newMerchant.isEmpty ? 'toko/resto pengganti' : '"$newMerchant"';
+    final target = newMerchant.isEmpty
+        ? 'toko/resto pengganti'
+        : '"$newMerchant"';
     final distanceText = distanceKm != null
         ? ' (±${distanceKm.toStringAsFixed(1).replaceAll('.', ',')} km)'
         : '';

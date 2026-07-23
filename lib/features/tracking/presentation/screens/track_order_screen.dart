@@ -983,7 +983,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
           (stop) => TrackingMapPickupPoint(
             id: stop.pickupLocationId.toString(),
             label:
-                'Tempat ${stop.sequenceNo <= 0 ? 1 : stop.sequenceNo}: ${stop.merchant.name}',
+                'Tempat ${detail.stableStopNumber(stop)}: ${stop.merchant.name}',
             latitude: stop.merchant.latitude!,
             longitude: stop.merchant.longitude!,
           ),
@@ -1052,13 +1052,15 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
         final stop = entry.$2;
         // Tempat yang gagal, dibatalkan, maupun sudah diganti sama-sama pakai
         // ikon silang merah -- menandakan tempat itu batal/tidak jadi.
-        final (IconData? icon, Color? color) =
-            (stop.isReplaced || stop.isFailed || stop.isAbandoned)
+        final (
+          IconData? icon,
+          Color? color,
+        ) = (stop.isReplaced || stop.isFailed || stop.isAbandoned)
             ? (Icons.cancel_outlined, AppColors.error)
             : (null, null);
         return (
           'pickup:${stop.pickupLocationId}',
-          'Tempat ${entry.$1 + 1}',
+          'Tempat ${detail.stableStopNumber(stop)}',
           icon,
           color,
         );
@@ -1897,8 +1899,8 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
         // Foto "toko tutup" yang tertaut ke sebuah stop kini tampil di tab
         // "Tempat N" masing-masing, jadi tidak diduplikasi di Ringkasan.
         .where(
-          (proof) => !(proof.type == 'store_closed' &&
-              proof.pickupLocationId != null),
+          (proof) =>
+              !(proof.type == 'store_closed' && proof.pickupLocationId != null),
         )
         .toList(growable: false);
     if (visibleProofs.isEmpty) {

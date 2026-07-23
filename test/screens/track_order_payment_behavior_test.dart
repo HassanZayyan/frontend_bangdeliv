@@ -204,7 +204,7 @@ void main() {
     );
 
     expect(selector, contains("('summary', 'Ringkasan', null, null)"));
-    expect(selector, contains("'Tempat \${entry.\$1 + 1}'"));
+    expect(selector, contains("'Tempat \${detail.stableStopNumber(stop)}'"));
     expect(selector, contains('showCheckmark: false'));
     expect(selector, isNot(contains("('dropoff', 'Antar')")));
     expect(source, isNot(contains('onDropoffSelected:')));
