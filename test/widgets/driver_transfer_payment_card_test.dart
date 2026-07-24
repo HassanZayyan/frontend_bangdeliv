@@ -316,6 +316,21 @@ void main() {
 
     expect(find.text('Bukti QRIS Customer'), findsNothing);
   });
+
+  testWidgets('hides QRIS card for cancelled order without proof', (
+    tester,
+  ) async {
+    await _pumpCard(
+      tester,
+      order: _order(statusCode: 'CANCELLED', proofs: const []),
+      onConfirmTransfer: ({required amount}) async {},
+    );
+
+    // Order dibatalkan: tak ada pembayaran yang bisa dicatat -> tombol "Catat
+    // Pembayaran QRIS Manual" tidak boleh muncul (backend juga menolaknya).
+    expect(find.text('Bukti QRIS Customer'), findsNothing);
+    expect(find.text('Catat Pembayaran QRIS Manual'), findsNothing);
+  });
 }
 
 Future<void> _pumpCard(
@@ -352,6 +367,9 @@ DriverOrderModel _order({
   String serviceTypeCode = ServiceTypeCodes.ride,
   String paymentMethod = 'TRANSFER',
   String paymentStatus = 'unpaid',
+  // Default status yang MEMPERBOLEHKAN pencatatan QRIS (DELIVERED untuk non-kurir),
+  // sesuai aturan backend. Kartu/tombol QRIS hanya relevan di status payable.
+  String statusCode = 'DELIVERED',
   List<DriverOrderProofModel> proofs = const <DriverOrderProofModel>[],
   PaymentProofFeedbackModel? paymentProofFeedback,
 }) {
@@ -359,6 +377,7 @@ DriverOrderModel _order({
     id: 'ORD-$serviceTypeCode',
     customerName: 'Customer',
     serviceTypeCode: serviceTypeCode,
+    statusCode: statusCode,
     pickupAddress: 'Pickup',
     dropoffAddress: 'Dropoff',
     etaMinutes: 8,
