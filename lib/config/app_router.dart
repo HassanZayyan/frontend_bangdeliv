@@ -266,7 +266,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final returnPath =
               routeArgs?.returnPath ?? (extra is String ? extra : null);
 
-          return OrderChatScreen(orderId: orderId, returnPath: returnPath);
+          return OrderChatScreen(
+            orderId: orderId,
+            returnPath: returnPath,
+            initialParticipantName: routeArgs?.participantName,
+            initialParticipantAvatarUrl: routeArgs?.participantAvatarUrl,
+            initialParticipantPhone: routeArgs?.participantPhone,
+          );
         },
       ),
       _rootRoute(

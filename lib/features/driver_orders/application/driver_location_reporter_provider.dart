@@ -119,7 +119,7 @@ class DriverLocationReporterNotifier
     ref.onDispose(_dispose);
 
     final lifecycle = ref.watch(appLifecycleStateProvider);
-    final session = ref.watch(authSessionProvider);
+    final session = ref.watch(authSessionIdentityProvider);
     final orders = ref.watch(driverOrdersProvider).asData?.value;
     final target = isAppLifecycleResumed(lifecycle)
         ? _trackableOrder(session, orders)
@@ -135,13 +135,10 @@ class DriverLocationReporterNotifier
   }
 
   DriverOrderModel? _trackableOrder(
-    AuthSessionState session,
+    AuthSessionIdentity session,
     DriverOrdersState? orders,
   ) {
-    if (!session.isAuthenticated ||
-        session.role != SessionUserRole.driver ||
-        session.profile == null ||
-        orders == null) {
+    if (!session.isDriver || orders == null) {
       return null;
     }
 

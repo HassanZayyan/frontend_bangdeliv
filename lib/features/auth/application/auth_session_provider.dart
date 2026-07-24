@@ -226,3 +226,51 @@ final authSessionProvider =
     NotifierProvider<AuthSessionNotifier, AuthSessionState>(
       AuthSessionNotifier.new,
     );
+
+/// Bagian sesi yang dipakai provider untuk memutuskan "boleh jalan atau tidak".
+///
+/// `AuthSessionState` dan `UserProfileModel` tidak mengimplementasikan `==`,
+/// jadi tiap refresh sesi menghasilkan objek baru walau datanya identik. Record
+/// ini punya kesetaraan struktural sehingga provider yang men-`watch`-nya tidak
+/// ikut reload hanya karena sesi disegarkan untuk user yang sama.
+typedef AuthSessionIdentity = ({
+  bool initialized,
+  bool isAuthenticated,
+  SessionUserRole role,
+  DriverAccessState driverAccessState,
+  int? userId,
+  bool requiresPhoneCompletion,
+  bool requiresPhoneVerification,
+});
+
+extension AuthSessionIdentitySnapshot on AuthSessionState {
+  AuthSessionIdentity get identity => (
+    initialized: initialized,
+    isAuthenticated: isAuthenticated,
+    role: role,
+    driverAccessState: driverAccessState,
+    userId: profile?.id,
+    requiresPhoneCompletion: profile?.requiresPhoneCompletion == true,
+    requiresPhoneVerification: profile?.requiresPhoneVerification == true,
+  );
+}
+
+extension AuthSessionIdentityChecks on AuthSessionIdentity {
+  bool get hasProfile => userId != null;
+
+  bool get isCustomer =>
+      isAuthenticated && hasProfile && role == SessionUserRole.customer;
+
+  bool get isDriver =>
+      isAuthenticated && hasProfile && role == SessionUserRole.driver;
+
+  bool get isActiveDriver =>
+      isDriver && driverAccessState == DriverAccessState.active;
+
+  /// Customer maupun driver boleh memakai fitur chat order.
+  bool get isOrderChatParticipant => isCustomer || isDriver;
+}
+
+final authSessionIdentityProvider = Provider<AuthSessionIdentity>((ref) {
+  return ref.watch(authSessionProvider.select((state) => state.identity));
+});

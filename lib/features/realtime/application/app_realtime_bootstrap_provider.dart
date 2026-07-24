@@ -14,14 +14,7 @@ class AppRealtimeBootstrapState {
 }
 
 final appRealtimeBootstrapProvider = Provider<AppRealtimeBootstrapState>((ref) {
-  final session = ref.watch(authSessionProvider);
-  final isActiveDriver =
-      session.isAuthenticated &&
-      session.role == SessionUserRole.driver &&
-      session.driverAccessState == DriverAccessState.active &&
-      session.profile != null;
-
-  if (!isActiveDriver) {
+  if (!ref.watch(authSessionIdentityProvider).isActiveDriver) {
     return const AppRealtimeBootstrapState(
       driverBootstrapActive: false,
       retainedDriverUnreadOrderIds: <int>{},

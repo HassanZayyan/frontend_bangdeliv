@@ -41,8 +41,9 @@ class OrderChatUnreadNotifier extends AsyncNotifier<int> {
     _cancelRealtime();
     ref.onDispose(_dispose);
 
-    final session = ref.watch(authSessionProvider);
-    if (!_isEligibleSession(session)) {
+    // Lihat catatan di OrderChatNotifier.build(): watch hanya slice yang punya
+    // kesetaraan struktural supaya refresh sesi tidak memicu reload.
+    if (!ref.watch(authSessionIdentityProvider).isOrderChatParticipant) {
       return 0;
     }
 

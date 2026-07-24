@@ -50,18 +50,12 @@ final orderPriceChangedNotificationProvider =
     });
 
 final orderPriceHeadsUpNotificationProvider = Provider<void>((ref) {
-  final session = ref.watch(authSessionProvider);
-  final profile = session.profile;
-  if (!session.isAuthenticated ||
-      profile == null ||
-      (session.role != SessionUserRole.customer &&
-          session.role != SessionUserRole.driver)) {
+  final session = ref.watch(authSessionIdentityProvider);
+  if (!session.isOrderChatParticipant) {
     return;
   }
 
-  final recipientRole = session.role == SessionUserRole.driver
-      ? 'driver'
-      : 'customer';
+  final recipientRole = session.isDriver ? 'driver' : 'customer';
   final subscription = ref
       .watch(orderRealtimeHubProvider)
       .events

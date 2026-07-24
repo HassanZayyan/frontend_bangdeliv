@@ -91,10 +91,9 @@ class CustomerOrderTrackingNotifier
 
     ref.onDispose(_disposeRealtime);
 
-    final session = ref.watch(authSessionProvider);
-    if (!session.isAuthenticated ||
-        session.role != SessionUserRole.customer ||
-        session.profile == null) {
+    // Watch identitas sesi saja; watch objek sesi penuh membuat layar tracking
+    // balik ke spinner tiap kali sesi di-refresh (mis. saat app resume).
+    if (!ref.watch(authSessionIdentityProvider).isCustomer) {
       throw StateError('Sesi customer tidak aktif.');
     }
 
