@@ -38,11 +38,42 @@ class DriverTransferPaymentCard extends StatelessWidget {
   final DriverTransferRejectCallback? onRejectTransfer;
   final DriverTransferBypassCallback? onBypassRejectedTransfer;
 
+  /// Mirror aturan backend (OrderPaymentProofService::assertDriverCanRecordTransferPayment):
+  /// pencatatan/verifikasi QRIS hanya boleh saat order berada di status yang
+  /// memperbolehkan pembayaran, sesuai jenis layanan:
+  /// - COURIER : ARRIVED_PICKUP (kurir bayar saat driver tiba di pickup)
+  /// - SHOPPING: DELIVERED atau CANCELLED_WITH_FEE (penalti dibayar via QRIS)
+  /// - RIDE dll: DELIVERED
+  /// Order dibatalkan biasa (tanpa biaya) TIDAK termasuk.
+  static bool isTransferPayableStatus(DriverOrderModel order) {
+    // Nilai mengikuti kontrak API (uppercase); serviceTypeCode & statusCode sudah
+    // dinormalisasi saat parsing. Aturan identik dengan backend
+    // OrderPaymentProofService::assertDriverCanRecordTransferPayment.
+    final service = order.serviceTypeCode.trim().toUpperCase();
+    final status = order.statusCode.trim().toUpperCase();
+    return switch (service) {
+      'COURIER' => status == 'ARRIVED_PICKUP',
+      'SHOPPING' => status == 'DELIVERED' || status == 'CANCELLED_WITH_FEE',
+      _ => status == 'DELIVERED',
+    };
+  }
+
   static bool shouldShow(DriverOrderModel order) {
     final method = order.paymentMethod.trim().toUpperCase();
-    return method == 'TRANSFER' ||
-        _hasTransferProof(order) ||
-        order.paymentProofFeedback?.isRejected == true;
+    final isTransfer = method == 'TRANSFER';
+    final hasProof = _hasTransferProof(order);
+    final isRejected = order.paymentProofFeedback?.isRejected == true;
+
+    // Bukan pembayaran QRIS/transfer sama sekali -> tidak ada kartu.
+    if (!isTransfer && !hasProof && !isRejected) {
+      return false;
+    }
+
+    // Hanya tampil bila order di status yang memperbolehkan pencatatan QRIS,
+    // ATAU sudah ada bukti/penolakan yang perlu ditindaklanjuti. Ini mencegah
+    // tombol "Catat Pembayaran QRIS Manual" muncul pada order yang dibatalkan
+    // (bug: UI tetap ada padahal backend menolak pencatatannya).
+    return isTransferPayableStatus(order) || hasProof || isRejected;
   }
 
   @override
