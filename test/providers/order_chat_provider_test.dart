@@ -19,6 +19,7 @@ import 'package:frontend_bangdeliv/services/api_client.dart';
 import 'package:frontend_bangdeliv/services/api_exception.dart';
 import 'package:frontend_bangdeliv/services/order_chat_api_service.dart';
 import 'package:frontend_bangdeliv/widgets/bang_chat_bubble.dart';
+import 'package:frontend_bangdeliv/widgets/profile_avatar.dart';
 import '../fakes/fake_order_realtime_client.dart';
 
 ProviderSubscription<AsyncValue<OrderChatState>> _keepChatProviderAlive(
@@ -1237,6 +1238,181 @@ void main() {
 
     expect(launchedUri?.path, '/6282345678901');
   });
+
+  testWidgets('composer stays mounted while chat is still loading', (
+    tester,
+  ) async {
+    final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
+    final fakeService = _FakeOrderChatApiService(
+      initialPage: const OrderChatMessagesPage(
+        messages: <OrderChatMessageModel>[],
+        canSend: true,
+        hasMore: false,
+        nextBeforeId: null,
+        unreadCount: 0,
+        lastReadMessageId: 0,
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          orderChatApiServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(
+            FakeOrderRealtimeClient(),
+          ),
+        ],
+        child: const MaterialApp(home: OrderChatScreen(orderId: 99)),
+      ),
+    );
+
+    // Frame pertama: data chat belum ada, hanya area pesan yang loading.
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+    expect(tester.widget<TextField>(find.byType(TextField)).enabled, isFalse);
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(tester.widget<TextField>(find.byType(TextField)).enabled, isTrue);
+  });
+
+  testWidgets('session refresh keeps chat input focused and messages visible', (
+    tester,
+  ) async {
+    final profile = _customerProfile(7);
+    final fakeAuth = _FakeAuthSessionNotifier(
+      AuthSessionState.fromProfile(profile),
+    );
+    final fakeService = _FakeOrderChatApiService(
+      initialPage: OrderChatMessagesPage(
+        messages: <OrderChatMessageModel>[
+          _message(id: 10, senderUserId: 8, body: 'Saya menuju lokasi.'),
+        ],
+        canSend: true,
+        hasMore: false,
+        nextBeforeId: null,
+        unreadCount: 0,
+        lastReadMessageId: 0,
+      ),
+    );
+
+    final container = ProviderContainer(
+      overrides: [
+        authSessionProvider.overrideWith(() => fakeAuth),
+        orderChatApiServiceProvider.overrideWithValue(fakeService),
+        orderRealtimeClientProvider.overrideWithValue(
+          FakeOrderRealtimeClient(),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: OrderChatScreen(orderId: 99)),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.byType(TextField));
+    await tester.pump();
+
+    final focusNode = tester
+        .widget<TextField>(find.byType(TextField))
+        .focusNode;
+    expect(focusNode?.hasFocus, isTrue);
+
+    // Refresh sesi (mis. saat app resume) menghasilkan objek state baru untuk
+    // user yang sama. Chat tidak boleh ikut reload dan keyboard tidak boleh
+    // tertutup karena composer dilepas dari tree.
+    final fetchCallsBeforeRefresh = fakeService.fetchCalls;
+    container
+        .read(authSessionProvider.notifier)
+        .syncProfile(_customerProfile(7));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(focusNode?.hasFocus, isTrue);
+    expect(
+      find.textContaining('Saya menuju lokasi', findRichText: true),
+      findsOneWidget,
+    );
+    expect(fakeService.fetchCalls, fetchCallsBeforeRefresh);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    container.dispose();
+  });
+
+  testWidgets('chat header uses seeded participant before detail loads', (
+    tester,
+  ) async {
+    final fakeAuth = _FakeAuthSessionNotifier(_customerSession(7));
+    final fakeService = _FakeOrderChatApiService(
+      initialPage: const OrderChatMessagesPage(
+        messages: <OrderChatMessageModel>[],
+        canSend: true,
+        hasMore: false,
+        nextBeforeId: null,
+        unreadCount: 0,
+        lastReadMessageId: 0,
+      ),
+    );
+    final detailCompleter = Completer<CustomerOrderDetailModel>();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          orderChatApiServiceProvider.overrideWithValue(fakeService),
+          orderRealtimeClientProvider.overrideWithValue(
+            FakeOrderRealtimeClient(),
+          ),
+          customerOrderDetailProvider.overrideWith(
+            (ref, orderId) => detailCompleter.future,
+          ),
+        ],
+        child: const MaterialApp(
+          home: OrderChatScreen(
+            orderId: 99,
+            initialParticipantName: 'Zazi',
+            initialParticipantAvatarUrl: 'https://example.test/zazi.jpg',
+            initialParticipantPhone: '082345678901',
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Zazi'), findsOneWidget);
+    expect(find.byTooltip('Buka WhatsApp driver'), findsOneWidget);
+    expect(
+      tester.widget<ProfileAvatar>(find.byType(ProfileAvatar)).avatarUrl,
+      'https://example.test/zazi.jpg',
+    );
+
+    detailCompleter.complete(
+      CustomerOrderDetailModel.fromJson(const <String, dynamic>{
+        'id': 99,
+        'order_number': 'BD-99',
+        'service_type': {'code': 'SHOPPING', 'display_name': 'Nitip'},
+        'status': 'DRIVER_ASSIGNED',
+        'total_amount': 15000,
+        'driver': {
+          'user': {'name': 'Zazi', 'phone': '082345678901'},
+        },
+      }),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Zazi'), findsOneWidget);
+    expect(find.byTooltip('Buka WhatsApp driver'), findsOneWidget);
+  });
 }
 
 class _FakeOrderChatApiService extends OrderChatApiService {
@@ -1386,21 +1562,23 @@ class _FakeAuthSessionNotifier extends AuthSessionNotifier {
   }
 }
 
-AuthSessionState _customerSession(int userId) {
-  return AuthSessionState.fromProfile(
-    UserProfileModel(
-      id: userId,
-      name: 'Customer $userId',
-      phone: '08123$userId',
-      email: 'customer$userId@example.com',
-      avatar: null,
-      avatarUrl: null,
-      role: 'customer',
-      driverProfile: null,
-      stats: const UserStatsModel(totalOrders: 0, totalPaid: 0),
-      addresses: const <SavedAddressModel>[],
-    ),
+UserProfileModel _customerProfile(int userId) {
+  return UserProfileModel(
+    id: userId,
+    name: 'Customer $userId',
+    phone: '08123$userId',
+    email: 'customer$userId@example.com',
+    avatar: null,
+    avatarUrl: null,
+    role: 'customer',
+    driverProfile: null,
+    stats: const UserStatsModel(totalOrders: 0, totalPaid: 0),
+    addresses: const <SavedAddressModel>[],
   );
+}
+
+AuthSessionState _customerSession(int userId) {
+  return AuthSessionState.fromProfile(_customerProfile(userId));
 }
 
 AuthSessionState _driverSession(int userId) {

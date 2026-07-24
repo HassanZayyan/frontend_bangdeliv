@@ -16,11 +16,15 @@ Future<void>? _postLoginPermissionSequenceFuture;
 int? _postLoginPermissionSequenceUserId;
 
 final firebaseNotificationBootstrapProvider = Provider<void>((ref) {
-  final session = ref.watch(authSessionProvider);
-  if (!shouldBootstrapFirebaseNotifications(session)) {
+  // Watch identitas sesi saja supaya bootstrap tidak dijalankan ulang setiap
+  // sesi di-refresh (mis. saat app resume) untuk user yang sama.
+  final identity = ref.watch(authSessionIdentityProvider);
+  if (!shouldBootstrapFirebaseNotificationsFor(identity)) {
     FirebaseNotificationService.clearBackendTokenSync();
     return;
   }
+
+  final session = ref.read(authSessionProvider);
 
   final router = ref.watch(appRouterProvider);
   final deviceTokenApi = ref.watch(deviceTokenApiServiceProvider);
@@ -69,13 +73,11 @@ final firebaseNotificationBootstrapProvider = Provider<void>((ref) {
 });
 
 bool shouldBootstrapFirebaseNotifications(AuthSessionState session) {
-  final profile = session.profile;
+  return shouldBootstrapFirebaseNotificationsFor(session.identity);
+}
 
-  return session.isAuthenticated &&
-      profile != null &&
-      profile.requiresPhoneCompletion != true &&
-      (session.role == SessionUserRole.customer ||
-          session.role == SessionUserRole.driver);
+bool shouldBootstrapFirebaseNotificationsFor(AuthSessionIdentity identity) {
+  return identity.isOrderChatParticipant && !identity.requiresPhoneCompletion;
 }
 
 bool shouldShowForegroundNotification({

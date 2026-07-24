@@ -122,23 +122,19 @@ class _AppRuntimeBootstrap extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(authSessionProvider);
+    final session = ref.watch(authSessionIdentityProvider);
     if (!session.initialized) {
       return child;
     }
 
-    if (shouldBootstrapFirebaseNotifications(session)) {
+    if (shouldBootstrapFirebaseNotificationsFor(session)) {
       ref.watch(firebaseNotificationBootstrapProvider);
       ref.watch(chatHeadsUpNotificationProvider);
       ref.watch(orderPriceHeadsUpNotificationProvider);
       ref.watch(orderStatusHeadsUpNotificationProvider);
     }
 
-    final isActiveDriver =
-        session.isAuthenticated &&
-        session.role == SessionUserRole.driver &&
-        session.driverAccessState == DriverAccessState.active;
-    if (isActiveDriver) {
+    if (session.isActiveDriver) {
       ref.watch(appRealtimeBootstrapProvider);
       ref.watch(driverAvailabilityLocationReporterProvider);
     }

@@ -597,6 +597,10 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                                         returnPath: GoRouterState.of(
                                           context,
                                         ).uri.toString(),
+                                        participantName: driverName,
+                                        participantAvatarUrl:
+                                            detail.driverAvatarUrl,
+                                        participantPhone: detail.driverPhone,
                                       ),
                                     ),
                                   ),
@@ -733,6 +737,9 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                     AppRoutes.orderChatPath(order.id),
                     extra: OrderChatRouteArgs(
                       returnPath: GoRouterState.of(context).uri.toString(),
+                      participantName: driverName,
+                      participantAvatarUrl: detail.driverAvatarUrl,
+                      participantPhone: detail.driverPhone,
                     ),
                   ),
                 ),

@@ -58,10 +58,7 @@ class CustomerOrdersNotifier
       _disposeRegistered = true;
     }
 
-    final session = ref.watch(authSessionProvider);
-    if (!session.isAuthenticated ||
-        session.role != SessionUserRole.customer ||
-        session.profile == null) {
+    if (!ref.watch(authSessionIdentityProvider).isCustomer) {
       _releaseAllOrders();
       return const <CustomerOrderSummaryModel>[];
     }
@@ -342,10 +339,9 @@ final customerCancelledOrdersProvider =
 
 final customerOrderDetailProvider =
     FutureProvider.family<CustomerOrderDetailModel, int>((ref, orderId) async {
-      final session = ref.watch(authSessionProvider);
-      if (!session.isAuthenticated ||
-          session.role != SessionUserRole.customer ||
-          session.profile == null) {
+      // Watch slice sesi (record punya kesetaraan struktural) supaya refresh
+      // sesi berkala tidak memicu refetch detail order untuk user yang sama.
+      if (!ref.watch(authSessionIdentityProvider).isCustomer) {
         throw StateError('Sesi customer tidak aktif.');
       }
 

@@ -10,12 +10,9 @@ import '../../auth/application/auth_session_provider.dart';
 import 'order_realtime_hub_provider.dart';
 
 final chatHeadsUpNotificationProvider = Provider<void>((ref) {
-  final session = ref.watch(authSessionProvider);
-  final profile = session.profile;
-  if (!session.isAuthenticated ||
-      profile == null ||
-      (session.role != SessionUserRole.customer &&
-          session.role != SessionUserRole.driver)) {
+  final session = ref.watch(authSessionIdentityProvider);
+  final currentUserId = session.userId;
+  if (!session.isOrderChatParticipant || currentUserId == null) {
     return;
   }
 
@@ -28,7 +25,7 @@ final chatHeadsUpNotificationProvider = Provider<void>((ref) {
         final message = event.chatMessage;
         if (message == null ||
             !message.hasServerId ||
-            message.senderUserId == profile.id) {
+            message.senderUserId == currentUserId) {
           return;
         }
 

@@ -8,10 +8,7 @@ import '../../auth/application/auth_session_provider.dart';
 import 'order_realtime_hub_provider.dart';
 
 final orderStatusHeadsUpNotificationProvider = Provider<void>((ref) {
-  final session = ref.watch(authSessionProvider);
-  if (!session.isAuthenticated ||
-      session.role != SessionUserRole.customer ||
-      session.profile == null) {
+  if (!ref.watch(authSessionIdentityProvider).isCustomer) {
     return;
   }
 

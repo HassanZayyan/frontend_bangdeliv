@@ -46,11 +46,7 @@ class DriverAvailabilityLocationReporterNotifier
     ref.onDispose(_dispose);
 
     final lifecycle = ref.watch(appLifecycleStateProvider);
-    final session = ref.watch(authSessionProvider);
-    final isDriverSession =
-        session.isAuthenticated &&
-        session.role == SessionUserRole.driver &&
-        session.profile != null;
+    final isDriverSession = ref.watch(authSessionIdentityProvider).isDriver;
     final availability = isDriverSession
         ? ref.watch(driverAvailabilityProvider).asData?.value
         : null;

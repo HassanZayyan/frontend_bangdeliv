@@ -25,11 +25,21 @@ class OrderChatScreen extends ConsumerStatefulWidget {
     super.key,
     required this.orderId,
     this.returnPath,
+    this.initialParticipantName,
+    this.initialParticipantAvatarUrl,
+    this.initialParticipantPhone,
     this.whatsAppLauncher,
   });
 
   final int orderId;
   final String? returnPath;
+
+  /// Identitas lawan chat yang sudah diketahui halaman pemanggil. Dipakai agar
+  /// header (nama, foto, tombol WhatsApp) sudah benar sejak frame pertama,
+  /// sebelum detail order selesai dimuat.
+  final String? initialParticipantName;
+  final String? initialParticipantAvatarUrl;
+  final String? initialParticipantPhone;
   final OrderWhatsAppLauncher? whatsAppLauncher;
 
   @override
@@ -37,9 +47,17 @@ class OrderChatScreen extends ConsumerStatefulWidget {
 }
 
 class OrderChatRouteArgs {
-  const OrderChatRouteArgs({this.returnPath});
+  const OrderChatRouteArgs({
+    this.returnPath,
+    this.participantName,
+    this.participantAvatarUrl,
+    this.participantPhone,
+  });
 
   final String? returnPath;
+  final String? participantName;
+  final String? participantAvatarUrl;
+  final String? participantPhone;
 }
 
 class _OrderChatScreenState extends ConsumerState<OrderChatScreen>
@@ -327,33 +345,45 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen>
     final session = ref.watch(authSessionProvider);
     final currentUserId = session.profile?.id ?? 0;
     final isDriverSession = session.role == SessionUserRole.driver;
-    final customerDetailAsync = session.role == SessionUserRole.customer
-        ? ref.watch(customerOrderDetailProvider(widget.orderId))
+    // `valueOrNull` (bukan `asData`) supaya nilai terakhir tetap dipakai saat
+    // provider sedang reload. Tanpa ini header sempat balik ke avatar inisial.
+    final customerDetail = session.role == SessionUserRole.customer
+        ? ref.watch(customerOrderDetailProvider(widget.orderId)).value
         : null;
-    final driverDetailAsync = isDriverSession
-        ? ref.watch(driverOrderDetailProvider(widget.orderId.toString()))
+    final driverDetail = isDriverSession
+        ? ref.watch(driverOrderDetailProvider(widget.orderId.toString())).value
         : null;
-    final customerDetail = customerDetailAsync?.asData?.value;
-    final driverDetail = driverDetailAsync?.asData?.value;
-    final messages =
-        chatAsync.asData?.value.messages ?? const <OrderChatMessageModel>[];
-    final participantName =
-        (isDriverSession
-                ? (driverDetail?.customerName ??
-                      _participantNameFromMessages(messages, 'customer'))
-                : (customerDetail?.driverName ??
-                      _participantNameFromMessages(messages, 'driver')))
-            .trim();
+
+    // Data chat terakhir dipertahankan selama reload agar composer tidak ikut
+    // dilepas dari widget tree (fokus TextField/keyboard tetap bertahan).
+    final chat = chatAsync.value;
+    final chatError = chatAsync.hasError && !chatAsync.isLoading
+        ? chatAsync.error
+        : null;
+    final isChatReady = chat != null && chatError == null;
+    final messages = chat?.messages ?? const <OrderChatMessageModel>[];
+
     final participantFallback = isDriverSession ? 'Customer' : 'Driver';
     final participantRoleLabel = isDriverSession ? 'customer' : 'driver';
-    final participantAvatarUrl = isDriverSession
-        ? driverDetail?.customerAvatarUrl?.trim()
-        : customerDetail?.driverAvatarUrl?.trim();
-    final participantPhone = isDriverSession
-        ? driverDetail?.customerPhone
-        : customerDetail?.driverPhone;
+    final participantName = _firstNonEmpty([
+      isDriverSession ? driverDetail?.customerName : customerDetail?.driverName,
+      widget.initialParticipantName,
+      _participantNameFromMessages(messages, participantRoleLabel),
+    ]);
+    final participantAvatarUrl = _firstNonEmpty([
+      isDriverSession
+          ? driverDetail?.customerAvatarUrl
+          : customerDetail?.driverAvatarUrl,
+      widget.initialParticipantAvatarUrl,
+    ]);
+    final participantPhone = _firstNonEmpty([
+      isDriverSession
+          ? driverDetail?.customerPhone
+          : customerDetail?.driverPhone,
+      widget.initialParticipantPhone,
+    ]);
     final whatsAppUri = buildOrderWhatsAppUri(
-      phone: participantPhone,
+      phone: participantPhone.isEmpty ? null : participantPhone,
       participantName: participantName.isEmpty
           ? participantFallback
           : participantName,
@@ -364,9 +394,9 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen>
       previous,
       next,
     ) {
-      final previousLength = previous?.asData?.value.messages.length ?? 0;
+      final previousLength = previous?.value?.messages.length ?? 0;
       final nextMessages =
-          next.asData?.value.messages ?? const <OrderChatMessageModel>[];
+          next.value?.messages ?? const <OrderChatMessageModel>[];
       final nextLength = nextMessages.length;
       _markVisibleMessagesRead(nextMessages);
       if (nextLength > previousLength) {
@@ -393,7 +423,9 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen>
                 ? participantFallback
                 : participantName,
             participantRoleLabel: participantRoleLabel,
-            avatarUrl: participantAvatarUrl,
+            avatarUrl: participantAvatarUrl.isEmpty
+                ? null
+                : participantAvatarUrl,
           ),
           backgroundColor: AppColors.white,
           elevation: 0,
@@ -420,129 +452,134 @@ class _OrderChatScreenState extends ConsumerState<OrderChatScreen>
             const SizedBox(width: 4),
           ],
         ),
-        body: chatAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stackTrace) => BangErrorState(
-            message: error.toString(),
-            onRetry: () => ref.invalidate(orderChatProvider(widget.orderId)),
-          ),
-          data: (chat) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                _markVisibleMessagesRead(chat.messages);
-              }
-            });
-
-            return Column(
-              children: [
-                if ((chat.errorMessage ?? '').isNotEmpty)
-                  _InfoBanner(text: chat.errorMessage!),
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: () async {
-                      ref.invalidate(orderChatProvider(widget.orderId));
-                      await ref.read(orderChatProvider(widget.orderId).future);
-                      final messages =
-                          ref
-                              .read(orderChatProvider(widget.orderId))
-                              .asData
-                              ?.value
-                              .messages ??
-                          const <OrderChatMessageModel>[];
-                      await ref
-                          .read(
-                            orderChatUnreadCountProvider(
-                              widget.orderId,
-                            ).notifier,
-                          )
-                          .markReadThrough(_latestServerMessageId(messages));
-                    },
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final availableEmptyHeight =
-                            constraints.hasBoundedHeight
-                            ? constraints.maxHeight - 30
-                            : 240.0;
-                        final emptyStateHeight = availableEmptyHeight < 180
-                            ? 180.0
-                            : availableEmptyHeight;
-                        final maxBubbleContentWidth =
-                            _MessageBubble.maxContentWidthFor(
-                              constraints.maxWidth,
-                            );
-
-                        return ListView(
-                          controller: _scrollController,
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
-                          children: [
-                            if (chat.hasMore)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: Center(
-                                  child: OutlinedButton.icon(
-                                    onPressed: chat.isLoadingOlder
-                                        ? null
-                                        : () => ref
-                                              .read(
-                                                orderChatProvider(
-                                                  widget.orderId,
-                                                ).notifier,
-                                              )
-                                              .loadOlder(),
-                                    icon: chat.isLoadingOlder
-                                        ? const SizedBox(
-                                            width: 14,
-                                            height: 14,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                            ),
-                                          )
-                                        : const Icon(Icons.history, size: 16),
-                                    label: const Text('Muat pesan lama'),
-                                  ),
-                                ),
-                              ),
-                            if (chat.messages.isEmpty)
-                              _EmptyChat(height: emptyStateHeight)
-                            else
-                              for (
-                                var index = 0;
-                                index < chat.messages.length;
-                                index += 1
-                              )
-                                _MessageBubble(
-                                  message: chat.messages[index],
-                                  isMine:
-                                      chat.messages[index].senderUserId ==
-                                      currentUserId,
-                                  maxContentWidth: maxBubbleContentWidth,
-                                  showTail: _startsSenderRun(
-                                    chat.messages,
-                                    index,
-                                  ),
-                                ),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                _Composer(
-                  controller: _inputController,
-                  focusNode: _inputFocusNode,
-                  enabled: chat.canSend,
-                  isSending: chat.isSending,
-                  onSend: _sendMessage,
-                  onAttachPhoto: _sendPhoto,
-                  onTapInput: _scrollToBottom,
-                ),
-              ],
-            );
-          },
+        // Composer selalu ter-mount, apa pun state async-nya. Hanya area pesan
+        // yang berganti antara loading/error/list.
+        body: Column(
+          children: [
+            if ((chat?.errorMessage ?? '').isNotEmpty)
+              _InfoBanner(text: chat!.errorMessage!),
+            Expanded(
+              child: _buildMessageArea(
+                chat: chat,
+                chatError: chatError,
+                currentUserId: currentUserId,
+              ),
+            ),
+            _Composer(
+              controller: _inputController,
+              focusNode: _inputFocusNode,
+              isReady: isChatReady,
+              enabled: chat?.canSend ?? false,
+              isSending: chat?.isSending ?? false,
+              onSend: _sendMessage,
+              onAttachPhoto: _sendPhoto,
+              onTapInput: _scrollToBottom,
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  Widget _buildMessageArea({
+    required OrderChatState? chat,
+    required Object? chatError,
+    required int currentUserId,
+  }) {
+    if (chatError != null) {
+      return BangErrorState(
+        message: chatError.toString(),
+        onRetry: () => ref.invalidate(orderChatProvider(widget.orderId)),
+      );
+    }
+
+    if (chat == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _markVisibleMessagesRead(chat.messages);
+      }
+    });
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        ref.invalidate(orderChatProvider(widget.orderId));
+        await ref.read(orderChatProvider(widget.orderId).future);
+        final messages =
+            ref.read(orderChatProvider(widget.orderId)).value?.messages ??
+            const <OrderChatMessageModel>[];
+        await ref
+            .read(orderChatUnreadCountProvider(widget.orderId).notifier)
+            .markReadThrough(_latestServerMessageId(messages));
+      },
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final availableEmptyHeight = constraints.hasBoundedHeight
+              ? constraints.maxHeight - 30
+              : 240.0;
+          final emptyStateHeight = availableEmptyHeight < 180
+              ? 180.0
+              : availableEmptyHeight;
+          final maxBubbleContentWidth = _MessageBubble.maxContentWidthFor(
+            constraints.maxWidth,
+          );
+
+          return ListView(
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+            children: [
+              if (chat.hasMore)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Center(
+                    child: OutlinedButton.icon(
+                      onPressed: chat.isLoadingOlder
+                          ? null
+                          : () => ref
+                                .read(
+                                  orderChatProvider(widget.orderId).notifier,
+                                )
+                                .loadOlder(),
+                      icon: chat.isLoadingOlder
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.history, size: 16),
+                      label: const Text('Muat pesan lama'),
+                    ),
+                  ),
+                ),
+              if (chat.messages.isEmpty)
+                _EmptyChat(height: emptyStateHeight)
+              else
+                for (var index = 0; index < chat.messages.length; index += 1)
+                  _MessageBubble(
+                    message: chat.messages[index],
+                    isMine: chat.messages[index].senderUserId == currentUserId,
+                    maxContentWidth: maxBubbleContentWidth,
+                    showTail: _startsSenderRun(chat.messages, index),
+                  ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  String _firstNonEmpty(List<String?> values) {
+    for (final value in values) {
+      final normalized = value?.trim() ?? '';
+      if (normalized.isNotEmpty) {
+        return normalized;
+      }
+    }
+
+    return '';
   }
 
   bool _startsSenderRun(List<OrderChatMessageModel> messages, int index) {
@@ -1134,6 +1171,7 @@ class _Composer extends StatelessWidget {
   const _Composer({
     required this.controller,
     required this.focusNode,
+    required this.isReady,
     required this.enabled,
     required this.isSending,
     required this.onSend,
@@ -1143,6 +1181,10 @@ class _Composer extends StatelessWidget {
 
   final TextEditingController controller;
   final FocusNode focusNode;
+
+  /// Data chat sudah diterima. Selama masih false composer tetap dirender
+  /// (dalam kondisi nonaktif) supaya TextField tidak pernah dilepas-pasang.
+  final bool isReady;
   final bool enabled;
   final bool isSending;
   final VoidCallback onSend;
@@ -1151,9 +1193,9 @@ class _Composer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final canSendAction = enabled;
+    final canSendAction = isReady && enabled;
 
-    if (!enabled) {
+    if (isReady && !enabled) {
       return Container(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
         decoration: const BoxDecoration(
@@ -1203,7 +1245,7 @@ class _Composer extends StatelessWidget {
               child: TextField(
                 controller: controller,
                 focusNode: focusNode,
-                enabled: enabled,
+                enabled: canSendAction,
                 minLines: 1,
                 maxLines: 4,
                 textInputAction: TextInputAction.send,
@@ -1218,6 +1260,10 @@ class _Composer extends StatelessWidget {
                     fontSize: 13,
                   ),
                   border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide.none,
+                  ),
+                  disabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide.none,
                   ),

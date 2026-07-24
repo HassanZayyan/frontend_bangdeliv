@@ -103,11 +103,11 @@ class OrderChatNotifier extends AsyncNotifier<OrderChatState> {
     _stopDegradedSync();
     ref.onDispose(_dispose);
 
-    final session = ref.watch(authSessionProvider);
-    if (!session.isAuthenticated ||
-        session.profile == null ||
-        (session.role != SessionUserRole.customer &&
-            session.role != SessionUserRole.driver)) {
+    // Watch identitas sesi saja. Watch objek `AuthSessionState` penuh membuat
+    // chat reload (dan composer ikut dilepas dari tree, keyboard tertutup)
+    // setiap kali sesi di-refresh walau usernya sama.
+    final session = ref.watch(authSessionIdentityProvider);
+    if (!session.isOrderChatParticipant) {
       throw StateError('Sesi pengguna tidak aktif.');
     }
 

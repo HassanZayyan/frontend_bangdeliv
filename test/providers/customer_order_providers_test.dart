@@ -64,6 +64,37 @@ void main() {
   );
 
   test(
+    'customerOrdersProvider does not refetch when session is refreshed',
+    () async {
+      final fakeAuth = _FakeAuthSessionNotifier(_customerSession(9));
+      final fakeService = _FakeCustomerOrderApiService(
+        queuedResponses: <List<CustomerOrderSummaryModel>>[
+          <CustomerOrderSummaryModel>[_order(id: 9010, number: 'ORD-U9')],
+          <CustomerOrderSummaryModel>[_order(id: 9011, number: 'ORD-U9-B')],
+        ],
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          authSessionProvider.overrideWith(() => fakeAuth),
+          customerOrderApiServiceProvider.overrideWithValue(fakeService),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(customerOrdersProvider.future);
+      expect(fakeService.fetchOrdersCalls, 1);
+
+      // Refresh sesi menghasilkan objek state baru untuk user yang sama.
+      fakeAuth.setSession(_customerSession(9));
+
+      final result = await container.read(customerOrdersProvider.future);
+      expect(result.map((item) => item.orderNumber), ['ORD-U9']);
+      expect(fakeService.fetchOrdersCalls, 1);
+    },
+  );
+
+  test(
     'customerOrdersProvider clears data when switching to driver role',
     () async {
       final fakeAuth = _FakeAuthSessionNotifier(_customerSession(9));

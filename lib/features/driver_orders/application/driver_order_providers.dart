@@ -301,10 +301,8 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     _stopIncomingReconciliation();
     ref.onDispose(_dispose);
 
-    final session = ref.watch(authSessionProvider);
-    if (!session.isAuthenticated ||
-        session.role != SessionUserRole.driver ||
-        session.profile == null) {
+    final session = ref.watch(authSessionIdentityProvider);
+    if (!session.isDriver) {
       _cancelRealtime();
       _releaseRunningOrderRealtime();
       _stopIncomingReconciliation();
@@ -351,10 +349,8 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
       return;
     }
 
-    final session = ref.read(authSessionProvider);
-    if (!session.isAuthenticated ||
-        session.role != SessionUserRole.driver ||
-        session.profile == null) {
+    final session = ref.read(authSessionIdentityProvider);
+    if (!session.isDriver) {
       _cancelRealtime();
       _releaseRunningOrderRealtime();
       _stopDegradedRefresh();
@@ -440,17 +436,13 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     }
   }
 
-  void _syncRealtimeSubscription(AuthSessionState session) {
-    final profile = session.profile;
-    if (!_isMounted ||
-        !session.isAuthenticated ||
-        session.role != SessionUserRole.driver ||
-        profile == null) {
+  void _syncRealtimeSubscription(AuthSessionIdentity session) {
+    final driverUserId = session.userId;
+    if (!_isMounted || !session.isDriver || driverUserId == null) {
       _cancelRealtime();
       return;
     }
 
-    final driverUserId = profile.id;
     if (_driverRealtimeSub != null && _targetDriverUserId == driverUserId) {
       if (!_driverRealtimeSubscribed) {
         _scheduleRealtimeRetry(driverUserId);
@@ -672,7 +664,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
         return;
       }
 
-      _syncRealtimeSubscription(ref.read(authSessionProvider));
+      _syncRealtimeSubscription(ref.read(authSessionIdentityProvider));
     });
   }
 
@@ -686,7 +678,7 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
   }
 
   void _refreshAvailabilityThenSyncRealtime() {
-    final session = ref.read(authSessionProvider);
+    final session = ref.read(authSessionIdentityProvider);
     unawaited(
       ref
           .read(driverAvailabilityProvider.future)
@@ -1890,12 +1882,9 @@ final driverOrderDetailRefreshProvider = Provider.autoDispose
 final driverOrderDetailRealtimeProvider = Provider.autoDispose
     .family<void, String>((ref, orderId) {
       final parsedOrderId = int.tryParse(orderId.trim());
-      final session = ref.watch(authSessionProvider);
       if (parsedOrderId == null ||
           parsedOrderId <= 0 ||
-          !session.isAuthenticated ||
-          session.role != SessionUserRole.driver ||
-          session.profile == null) {
+          !ref.watch(authSessionIdentityProvider).isDriver) {
         return;
       }
 
@@ -2016,8 +2005,7 @@ class DriverHistoryNotifier
     _disposed = false;
     ref.onDispose(() => _disposed = true);
 
-    final session = ref.watch(authSessionProvider);
-    if (!_isEligibleSession(session)) {
+    if (!ref.watch(authSessionIdentityProvider).isDriver) {
       return const <DriverHistoryOrderModel>[];
     }
 
@@ -2029,8 +2017,7 @@ class DriverHistoryNotifier
       return;
     }
 
-    final session = ref.read(authSessionProvider);
-    if (!_isEligibleSession(session)) {
+    if (!ref.read(authSessionIdentityProvider).isDriver) {
       state = const AsyncData(<DriverHistoryOrderModel>[]);
       return;
     }
@@ -2067,12 +2054,6 @@ class DriverHistoryNotifier
         _silentRefreshInFlight = false;
       }
     }
-  }
-
-  bool _isEligibleSession(AuthSessionState session) {
-    return session.isAuthenticated &&
-        session.role == SessionUserRole.driver &&
-        session.profile != null;
   }
 }
 
