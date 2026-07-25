@@ -739,6 +739,15 @@ class CustomerOrderDetailModel {
         shoppingCapabilities.canCustomerCancelShoppingOrder;
   }
 
+  /// Semua toko/resto gagal dan biaya pembatalan 50% menunggu driver
+  /// mengonfirmasi -- driver boleh mengoreksi basis ongkirnya dulu supaya
+  /// customer tidak ditagih nominal yang meleset.
+  bool get awaitsDriverCancellationFeeReview {
+    return isShoppingOrder &&
+        shoppingCapabilities.isExplicit &&
+        shoppingCapabilities.awaitsDriverCancellationFeeReview;
+  }
+
   /// Nomor tampilan tempat yang STABIL (mengikuti urutan pembuatan/pickup id),
   /// dipakai bersama oleh tab "Tempat N" dan badge angka di kartu agar tidak
   /// tertukar dengan `sequence_no` yang berubah saat rute dioptimasi ulang.

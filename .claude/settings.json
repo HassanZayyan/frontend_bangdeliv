@@ -54,7 +54,8 @@
       "Bash(cd \"d:/AA_Kuliah_Hassan/TA/Backend_Bangdeliv\" && sed -n '/public function uploadTransferEvidenceByCustomer/,/^    }$/p' app/Services/Order/CustomerOrderService.php | grep -nE \"ApiException|statusCode|CANCELLED|DELIVERED|payment_method\" | head)",
       "Bash(awk 'NR>=1230 && NR<=1300' app/Services/Order/ShoppingNegotiationOrchestrator.php)",
       "Bash(grep -nE \"private function|public function|cancelledBy|Trigger|string \\\\\\\\\\\\$\")",
-      "Bash(vendor/bin/pint app/Services/Order/CustomerOrderService.php tests/Feature/ShoppingAutoCancelPenaltyPredicateTest.php)"
+      "Bash(vendor/bin/pint app/Services/Order/CustomerOrderService.php tests/Feature/ShoppingAutoCancelPenaltyPredicateTest.php)",
+      "Bash(sed -i \"/cancellationWithFeeTrigger: '/d\" app/Services/Order/ShoppingNegotiationOrchestrator.php)"
     ],
     "additionalDirectories": [
       "d:\\AA_Kuliah_Hassan\\TA\\Backend_Bangdeliv\\app\\Services\\Order",

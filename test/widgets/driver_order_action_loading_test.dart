@@ -1759,6 +1759,91 @@ void main() {
       expect(calls.last.$2, isEmpty);
     },
   );
+
+  testWidgets('stranded failed stop offers driver a full order cancellation', (
+    tester,
+  ) async {
+    var cancelCalls = 0;
+
+    await _pumpShoppingItemsCard(
+      tester,
+      order: _order(
+        serviceTypeCode: ServiceTypeCodes.shopping,
+        statusCode: OrderStatusCodes.arrivedMerchant,
+        shoppingCapabilities: const ShoppingOrderCapabilitiesModel(
+          isExplicit: true,
+          canDriverCancelShoppingOrder: true,
+        ),
+        shoppingStops: const [
+          DriverShoppingStopModel(
+            pickupLocationId: 7,
+            sequenceNo: 1,
+            fulfillmentStatus: 'FAILED',
+            merchant: DriverShoppingMerchantModel(
+              id: 1,
+              name: 'Gecok JOGO ROSO TLOGO',
+              merchantType: 'restaurant',
+              address: 'Jl. Raya Tuntang-Beringin',
+            ),
+            items: [],
+          ),
+        ],
+      ),
+      onCancelShoppingOrder: () async {
+        cancelCalls += 1;
+        return null;
+      },
+    );
+
+    expect(find.text('Batalkan pesanan'), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const ValueKey('driver-shopping-action-cancel-order-7')),
+    );
+    await tester.pumpAndSettle();
+
+    // Konfirmasi wajib: sekali tekan tidak langsung membatalkan.
+    expect(cancelCalls, 0);
+    await tester.tap(find.widgetWithText(FilledButton, 'Batalkan pesanan'));
+    await tester.pumpAndSettle();
+    expect(cancelCalls, 1);
+  });
+
+  testWidgets('driver cancellation stays hidden once a store is purchased', (
+    tester,
+  ) async {
+    await _pumpShoppingItemsCard(
+      tester,
+      order: _order(
+        serviceTypeCode: ServiceTypeCodes.shopping,
+        statusCode: OrderStatusCodes.arrivedMerchant,
+        shoppingCapabilities: const ShoppingOrderCapabilitiesModel(
+          isExplicit: true,
+          canDriverCancelShoppingOrder: false,
+        ),
+        shoppingStops: const [
+          DriverShoppingStopModel(
+            pickupLocationId: 7,
+            sequenceNo: 1,
+            fulfillmentStatus: 'FAILED',
+            merchant: DriverShoppingMerchantModel(
+              id: 1,
+              name: 'Gecok JOGO ROSO TLOGO',
+              merchantType: 'restaurant',
+              address: 'Jl. Raya Tuntang-Beringin',
+            ),
+            items: [],
+          ),
+        ],
+      ),
+    );
+
+    expect(find.text('Batalkan pesanan'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('driver-shopping-action-cancel-order-7')),
+      findsNothing,
+    );
+  });
 }
 
 Future<void> _pumpProofChecklist(
@@ -1802,6 +1887,7 @@ Future<void> _pumpShoppingItemsCard(
   )?
   onDecideUnavailableItems,
   Future<String?> Function(int pickupLocationId)? onReplaceUnavailableItems,
+  Future<String?> Function()? onCancelShoppingOrder,
   double? cardWidth,
 }) async {
   final card = DriverShoppingItemsCard(
@@ -1838,6 +1924,7 @@ Future<void> _pumpShoppingItemsCard(
           storeClosedPhoto,
         }) async => null,
     onReplaceMerchant: (_) async => null,
+    onCancelShoppingOrder: () async => onCancelShoppingOrder?.call(),
     onApproveMerchantReplacement: (_) async => null,
     onRejectMerchantReplacement: (_) async => null,
     onReplaceUnavailableItems: (stop) async =>

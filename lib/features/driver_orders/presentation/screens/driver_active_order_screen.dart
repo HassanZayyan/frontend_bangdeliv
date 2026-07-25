@@ -1948,6 +1948,11 @@ class _DriverActiveOrderScreenState
                                                 order,
                                                 stop,
                                               ),
+                                          onCancelShoppingOrder: () =>
+                                              _cancelShoppingOrderByDriver(
+                                                context,
+                                                order,
+                                              ),
                                           onApproveMerchantReplacement: (stop) =>
                                               _respondShoppingMerchantReplacementApproval(
                                                 context,
@@ -2356,6 +2361,28 @@ class _DriverActiveOrderScreenState
       onBypassDeliveryFee: onBypassDeliveryFee,
       onTapAction: (action) => _executeOrderAction(context, order, action),
     );
+  }
+
+  /// Pembatalan penuh order Nitip oleh driver. Order langsung terminal, jadi
+  /// driver dikembalikan ke daftar order seperti aksi terminal lainnya.
+  Future<String?> _cancelShoppingOrderByDriver(
+    BuildContext context,
+    DriverOrderModel order,
+  ) async {
+    final error = await ref
+        .read(driverOrdersProvider.notifier)
+        .cancelShoppingOrder(orderId: order.id);
+    if (!context.mounted) {
+      return error;
+    }
+
+    if (error == null) {
+      _showActionSnackBar(context, message: 'Pesanan berhasil dibatalkan.');
+      ref.invalidate(driverOrderDetailProvider(order.id));
+      context.go(AppRoutes.driverOrders);
+    }
+
+    return error;
   }
 
   Future<void> _executeOrderAction(

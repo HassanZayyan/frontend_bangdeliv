@@ -507,6 +507,15 @@ class DriverOrderService {
     return _orderFromMutationResponse(response, orderId);
   }
 
+  Future<DriverOrderModel> cancelShoppingOrder({required String orderId}) async {
+    final response = await _post(
+      '/v1/driver/orders/$orderId/shopping/cancel',
+      fallback: 'Gagal membatalkan pesanan Nitip.',
+    );
+
+    return _orderFromMutationResponse(response, orderId);
+  }
+
   Future<DriverOrderModel> recordShoppingPickupFailed({
     required String orderId,
     required int pickupLocationId,
