@@ -543,17 +543,9 @@ class _TrackShoppingOrderItemsCardState
             icon: Icons.info_outline_rounded,
             text: blockReason,
           ),
-        // Semua toko/resto gagal: pembatalan berbiaya menunggu driver. Beri tahu
-        // customer supaya tombol yang hilang tidak terasa seperti jalan buntu.
-        if (!isPending && widget.detail.awaitsDriverCancellationFeeReview) ...[
-          const SizedBox(height: 8),
-          const _TrackNotice(
-            tone: _TrackNoticeTone.info,
-            icon: Icons.hourglass_bottom_rounded,
-            text:
-                'Driver sedang menghitung biaya pembatalan. Tunggu konfirmasi driver.',
-          ),
-        ],
+        // Catatan "Driver sedang menghitung biaya pembatalan" kini dipindah ke
+        // kartu "Estimasi fee pembatalan" di Ringkasan (bersama angka estimasi)
+        // supaya urutannya benar dan mati setelah driver konfirmasi.
         // Ganti toko/resto + Batalkan pesanan berdampingan (grid bersama).
         if (actions.isNotEmpty) ...[
           const SizedBox(height: 8),

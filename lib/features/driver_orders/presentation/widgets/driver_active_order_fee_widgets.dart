@@ -8,7 +8,9 @@ import '../../../../utils/service_type.dart';
 import 'driver_active_order_widget_helpers.dart';
 
 typedef DriverShoppingCancellationInput = ({
-  double baseDeliveryFee,
+  // null bila driver TIDAK mengubah ongkir default: backend memakai estimasi
+  // otomatis dan tak meminta alasan koreksi.
+  double? baseDeliveryFee,
   String reason,
 });
 
@@ -63,6 +65,11 @@ class _ShoppingCancelWithFeeDialogState
 
   double get _cancellationFee =>
       (_baseDeliveryFee * widget.cancellationPercent / 100).roundToDouble();
+
+  /// True bila driver benar-benar mengubah nominal ongkir dari default. Hanya
+  /// saat berubah, koreksi dikirim ke backend dan alasan menjadi wajib.
+  bool get _baseChanged =>
+      _baseDeliveryFee.round() != widget.initialBaseDeliveryFee.round();
 
   @override
   void initState() {
@@ -155,7 +162,9 @@ class _ShoppingCancelWithFeeDialogState
                 minLines: 2,
                 maxLines: 3,
                 decoration: driverDialogInputDecoration(
-                  labelText: 'Alasan koreksi',
+                  labelText: _baseChanged
+                      ? 'Alasan koreksi'
+                      : 'Alasan koreksi (opsional)',
                   hintText: 'Contoh: rute aktual lebih jauh dari estimasi',
                   errorText: _reasonErrorText,
                 ),
@@ -187,11 +196,14 @@ class _ShoppingCancelWithFeeDialogState
   void _submit() {
     final baseDeliveryFee = _baseDeliveryFee;
     final reason = _reasonController.text.trim();
+    final baseChanged = _baseChanged;
     final amountError = baseDeliveryFee <= 0
         ? 'Ongkir penuh wajib lebih dari Rp 0.'
         : null;
-    final reasonError = reason.isEmpty
-        ? 'Alasan koreksi ongkir wajib diisi.'
+    // Alasan hanya wajib bila driver mengoreksi ongkirnya. Bila ongkir dibiarkan
+    // default (sudah benar), alasan opsional -- lebih praktis.
+    final reasonError = (baseChanged && reason.isEmpty)
+        ? 'Alasan koreksi wajib diisi saat ongkir diubah.'
         : null;
     if (amountError != null || reasonError != null) {
       setState(() {
@@ -202,9 +214,12 @@ class _ShoppingCancelWithFeeDialogState
     }
 
     FocusManager.instance.primaryFocus?.unfocus();
-    Navigator.of(
-      context,
-    ).pop((baseDeliveryFee: baseDeliveryFee, reason: reason));
+    // Kirim koreksi base HANYA bila benar-benar berubah, supaya backend tak
+    // menuntut alasan untuk ongkir yang tak diubah.
+    Navigator.of(context).pop((
+      baseDeliveryFee: baseChanged ? baseDeliveryFee : null,
+      reason: reason,
+    ));
   }
 }
 
