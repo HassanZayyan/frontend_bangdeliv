@@ -168,6 +168,7 @@ class ChatbotApiService {
     int? merchantId,
     ShoppingMerchantPlacePayload? merchantPlace,
     String mode = 'select',
+    String? replaceTargetStopId,
   }) async {
     final normalizedSessionId = sessionId.trim();
     if (normalizedSessionId.isEmpty) {
@@ -177,11 +178,21 @@ class ChatbotApiService {
       throw const ApiException('Tempat belum dipilih.');
     }
 
+    final normalizedTarget = (replaceTargetStopId ?? '').trim();
+    // 'replace' butuh target stop_id; tanpa target, aman turunkan ke 'select'
+    // (replace slot aktif) agar tidak memicu 422 dari backend.
+    final resolvedMode = switch (mode.trim().toLowerCase()) {
+      'add' => 'add',
+      'replace' => normalizedTarget.isEmpty ? 'select' : 'replace',
+      _ => 'select',
+    };
+
     final requestBody = <String, dynamic>{
       'service_type': serviceType,
-      'mode': mode.trim().toLowerCase() == 'add' ? 'add' : 'select',
+      'mode': resolvedMode,
       if (merchantId != null && merchantId > 0) 'merchant_id': merchantId,
       if (merchantPlace != null) 'merchant_place': merchantPlace.toJson(),
+      if (resolvedMode == 'replace') 'replace_target': normalizedTarget,
     };
 
     Map<String, dynamic> response;

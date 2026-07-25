@@ -30,6 +30,7 @@ abstract class ChatbotRepository {
     int? merchantId,
     ShoppingMerchantPlacePayload? merchantPlace,
     String mode = 'select',
+    String? replaceTargetStopId,
   });
 
   Future<void> clearSession(String sessionId);
@@ -92,6 +93,7 @@ class ApiChatbotRepository implements ChatbotRepository {
     int? merchantId,
     ShoppingMerchantPlacePayload? merchantPlace,
     String mode = 'select',
+    String? replaceTargetStopId,
   }) {
     return _service.patchSessionMerchant(
       sessionId,
@@ -99,6 +101,7 @@ class ApiChatbotRepository implements ChatbotRepository {
       merchantId: merchantId,
       merchantPlace: merchantPlace,
       mode: mode,
+      replaceTargetStopId: replaceTargetStopId,
     );
   }
 

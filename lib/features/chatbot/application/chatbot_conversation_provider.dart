@@ -31,6 +31,10 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
 
   final String _initialServiceType;
 
+  /// stop_id slot aktif dari draft belanja terbaru. Dipakai untuk menandai
+  /// menu selector agar tombol "Ganti Toko/Resto" menyasar stop yang tepat.
+  String? _activeStopId;
+
   @override
   ChatbotConversationState build() {
     final serviceType = _normalizeConversationServiceType(_initialServiceType);
@@ -57,6 +61,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
       return;
     }
 
+    _activeStopId = null;
     state = ChatbotConversationState(
       serviceType: normalizedServiceType,
       sessionId: null,
@@ -157,7 +162,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         serviceType: serviceType,
         sessionId: sessionId,
         isSending: false,
-        activeOrderId: _activeOrderIdFromResult(result),
+        activeOrderId: _trackAndResolveActiveOrderId(result),
         messages: <ChatbotConversationMessage>[
           ...state.messages,
           _messageFromResult(result, serviceType),
@@ -323,7 +328,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         serviceType: serviceType,
         sessionId: resolvedSessionId,
         isApplyingAction: false,
-        activeOrderId: _activeOrderIdFromResult(result),
+        activeOrderId: _trackAndResolveActiveOrderId(result),
         messages: <ChatbotConversationMessage>[
           ...state.messages,
           _messageFromResult(
@@ -391,7 +396,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         serviceType: serviceType,
         sessionId: resolvedSessionId,
         isApplyingAction: false,
-        activeOrderId: _activeOrderIdFromResult(result),
+        activeOrderId: _trackAndResolveActiveOrderId(result),
         messages: <ChatbotConversationMessage>[
           ...state.messages,
           _messageFromResult(result, serviceType),
@@ -411,6 +416,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     int? merchantId,
     ShoppingMerchantPlacePayload? merchantPlace,
     String mode = 'select',
+    String? replaceTargetStopId,
     bool appendAssistantMessage = true,
   }) async {
     _ensureService(serviceType);
@@ -438,6 +444,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         merchantId: merchantId,
         merchantPlace: merchantPlace,
         mode: mode,
+        replaceTargetStopId: replaceTargetStopId,
       );
 
       final resolvedSessionId = await _sessionIdAfterResult(
@@ -450,7 +457,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         serviceType: serviceType,
         sessionId: resolvedSessionId,
         isApplyingAction: false,
-        activeOrderId: _activeOrderIdFromResult(result),
+        activeOrderId: _trackAndResolveActiveOrderId(result),
         messages: appendAssistantMessage
             ? <ChatbotConversationMessage>[
                 ...state.messages,
@@ -537,11 +544,16 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         normalizedMode == 'add' || normalizedMode == 'maps_add'
         ? 'add'
         : 'select';
+    // stop_id slot aktif terbaru dari backend; menandai stop yang diwakili
+    // menu selector ini agar "Ganti Toko/Resto" mengganti stop yang tepat.
+    final activeStopId = (_activeStopId ?? '').trim();
+    final effectiveTargetStopId = activeStopId.isEmpty ? null : activeStopId;
     final previous = state.menuSelectorDraft;
     final quantities =
         previous != null &&
             previous.merchantName == effectiveMerchantName &&
             previous.merchantMode == effectiveMerchantMode &&
+            previous.targetStopId == effectiveTargetStopId &&
             _hasSameMenuSuggestions(previous.menus, normalizedMenus)
         ? previous.quantities
               .take(normalizedMenus.length)
@@ -557,6 +569,7 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
         quantities: quantities.length == normalizedMenus.length
             ? quantities
             : List<int>.filled(normalizedMenus.length, 0),
+        targetStopId: effectiveTargetStopId,
       ),
       menuSelectorNotice: '',
     );
@@ -636,6 +649,30 @@ class ChatbotConversationNotifier extends Notifier<ChatbotConversationState> {
     }
 
     return true;
+  }
+
+  /// Menyimpan stop_id slot aktif terbaru sekaligus mengembalikan id order
+  /// aktif. Dipanggil di setiap titik hasil balasan backend agar `_activeStopId`
+  /// selalu mengikuti kebenaran draft terakhir.
+  int? _trackAndResolveActiveOrderId(ChatbotResult result) {
+    _activeStopId = _activeStopIdFromResult(result);
+    return _activeOrderIdFromResult(result);
+  }
+
+  String? _activeStopIdFromResult(ChatbotResult result) {
+    final shopping = result.shopping;
+    if (shopping == null) {
+      return null;
+    }
+
+    for (final stop in shopping.stops) {
+      if (stop.isActive) {
+        final stopId = (stop.stopId ?? '').trim();
+        return stopId.isEmpty ? null : stopId;
+      }
+    }
+
+    return null;
   }
 
   int? _activeOrderIdFromResult(ChatbotResult result) {

@@ -70,6 +70,10 @@ class ChatbotShoppingItem {
 
 class ChatbotShoppingStop {
   final int index;
+
+  /// Identitas slot stop yang stabil dari backend (uuid). Dipakai untuk
+  /// menyasar stop tertentu saat "Ganti Toko/Resto" agar tidak salah replace.
+  final String? stopId;
   final bool isActive;
   final bool ready;
   final Map<String, dynamic>? merchant;
@@ -77,6 +81,7 @@ class ChatbotShoppingStop {
 
   const ChatbotShoppingStop({
     required this.index,
+    this.stopId,
     required this.isActive,
     required this.ready,
     required this.merchant,
@@ -87,9 +92,11 @@ class ChatbotShoppingStop {
     final rawItems = (json['items'] is List<dynamic>)
         ? json['items'] as List<dynamic>
         : const <dynamic>[];
+    final rawStopId = json['stop_id']?.toString().trim() ?? '';
 
     return ChatbotShoppingStop(
       index: int.tryParse(json['index']?.toString() ?? '') ?? 1,
+      stopId: rawStopId.isEmpty ? null : rawStopId,
       isActive: json['is_active'] == true,
       ready: json['ready'] == true,
       merchant: (json['merchant'] is Map<String, dynamic>)
