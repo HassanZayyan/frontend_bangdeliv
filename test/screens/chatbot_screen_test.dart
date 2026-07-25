@@ -945,6 +945,90 @@ void main() {
     expect(find.text('Dimsum Ayam'), findsNothing);
   });
 
+  testWidgets(
+    'nitip "Ganti Toko/Resto" replaces the active stop instead of adding',
+    (WidgetTester tester) async {
+      final fakeService = _FakeChatbotApiService()
+        // Backend menyertakan stop dengan stop_id stabil + is_active.
+        ..merchantStopsPayload = <Map<String, dynamic>>[
+          <String, dynamic>{
+            'index': 1,
+            'stop_id': 'stop-uuid-1',
+            'is_active': true,
+            'ready': false,
+            'merchant': <String, dynamic>{'name': 'Kedai Aktif'},
+            'items': <dynamic>[],
+          },
+        ];
+      final fakeRepository = _FakeCustomerOrderRepository(
+        menusByMerchantId: const <int, List<ShoppingMenuOption>>{
+          42: <ShoppingMenuOption>[
+            ShoppingMenuOption(id: 9, name: 'Dimsum Ayam', price: 15000),
+          ],
+          43: <ShoppingMenuOption>[
+            ShoppingMenuOption(id: 21, name: 'Bakso Urat', price: 12000),
+          ],
+        },
+      );
+
+      await _pumpChatbot(
+        tester,
+        serviceType: 'nitip',
+        chatbotApiService: fakeService,
+        customerOrderRepository: fakeRepository,
+        merchantPickerResults: const <ShoppingMerchantPickerResult>[
+          ShoppingMerchantPickerResult(
+            merchantId: 42,
+            place: ShoppingMerchantPlacePayload(
+              placeId: 'official-42',
+              name: 'Dimsum Dan Seblak Wolu',
+              address: 'Lokasi Bang Deliv',
+              latitude: -7.3178,
+              longitude: 110.463,
+              types: <String>['restaurant'],
+            ),
+          ),
+          ShoppingMerchantPickerResult(
+            merchantId: 43,
+            place: ShoppingMerchantPlacePayload(
+              placeId: 'official-43',
+              name: 'Bakso Balungan',
+              address: 'Lokasi Bang Deliv',
+              latitude: -7.318,
+              longitude: 110.464,
+              types: <String>['restaurant'],
+            ),
+          ),
+        ],
+      );
+
+      await tester.tap(_filledIconButtonWithText('Pilih Toko/Resto'));
+      await _pumpChatbotFrame(tester);
+      await tester.tap(find.text('Pilih Kedai Kedua'));
+      await _pumpChatbotFrame(tester);
+
+      // Menu selector untuk stop aktif tampil.
+      expect(find.text('Dimsum Dan Seblak Wolu'), findsOneWidget);
+      expect(find.text('Dimsum Ayam'), findsOneWidget);
+      expect(fakeService.lastMerchantMode, 'select');
+
+      await tester.tap(find.text('Ganti Toko/Resto'));
+      await _pumpChatbotFrame(tester);
+      await tester.tap(find.text('Pilih Kedai Kedua'));
+      await _pumpChatbotFrame(tester);
+
+      // "Ganti" harus MENGGANTI stop tersebut (mode replace + target stop_id),
+      // bukan menambah stop baru (mode add).
+      expect(fakeService.patchMerchantCallCount, 2);
+      expect(fakeService.lastMerchantMode, 'replace');
+      expect(fakeService.lastReplaceTargetStopId, 'stop-uuid-1');
+      expect(fakeService.lastMerchantId, 43);
+      expect(find.text('Bakso Balungan'), findsOneWidget);
+      expect(find.text('Bakso Urat'), findsOneWidget);
+      expect(find.text('Dimsum Ayam'), findsNothing);
+    },
+  );
+
   testWidgets('nitip external merchant picker keeps manual item flow', (
     WidgetTester tester,
   ) async {
@@ -2093,10 +2177,16 @@ class _FakeChatbotApiService extends ChatbotApiService {
   String? lastPatchAddress;
   String? lastMerchantMode;
   int? lastMerchantId;
+  String? lastReplaceTargetStopId;
   String? lastClearedSessionId;
   String? lastMessage;
   List<String> lastRouteTargets = const <String>[];
   List<String?> lastRouteAddresses = const <String?>[];
+
+  /// Opt-in: bila diisi, respons patch merchant menyertakan draft belanja
+  /// dengan stops (mengandung `stop_id` + `is_active`) supaya menu selector
+  /// mendapat targetStopId — mensimulasikan kontrak backend sebenarnya.
+  List<Map<String, dynamic>>? merchantStopsPayload;
 
   @override
   Future<void> clearSession(String sessionId) async {
@@ -2835,11 +2925,13 @@ class _FakeChatbotApiService extends ChatbotApiService {
     int? merchantId,
     ShoppingMerchantPlacePayload? merchantPlace,
     String mode = 'select',
+    String? replaceTargetStopId,
   }) async {
     patchMerchantCallCount += 1;
     lastServiceType = serviceType;
     lastMerchantMode = mode;
     lastMerchantId = merchantId;
+    lastReplaceTargetStopId = replaceTargetStopId;
 
     return ChatbotResult.fromApiJson({
       'status': 'success',
@@ -2857,6 +2949,8 @@ class _FakeChatbotApiService extends ChatbotApiService {
           'missing_fields': ['items'],
           'next_actions': [],
         },
+        if (merchantStopsPayload != null)
+          'shopping': <String, dynamic>{'stops': merchantStopsPayload},
         'order': {'created': false},
       },
     });

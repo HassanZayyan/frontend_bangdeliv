@@ -60,6 +60,7 @@ class ChatbotMessageActionHint {
     this.presetMessage,
     this.orderId,
     this.merchantMode,
+    this.replaceTargetStopId,
     this.initialLatitude,
     this.initialLongitude,
     this.routePoints = const <ChatbotRoutePointHint>[],
@@ -71,6 +72,9 @@ class ChatbotMessageActionHint {
   final String? presetMessage;
   final int? orderId;
   final String? merchantMode;
+
+  /// Saat `merchantMode == 'replace'`, stop_id slot yang ingin diganti.
+  final String? replaceTargetStopId;
   final double? initialLatitude;
   final double? initialLongitude;
   final List<ChatbotRoutePointHint> routePoints;
@@ -98,6 +102,7 @@ class ChatbotMenuSelectorDraft {
     required this.merchantMode,
     required this.menus,
     required this.quantities,
+    this.targetStopId,
   });
 
   final String merchantName;
@@ -105,17 +110,23 @@ class ChatbotMenuSelectorDraft {
   final List<ChatbotMenuSuggestion> menus;
   final List<int> quantities;
 
+  /// stop_id slot yang diwakili menu selector ini. Tombol "Ganti Toko/Resto"
+  /// memakainya untuk mengganti persis stop tersebut, bukan menambah stop baru.
+  final String? targetStopId;
+
   ChatbotMenuSelectorDraft copyWith({
     String? merchantName,
     String? merchantMode,
     List<ChatbotMenuSuggestion>? menus,
     List<int>? quantities,
+    String? targetStopId,
   }) {
     return ChatbotMenuSelectorDraft(
       merchantName: merchantName ?? this.merchantName,
       merchantMode: merchantMode ?? this.merchantMode,
       menus: menus ?? this.menus,
       quantities: quantities ?? this.quantities,
+      targetStopId: targetStopId ?? this.targetStopId,
     );
   }
 }

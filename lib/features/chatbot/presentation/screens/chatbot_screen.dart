@@ -612,12 +612,18 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   Future<void> _handleChangeMenuSelectorMerchant(
     ChatbotMenuSelectorDraft selector,
   ) async {
-    final mode = selector.merchantMode == 'add' ? 'add' : 'select';
+    // "Ganti Toko/Resto" selalu MENGGANTI stop yang diwakili menu selector ini,
+    // bukan menambah stop baru. Saat stop_id diketahui, sasar stop itu spesifik
+    // (mode 'replace'); jika tidak (draft lama/single-merchant), fallback aman
+    // ke 'select' yang mengganti stop aktif.
+    final targetStopId = (selector.targetStopId ?? '').trim();
+    final useReplace = targetStopId.isNotEmpty;
     await _handleOpenMerchantPickerAction(
       ChatbotMessageActionHint(
         type: ChatbotMessageActionType.openMerchantPicker,
-        label: mode == 'add' ? 'Tambah Toko/Resto' : 'Ganti Toko/Resto',
-        merchantMode: mode,
+        label: 'Ganti Toko/Resto',
+        merchantMode: useReplace ? 'replace' : 'select',
+        replaceTargetStopId: useReplace ? targetStopId : null,
       ),
     );
   }
@@ -2437,16 +2443,22 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
     _clearMenuSelector();
 
-    final appliedMode =
-        actionHint.merchantMode == 'add' ||
-            actionHint.merchantMode == 'maps_add'
-        ? 'add'
-        : 'select';
+    final replaceTarget = (actionHint.replaceTargetStopId ?? '').trim();
+    final String appliedMode;
+    if (actionHint.merchantMode == 'replace' && replaceTarget.isNotEmpty) {
+      appliedMode = 'replace';
+    } else if (actionHint.merchantMode == 'add' ||
+        actionHint.merchantMode == 'maps_add') {
+      appliedMode = 'add';
+    } else {
+      appliedMode = 'select';
+    }
     final applied = await _conversationNotifier().applyMerchantPickerAction(
       serviceType: _serviceContext.serviceType,
       merchantId: result.merchantId,
       merchantPlace: result.isOfficial ? null : result.place,
       mode: appliedMode,
+      replaceTargetStopId: appliedMode == 'replace' ? replaceTarget : null,
       appendAssistantMessage: !result.isOfficial,
     );
 
