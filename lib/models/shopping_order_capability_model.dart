@@ -6,6 +6,8 @@ class ShoppingOrderCapabilitiesModel {
     this.canCustomerDirectEditItems = false,
     this.canCustomerAddShoppingMerchant = false,
     this.canCustomerCancelShoppingOrder = false,
+    this.awaitsDriverCancellationFeeReview = false,
+    this.canDriverCancelShoppingOrder = false,
     this.canCustomerRequestItemChange = false,
     this.canCustomerRequestAddStop = false,
     this.canCustomerEditUnavailableItems = false,
@@ -24,6 +26,11 @@ class ShoppingOrderCapabilitiesModel {
   final bool canCustomerDirectEditItems;
   final bool canCustomerAddShoppingMerchant;
   final bool canCustomerCancelShoppingOrder;
+
+  /// Semua toko/resto sudah gagal dan fee 50% menunggu driver mengonfirmasi
+  /// lewat CANCEL_WITH_FEE. Customer menunggu, bukan membatalkan sendiri.
+  final bool awaitsDriverCancellationFeeReview;
+  final bool canDriverCancelShoppingOrder;
   final bool canCustomerRequestItemChange;
   final bool canCustomerRequestAddStop;
   final bool canCustomerEditUnavailableItems;
@@ -57,6 +64,14 @@ class ShoppingOrderCapabilitiesModel {
       canCustomerCancelShoppingOrder: ModelParseUtils.boolValue(
         raw['can_customer_cancel_shopping_order'] ??
             raw['canCustomerCancelShoppingOrder'],
+      ),
+      awaitsDriverCancellationFeeReview: ModelParseUtils.boolValue(
+        raw['awaits_driver_cancellation_fee_review'] ??
+            raw['awaitsDriverCancellationFeeReview'],
+      ),
+      canDriverCancelShoppingOrder: ModelParseUtils.boolValue(
+        raw['can_driver_cancel_shopping_order'] ??
+            raw['canDriverCancelShoppingOrder'],
       ),
       canCustomerRequestItemChange: ModelParseUtils.boolValue(
         raw['can_customer_request_item_change'] ??

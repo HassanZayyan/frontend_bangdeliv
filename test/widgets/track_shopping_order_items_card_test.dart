@@ -184,6 +184,50 @@ void main() {
     expect(find.text('Batalkan pesanan'), findsOneWidget);
   });
 
+  testWidgets('pending driver fee review replaces cancel with a wait notice', (
+    tester,
+  ) async {
+    // Semua toko gagal: fee 50% menunggu driver mengonfirmasi (dan boleh
+    // mengoreksi ongkirnya), jadi customer diberi tahu alih-alih dibiarkan
+    // menatap tombol yang hilang.
+    const failedStop = CustomerShoppingStopModel(
+      pickupLocationId: 90,
+      sequenceNo: 1,
+      fulfillmentStatus: 'FAILED',
+      chainFailedAttemptCount: 3,
+      orderFailedTripCount: 3,
+      merchant: CustomerShoppingMerchantModel(
+        id: 90,
+        name: 'Sate Ayam Cak Sabari',
+        merchantType: 'restaurant',
+        address: 'Jl. Sabari',
+      ),
+      items: [],
+    );
+
+    await _pumpCard(
+      tester,
+      _FakeCustomerOrderRepository(),
+      detail: _shoppingDetail(
+        shoppingStops: const [failedStop],
+        shoppingCapabilities: const ShoppingOrderCapabilitiesModel(
+          isExplicit: true,
+          canCustomerCancelShoppingOrder: false,
+          awaitsDriverCancellationFeeReview: true,
+        ),
+      ),
+      selectedPickupLocationId: 90,
+      showGlobalActions: false,
+      showPricing: false,
+    );
+
+    expect(find.text('Batalkan pesanan'), findsNothing);
+    expect(
+      find.textContaining('Driver sedang menghitung biaya pembatalan'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets(
     'failed merchant tab is not shown in the summary notice actions',
     (tester) async {

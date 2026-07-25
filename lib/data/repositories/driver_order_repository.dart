@@ -165,6 +165,8 @@ abstract class DriverOrderRepository {
     String? note,
   });
 
+  Future<DriverOrderModel> cancelShoppingOrder({required String orderId});
+
   Future<DriverOrderModel> recordShoppingPickupFailed({
     required String orderId,
     required int pickupLocationId,
@@ -496,6 +498,11 @@ class ApiDriverOrderRepository implements DriverOrderRepository {
       orderId: orderId,
       pickupLocationId: pickupLocationId,
     );
+  }
+
+  @override
+  Future<DriverOrderModel> cancelShoppingOrder({required String orderId}) {
+    return _service.cancelShoppingOrder(orderId: orderId);
   }
 
   @override

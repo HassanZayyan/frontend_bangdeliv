@@ -407,6 +407,7 @@ class DriverShoppingItemsCard extends StatefulWidget {
   onMarkMerchantClosed;
   final Future<String?> Function(DriverShoppingStopModel stop)
   onReplaceMerchant;
+  final Future<String?> Function() onCancelShoppingOrder;
   final Future<String?> Function(DriverShoppingStopModel stop)
   onApproveMerchantReplacement;
   final Future<String?> Function(DriverShoppingStopModel stop)
@@ -445,6 +446,7 @@ class DriverShoppingItemsCard extends StatefulWidget {
     required this.onMarkMerchantOpen,
     required this.onMarkMerchantClosed,
     required this.onReplaceMerchant,
+    required this.onCancelShoppingOrder,
     required this.onApproveMerchantReplacement,
     required this.onRejectMerchantReplacement,
     required this.onReplaceUnavailableItems,
@@ -463,6 +465,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
   final Set<int> _replacingPickupIds = {};
   final Set<int> _respondingApprovalPickupIds = {};
   bool _isUploadingReceipt = false;
+  bool _isCancellingShoppingOrder = false;
 
   Map<int, bool> get _availability =>
       widget.draftStore?.availability ?? _localAvailability;
@@ -919,14 +922,16 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
                 canToggleAvailability: canEditStopAvailability,
               ),
             ),
-          // Ganti toko/resto (canReplaceMerchant) boleh muncul walau stop
-          // read-only (mis. sudah FAILED/parkir) -- backend sudah memvalidasi
-          // kelayakannya. Aksi berbasis item lain tetap butuh mode edit.
+          // Ganti toko/resto (canReplaceMerchant) dan Batalkan pesanan boleh
+          // muncul walau stop read-only (mis. sudah FAILED/parkir) -- backend
+          // sudah memvalidasi kelayakannya. Aksi berbasis item lain tetap butuh
+          // mode edit.
           if ((!widget.readOnly &&
                   (stop.canDriverReplaceUnavailableItems ||
                       stop.canDriverContinueWithoutUnavailableItem ||
                       stop.canDriverCancelUnavailableMerchant)) ||
-              stop.canReplaceMerchant) ...[
+              stop.canReplaceMerchant ||
+              _canCancelShoppingOrder) ...[
             const SizedBox(height: 10),
             _buildUnavailableDecisionActions(stop),
           ],
@@ -1041,6 +1046,11 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     );
   }
 
+  /// Selama belum ada toko/resto yang dibeli, driver punya jalan keluar penuh --
+  /// berguna saat customer chat "tidak jadi". Backend tetap gerbang terakhirnya.
+  bool get _canCancelShoppingOrder =>
+      widget.order.shoppingCapabilities.canDriverCancelShoppingOrder;
+
   Widget _buildUnavailableDecisionActions(DriverShoppingStopModel stop) {
     final unavailableItems = stop.items
         .where((item) => !item.isAvailable)
@@ -1106,6 +1116,18 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
             isLoading: isCancelling,
             isEnabled: !widget.isOrderBusy || isCancelling,
             onPressed: () => _cancelUnavailableMerchant(stop),
+          ),
+        if (_canCancelShoppingOrder)
+          BangDecisionAction(
+            key: ValueKey(
+              'driver-shopping-action-cancel-order-${stop.pickupLocationId}',
+            ),
+            label: 'Batalkan pesanan',
+            icon: Icons.close_rounded,
+            tone: BangDecisionActionTone.red,
+            isLoading: _isCancellingShoppingOrder,
+            isEnabled: !widget.isOrderBusy || _isCancellingShoppingOrder,
+            onPressed: _cancelShoppingOrder,
           ),
       ],
     );
@@ -1455,6 +1477,31 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
         await _closeMerchant(stop);
         return;
       }
+    }
+  }
+
+  Future<void> _cancelShoppingOrder() async {
+    final confirmed = await showBangConfirmationDialog(
+      context,
+      title: 'Batalkan pesanan Nitip?',
+      message:
+          'Karena belum ada toko/resto yang dibeli, pesanan bisa dibatalkan '
+          'tanpa biaya. Tindakan ini tidak bisa dibatalkan.',
+      confirmLabel: 'Batalkan pesanan',
+      isDestructive: true,
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+
+    setState(() => _isCancellingShoppingOrder = true);
+    final error = await widget.onCancelShoppingOrder();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _isCancellingShoppingOrder = false);
+    if (error != null) {
+      showDriverActiveOrderSnackBar(context, message: error, isError: true);
     }
   }
 

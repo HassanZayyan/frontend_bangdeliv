@@ -524,6 +524,19 @@ class _TrackShoppingOrderItemsCardState
             icon: Icons.info_outline_rounded,
             text: blockReason,
           ),
+      // Semua toko/resto gagal: pembatalan berbiaya menunggu driver. Beri tahu
+      // customer supaya tombol yang hilang tidak terasa seperti jalan buntu.
+      if (!isPending &&
+          !stop.isReplaced &&
+          widget.detail.awaitsDriverCancellationFeeReview) ...[
+        const SizedBox(height: 8),
+        const _TrackNotice(
+          tone: _TrackNoticeTone.info,
+          icon: Icons.hourglass_bottom_rounded,
+          text:
+              'Driver sedang menghitung biaya pembatalan. Tunggu konfirmasi driver.',
+        ),
+      ],
       // Jalan keluar gratis: bila belum ada toko yang dibeli dan tak ada toko
       // aktif lagi (mis. satu-satunya toko tutup), customer boleh menyerah alih
       // alih dipaksa mengganti toko/resto.

@@ -339,6 +339,40 @@ void main() {
     expect(fakeService.transitionCancellationBases['99'], 100000);
   });
 
+  test('driver shopping cancellation drops the order from running', () async {
+    final fakeService = _FakeDriverOrderService(
+      payload: DriverOrdersPayload(
+        incoming: const <DriverOrderModel>[],
+        running: <DriverOrderModel>[_runningOrder('99')],
+      ),
+    );
+    final fakeAuth = _FakeAuthSessionNotifier(_driverSession(77));
+    final fakeRealtime = FakeOrderRealtimeClient();
+    final container = ProviderContainer(
+      overrides: [
+        authSessionProvider.overrideWith(() => fakeAuth),
+        driverOrderServiceProvider.overrideWithValue(fakeService),
+        orderRealtimeClientProvider.overrideWithValue(fakeRealtime),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(driverOrdersProvider.future);
+
+    final error = await container
+        .read(driverOrdersProvider.notifier)
+        .cancelShoppingOrder(orderId: '99');
+    await Future<void>.delayed(Duration.zero);
+
+    final state = container.read(driverOrdersProvider).asData!.value;
+    expect(error, isNull);
+    expect(fakeService.cancelledShoppingOrderIds, ['99']);
+    expect(state.running, isEmpty);
+    expect(state.isProcessing('99'), isFalse);
+    // Order terminal, jadi riwayat driver ikut disegarkan.
+    expect(fakeService.fetchHistoryCalls, greaterThanOrEqualTo(1));
+  });
+
   test(
     'confirmTransferPayment tracks only qris action while order is busy',
     () async {
@@ -1812,6 +1846,7 @@ class _FakeDriverOrderService extends DriverOrderService {
   int fetchDetailCalls = 0;
   int fetchHistoryCalls = 0;
   final List<String> transitionedOrderIds = <String>[];
+  final List<String> cancelledShoppingOrderIds = <String>[];
   final Map<String, String?> transitionNotes = <String, String?>{};
   final Map<String, double?> transitionCancellationBases = <String, double?>{};
   final List<_DriverLocationUpdate> locationUpdates = <_DriverLocationUpdate>[];
@@ -1992,6 +2027,24 @@ class _FakeDriverOrderService extends DriverOrderService {
         .copyWith(
           statusCode: targetStatusCode ?? OrderStatusCodes.completed,
           statusDisplayName: 'Selesai',
+        );
+    payload = DriverOrdersPayload(
+      incoming: payload.incoming,
+      running: payload.running
+          .where((order) => order.id != orderId)
+          .toList(growable: false),
+    );
+    return updated;
+  }
+
+  @override
+  Future<DriverOrderModel> cancelShoppingOrder({required String orderId}) async {
+    cancelledShoppingOrderIds.add(orderId);
+    final updated = payload.running
+        .firstWhere((order) => order.id == orderId)
+        .copyWith(
+          statusCode: OrderStatusCodes.cancelled,
+          statusDisplayName: 'Dibatalkan',
         );
     payload = DriverOrdersPayload(
       incoming: payload.incoming,

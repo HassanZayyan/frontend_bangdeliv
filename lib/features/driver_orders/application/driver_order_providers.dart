@@ -230,6 +230,10 @@ class DriverOrderActionKeys {
     return _build(orderId, 'respondShoppingItemChange:${_normalize(action)}');
   }
 
+  static String cancelShoppingOrder(String orderId) {
+    return _build(orderId, 'cancelShoppingOrder');
+  }
+
   static String pickupFailed(String orderId, [int? pickupLocationId]) {
     final suffix = pickupLocationId != null && pickupLocationId > 0
         ? ':$pickupLocationId'
@@ -867,31 +871,52 @@ class DriverOrdersNotifier extends AsyncNotifier<DriverOrdersState> {
     String? targetStatusCode,
     String? note,
     double? cancellationPenaltyBaseDeliveryFee,
+  }) {
+    return _mutateTerminableOrder(
+      orderId: orderId,
+      actionKey: DriverOrderActionKeys.transition(orderId, actionCode),
+      request: (repository) => repository.transitionStatus(
+        orderId: orderId,
+        actionCode: actionCode,
+        targetStatusCode: targetStatusCode,
+        note: note,
+        cancellationPenaltyBaseDeliveryFee: cancellationPenaltyBaseDeliveryFee,
+      ),
+    );
+  }
+
+  /// Pembatalan penuh order Nitip oleh driver -- dipakai saat customer bilang
+  /// tidak jadi lewat chat, selama belum ada toko/resto yang dibeli.
+  Future<String?> cancelShoppingOrder({required String orderId}) {
+    return _mutateTerminableOrder(
+      orderId: orderId,
+      actionKey: DriverOrderActionKeys.cancelShoppingOrder(orderId),
+      request: (repository) => repository.cancelShoppingOrder(orderId: orderId),
+    );
+  }
+
+  /// Aksi yang bisa membuat order keluar dari daftar berjalan (transisi status,
+  /// pembatalan). Berbeda dengan [_mutateRunningOrder] yang mengasumsikan order
+  /// tetap berjalan setelah mutasi.
+  Future<String?> _mutateTerminableOrder({
+    required String orderId,
+    required String actionKey,
+    required Future<DriverOrderModel> Function(DriverOrderRepository repository)
+    request,
   }) async {
-    // Daftar order berjalan boleh belum termuat: transisi hanya butuh orderId.
+    // Daftar order berjalan boleh belum termuat: aksi hanya butuh orderId.
     final current = state.asData?.value;
 
     if (current != null && current.isProcessing(orderId)) {
       return 'Aksi order sebelumnya masih diproses. Tunggu sebentar.';
     }
 
-    final actionKey = DriverOrderActionKeys.transition(orderId, actionCode);
-
     if (current != null) {
       state = AsyncData(_markActionProcessing(current, actionKey: actionKey));
     }
 
     try {
-      final updated = await ref
-          .read(driverOrderRepositoryProvider)
-          .transitionStatus(
-            orderId: orderId,
-            actionCode: actionCode,
-            targetStatusCode: targetStatusCode,
-            note: note,
-            cancellationPenaltyBaseDeliveryFee:
-                cancellationPenaltyBaseDeliveryFee,
-          );
+      final updated = await request(ref.read(driverOrderRepositoryProvider));
 
       final latest = state.asData?.value;
       if (latest == null) {

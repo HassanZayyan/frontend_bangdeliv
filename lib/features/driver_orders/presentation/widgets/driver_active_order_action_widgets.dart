@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../config/app_colors.dart';
 import '../../../../core/widgets/bang_swipe_action_button.dart';
+import '../../../../domain/order_domain.dart' show DriverActionCode;
 import '../../../../models/driver_order_model.dart';
 import '../../../../utils/currency_formatter.dart';
 import '../../../../utils/order_formatters.dart' show formatTime;
@@ -870,7 +871,30 @@ List<DriverOrderActionModel> _singlePrimaryActions(
     }
   }
 
+  // Pembatalan berbiaya kini menunggu keputusan driver, jadi aksinya tidak boleh
+  // ikut terpangkas di sheet ringkas -- kalau hilang, order mandek tanpa jalan
+  // keluar yang terlihat.
+  final cancellationActions = availableActions
+      .where(_isShoppingCancellationWithFeeAction)
+      .toList(growable: false);
+  if (cancellationActions.isNotEmpty) {
+    final primary = availableActions.firstWhere(
+      (action) => !_isShoppingCancellationWithFeeAction(action),
+      orElse: () => cancellationActions.first,
+    );
+
+    return <DriverOrderActionModel>[
+      primary,
+      ...cancellationActions.where((action) => action != primary),
+    ];
+  }
+
   return <DriverOrderActionModel>[availableActions.first];
+}
+
+bool _isShoppingCancellationWithFeeAction(DriverOrderActionModel action) {
+  return action.actionCode.trim().toUpperCase() ==
+      DriverActionCode.cancelWithFee;
 }
 
 class _ProofResolution {
@@ -1772,7 +1796,9 @@ String _shoppingClosureFeeHint(DriverShoppingPricingModel pricing) {
   final attempts =
       '${pricing.failedAttemptCount}/${pricing.failedAttemptThreshold}';
   if (pricing.canCancelWithFee) {
-    return 'Tempat tutup/order batal $attempts. Tagihan customer 50% ongkir sudah aktif.';
+    // Tagihan tidak lagi aktif otomatis: driver yang mengonfirmasi, dan boleh
+    // mengoreksi basis ongkirnya dulu lewat dialog CANCEL_WITH_FEE.
+    return 'Tempat tutup/order batal $attempts. Batalkan order untuk menagih customer 50% ongkir — ongkirnya bisa dikoreksi dulu.';
   }
 
   return 'Tempat tutup/order batal $attempts. Tagihan customer 50% ongkir aktif setelah batas tercapai.';
