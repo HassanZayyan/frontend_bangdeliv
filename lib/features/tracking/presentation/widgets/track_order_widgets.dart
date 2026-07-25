@@ -477,6 +477,38 @@ class _TrackShoppingOrderItemsCardState
     final isPending = stop.pendingReplacementApproval?.isPending ?? false;
     final blockReason = (stop.replacementBlockReason ?? '').trim();
 
+    // "Ganti toko/resto" (per stop) & "Batalkan pesanan" (level order) dirender
+    // berdampingan lewat grid bersama, konsisten dengan tampilan driver.
+    final actions = <BangDecisionAction>[
+      if (!isPending && !stop.isReplaced && stop.canReplaceMerchant)
+        BangDecisionAction(
+          key: ValueKey(
+            'shopping-failed-action-replace-merchant-${stop.pickupLocationId}',
+          ),
+          label: 'Ganti toko/resto',
+          icon: Icons.swap_horiz_rounded,
+          tone: BangDecisionActionTone.orange,
+          onPressed: () => _openAddItemScreen(
+            context,
+            ref,
+            targetPickupLocationId: stop.pickupLocationId,
+            replaceMerchant: true,
+          ),
+        ),
+      if (!isPending &&
+          !stop.isReplaced &&
+          widget.detail.canCancelShoppingOrder)
+        BangDecisionAction(
+          key: ValueKey(
+            'shopping-failed-action-cancel-order-${stop.pickupLocationId}',
+          ),
+          label: 'Batalkan pesanan',
+          icon: Icons.close_rounded,
+          tone: BangDecisionActionTone.red,
+          onPressed: () => _cancelShoppingOrder(context, ref),
+        ),
+    ];
+
     return [
       if (photos.isNotEmpty) ...[
         const Text(
@@ -503,59 +535,30 @@ class _TrackShoppingOrderItemsCardState
           'Tempat ini sudah diganti ke toko/resto lain.',
           style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
         )
-      else if (!isPending)
-        if (stop.canReplaceMerchant)
-          Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton.icon(
-              onPressed: () => _openAddItemScreen(
-                context,
-                ref,
-                targetPickupLocationId: stop.pickupLocationId,
-                replaceMerchant: true,
-              ),
-              icon: const Icon(Icons.swap_horiz_rounded),
-              label: const Text('Ganti toko/resto'),
-            ),
-          )
-        else if (blockReason.isNotEmpty)
+      else ...[
+        // Tak bisa ganti tapi ada alasan blokir -> tampilkan info, bukan tombol.
+        if (!isPending && !stop.canReplaceMerchant && blockReason.isNotEmpty)
           _TrackNotice(
             tone: _TrackNoticeTone.info,
             icon: Icons.info_outline_rounded,
             text: blockReason,
           ),
-      // Semua toko/resto gagal: pembatalan berbiaya menunggu driver. Beri tahu
-      // customer supaya tombol yang hilang tidak terasa seperti jalan buntu.
-      if (!isPending &&
-          !stop.isReplaced &&
-          widget.detail.awaitsDriverCancellationFeeReview) ...[
-        const SizedBox(height: 8),
-        const _TrackNotice(
-          tone: _TrackNoticeTone.info,
-          icon: Icons.hourglass_bottom_rounded,
-          text:
-              'Driver sedang menghitung biaya pembatalan. Tunggu konfirmasi driver.',
-        ),
-      ],
-      // Jalan keluar gratis: bila belum ada toko yang dibeli dan tak ada toko
-      // aktif lagi (mis. satu-satunya toko tutup), customer boleh menyerah alih
-      // alih dipaksa mengganti toko/resto.
-      if (!isPending &&
-          !stop.isReplaced &&
-          widget.detail.canCancelShoppingOrder) ...[
-        const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: OutlinedButton.icon(
-            onPressed: () => _cancelShoppingOrder(context, ref),
-            icon: const Icon(Icons.close_rounded),
-            label: const Text('Batalkan pesanan'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.error,
-              side: BorderSide(color: AppColors.error.withValues(alpha: 0.6)),
-            ),
+        // Semua toko/resto gagal: pembatalan berbiaya menunggu driver. Beri tahu
+        // customer supaya tombol yang hilang tidak terasa seperti jalan buntu.
+        if (!isPending && widget.detail.awaitsDriverCancellationFeeReview) ...[
+          const SizedBox(height: 8),
+          const _TrackNotice(
+            tone: _TrackNoticeTone.info,
+            icon: Icons.hourglass_bottom_rounded,
+            text:
+                'Driver sedang menghitung biaya pembatalan. Tunggu konfirmasi driver.',
           ),
-        ),
+        ],
+        // Ganti toko/resto + Batalkan pesanan berdampingan (grid bersama).
+        if (actions.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          BangDecisionActionGrid(actions: actions),
+        ],
       ],
     ];
   }

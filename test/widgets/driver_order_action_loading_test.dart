@@ -1844,6 +1844,82 @@ void main() {
       findsNothing,
     );
   });
+
+  testWidgets('driver cancellation stays hidden while stop is still pending', (
+    tester,
+  ) async {
+    // Stop belum dikunjungi ("Tujuan berikutnya"): opsi batal tidak boleh muncul
+    // sebelum driver menandai "Tempat tutup".
+    await _pumpShoppingItemsCard(
+      tester,
+      order: _order(
+        serviceTypeCode: ServiceTypeCodes.shopping,
+        statusCode: OrderStatusCodes.arrivedMerchant,
+        shoppingCapabilities: const ShoppingOrderCapabilitiesModel(
+          isExplicit: true,
+          canDriverCancelShoppingOrder: true,
+        ),
+        shoppingStops: const [
+          DriverShoppingStopModel(
+            pickupLocationId: 7,
+            sequenceNo: 1,
+            fulfillmentStatus: 'PENDING',
+            merchant: DriverShoppingMerchantModel(
+              id: 1,
+              name: 'Gecok JOGO ROSO TLOGO',
+              merchantType: 'restaurant',
+              address: 'Jl. Raya Tuntang-Beringin',
+            ),
+            items: [],
+          ),
+        ],
+      ),
+    );
+
+    expect(find.text('Batalkan pesanan'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('driver-shopping-action-cancel-order-7')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('driver cancellation appears once attempt limit is reached', (
+    tester,
+  ) async {
+    // Batas percobaan tercapai (ABANDONED) juga dianggap tutup: opsi batal boleh
+    // muncul selama belum ada resto yang dibeli.
+    await _pumpShoppingItemsCard(
+      tester,
+      order: _order(
+        serviceTypeCode: ServiceTypeCodes.shopping,
+        statusCode: OrderStatusCodes.arrivedMerchant,
+        shoppingCapabilities: const ShoppingOrderCapabilitiesModel(
+          isExplicit: true,
+          canDriverCancelShoppingOrder: true,
+        ),
+        shoppingStops: const [
+          DriverShoppingStopModel(
+            pickupLocationId: 7,
+            sequenceNo: 1,
+            fulfillmentStatus: 'ABANDONED_AFTER_LIMIT',
+            merchant: DriverShoppingMerchantModel(
+              id: 1,
+              name: 'Gecok JOGO ROSO TLOGO',
+              merchantType: 'restaurant',
+              address: 'Jl. Raya Tuntang-Beringin',
+            ),
+            items: [],
+          ),
+        ],
+      ),
+    );
+
+    expect(find.text('Batalkan pesanan'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('driver-shopping-action-cancel-order-7')),
+      findsOneWidget,
+    );
+  });
 }
 
 Future<void> _pumpProofChecklist(
