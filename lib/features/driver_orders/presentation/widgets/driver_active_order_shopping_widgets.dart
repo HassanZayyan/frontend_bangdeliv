@@ -931,7 +931,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
                       stop.canDriverContinueWithoutUnavailableItem ||
                       stop.canDriverCancelUnavailableMerchant)) ||
               stop.canReplaceMerchant ||
-              _canCancelShoppingOrder) ...[
+              (_canCancelShoppingOrder && _stopClosedForCancel(stop))) ...[
             const SizedBox(height: 10),
             _buildUnavailableDecisionActions(stop),
           ],
@@ -1046,10 +1046,17 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
     );
   }
 
-  /// Selama belum ada toko/resto yang dibeli, driver punya jalan keluar penuh --
-  /// berguna saat customer chat "tidak jadi". Backend tetap gerbang terakhirnya.
+  /// Izin batal level-order dari backend (otomatis mati begitu ada resto yang
+  /// sudah dibeli). Backend tetap gerbang terakhirnya.
   bool get _canCancelShoppingOrder =>
       widget.order.shoppingCapabilities.canDriverCancelShoppingOrder;
+
+  /// "Batalkan pesanan" hanya boleh tampil setelah driver menandai stop ini
+  /// tutup lewat "Tempat tutup" (stop -> FAILED) atau batas percobaan tercapai
+  /// (ABANDONED). Sebelum itu stop masih "Tujuan berikutnya" sehingga opsi batal
+  /// tidak ditampilkan.
+  bool _stopClosedForCancel(DriverShoppingStopModel stop) =>
+      stop.isFailed || stop.isAbandoned;
 
   Widget _buildUnavailableDecisionActions(DriverShoppingStopModel stop) {
     final unavailableItems = stop.items
@@ -1117,7 +1124,7 @@ class DriverShoppingItemsCardState extends State<DriverShoppingItemsCard> {
             isEnabled: !widget.isOrderBusy || isCancelling,
             onPressed: () => _cancelUnavailableMerchant(stop),
           ),
-        if (_canCancelShoppingOrder)
+        if (_canCancelShoppingOrder && _stopClosedForCancel(stop))
           BangDecisionAction(
             key: ValueKey(
               'driver-shopping-action-cancel-order-${stop.pickupLocationId}',

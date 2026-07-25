@@ -184,6 +184,61 @@ void main() {
     expect(find.text('Batalkan pesanan'), findsOneWidget);
   });
 
+  testWidgets('closed stop renders ganti and cancel side by side', (
+    tester,
+  ) async {
+    // Konsisten dengan driver: kedua aksi berdampingan dalam satu baris grid,
+    // bukan bertumpuk vertikal.
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const failedStop = CustomerShoppingStopModel(
+      pickupLocationId: 90,
+      sequenceNo: 1,
+      fulfillmentStatus: 'FAILED',
+      chainFailedAttemptCount: 1,
+      orderFailedTripCount: 1,
+      canReplaceMerchant: true,
+      merchant: CustomerShoppingMerchantModel(
+        id: 90,
+        name: 'Sate Ayam Cak Sabari',
+        merchantType: 'restaurant',
+        address: 'Jl. Sabari',
+      ),
+      items: [],
+    );
+
+    await _pumpCard(
+      tester,
+      _FakeCustomerOrderRepository(),
+      detail: _shoppingDetail(
+        shoppingStops: const [failedStop],
+        canReplaceMerchant: true,
+        shoppingCapabilities: const ShoppingOrderCapabilitiesModel(
+          isExplicit: true,
+          canCustomerCancelShoppingOrder: true,
+        ),
+      ),
+      selectedPickupLocationId: 90,
+      showGlobalActions: false,
+      showPricing: false,
+    );
+
+    final ganti = find.byKey(
+      const ValueKey('shopping-failed-action-replace-merchant-90'),
+    );
+    final batal = find.byKey(
+      const ValueKey('shopping-failed-action-cancel-order-90'),
+    );
+    expect(ganti, findsOneWidget);
+    expect(batal, findsOneWidget);
+    // Berdampingan: dy sama (satu baris), dan "Ganti" di kiri "Batalkan".
+    expect(tester.getTopLeft(ganti).dy, tester.getTopLeft(batal).dy);
+    expect(tester.getTopLeft(ganti).dx, lessThan(tester.getTopLeft(batal).dx));
+  });
+
   testWidgets('pending driver fee review replaces cancel with a wait notice', (
     tester,
   ) async {
