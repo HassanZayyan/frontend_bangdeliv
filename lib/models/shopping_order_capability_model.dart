@@ -7,6 +7,7 @@ class ShoppingOrderCapabilitiesModel {
     this.canCustomerAddShoppingMerchant = false,
     this.canCustomerCancelShoppingOrder = false,
     this.awaitsDriverCancellationFeeReview = false,
+    this.allMerchantsTerminal = false,
     this.canDriverCancelShoppingOrder = false,
     this.canCustomerRequestItemChange = false,
     this.canCustomerRequestAddStop = false,
@@ -30,6 +31,10 @@ class ShoppingOrderCapabilitiesModel {
   /// Semua toko/resto sudah gagal dan fee 50% menunggu driver mengonfirmasi
   /// lewat CANCEL_WITH_FEE. Customer menunggu, bukan membatalkan sendiri.
   final bool awaitsDriverCancellationFeeReview;
+
+  /// Semua toko/resto sudah terminal (tak ada yang bisa dibelanjakan lagi).
+  /// Dipakai driver untuk mempersempit menu "Laporkan masalah" ke fee 50% saja.
+  final bool allMerchantsTerminal;
   final bool canDriverCancelShoppingOrder;
   final bool canCustomerRequestItemChange;
   final bool canCustomerRequestAddStop;
@@ -68,6 +73,9 @@ class ShoppingOrderCapabilitiesModel {
       awaitsDriverCancellationFeeReview: ModelParseUtils.boolValue(
         raw['awaits_driver_cancellation_fee_review'] ??
             raw['awaitsDriverCancellationFeeReview'],
+      ),
+      allMerchantsTerminal: ModelParseUtils.boolValue(
+        raw['all_merchants_terminal'] ?? raw['allMerchantsTerminal'],
       ),
       canDriverCancelShoppingOrder: ModelParseUtils.boolValue(
         raw['can_driver_cancel_shopping_order'] ??

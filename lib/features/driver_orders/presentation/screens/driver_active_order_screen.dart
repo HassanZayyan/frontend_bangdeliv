@@ -711,8 +711,23 @@ class _DriverActiveOrderScreenState
         )) {
       return true;
     }
+    if (_canCancelShoppingOrderForStop(order, selectedStop)) {
+      return true;
+    }
     return selectedPoint.id == activePoint.id &&
         order.availableActions.any(_isProblemOrderAction);
+  }
+
+  /// "Batalkan pesanan" (no-fee) kini hidup di menu segitiga danger, bukan di
+  /// kartu. Muncul hanya untuk stop yang sudah ditandai tutup/gagal selama
+  /// backend masih mengizinkan batal tanpa biaya (belum ada resto yang dibeli).
+  bool _canCancelShoppingOrderForStop(
+    DriverOrderModel order,
+    DriverShoppingStopModel? stop,
+  ) {
+    return order.shoppingCapabilities.canDriverCancelShoppingOrder &&
+        stop != null &&
+        (stop.isFailed || stop.isAbandoned);
   }
 
   bool _isProblemOrderAction(DriverOrderActionModel action) {
@@ -731,17 +746,35 @@ class _DriverActiveOrderScreenState
     required DriverActiveOrderPoint activePoint,
     required DriverShoppingStopModel? selectedStop,
   }) async {
-    final problemActions = selectedPoint.id == activePoint.id
+    // Semua toko/resto sudah terminal & fee 50% menunggu: satu-satunya aksi yang
+    // relevan adalah "Batalkan Order dengan Fee 50%". Sempitkan menu ke situ.
+    final capabilities = order.shoppingCapabilities;
+    final feeOnlyMode =
+        capabilities.allMerchantsTerminal &&
+        capabilities.awaitsDriverCancellationFeeReview;
+
+    final allProblemActions = selectedPoint.id == activePoint.id
         ? order.availableActions
               .where(_isProblemOrderAction)
               .toList(growable: false)
         : const <DriverOrderActionModel>[];
+    final problemActions = feeOnlyMode
+        ? allProblemActions
+              .where(
+                (action) =>
+                    action.actionCode.trim().toUpperCase() == 'CANCEL_WITH_FEE',
+              )
+              .toList(growable: false)
+        : allProblemActions;
     final canCloseMerchant =
+        !feeOnlyMode &&
         selectedStop != null &&
         DriverActiveOrderPointPresenter.canStartPendingMerchant(
           order,
           selectedStop,
         );
+    final canCancelNoFee =
+        !feeOnlyMode && _canCancelShoppingOrderForStop(order, selectedStop);
 
     final choice = await showModalBottomSheet<String>(
       context: context,
@@ -783,6 +816,17 @@ class _DriverActiveOrderScreenState
                 subtitle: const Text('Foto dan validasi lokasi tetap berlaku.'),
                 onTap: () => Navigator.of(sheetContext).pop('merchant_closed'),
               ),
+            if (canCancelNoFee)
+              ListTile(
+                minTileHeight: 52,
+                leading: const Icon(Icons.close_rounded, color: AppColors.error),
+                title: const Text('Batalkan pesanan'),
+                subtitle: const Text(
+                  'Batalkan seluruh pesanan Nitip tanpa biaya.',
+                ),
+                onTap: () =>
+                    Navigator.of(sheetContext).pop('cancel_shopping_order'),
+              ),
             ...problemActions.map(
               (action) => ListTile(
                 minTileHeight: 52,
@@ -813,6 +857,10 @@ class _DriverActiveOrderScreenState
       await _shoppingCardKey.currentState?.showMerchantClosedFlow(
         selectedStop.pickupLocationId,
       );
+      return;
+    }
+    if (choice == 'cancel_shopping_order') {
+      await _shoppingCardKey.currentState?.showCancelShoppingOrderFlow();
       return;
     }
     if (choice.startsWith('action:')) {

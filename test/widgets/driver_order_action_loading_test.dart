@@ -1760,9 +1760,11 @@ void main() {
     },
   );
 
-  testWidgets('stranded failed stop offers driver a full order cancellation', (
+  testWidgets('driver can cancel shopping order from the problem flow', (
     tester,
   ) async {
+    // Tombol "Batalkan pesanan" (no-fee) kini di menu segitiga danger (screen);
+    // kartu mengekspos alurnya lewat showCancelShoppingOrderFlow().
     var cancelCalls = 0;
 
     await _pumpShoppingItemsCard(
@@ -1795,23 +1797,31 @@ void main() {
       },
     );
 
-    expect(find.text('Batalkan pesanan'), findsOneWidget);
-
-    await tester.tap(
+    // Tak ada tombol batal di kartu.
+    expect(
       find.byKey(const ValueKey('driver-shopping-action-cancel-order-7')),
+      findsNothing,
     );
+
+    final dynamic cardState = tester.state(
+      find.byType(DriverShoppingItemsCard),
+    );
+    cardState.showCancelShoppingOrderFlow();
     await tester.pumpAndSettle();
 
     // Konfirmasi wajib: sekali tekan tidak langsung membatalkan.
+    expect(find.text('Batalkan pesanan Nitip?'), findsOneWidget);
     expect(cancelCalls, 0);
     await tester.tap(find.widgetWithText(FilledButton, 'Batalkan pesanan'));
     await tester.pumpAndSettle();
     expect(cancelCalls, 1);
   });
 
-  testWidgets('driver cancellation stays hidden once a store is purchased', (
+  testWidgets('stop card no longer renders the order-cancel button', (
     tester,
   ) async {
+    // Batalkan pesanan dipindah ke menu segitiga danger: kartu tak lagi
+    // menampilkannya walau backend mengizinkan batal (no-fee) pada stop tutup.
     await _pumpShoppingItemsCard(
       tester,
       order: _order(
@@ -1819,7 +1829,7 @@ void main() {
         statusCode: OrderStatusCodes.arrivedMerchant,
         shoppingCapabilities: const ShoppingOrderCapabilitiesModel(
           isExplicit: true,
-          canDriverCancelShoppingOrder: false,
+          canDriverCancelShoppingOrder: true,
         ),
         shoppingStops: const [
           DriverShoppingStopModel(
@@ -1842,82 +1852,6 @@ void main() {
     expect(
       find.byKey(const ValueKey('driver-shopping-action-cancel-order-7')),
       findsNothing,
-    );
-  });
-
-  testWidgets('driver cancellation stays hidden while stop is still pending', (
-    tester,
-  ) async {
-    // Stop belum dikunjungi ("Tujuan berikutnya"): opsi batal tidak boleh muncul
-    // sebelum driver menandai "Tempat tutup".
-    await _pumpShoppingItemsCard(
-      tester,
-      order: _order(
-        serviceTypeCode: ServiceTypeCodes.shopping,
-        statusCode: OrderStatusCodes.arrivedMerchant,
-        shoppingCapabilities: const ShoppingOrderCapabilitiesModel(
-          isExplicit: true,
-          canDriverCancelShoppingOrder: true,
-        ),
-        shoppingStops: const [
-          DriverShoppingStopModel(
-            pickupLocationId: 7,
-            sequenceNo: 1,
-            fulfillmentStatus: 'PENDING',
-            merchant: DriverShoppingMerchantModel(
-              id: 1,
-              name: 'Gecok JOGO ROSO TLOGO',
-              merchantType: 'restaurant',
-              address: 'Jl. Raya Tuntang-Beringin',
-            ),
-            items: [],
-          ),
-        ],
-      ),
-    );
-
-    expect(find.text('Batalkan pesanan'), findsNothing);
-    expect(
-      find.byKey(const ValueKey('driver-shopping-action-cancel-order-7')),
-      findsNothing,
-    );
-  });
-
-  testWidgets('driver cancellation appears once attempt limit is reached', (
-    tester,
-  ) async {
-    // Batas percobaan tercapai (ABANDONED) juga dianggap tutup: opsi batal boleh
-    // muncul selama belum ada resto yang dibeli.
-    await _pumpShoppingItemsCard(
-      tester,
-      order: _order(
-        serviceTypeCode: ServiceTypeCodes.shopping,
-        statusCode: OrderStatusCodes.arrivedMerchant,
-        shoppingCapabilities: const ShoppingOrderCapabilitiesModel(
-          isExplicit: true,
-          canDriverCancelShoppingOrder: true,
-        ),
-        shoppingStops: const [
-          DriverShoppingStopModel(
-            pickupLocationId: 7,
-            sequenceNo: 1,
-            fulfillmentStatus: 'ABANDONED_AFTER_LIMIT',
-            merchant: DriverShoppingMerchantModel(
-              id: 1,
-              name: 'Gecok JOGO ROSO TLOGO',
-              merchantType: 'restaurant',
-              address: 'Jl. Raya Tuntang-Beringin',
-            ),
-            items: [],
-          ),
-        ],
-      ),
-    );
-
-    expect(find.text('Batalkan pesanan'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('driver-shopping-action-cancel-order-7')),
-      findsOneWidget,
     );
   });
 }

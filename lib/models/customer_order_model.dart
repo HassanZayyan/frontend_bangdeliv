@@ -589,6 +589,7 @@ class CustomerOrderDetailModel {
   final ShoppingNegotiationModel? shoppingNegotiation;
   final ShoppingOrderCapabilitiesModel shoppingCapabilities;
   final ShoppingItemChangeRequestModel? shoppingItemChangeRequest;
+  final ShoppingCancellationFeeModel? shoppingCancellationFee;
 
   const CustomerOrderDetailModel({
     required this.summary,
@@ -629,6 +630,7 @@ class CustomerOrderDetailModel {
     this.shoppingNegotiation,
     this.shoppingCapabilities = const ShoppingOrderCapabilitiesModel(),
     this.shoppingItemChangeRequest,
+    this.shoppingCancellationFee,
   }) : route = route ?? shoppingRoute;
 
   OrderRouteModel? get shoppingRoute => route;
@@ -748,6 +750,22 @@ class CustomerOrderDetailModel {
         shoppingCapabilities.awaitsDriverCancellationFeeReview;
   }
 
+  /// Nominal fee pembatalan 50% untuk ditampilkan ke customer. Saat masih
+  /// menunggu konfirmasi driver ([awaitsDriverCancellationFeeReview]) ini adalah
+  /// ESTIMASI; setelah dikonfirmasi nilainya final. Fallback ke 50% dari ongkir
+  /// aktif terakhir bila field backend belum tersedia.
+  double? get cancellationFeeAmount {
+    final fee = shoppingCancellationFee;
+    if (fee != null && fee.estimatedAmount > 0) {
+      return fee.estimatedAmount;
+    }
+    final deliveryFee = shoppingPricing?.deliveryFee ?? 0;
+    if (deliveryFee > 0) {
+      return deliveryFee * 0.5;
+    }
+    return null;
+  }
+
   /// Nomor tampilan tempat yang STABIL (mengikuti urutan pembuatan/pickup id),
   /// dipakai bersama oleh tab "Tempat N" dan badge angka di kartu agar tidak
   /// tertukar dengan `sequence_no` yang berubah saat rute dioptimasi ulang.
@@ -803,6 +821,7 @@ class CustomerOrderDetailModel {
     ShoppingNegotiationModel? shoppingNegotiation,
     ShoppingOrderCapabilitiesModel? shoppingCapabilities,
     ShoppingItemChangeRequestModel? shoppingItemChangeRequest,
+    ShoppingCancellationFeeModel? shoppingCancellationFee,
     bool clearDriverEta = false,
   }) {
     return CustomerOrderDetailModel(
@@ -848,6 +867,8 @@ class CustomerOrderDetailModel {
       shoppingCapabilities: shoppingCapabilities ?? this.shoppingCapabilities,
       shoppingItemChangeRequest:
           shoppingItemChangeRequest ?? this.shoppingItemChangeRequest,
+      shoppingCancellationFee:
+          shoppingCancellationFee ?? this.shoppingCancellationFee,
     );
   }
 
@@ -1109,6 +1130,9 @@ class CustomerOrderDetailModel {
       shoppingItemChangeRequest: ShoppingItemChangeRequestModel.fromRaw(
         json['shopping_item_change_request'] ??
             json['shoppingItemChangeRequest'],
+      ),
+      shoppingCancellationFee: ShoppingCancellationFeeModel.fromRaw(
+        json['shopping_cancellation_fee'] ?? json['shoppingCancellationFee'],
       ),
     );
   }
@@ -1540,6 +1564,49 @@ class CustomerShoppingMerchantModel {
       address: json['address']?.toString(),
       latitude: CustomerOrderDetailModel._asNullableDouble(json['latitude']),
       longitude: CustomerOrderDetailModel._asNullableDouble(json['longitude']),
+    );
+  }
+}
+
+/// Fee pembatalan Nitip (fee 50%) dari backend. Saat [isConfirmed] false,
+/// [estimatedAmount] adalah ESTIMASI pra-konfirmasi (ditampilkan tanpa QRIS);
+/// saat true nominalnya final dan siap dibayar via QRIS.
+class ShoppingCancellationFeeModel {
+  const ShoppingCancellationFeeModel({
+    required this.isEligible,
+    required this.isConfirmed,
+    required this.requiresQris,
+    required this.percent,
+    required this.baseDeliveryFee,
+    required this.estimatedAmount,
+  });
+
+  final bool isEligible;
+  final bool isConfirmed;
+  final bool requiresQris;
+  final double percent;
+  final double baseDeliveryFee;
+  final double estimatedAmount;
+
+  static ShoppingCancellationFeeModel? fromRaw(Object? raw) {
+    if (raw is! Map) {
+      return null;
+    }
+
+    double toDouble(Object? value) {
+      if (value is num) {
+        return value.toDouble();
+      }
+      return double.tryParse(value?.toString() ?? '') ?? 0.0;
+    }
+
+    return ShoppingCancellationFeeModel(
+      isEligible: raw['is_eligible'] == true,
+      isConfirmed: raw['is_confirmed'] == true,
+      requiresQris: raw['requires_qris'] == true,
+      percent: toDouble(raw['percent']),
+      baseDeliveryFee: toDouble(raw['base_delivery_fee']),
+      estimatedAmount: toDouble(raw['estimated_amount']),
     );
   }
 }

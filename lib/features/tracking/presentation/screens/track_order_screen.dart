@@ -639,7 +639,11 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                                   _buildProofsCard(context, detail.proofs),
                                   const SizedBox(height: 12),
                                 ],
-                                if (!_showSelectedShoppingPlace(detail))
+                                if (!_showSelectedShoppingPlace(detail)) ...[
+                                  ..._cancellationFeeEstimateSection(
+                                    context,
+                                    detail,
+                                  ),
                                   ..._paymentCardSection(
                                     context,
                                     ref,
@@ -647,6 +651,7 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                                     detail,
                                     onRefresh,
                                   ),
+                                ],
                                 if (_showShoppingSummary(detail) &&
                                     TrackOrderPresenter.canCustomerCancelOrder(
                                       order,
@@ -768,8 +773,10 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                 _buildProofsCard(context, detail.proofs),
                 const SizedBox(height: 12),
               ],
-              if (!_showSelectedShoppingPlace(detail))
+              if (!_showSelectedShoppingPlace(detail)) ...[
+                ..._cancellationFeeEstimateSection(context, detail),
                 ..._paymentCardSection(context, ref, order, detail, onRefresh),
+              ],
               if (_showShoppingSummary(detail) &&
                   TrackOrderPresenter.canCustomerCancelOrder(order)) ...[
                 _buildCustomerCancelOrderAction(order),
@@ -856,8 +863,10 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
                 _buildProofsCard(context, detail.proofs),
                 const SizedBox(height: 12),
               ],
-              if (!_showSelectedShoppingPlace(detail))
+              if (!_showSelectedShoppingPlace(detail)) ...[
+                ..._cancellationFeeEstimateSection(context, detail),
                 ..._paymentCardSection(context, ref, order, detail, onRefresh),
+              ],
               if (_showShoppingSummary(detail) &&
                   TrackOrderPresenter.canCustomerCancelOrder(order))
                 _buildCustomerCancelOrderAction(order),
@@ -2156,6 +2165,55 @@ class _TrackOrderScreenState extends ConsumerState<TrackOrderScreen> {
 
     return <Widget>[
       _buildPaymentCard(context, ref, order, detail, onRefresh),
+      const SizedBox(height: 12),
+    ];
+  }
+
+  /// Kartu estimasi fee pembatalan (fee 50%) SEBELUM driver mengonfirmasi.
+  /// Menampilkan angka estimasi TANPA QRIS + notice "menunggu konfirmasi driver"
+  /// dengan urutan benar (angka dulu, baru notice). Setelah driver konfirmasi,
+  /// `awaitsDriverCancellationFeeReview` menjadi false dan kartu Pembayaran/QRIS
+  /// yang menggantikannya.
+  List<Widget> _cancellationFeeEstimateSection(
+    BuildContext context,
+    CustomerOrderDetailModel detail,
+  ) {
+    if (!detail.awaitsDriverCancellationFeeReview) {
+      return const <Widget>[];
+    }
+
+    final estimate = detail.cancellationFeeAmount;
+    return <Widget>[
+      _buildCard(
+        title: 'Estimasi fee pembatalan',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _summaryRow(
+              TrackInfoRow(
+                'Perkiraan fee (50%)',
+                estimate != null ? formatCurrency(estimate) : '—',
+                emphasized: true,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Semua toko/resto gagal dikunjungi. Kamu hanya ditagih 50% dari '
+              'ongkir aktif terakhir sebagai fee pembatalan.',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 10),
+            _buildTrackingInfoBanner(
+              'Driver sedang menghitung biaya pembatalan. Tunggu konfirmasi driver.',
+            ),
+          ],
+        ),
+      ),
       const SizedBox(height: 12),
     ];
   }

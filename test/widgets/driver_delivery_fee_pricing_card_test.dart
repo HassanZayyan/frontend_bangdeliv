@@ -90,7 +90,11 @@ void main() {
       find.byKey(const ValueKey('confirm-shopping-cancellation-fee')),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Alasan koreksi ongkir wajib diisi.'), findsOneWidget);
+    // Ongkir diubah (120.000 != default 100.000) -> alasan menjadi wajib.
+    expect(
+      find.text('Alasan koreksi wajib diisi saat ongkir diubah.'),
+      findsOneWidget,
+    );
     expect(result, isNull);
 
     await tester.enterText(
@@ -106,6 +110,66 @@ void main() {
     expect(result?.reason, 'Rute aktual lebih jauh dari estimasi.');
     expect(find.text('Batalkan Order dengan Fee 50%'), findsNothing);
   });
+
+  testWidgets(
+    'shopping cancellation without editing ongkir skips reason and base',
+    (tester) async {
+      addTearDown(tester.view.resetViewInsets);
+      DriverShoppingCancellationInput? result;
+      final order = _order(
+        serviceTypeCode: ServiceTypeCodes.shopping,
+        deliveryFee: 80000,
+        shoppingPricing: const DriverShoppingPricingModel(
+          subtotal: 0,
+          deliveryFee: 80000,
+          serviceFee: 0,
+          totalPrice: 80000,
+          cancellationPenalty: 40000,
+          cancellationPenaltyBaseDeliveryFee: 100000,
+          cancellationPenaltyPercent: 50,
+          recalculationVersion: 1,
+          hasPendingManualPrices: false,
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: FilledButton(
+                onPressed: () async {
+                  result = await showDriverShoppingCancelWithFeeDialog(
+                    context,
+                    order: order,
+                  );
+                },
+                child: const Text('Buka dialog'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Buka dialog'));
+      await tester.pumpAndSettle();
+
+      // Ongkir dibiarkan default (100.000). Submit tanpa alasan harus lolos.
+      await tester.tap(
+        find.byKey(const ValueKey('confirm-shopping-cancellation-fee')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Alasan koreksi wajib diisi saat ongkir diubah.'),
+        findsNothing,
+      );
+      // Base tak dikirim (null) supaya backend memakai estimasi otomatis.
+      expect(result, isNotNull);
+      expect(result?.baseDeliveryFee, isNull);
+      expect(result?.reason, '');
+      expect(find.text('Batalkan Order dengan Fee 50%'), findsNothing);
+    },
+  );
 
   testWidgets('manual delivery fee edit requires reason before submit', (
     tester,

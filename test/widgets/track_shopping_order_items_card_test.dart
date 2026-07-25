@@ -239,12 +239,12 @@ void main() {
     expect(tester.getTopLeft(ganti).dx, lessThan(tester.getTopLeft(batal).dx));
   });
 
-  testWidgets('pending driver fee review replaces cancel with a wait notice', (
+  testWidgets('pending driver fee review hides cancel in the stop card', (
     tester,
   ) async {
-    // Semua toko gagal: fee 50% menunggu driver mengonfirmasi (dan boleh
-    // mengoreksi ongkirnya), jadi customer diberi tahu alih-alih dibiarkan
-    // menatap tombol yang hilang.
+    // Semua toko gagal: fee 50% menunggu driver. Kartu stop tidak menampilkan
+    // tombol batal; angka estimasi + notice "menunggu konfirmasi driver" kini
+    // pindah ke kartu "Estimasi fee pembatalan" di Ringkasan (bukan di sini).
     const failedStop = CustomerShoppingStopModel(
       pickupLocationId: 90,
       sequenceNo: 1,
@@ -277,9 +277,10 @@ void main() {
     );
 
     expect(find.text('Batalkan pesanan'), findsNothing);
+    // Notice dipindah ke Ringkasan -> tidak lagi ada di kartu stop.
     expect(
       find.textContaining('Driver sedang menghitung biaya pembatalan'),
-      findsOneWidget,
+      findsNothing,
     );
   });
 
